@@ -230,6 +230,14 @@ const ExperiencesPage = () => {
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
 
+  const ratingLabels = {
+    excellent: "😍 ممتازة ومثرية جدًا",
+    nice: "😊 لطيفة وخفيفة",
+    enriching: "💡 مثرية وتعلمت منها كثير",
+    challenging: "🤔 متوسطة وفيها تحديات",
+    notgood: "😕 غير مرضية",
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -577,6 +585,56 @@ const ExperiencesPage = () => {
 
           <StarRating value={exp.starRating || 0} />
         </div>
+
+        {Array.isArray(exp.ratings) && exp.ratings.length > 0 && (
+          <div
+            style={{
+              background: "#151820",
+              border: "1px solid rgba(255,255,255,0.07)",
+              borderRadius: "14px",
+              padding: "16px",
+              textAlign: "center",
+              marginBottom: "14px",
+            }}
+          >
+            <div
+              style={{
+                color: "#00bcd4",
+                fontSize: "13px",
+                fontWeight: "bold",
+                marginBottom: "10px",
+              }}
+            >
+              ✨ وصف سريع للتجربة
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              {exp.ratings.map((rating) => (
+                <span
+                  key={rating}
+                  style={{
+                    background: "rgba(0,188,212,0.09)",
+                    border: "1px solid rgba(0,188,212,0.22)",
+                    color: "#e5e7eb",
+                    borderRadius: "999px",
+                    padding: "7px 10px",
+                    fontSize: "12px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {ratingLabels[rating] || rating}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div
           style={{

@@ -24,6 +24,14 @@ const experienceSchema = new mongoose.Schema(
       min: 1,
       max: 5,
     },
+    ratings: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (value) => value.length <= 2,
+        message: "يمكن اختيار تقييمين كحد أقصى",
+      },
+    },
 
 
     description: {
