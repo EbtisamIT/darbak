@@ -1068,6 +1068,7 @@ const ExperiencesPage = () => {
                     style={{
                       display: "grid",
                       gap: "8px",
+                      gridTemplateRows: "repeat(2, 52px)",
                     }}
                   >
                     <div
@@ -1077,6 +1078,12 @@ const ExperiencesPage = () => {
                         borderRadius: "12px",
                         padding: "8px",
                         border: "1px solid rgba(255,255,255,0.05)",
+                        height: "52px",
+                        boxSizing: "border-box",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                        overflow: "hidden",
                       }}
                     >
                       <p
@@ -1113,6 +1120,12 @@ const ExperiencesPage = () => {
                         borderRadius: "12px",
                         padding: "8px",
                         border: "1px solid rgba(255,255,255,0.05)",
+                        height: "52px",
+                        boxSizing: "border-box",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                        overflow: "hidden",
                       }}
                     >
                       <p
@@ -1450,12 +1463,14 @@ const ExperiencesPage = () => {
 
           .experience-card-info {
             gap: 4px !important;
+            grid-template-rows: repeat(2, 34px) !important;
           }
 
           .experience-info-box {
             border-radius: 7px !important;
             padding: 4px !important;
-            min-height: 32px;
+            height: 34px !important;
+            min-height: 34px;
           }
 
           .experience-info-box p:first-child {
