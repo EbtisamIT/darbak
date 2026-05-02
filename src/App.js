@@ -38,7 +38,7 @@ function App() {
             color: "#00A651",
             textAlign: "center",
             padding: "5px 10px 2px",
-            fontSize: "16px",
+            fontSize: "30px",
             fontWeight: "800",
             letterSpacing: 0,
             lineHeight: 1.4,
