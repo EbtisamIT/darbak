@@ -1011,7 +1011,7 @@ const ExperiencesPage = () => {
                   border: "1px solid rgba(255,255,255,0.07)",
                   cursor: "pointer",
                   textAlign: "center",
-                  minHeight: "178px",
+                  height: "228px",
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "space-between",
@@ -1038,10 +1038,11 @@ const ExperiencesPage = () => {
                     className="experience-title-box"
                     style={{
                       marginBottom: "10px",
-                      minHeight: "40px",
+                      height: "46px",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
+                      overflow: "hidden",
                     }}
                   >
                     <h3
@@ -1051,6 +1052,11 @@ const ExperiencesPage = () => {
                         margin: 0,
                         lineHeight: "1.45",
                         fontWeight: "800",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        overflowWrap: "anywhere",
                       }}
                     >
                       {exp.title}
@@ -1088,8 +1094,12 @@ const ExperiencesPage = () => {
                           fontSize: "12px",
                           color: "#e5e7eb",
                           margin: 0,
-                          fontWeight:"bold"
-
+                          fontWeight: "bold",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          overflowWrap: "anywhere",
                         }}
                       >
                         {exp.organizationName}
@@ -1120,7 +1130,12 @@ const ExperiencesPage = () => {
                           fontSize: "12px",
                           color: "#e5e7eb",
                           margin: 0,
-                          fontWeight:"bold"
+                          fontWeight:"bold",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          overflowWrap: "anywhere"
                         }}
                       >
                         {exp.major}
@@ -1414,14 +1429,16 @@ const ExperiencesPage = () => {
           }
 
           .experience-card {
-            min-height: 128px !important;
+            height: 146px !important;
+            min-height: 146px !important;
             border-radius: 12px !important;
             padding: 7px !important;
             box-shadow: 0 6px 14px rgba(0,0,0,0.2) !important;
           }
 
           .experience-title-box {
-            min-height: 24px !important;
+            height: 32px !important;
+            min-height: 32px !important;
             padding: 0 !important;
             margin-bottom: 5px !important;
           }
@@ -1438,6 +1455,7 @@ const ExperiencesPage = () => {
           .experience-info-box {
             border-radius: 7px !important;
             padding: 4px !important;
+            min-height: 32px;
           }
 
           .experience-info-box p:first-child {
@@ -1478,7 +1496,8 @@ const ExperiencesPage = () => {
           }
 
           .experience-card {
-            min-height: 122px !important;
+            height: 138px !important;
+            min-height: 138px !important;
           }
         }
       `}</style>
