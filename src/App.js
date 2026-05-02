@@ -31,6 +31,19 @@ function App() {
   return (
     <Router>
       <div style={appStyle}>
+        <div
+          style={{
+            backgroundColor: "#006C35",
+            color: "#fff",
+            textAlign: "center",
+            padding: "7px 12px",
+            fontSize: "13px",
+            fontWeight: "700",
+            letterSpacing: 0,
+          }}
+        >
+          صُنع بأيادٍ سعودية للشعب السعودي
+        </div>
         <Navbar />
 
       
