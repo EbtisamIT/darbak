@@ -12,13 +12,10 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// ===== MongoDB Connection (اتصال واحد فقط) =====
+// ===== MongoDB Connection =====
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
   })
   .catch(err => {
     console.log("❌ MongoDB connection failed:", err);
@@ -46,6 +43,10 @@ app.get('/api/health', (req, res) => {
 // إنشاء تجربة
 app.post('/api/experiences', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
     const newExp = new Experience(req.body);
     await newExp.save();
     res.json(newExp);
@@ -58,6 +59,10 @@ app.post('/api/experiences', async (req, res) => {
 // جلب التجارب
 app.get('/api/experiences', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
     const experiences = await Experience.find().sort({ createdAt: -1 });
 
     console.log("✅ Data fetched:", experiences.length);
@@ -67,4 +72,8 @@ app.get('/api/experiences', async (req, res) => {
     console.error("❌ FULL ERROR:", err);
     res.status(500).json({ error: err.message });
   }
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
