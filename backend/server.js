@@ -35,6 +35,14 @@ mongoose.connection.on("error", (err) => {
 
 // ===== Routes =====
 
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', service: 'darbak-api' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', database: mongoose.connection.readyState === 1 });
+});
+
 // إنشاء تجربة
 app.post('/api/experiences', async (req, res) => {
   try {

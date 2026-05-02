@@ -113,13 +113,18 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     try {
       setLoading(true);
       const res = await axios.post(`${API_BASE_URL}/api/experiences`, payload);
+
+      if (!res.data || typeof res.data !== "object" || !res.data._id) {
+        throw new Error("Unexpected API response");
+      }
+
       setLoading(false);
       if (onSaved) onSaved(res.data);
       setStep(totalSteps); // شاشة النجاح
     } catch (err) {
       console.error("Error saving experience:", err);
       setLoading(false);
-      setError("حدث خطأ أثناء الحفظ. الرجاء المحاولة لاحقًا.");
+      setError("حدث خطأ أثناء الحفظ. تأكدي من اتصال خدمة API ثم حاولي مرة أخرى.");
     }
   };
 

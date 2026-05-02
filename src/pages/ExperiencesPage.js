@@ -206,6 +206,7 @@ const ExperiencesPage = () => {
   const [majorsMenuOpen, setMajorsMenuOpen] = useState(false);
   const [companySearch, setCompanySearch] = useState("");
   const [sortOption, setSortOption] = useState("latest");
+  const [fetchError, setFetchError] = useState("");
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
 
@@ -214,12 +215,18 @@ const ExperiencesPage = () => {
       try {
         const { data } = await axios.get(`${API_BASE_URL}/api/experiences`);
 
+        if (!Array.isArray(data)) {
+          throw new Error("Unexpected API response");
+        }
+
         const sorted = data.sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         );
         setExperiences(sorted);
+        setFetchError("");
       } catch (err) {
         console.error(err);
+        setFetchError("تعذر تحميل التجارب حاليًا. تأكدي من اتصال خدمة API.");
       } finally {
         setLoading(false);
       }
@@ -925,6 +932,24 @@ const ExperiencesPage = () => {
         )}
 
         {/* ================= Cards ================= */}
+        {fetchError && (
+          <div
+            style={{
+              textAlign: "center",
+              margin: "0 auto 18px",
+              padding: "12px",
+              borderRadius: "14px",
+              background: "rgba(244,63,94,0.08)",
+              border: "1px solid rgba(244,63,94,0.25)",
+              color: "#fecdd3",
+              maxWidth: "620px",
+              lineHeight: 1.7,
+            }}
+          >
+            {fetchError}
+          </div>
+        )}
+
         {loading ? (
           <div
             style={{
