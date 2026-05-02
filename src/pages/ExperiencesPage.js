@@ -180,8 +180,15 @@ const MAJOR_SEARCH_ALIASES = {
     "علوم حاسب",
   ],
   الطب: ["صحه", "صحة", "health", "medical", "medicine", "تمريض", "صيدله"],
+  الإدارة: ["اداره", "ادارة", "management", "admin", "administration"],
+  "الموارد البشرية": ["موارد", "موارد بشرية", "hr", "human resources", "توظيف", "شؤون موظفين"],
+  المالية: ["finance", "مالي", "ماليه", "استثمار", "investment", "بنوك", "banking"],
+  المحاسبة: ["محاسبه", "accounting", "accountant", "audit", "مراجعه", "مراجعة"],
   التسويق: ["marketing", "اعلان", "إعلان", "مبيعات", "sales", "تسويق رقمي"],
+  "إدارة الأعمال": ["ادارة اعمال", "اداره اعمال", "business", "business administration", "mba"],
+  الاقتصاد: ["economics", "اقتصاد", "تحليل اقتصادي", "economic"],
   "قانون ومحاماة": ["قانون", "محاماه", "محاماة", "law", "legal", "حقوق"],
+  التصميم: ["design", "graphic", "ui", "ux", "تصميم جرافيك", "واجهات", "تجربة مستخدم"],
   "اللغة العربية": ["عربي", "arabic", "لغه عربيه", "لغة عربية"],
   "اللغة الإنجليزية": ["انجليزي", "انجليزيه", "english", "translation", "ترجمه"],
   "الشريعة والدين": ["شريعه", "دين", "اسلام", "islamic"],
@@ -195,6 +202,7 @@ const MAJOR_SEARCH_ALIASES = {
     "journalism",
     "علاقات عامه",
   ],
+  "العلاقات العامة": ["علاقات", "علاقات عامه", "public relations", "pr", "اتصال مؤسسي"],
 };
 
 const ExperiencesPage = () => {
@@ -1034,9 +1042,10 @@ const ExperiencesPage = () => {
                     <h3
                       style={{
                         color: "#00bcd4",
-                        fontSize: "14px",
+                        fontSize: "16px",
                         margin: 0,
                         lineHeight: "1.45",
+                        fontWeight: "800",
                       }}
                     >
                       {exp.title}
@@ -1383,8 +1392,8 @@ const ExperiencesPage = () => {
           }
 
           .experience-title-box h3 {
-            font-size: 9px !important;
-            line-height: 1.35 !important;
+            font-size: 11px !important;
+            line-height: 1.4 !important;
           }
 
           .experience-card-info {

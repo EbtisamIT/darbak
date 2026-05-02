@@ -6,19 +6,35 @@ import {
   BsBook,
   BsTranslate,
   BsGear,
-  BsNewspaper
+  BsNewspaper,
+  BsPeople,
+  BsCashCoin,
+  BsCalculator,
+  BsPalette,
+  BsGraphUpArrow,
+  BsBuilding,
+  BsClipboardData,
+  BsGlobe2,
 } from "react-icons/bs";
 
 const majors = [
   { name: "الحاسب", icon: BsLaptop },
   { name: "الطب", icon: BsHeartPulse },
+  { name: "الإدارة", icon: BsClipboardData },
+  { name: "الموارد البشرية", icon: BsPeople },
+  { name: "المالية", icon: BsCashCoin },
+  { name: "المحاسبة", icon: BsCalculator },
   { name: "التسويق", icon: BsMegaphone },
+  { name: "إدارة الأعمال", icon: BsBuilding },
+  { name: "الاقتصاد", icon: BsGraphUpArrow },
   { name: "قانون ومحاماة", icon: BsBriefcase },
+  { name: "التصميم", icon: BsPalette },
   { name: "اللغة العربية", icon: BsBook },
   { name: "اللغة الإنجليزية", icon: BsTranslate },
   { name: "الشريعة والدين", icon: BsBook },
   { name: "الهندسة", icon: BsGear },
   { name: "الصحافة والإعلام", icon: BsNewspaper },
+  { name: "العلاقات العامة", icon: BsGlobe2 },
 ];
 
 export default majors;
