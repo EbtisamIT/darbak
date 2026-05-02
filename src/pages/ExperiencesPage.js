@@ -1433,63 +1433,63 @@ const ExperiencesPage = () => {
           }
 
           .experience-cards-grid {
-            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-            gap: 8px !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
           }
 
           .experience-card {
-            height: 150px !important;
-            min-height: 150px !important;
-            border-radius: 12px !important;
-            padding: 7px !important;
+            height: 190px !important;
+            min-height: 190px !important;
+            border-radius: 14px !important;
+            padding: 9px !important;
             box-shadow: 0 6px 14px rgba(0,0,0,0.2) !important;
           }
 
           .experience-title-box {
-            height: 32px !important;
-            min-height: 32px !important;
+            height: 40px !important;
+            min-height: 40px !important;
             padding: 0 !important;
-            margin-bottom: 5px !important;
+            margin-bottom: 7px !important;
           }
 
           .experience-title-box h3 {
-            font-size: 11px !important;
+            font-size: 12px !important;
             line-height: 1.4 !important;
           }
 
           .experience-card-info {
-            gap: 4px !important;
-            grid-template-rows: repeat(2, 30px) !important;
+            gap: 6px !important;
+            grid-template-rows: repeat(2, 38px) !important;
           }
 
           .experience-info-box {
-            border-radius: 7px !important;
-            padding: 4px !important;
-            height: 30px !important;
-            min-height: 30px;
+            border-radius: 9px !important;
+            padding: 6px !important;
+            height: 38px !important;
+            min-height: 38px;
             border-right-width: 1px !important;
           }
 
           .experience-info-box p:first-child {
-            font-size: 8px !important;
+            font-size: 9px !important;
             margin-bottom: 2px !important;
           }
 
           .experience-info-box p:last-child {
-            font-size: 8px !important;
-            line-height: 1.25 !important;
+            font-size: 9px !important;
+            line-height: 1.3 !important;
             overflow-wrap: anywhere;
           }
 
           .experience-card button {
-            padding: 4px !important;
-            font-size: 8px !important;
-            border-radius: 7px !important;
-            margin-top: 2px !important;
+            padding: 6px !important;
+            font-size: 10px !important;
+            border-radius: 9px !important;
+            margin-top: 3px !important;
           }
 
           .experience-card span {
-            font-size: 10px !important;
+            font-size: 12px !important;
           }
 
           .experience-modal {
@@ -1503,13 +1503,13 @@ const ExperiencesPage = () => {
 
         @media (max-width: 430px) {
           .experience-cards-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 7px !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 9px !important;
           }
 
           .experience-card {
-            height: 144px !important;
-            min-height: 144px !important;
+            height: 184px !important;
+            min-height: 184px !important;
           }
         }
       `}</style>
