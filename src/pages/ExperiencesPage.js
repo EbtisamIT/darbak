@@ -1011,7 +1011,7 @@ const ExperiencesPage = () => {
                   border: "1px solid rgba(255,255,255,0.07)",
                   cursor: "pointer",
                   textAlign: "center",
-                  height: "228px",
+                  height: "214px",
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "space-between",
@@ -1067,23 +1067,28 @@ const ExperiencesPage = () => {
                     className="experience-card-info"
                     style={{
                       display: "grid",
-                      gap: "8px",
+                      gap: "7px",
+                      gridTemplateRows: "repeat(2, 42px)",
                     }}
                   >
                     <div
                       className="experience-info-box"
                       style={{
-                        background: "#14161c",
-                        borderRadius: "12px",
-                        padding: "8px",
-                        border: "1px solid rgba(255,255,255,0.05)",
+                        background: "rgba(255,255,255,0.035)",
+                        borderRadius: "10px",
+                        padding: "7px 8px",
+                        border: "1px solid rgba(255,255,255,0.045)",
+                        borderRight: "2px solid rgba(0,188,212,0.45)",
+                        height: "42px",
+                        boxSizing: "border-box",
+                        overflow: "hidden",
                       }}
                     >
                       <p
                         style={{
                           color: "#00bcd4",
-                          fontSize: "11px",
-                          margin: "0 0 4px",
+                          fontSize: "10px",
+                          margin: "0 0 2px",
                           fontWeight: "bold",
                         }}
                       >
@@ -1091,7 +1096,7 @@ const ExperiencesPage = () => {
                       </p>
                       <p
                         style={{
-                          fontSize: "12px",
+                          fontSize: "11px",
                           color: "#e5e7eb",
                           margin: 0,
                           fontWeight: "bold",
@@ -1109,17 +1114,21 @@ const ExperiencesPage = () => {
                     <div
                       className="experience-info-box"
                       style={{
-                        background: "#14161c",
-                        borderRadius: "12px",
-                        padding: "8px",
-                        border: "1px solid rgba(255,255,255,0.05)",
+                        background: "rgba(255,255,255,0.035)",
+                        borderRadius: "10px",
+                        padding: "7px 8px",
+                        border: "1px solid rgba(255,255,255,0.045)",
+                        borderRight: "2px solid rgba(0,188,212,0.45)",
+                        height: "42px",
+                        boxSizing: "border-box",
+                        overflow: "hidden",
                       }}
                     >
                       <p
                         style={{
                           color: "#00bcd4",
-                          fontSize: "11px",
-                          margin: "0 0 4px",
+                          fontSize: "10px",
+                          margin: "0 0 2px",
                           fontWeight: "bold",
                         }}
                       >
@@ -1127,7 +1136,7 @@ const ExperiencesPage = () => {
                       </p>
                       <p
                         style={{
-                          fontSize: "12px",
+                          fontSize: "11px",
                           color: "#e5e7eb",
                           margin: 0,
                           fontWeight:"bold",
@@ -1429,8 +1438,8 @@ const ExperiencesPage = () => {
           }
 
           .experience-card {
-            height: 146px !important;
-            min-height: 146px !important;
+            height: 150px !important;
+            min-height: 150px !important;
             border-radius: 12px !important;
             padding: 7px !important;
             box-shadow: 0 6px 14px rgba(0,0,0,0.2) !important;
@@ -1450,12 +1459,15 @@ const ExperiencesPage = () => {
 
           .experience-card-info {
             gap: 4px !important;
+            grid-template-rows: repeat(2, 30px) !important;
           }
 
           .experience-info-box {
             border-radius: 7px !important;
             padding: 4px !important;
-            min-height: 32px;
+            height: 30px !important;
+            min-height: 30px;
+            border-right-width: 1px !important;
           }
 
           .experience-info-box p:first-child {
@@ -1465,7 +1477,7 @@ const ExperiencesPage = () => {
 
           .experience-info-box p:last-child {
             font-size: 8px !important;
-            line-height: 1.35 !important;
+            line-height: 1.25 !important;
             overflow-wrap: anywhere;
           }
 
@@ -1496,8 +1508,8 @@ const ExperiencesPage = () => {
           }
 
           .experience-card {
-            height: 138px !important;
-            min-height: 138px !important;
+            height: 144px !important;
+            min-height: 144px !important;
           }
         }
       `}</style>
