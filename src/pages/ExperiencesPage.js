@@ -722,10 +722,13 @@ const ExperiencesPage = () => {
           <div
             className="majors-grid"
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-              gap: "12px",
-              marginBottom: "30px",
+              display: "flex",
+              gap: "8px",
+              marginBottom: "18px",
+              overflowX: "auto",
+              overflowY: "hidden",
+              padding: "2px 2px 10px",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <MajorButton
@@ -1287,6 +1290,36 @@ const ExperiencesPage = () => {
 
         .major-filter-btn:hover {
           border-color: rgba(0,188,212,0.45) !important;
+        }
+
+        .majors-grid .major-filter-btn {
+          flex: 0 0 auto;
+          min-width: 132px;
+          max-width: 178px;
+          margin-inline: 0 !important;
+          border-radius: 999px !important;
+          padding: 10px 13px !important;
+          min-height: 40px;
+        }
+
+        .majors-grid .major-filter-btn svg {
+          width: 16px;
+          height: 16px;
+          flex: 0 0 auto;
+        }
+
+        .majors-grid::-webkit-scrollbar {
+          height: 6px;
+        }
+
+        .majors-grid::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.04);
+          border-radius: 999px;
+        }
+
+        .majors-grid::-webkit-scrollbar-thumb {
+          background: rgba(0,188,212,0.35);
+          border-radius: 999px;
         }
 
         .major-filter-text {
