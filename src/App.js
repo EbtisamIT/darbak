@@ -35,14 +35,13 @@ function App() {
 
         <div
           style={{
-            color: "#111827",
-            background: "rgba(255,255,255,0.94)",
+            color: "#00A651",
             textAlign: "center",
-            padding: "8px 14px",
-            fontSize: "13px",
-            fontWeight: "700",
+            padding: "5px 10px 2px",
+            fontSize: "16px",
+            fontWeight: "800",
             letterSpacing: 0,
-            borderBottom: "1px solid rgba(0,108,53,0.18)",
+            lineHeight: 1.4,
           }}
         >
           صُنع بأيادٍ سعودية للشعب السعودي
