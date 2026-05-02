@@ -20,6 +20,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [starRating, setStarRating] = useState(0); // من 1 إلى 5
+  const minDescriptionLength = 50;
+  const descriptionLength = description.trim().length;
 
   const howAppliedOptions = [
     "موقع الجهة الرسمي",
@@ -82,7 +84,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       case 3:
         return duration.trim().length > 0;
         case 4:
-          return starRating > 0 && description.trim().length > 0;
+          return starRating > 0 && descriptionLength >= minDescriptionLength;
         
       default:
         return false;
@@ -91,8 +93,13 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
   const handleSubmit = async () => {
     setError(null);
-    if (!organizationName.trim() || !city.trim() || !major.trim() || !howApplied.trim() || !duration.trim() || !description.trim() || ratings.length === 0) {
+    if (!organizationName.trim() || !city.trim() || !major.trim() || !howApplied.trim() || !duration.trim() || ratings.length === 0) {
       setError("الرجاء إكمال جميع الحقول المطلوبة.");
+      return;
+    }
+
+    if (descriptionLength < minDescriptionLength) {
+      setError(`وصف التجربة يجب ألا يقل عن ${minDescriptionLength} حرفًا.`);
       return;
     }
 
@@ -418,16 +425,16 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 >
   💡 لمساعدتنا ومساعدة غيرك:
   <ul style={{ marginTop: 6, paddingInlineStart: 18 }}>
-    <li>وش أكثر شيء تعلمته خلال التدريب؟</li>
-    <li>هل كانت المهام واضحة ومفيدة؟</li>
-    <li>هل تنصح غيرك بالتقديم؟ وليه؟</li>
+    <ul>وش أكثر شيء تعلمته خلال التدريب؟</ul>
+    <ul>هل كانت المهام واضحة ومفيدة؟</ul>
+    <ul>هل تنصح غيرك بالتقديم؟ وليه؟</ul>
   </ul>
 </div>
 
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder=" 👋اكتب تجربتك بأسلوبك الشخصي، كلامك راح يساعد طلاب كثير "
+                placeholder=" 👋 اكتب تجربتك بأسلوبك الشخصي، كلامك راح يساعد طلاب كثير. الحد الأدنى 50 حرفًا."
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -438,8 +445,28 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   background: "rgba(255,255,255,0.02)",
                   color: "#fff",
                   border: "1px solid rgba(255,255,255,0.04)",
+                  whiteSpace: "pre-wrap",
                 }}
               />
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  marginTop: 8,
+                  color:
+                    descriptionLength >= minDescriptionLength
+                      ? "#86efac"
+                      : "#fca5a5",
+                  fontSize: 13,
+                }}
+              >
+                <span>الحد الأدنى للوصف {minDescriptionLength} حرفًا</span>
+                <span>
+                  {descriptionLength}/{minDescriptionLength}
+                </span>
+              </div>
 
              
               
@@ -476,19 +503,20 @@ export default function AddExperienceModal({ onClose, onSaved }) {
         </div>
 
         {/* footer - الرجوع موجود في كل خطوات */}
-        <div
-          className="stepper-modal-footer"
-          style={{
-            padding: 18,
-            borderTop: "1px solid rgba(255,255,255,0.03)",
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "center",
-            flexShrink: 0,
-            background: "rgba(18,18,22,0.98)",
-          }}
-        >
+        {step < totalSteps && (
+          <div
+            className="stepper-modal-footer"
+            style={{
+              padding: 18,
+              borderTop: "1px solid rgba(255,255,255,0.03)",
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              flexShrink: 0,
+              background: "rgba(18,18,22,0.98)",
+            }}
+          >
           <div className="modal-footer-group" style={{ display: "flex", gap: 8 }}>
             <button
               onClick={handleClose}
@@ -578,7 +606,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               </div>
             )}
           </div>
-        </div>
+          </div>
+        )}
       </div>
 
       <style>{`

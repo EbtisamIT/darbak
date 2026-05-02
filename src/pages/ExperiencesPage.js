@@ -592,6 +592,8 @@ const ExperiencesPage = () => {
               lineHeight: "1.9",
               fontSize: "14px",
               margin: 0,
+              whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
             }}
           >
             {exp.description}
