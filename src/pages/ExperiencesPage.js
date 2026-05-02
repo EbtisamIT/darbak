@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import majors from "../majors";
+import API_BASE_URL from "../config/api";
 
 const HEADER_HEIGHT = 90;
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://localhost:3001";
 
 const COMPANY_SEARCH_ALIASES = {
   // Generic government entity terms.

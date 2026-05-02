@@ -1,9 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import majors from "../majors"; // قائمة التخصصات
-
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://localhost:3001";
+import API_BASE_URL from "../config/api";
 
 export default function AddExperienceModal({ onClose, onSaved }) {
   const [step, setStep] = useState(0);
@@ -167,6 +165,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
         zIndex: 9999,
         padding: 20,
         fontFamily: "'Cairo', sans-serif",
+        direction: "rtl",
       }}
     >
       <div
@@ -179,6 +178,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           color: "#fff",
           boxShadow: "0 12px 40px rgba(2,6,23,0.7)",
           overflow: "hidden",
+          maxHeight: "calc(100dvh - 40px)",
+          display: "flex",
+          flexDirection: "column",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -217,7 +219,15 @@ export default function AddExperienceModal({ onClose, onSaved }) {
         </div>
 
         {/* body */}
-        <div style={{ padding: 24 }}>
+        <div
+          className="stepper-modal-body"
+          style={{
+            padding: 24,
+            overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
+            flex: 1,
+          }}
+        >
           {/* الخطوة 0 - بيانات الجهة */}
           {step === 0 && (
             <div>
@@ -231,6 +241,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 onChange={(e) => setOrganizationName(e.target.value)}
                 style={{
                   width: "100%",
+                  boxSizing: "border-box",
                   padding: 12,
                   borderRadius: 10,
                   background: "rgba(255,255,255,0.02)",
@@ -245,6 +256,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 onChange={(e) => setCity(e.target.value)}
                 style={{
                   width: "100%",
+                  boxSizing: "border-box",
                   padding: 12,
                   borderRadius: 10,
                   background: "rgba(255,255,255,0.02)",
@@ -273,6 +285,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   onChange={(e) => setMajor(e.target.value)}
   style={{
     width: "100%",
+    boxSizing: "border-box",
     padding: 12,
     borderRadius: 10,
     background: "rgba(255,255,255,0.02)",
@@ -295,7 +308,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {step === 2 && (
             <div>
               <h3 style={{ color: "#e6eef6" }}>كيف حصلت على فرصة التدريب؟</h3>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
+              <div className="option-grid" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
                 {howAppliedOptions.map((opt) => (
                   <button
                     key={opt}
@@ -323,7 +336,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {step === 3 && (
             <div>
               <h3 style={{ color: "#e6eef6" }}>كم كانت مدة التدريب؟</h3>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
+              <div className="option-grid" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
                 {durationOptions.map((d) => (
                   <button
                     key={d}
@@ -353,7 +366,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               <h3 style={{ color: "#e6eef6" }}>قيّمي تجربتك</h3>
               <p style={{ color: "#9fb0c7" }}>يمكنك اختيار تقييمين كحد أقصى.</p>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
+              <div className="option-grid" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
                 {ratingOptions.map((r) => {
                   const selected = ratings.includes(r.id);
                   return (
@@ -370,6 +383,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                         border: "1px solid rgba(255,255,255,0.03)",
                         cursor: "pointer",
                         minWidth: 200,
+                        flex: "1 1 200px",
                       }}
                     >
                       {r.label}
@@ -411,6 +425,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 placeholder=" 👋اكتب تجربتك بأسلوبك الشخصي، كلامك راح يساعد طلاب كثير "
                 style={{
                   width: "100%",
+                  boxSizing: "border-box",
                   minHeight: 120,
                   marginTop: 16,
                   padding: 12,
@@ -457,6 +472,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
         {/* footer - الرجوع موجود في كل خطوات */}
         <div
+          className="stepper-modal-footer"
           style={{
             padding: 18,
             borderTop: "1px solid rgba(255,255,255,0.03)",
@@ -464,9 +480,11 @@ export default function AddExperienceModal({ onClose, onSaved }) {
             justifyContent: "space-between",
             gap: 12,
             alignItems: "center",
+            flexShrink: 0,
+            background: "rgba(18,18,22,0.98)",
           }}
         >
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="modal-footer-group" style={{ display: "flex", gap: 8 }}>
             <button
               onClick={handleClose}
               style={{
@@ -498,10 +516,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
             </button>
           </div>
 
-          <div>
+          <div className="modal-footer-action">
             {/* إذا نحن في آخر خطوة (قبل الحفظ) نعرض حفظ + رجوع */}
             {step === totalSteps - 1 ? (
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="modal-footer-group" style={{ display: "flex", gap: 8 }}>
                 <button
                   onClick={() => setStep((s) => Math.max(0, s - 1))}
                   style={{
@@ -535,7 +553,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               </div>
             ) : (
               // أزرار التنقل في بقية الخطوات
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="modal-footer-group" style={{ display: "flex", gap: 8 }}>
                 <button
                   onClick={() => {
                     if (canNext()) setStep((s) => s + 1);
@@ -557,6 +575,89 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           </div>
         </div>
       </div>
+
+      <style>{`
+        .stepper-modal-card input,
+        .stepper-modal-card select,
+        .stepper-modal-card textarea,
+        .stepper-modal-card button {
+          font-family: inherit;
+        }
+
+        @media (max-width: 640px) {
+          .stepper-modal-bg {
+            align-items: flex-start !important;
+            padding: 10px !important;
+          }
+
+          .stepper-modal-card {
+            max-height: calc(100dvh - 20px) !important;
+            border-radius: 16px !important;
+          }
+
+          .stepper-modal-body {
+            padding: 16px !important;
+            padding-bottom: 18px !important;
+          }
+
+          .stepper-modal-body h3 {
+            font-size: 18px;
+            margin: 0 0 8px;
+          }
+
+          .stepper-modal-body p {
+            font-size: 13px;
+            line-height: 1.6;
+          }
+
+          .option-grid {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+
+          .option-grid button,
+          .option-grid div {
+            width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box;
+            padding: 10px 12px !important;
+          }
+
+          .stepper-modal-footer {
+            position: sticky;
+            bottom: 0;
+            padding: 10px !important;
+            flex-direction: column-reverse;
+            align-items: stretch !important;
+            gap: 8px !important;
+            box-shadow: 0 -12px 26px rgba(0,0,0,0.28);
+          }
+
+          .modal-footer-action,
+          .modal-footer-group {
+            width: 100%;
+          }
+
+          .modal-footer-group {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px !important;
+          }
+
+          .modal-footer-action .modal-footer-group {
+            grid-template-columns: 1fr;
+          }
+
+          .stepper-modal-footer button {
+            width: 100%;
+            min-height: 42px;
+            padding: 10px !important;
+            font-size: 13px;
+            white-space: normal;
+          }
+        }
+      `}</style>
     </div>
   );
 }

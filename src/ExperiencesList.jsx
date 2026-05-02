@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import majorsList from "../majors";
-
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://localhost:3001";
+import API_BASE_URL from "./config/api";
 
 const ExperiencesPage = () => {
   const [experiences, setExperiences] = useState([]);

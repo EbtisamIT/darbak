@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import majorsList from '../majors';  // القائمة الجاهزة من عندك
 import axios from 'axios';
-
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://localhost:3001";
+import API_BASE_URL from '../config/api';
 
 const AddExperienceForm = ({ onAddExperience }) => {
   const [fullName, setFullName] = useState('');
