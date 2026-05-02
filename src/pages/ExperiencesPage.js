@@ -1022,11 +1022,11 @@ const ExperiencesPage = () => {
                   <div
                     className="experience-title-box"
                     style={{
-                      background: "rgba(0,188,212,0.08)",
-                      border: "1px solid rgba(0,188,212,0.18)",
-                      borderRadius: "16px",
-                      padding: "10px",
                       marginBottom: "10px",
+                      minHeight: "40px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
                     <h3
@@ -1347,11 +1347,8 @@ const ExperiencesPage = () => {
           }
 
           .experience-cards-grid {
-            display: grid !important;
             grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
             gap: 8px !important;
-            overflow: visible;
-            padding: 0;
           }
 
           .experience-card {
@@ -1362,8 +1359,8 @@ const ExperiencesPage = () => {
           }
 
           .experience-title-box {
-            border-radius: 8px !important;
-            padding: 5px !important;
+            min-height: 24px !important;
+            padding: 0 !important;
             margin-bottom: 5px !important;
           }
 
