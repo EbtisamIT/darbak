@@ -149,7 +149,7 @@ const HomePage = () => {
       <Link to="/experiences" style={{ textDecoration: "none" }}>
         <button
           style={{
-            backgroundColor: "#00bcd4",
+            backgroundColor: "#7ddbcd",
             color: "#fff",
             border: "none",
             borderRadius: "10px",
@@ -157,7 +157,7 @@ const HomePage = () => {
             fontSize: "18px",
             cursor: "pointer",
             transition: "0.3s",
-            boxShadow: "0 0 15px rgba(0,188,212,0.3)",
+            boxShadow: "0 0 15px rgba(125,219,205,0.3)",
           }}
         >
           استعرض التجارب 🚀

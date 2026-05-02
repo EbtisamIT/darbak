@@ -447,7 +447,7 @@ const ExperiencesPage = () => {
     setSortOption("latest");
   };
 
-  const MajorButton = ({ name, Icon, color = "#00bcd4", active, isAll }) => (
+  const MajorButton = ({ name, Icon, color = "#7ddbcd", active, isAll }) => (
     <button
       type="button"
       onClick={() => toggleMajor(name)}
@@ -457,9 +457,9 @@ const ExperiencesPage = () => {
         padding: "14px 12px",
         borderRadius: "20px",
         border: isAll
-          ? "1px solid #00bcd4"
+          ? "1px solid #7ddbcd"
           : "1px solid rgba(255,255,255,0.15)",
-        background: active ? "#00bcd4" : "#181a20",
+        background: active ? "#7ddbcd" : "#181a20",
         color: active ? "#000" : "#fff",
         fontWeight: isAll || active ? "bold" : "500",
         cursor: "pointer",
@@ -489,7 +489,7 @@ const ExperiencesPage = () => {
     >
       <div
         style={{
-          color: "#00bcd4",
+          color: "#7ddbcd",
           fontSize: "13px",
           fontWeight: "bold",
           marginBottom: "7px",
@@ -574,7 +574,7 @@ const ExperiencesPage = () => {
         >
           <div
             style={{
-              color: "#00bcd4",
+              color: "#7ddbcd",
               fontSize: "13px",
               fontWeight: "bold",
               marginBottom: "6px",
@@ -599,7 +599,7 @@ const ExperiencesPage = () => {
           >
             <div
               style={{
-                color: "#00bcd4",
+                color: "#7ddbcd",
                 fontSize: "13px",
                 fontWeight: "bold",
                 marginBottom: "10px",
@@ -620,8 +620,8 @@ const ExperiencesPage = () => {
                 <span
                   key={rating}
                   style={{
-                    background: "rgba(0,188,212,0.09)",
-                    border: "1px solid rgba(0,188,212,0.22)",
+                    background: "rgba(125,219,205,0.09)",
+                    border: "1px solid rgba(125,219,205,0.22)",
                     color: "#e5e7eb",
                     borderRadius: "999px",
                     padding: "7px 10px",
@@ -647,7 +647,7 @@ const ExperiencesPage = () => {
         >
           <div
             style={{
-              color: "#00bcd4",
+              color: "#7ddbcd",
               fontSize: "13px",
               fontWeight: "bold",
               marginBottom: "10px",
@@ -706,7 +706,7 @@ const ExperiencesPage = () => {
                 width: "100%",
                 background: "#181a20",
                 color: "#fff",
-                border: "1px solid rgba(0,188,212,0.35)",
+                border: "1px solid rgba(125,219,205,0.35)",
                 borderRadius: "16px",
                 padding: "12px 14px",
                 display: "flex",
@@ -726,7 +726,7 @@ const ExperiencesPage = () => {
               >
                 <span
                   style={{
-                    color: "#00bcd4",
+                    color: "#7ddbcd",
                     fontSize: "12px",
                     fontWeight: "bold",
                   }}
@@ -747,7 +747,7 @@ const ExperiencesPage = () => {
               </span>
               <span
                 style={{
-                  color: "#00bcd4",
+                  color: "#7ddbcd",
                   fontSize: "18px",
                   lineHeight: 1,
                   transform: majorsMenuOpen ? "rotate(180deg)" : "rotate(0)",
@@ -778,7 +778,7 @@ const ExperiencesPage = () => {
                   isAll
                 />
 
-                {majors.map(({ name, icon: Icon, color = "#00bcd4" }) => (
+                {majors.map(({ name, icon: Icon, color = "#7ddbcd" }) => (
                   <MajorButton
                     key={name}
                     name={name}
@@ -809,7 +809,7 @@ const ExperiencesPage = () => {
               isAll
             />
 
-            {majors.map(({ name, icon: Icon, color = "#00bcd4" }) => {
+            {majors.map(({ name, icon: Icon, color = "#7ddbcd" }) => {
               const active = selectedMajors.includes(name);
               return (
                 <MajorButton
@@ -845,7 +845,7 @@ const ExperiencesPage = () => {
                   right: "14px",
                   top: "50%",
                   transform: "translateY(-50%)",
-                  color: "#00bcd4",
+                  color: "#7ddbcd",
                   fontSize: "16px",
                 }}
               >
@@ -861,7 +861,7 @@ const ExperiencesPage = () => {
                   boxSizing: "border-box",
                   background: "#181a20",
                   color: "#fff",
-                  border: "1px solid rgba(0,188,212,0.28)",
+                  border: "1px solid rgba(125,219,205,0.28)",
                   borderRadius: "16px",
                   padding: "12px 44px 12px 14px",
                   outline: "none",
@@ -909,7 +909,7 @@ const ExperiencesPage = () => {
               style={{
                 background: "#181a20",
                 color: "#fff",
-                border: "1px solid rgba(0,188,212,0.28)",
+                border: "1px solid rgba(125,219,205,0.28)",
                 borderRadius: "12px",
                 padding: "10px 12px",
                 cursor: "pointer",
@@ -946,8 +946,8 @@ const ExperiencesPage = () => {
                     setSelectedMajors((prev) => prev.filter((m) => m !== major))
                   }
                   style={{
-                    background: "rgba(0,188,212,0.1)",
-                    border: "1px solid rgba(0,188,212,0.28)",
+                    background: "rgba(125,219,205,0.1)",
+                    border: "1px solid rgba(125,219,205,0.28)",
                     color: "#dffaff",
                     borderRadius: "999px",
                     padding: "7px 10px",
@@ -1091,9 +1091,9 @@ const ExperiencesPage = () => {
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "translateY(-5px)";
                   e.currentTarget.style.boxShadow =
-                    "0 15px 30px rgba(0,188,212,0.12)";
+                    "0 15px 30px rgba(125,219,205,0.12)";
                   e.currentTarget.style.border =
-                    "1px solid rgba(0,188,212,0.35)";
+                    "1px solid rgba(125,219,205,0.35)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "translateY(0)";
@@ -1116,7 +1116,7 @@ const ExperiencesPage = () => {
                   >
                     <h3
                       style={{
-                        color: "#00bcd4",
+                        color: "#7ddbcd",
                         fontSize: "16px",
                         margin: 0,
                         lineHeight: "1.45",
@@ -1145,7 +1145,7 @@ const ExperiencesPage = () => {
                     >
                       <p
                         style={{
-                          color: "#00bcd4",
+                          color: "#7ddbcd",
                           fontSize: "11px",
                           margin: "0 0 4px",
                           fontWeight: "bold",
@@ -1177,7 +1177,7 @@ const ExperiencesPage = () => {
                     >
                       <p
                         style={{
-                          color: "#00bcd4",
+                          color: "#7ddbcd",
                           fontSize: "11px",
                           margin: "0 0 4px",
                           fontWeight: "bold",
@@ -1208,9 +1208,9 @@ const ExperiencesPage = () => {
                       width: "100%",
                       padding: "7px",
                       borderRadius: "12px",
-                      border: "1px solid rgba(0,188,212,0.45)",
+                      border: "1px solid rgba(125,219,205,0.45)",
                       background: "transparent",
-                      color: "#00bcd4",
+                      color: "#7ddbcd",
                       cursor: "pointer",
                       fontSize: "12px",
                       fontWeight: "bold",
@@ -1270,7 +1270,7 @@ const ExperiencesPage = () => {
                     color: currentStep === i + 1 ? "#000" : "#aaa",
                     background:
                       currentStep === i + 1
-                        ? "#00bcd4"
+                        ? "#7ddbcd"
                         : "rgba(255,255,255,0.06)",
                     fontSize: "13px",
                     padding: "8px 12px",
@@ -1322,7 +1322,7 @@ const ExperiencesPage = () => {
                     padding: "10px",
                     borderRadius: "12px",
                     border: "none",
-                    background: "#00bcd4",
+                    background: "#7ddbcd",
                     color: "#000",
                     cursor: "pointer",
                     fontWeight: "bold",
@@ -1338,7 +1338,7 @@ const ExperiencesPage = () => {
                     padding: "10px",
                     borderRadius: "12px",
                     border: "none",
-                    background: "#00bcd4",
+                    background: "#7ddbcd",
                     color: "#000",
                     cursor: "pointer",
                     fontWeight: "bold",
@@ -1361,7 +1361,7 @@ const ExperiencesPage = () => {
         }
 
         .major-filter-btn:hover {
-          border-color: rgba(0,188,212,0.45) !important;
+          border-color: rgba(125,219,205,0.45) !important;
         }
 
         .majors-grid .major-filter-btn {
@@ -1390,7 +1390,7 @@ const ExperiencesPage = () => {
         }
 
         .majors-grid::-webkit-scrollbar-thumb {
-          background: rgba(0,188,212,0.35);
+          background: rgba(125,219,205,0.35);
           border-radius: 999px;
         }
 

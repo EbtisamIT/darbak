@@ -11,7 +11,7 @@ const Navbar = () => {
 
   const linkStyle = (path) => ({
     textDecoration: "none",
-    color: location.pathname === path ? "#00bcd4" : "#e0e0e0",
+    color: location.pathname === path ? "#7ddbcd" : "#e0e0e0",
     fontWeight: location.pathname === path ? "bold" : "normal",
     transition: "0.3s",
   });
@@ -57,14 +57,14 @@ const Navbar = () => {
         <button
             onClick={() => setShowModal(true)}
             style={{
-              backgroundColor: "#00bcd4",
+              backgroundColor: "#7ddbcd",
               color: "#000",
               border: "none",
               borderRadius: "12px",
               padding: "10px 10px",
               fontSize: "14px",
               cursor: "pointer",
-              boxShadow: "0 0 14px rgba(0, 188, 212, 0.4)",
+              boxShadow: "0 0 14px rgba(125,219,205, 0.4)",
               transition: "0.3s",
             }}
           >
