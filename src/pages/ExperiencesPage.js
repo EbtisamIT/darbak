@@ -611,325 +611,327 @@ const ExperiencesPage = () => {
           padding: "15px 12px",
         }}
       >
-        <div
-          className="mobile-majors-menu"
-          style={{
-            display: "none",
-            marginBottom: "18px",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setMajorsMenuOpen((open) => !open)}
+        <div className="experience-controls-sticky">
+          <div
+            className="mobile-majors-menu"
             style={{
-              width: "100%",
-              background: "#181a20",
-              color: "#fff",
-              border: "1px solid rgba(0,188,212,0.35)",
-              borderRadius: "16px",
-              padding: "12px 14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "12px",
-              cursor: "pointer",
-              textAlign: "right",
+              display: "none",
+              marginBottom: "18px",
             }}
           >
-            <span
+            <button
+              type="button"
+              onClick={() => setMajorsMenuOpen((open) => !open)}
               style={{
-                display: "grid",
-                gap: "3px",
-                minWidth: 0,
+                width: "100%",
+                background: "#181a20",
+                color: "#fff",
+                border: "1px solid rgba(0,188,212,0.35)",
+                borderRadius: "16px",
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
+                cursor: "pointer",
+                textAlign: "right",
               }}
             >
+              <span
+                style={{
+                  display: "grid",
+                  gap: "3px",
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    color: "#00bcd4",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  التخصصات
+                </span>
+                <span
+                  style={{
+                    color: "#e5e7eb",
+                    fontSize: "13px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {selectedMajorsText}
+                </span>
+              </span>
               <span
                 style={{
                   color: "#00bcd4",
-                  fontSize: "12px",
-                  fontWeight: "bold",
+                  fontSize: "18px",
+                  lineHeight: 1,
+                  transform: majorsMenuOpen ? "rotate(180deg)" : "rotate(0)",
+                  transition: "0.2s ease",
                 }}
               >
-                التخصصات
+                ▾
               </span>
-              <span
+            </button>
+
+            {majorsMenuOpen && (
+              <div
+                className="mobile-majors-list"
                 style={{
-                  color: "#e5e7eb",
-                  fontSize: "13px",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
+                  marginTop: "10px",
+                  background: "#151820",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "16px",
+                  padding: "10px",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gap: "8px",
                 }}
               >
-                {selectedMajorsText}
-              </span>
-            </span>
-            <span
-              style={{
-                color: "#00bcd4",
-                fontSize: "18px",
-                lineHeight: 1,
-                transform: majorsMenuOpen ? "rotate(180deg)" : "rotate(0)",
-                transition: "0.2s ease",
-              }}
-            >
-              ▾
-            </span>
-          </button>
+                <MajorButton
+                  name="الكل"
+                  active={selectedMajors.length === 0}
+                  isAll
+                />
 
-          {majorsMenuOpen && (
-            <div
-              className="mobile-majors-list"
-              style={{
-                marginTop: "10px",
-                background: "#151820",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "16px",
-                padding: "10px",
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: "8px",
-              }}
-            >
-              <MajorButton
-                name="الكل"
-                active={selectedMajors.length === 0}
-                isAll
-              />
+                {majors.map(({ name, icon: Icon, color = "#00bcd4" }) => (
+                  <MajorButton
+                    key={name}
+                    name={name}
+                    Icon={Icon}
+                    color={color}
+                    active={selectedMajors.includes(name)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
 
-              {majors.map(({ name, icon: Icon, color = "#00bcd4" }) => (
+          <div
+            className="majors-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: "12px",
+              marginBottom: "30px",
+            }}
+          >
+            <MajorButton
+              name="الكل"
+              active={selectedMajors.length === 0}
+              isAll
+            />
+
+            {majors.map(({ name, icon: Icon, color = "#00bcd4" }) => {
+              const active = selectedMajors.includes(name);
+              return (
                 <MajorButton
                   key={name}
                   name={name}
                   Icon={Icon}
                   color={color}
-                  active={selectedMajors.includes(name)}
+                  active={active}
                 />
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div
-          className="majors-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-            gap: "12px",
-            marginBottom: "30px",
-          }}
-        >
-          <MajorButton
-            name="الكل"
-            active={selectedMajors.length === 0}
-            isAll
-          />
-
-          {majors.map(({ name, icon: Icon, color = "#00bcd4" }) => {
-            const active = selectedMajors.includes(name);
-            return (
-              <MajorButton
-                key={name}
-                name={name}
-                Icon={Icon}
-                color={color}
-                active={active}
-              />
-            );
-          })}
-        </div>
-
-        <div
-          className="experiences-search-bar"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            margin: "0 auto 22px",
-            maxWidth: "980px",
-          }}
-        >
-          <div
-            style={{
-              flex: 1,
-              position: "relative",
-            }}
-          >
-            <span
-              style={{
-                position: "absolute",
-                right: "14px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "#00bcd4",
-                fontSize: "16px",
-              }}
-            >
-              🔎
-            </span>
-            <input
-              value={companySearch}
-              onChange={(e) => setCompanySearch(e.target.value)}
-              placeholder="ابحث باسم الشركة، الجهة، أو التخصص"
-              aria-label="ابحث باسم الشركة، الجهة، أو التخصص"
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                background: "#181a20",
-                color: "#fff",
-                border: "1px solid rgba(0,188,212,0.28)",
-                borderRadius: "16px",
-                padding: "12px 44px 12px 14px",
-                outline: "none",
-                fontSize: "14px",
-                fontFamily: "inherit",
-                textAlign: "right",
-              }}
-            />
+              );
+            })}
           </div>
 
           <div
-            className="results-count"
-            style={{
-              color: "#9ca3af",
-              fontSize: "13px",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {filteredExperiences.length} تجربة
-          </div>
-
-          {companySearch && (
-            <button
-              type="button"
-              onClick={() => setCompanySearch("")}
-              style={{
-                background: "transparent",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "#e5e7eb",
-                borderRadius: "12px",
-                padding: "10px 12px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                fontSize: "13px",
-              }}
-            >
-              مسح
-            </button>
-          )}
-
-          <select
-            value={sortOption}
-            onChange={(e) => setSortOption(e.target.value)}
-            aria-label="ترتيب التجارب"
-            style={{
-              background: "#181a20",
-              color: "#fff",
-              border: "1px solid rgba(0,188,212,0.28)",
-              borderRadius: "12px",
-              padding: "10px 12px",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontSize: "13px",
-              outline: "none",
-            }}
-          >
-            <option value="latest">الأحدث أولًا</option>
-            <option value="rating">الأعلى تقييمًا</option>
-            <option value="relevance">الأكثر صلة</option>
-          </select>
-        </div>
-
-        {(selectedMajors.length > 0 ||
-          companySearch ||
-          sortOption !== "latest") && (
-          <div
-            className="active-filter-chips"
+            className="experiences-search-bar"
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              flexWrap: "wrap",
-              margin: "-8px 0 22px",
+              gap: "10px",
+              margin: "0 auto 22px",
+              maxWidth: "980px",
             }}
           >
-            {selectedMajors.map((major) => (
-              <button
-                key={major}
-                type="button"
-                onClick={() =>
-                  setSelectedMajors((prev) => prev.filter((m) => m !== major))
-                }
+            <div
+              style={{
+                flex: 1,
+                position: "relative",
+              }}
+            >
+              <span
                 style={{
-                  background: "rgba(0,188,212,0.1)",
-                  border: "1px solid rgba(0,188,212,0.28)",
-                  color: "#dffaff",
-                  borderRadius: "999px",
-                  padding: "7px 10px",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  fontSize: "12px",
+                  position: "absolute",
+                  right: "14px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "#00bcd4",
+                  fontSize: "16px",
                 }}
               >
-                التخصص: {major} ✕
-              </button>
-            ))}
+                🔎
+              </span>
+              <input
+                value={companySearch}
+                onChange={(e) => setCompanySearch(e.target.value)}
+                placeholder="ابحث باسم الشركة، الجهة، أو التخصص"
+                aria-label="ابحث باسم الشركة، الجهة، أو التخصص"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  background: "#181a20",
+                  color: "#fff",
+                  border: "1px solid rgba(0,188,212,0.28)",
+                  borderRadius: "16px",
+                  padding: "12px 44px 12px 14px",
+                  outline: "none",
+                  fontSize: "14px",
+                  fontFamily: "inherit",
+                  textAlign: "right",
+                }}
+              />
+            </div>
+
+            <div
+              className="results-count"
+              style={{
+                color: "#9ca3af",
+                fontSize: "13px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {filteredExperiences.length} تجربة
+            </div>
 
             {companySearch && (
               <button
                 type="button"
                 onClick={() => setCompanySearch("")}
                 style={{
-                  background: "rgba(250,204,21,0.09)",
-                  border: "1px solid rgba(250,204,21,0.25)",
-                  color: "#fef3c7",
-                  borderRadius: "999px",
-                  padding: "7px 10px",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  fontSize: "12px",
-                }}
-              >
-                البحث: {companySearch} ✕
-              </button>
-            )}
-
-            {sortOption !== "latest" && (
-              <button
-                type="button"
-                onClick={() => setSortOption("latest")}
-                style={{
-                  background: "rgba(255,255,255,0.06)",
+                  background: "transparent",
                   border: "1px solid rgba(255,255,255,0.12)",
                   color: "#e5e7eb",
-                  borderRadius: "999px",
-                  padding: "7px 10px",
+                  borderRadius: "12px",
+                  padding: "10px 12px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: "13px",
+                }}
+              >
+                مسح
+              </button>
+            )}
+
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value)}
+              aria-label="ترتيب التجارب"
+              style={{
+                background: "#181a20",
+                color: "#fff",
+                border: "1px solid rgba(0,188,212,0.28)",
+                borderRadius: "12px",
+                padding: "10px 12px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: "13px",
+                outline: "none",
+              }}
+            >
+              <option value="latest">الأحدث أولًا</option>
+              <option value="rating">الأعلى تقييمًا</option>
+              <option value="relevance">الأكثر صلة</option>
+            </select>
+          </div>
+
+          {(selectedMajors.length > 0 ||
+            companySearch ||
+            sortOption !== "latest") && (
+            <div
+              className="active-filter-chips"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+                margin: "-8px 0 22px",
+              }}
+            >
+              {selectedMajors.map((major) => (
+                <button
+                  key={major}
+                  type="button"
+                  onClick={() =>
+                    setSelectedMajors((prev) => prev.filter((m) => m !== major))
+                  }
+                  style={{
+                    background: "rgba(0,188,212,0.1)",
+                    border: "1px solid rgba(0,188,212,0.28)",
+                    color: "#dffaff",
+                    borderRadius: "999px",
+                    padding: "7px 10px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: "12px",
+                  }}
+                >
+                  التخصص: {major} ✕
+                </button>
+              ))}
+
+              {companySearch && (
+                <button
+                  type="button"
+                  onClick={() => setCompanySearch("")}
+                  style={{
+                    background: "rgba(250,204,21,0.09)",
+                    border: "1px solid rgba(250,204,21,0.25)",
+                    color: "#fef3c7",
+                    borderRadius: "999px",
+                    padding: "7px 10px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: "12px",
+                  }}
+                >
+                  البحث: {companySearch} ✕
+                </button>
+              )}
+
+              {sortOption !== "latest" && (
+                <button
+                  type="button"
+                  onClick={() => setSortOption("latest")}
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    color: "#e5e7eb",
+                    borderRadius: "999px",
+                    padding: "7px 10px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: "12px",
+                  }}
+                >
+                  الترتيب: {sortLabels[sortOption]} ✕
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#9ca3af",
                   cursor: "pointer",
                   fontFamily: "inherit",
                   fontSize: "12px",
                 }}
               >
-                الترتيب: {sortLabels[sortOption]} ✕
+                مسح الكل
               </button>
-            )}
-
-            <button
-              type="button"
-              onClick={clearAllFilters}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#9ca3af",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                fontSize: "12px",
-              }}
-            >
-              مسح الكل
-            </button>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
 
         {/* ================= Cards ================= */}
         {fetchError && (
@@ -1285,10 +1287,26 @@ const ExperiencesPage = () => {
           min-width: 0;
         }
 
+        .experience-controls-sticky {
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          background: rgba(15, 17, 21, 0.96);
+          backdrop-filter: blur(12px);
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+          margin: -15px -12px 18px;
+          padding: 15px 12px 4px;
+        }
+
         @media (max-width: 900px) {
           .experiences-shell {
             margin-top: 72px !important;
             padding: 12px 10px 24px !important;
+          }
+
+          .experience-controls-sticky {
+            margin: -12px -10px 14px;
+            padding: 10px 10px 2px;
           }
 
           .majors-grid {
