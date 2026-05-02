@@ -1011,7 +1011,8 @@ const ExperiencesPage = () => {
                   border: "1px solid rgba(255,255,255,0.07)",
                   cursor: "pointer",
                   textAlign: "center",
-                  height: "214px",
+                  minHeight: "244px",
+                  height: "auto",
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "space-between",
@@ -1033,12 +1034,11 @@ const ExperiencesPage = () => {
                     "1px solid rgba(255,255,255,0.07)";
                 }}
               >
-                <div>
+                <div style={{ display: "grid", gap: "10px" }}>
                   <div
                     className="experience-title-box"
                     style={{
-                      marginBottom: "10px",
-                      height: "46px",
+                      height: "50px",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -1050,7 +1050,7 @@ const ExperiencesPage = () => {
                         color: "#00bcd4",
                         fontSize: "16px",
                         margin: 0,
-                        lineHeight: "1.45",
+                        lineHeight: "1.35",
                         fontWeight: "800",
                         display: "-webkit-box",
                         WebkitLineClamp: 2,
@@ -1067,8 +1067,8 @@ const ExperiencesPage = () => {
                     className="experience-card-info"
                     style={{
                       display: "grid",
-                      gap: "7px",
-                      gridTemplateRows: "repeat(2, 42px)",
+                      gap: "8px",
+                      gridTemplateRows: "repeat(2, 50px)",
                     }}
                   >
                     <div
@@ -1079,7 +1079,7 @@ const ExperiencesPage = () => {
                         padding: "7px 8px",
                         border: "1px solid rgba(255,255,255,0.045)",
                         borderRight: "2px solid rgba(0,188,212,0.45)",
-                        height: "42px",
+                        height: "50px",
                         boxSizing: "border-box",
                         overflow: "hidden",
                       }}
@@ -1101,7 +1101,7 @@ const ExperiencesPage = () => {
                           margin: 0,
                           fontWeight: "bold",
                           display: "-webkit-box",
-                          WebkitLineClamp: 2,
+                          WebkitLineClamp: 1,
                           WebkitBoxOrient: "vertical",
                           overflow: "hidden",
                           overflowWrap: "anywhere",
@@ -1119,7 +1119,7 @@ const ExperiencesPage = () => {
                         padding: "7px 8px",
                         border: "1px solid rgba(255,255,255,0.045)",
                         borderRight: "2px solid rgba(0,188,212,0.45)",
-                        height: "42px",
+                        height: "50px",
                         boxSizing: "border-box",
                         overflow: "hidden",
                       }}
@@ -1141,7 +1141,7 @@ const ExperiencesPage = () => {
                           margin: 0,
                           fontWeight:"bold",
                           display: "-webkit-box",
-                          WebkitLineClamp: 2,
+                          WebkitLineClamp: 1,
                           WebkitBoxOrient: "vertical",
                           overflow: "hidden",
                           overflowWrap: "anywhere"
@@ -1153,7 +1153,7 @@ const ExperiencesPage = () => {
                   </div>
                 </div>
 
-                <div style={{ marginTop: "10px" }}>
+                <div className="experience-card-actions" style={{ marginTop: "12px" }}>
                   <StarRating value={exp.starRating || 0} />
 
                   <button
@@ -1438,18 +1438,17 @@ const ExperiencesPage = () => {
           }
 
           .experience-card {
-            height: 190px !important;
-            min-height: 190px !important;
+            height: auto !important;
+            min-height: 214px !important;
             border-radius: 14px !important;
-            padding: 9px !important;
+            padding: 10px !important;
             box-shadow: 0 6px 14px rgba(0,0,0,0.2) !important;
           }
 
           .experience-title-box {
-            height: 40px !important;
-            min-height: 40px !important;
+            height: 42px !important;
+            min-height: 42px !important;
             padding: 0 !important;
-            margin-bottom: 7px !important;
           }
 
           .experience-title-box h3 {
@@ -1459,14 +1458,14 @@ const ExperiencesPage = () => {
 
           .experience-card-info {
             gap: 6px !important;
-            grid-template-rows: repeat(2, 38px) !important;
+            grid-template-rows: repeat(2, 42px) !important;
           }
 
           .experience-info-box {
             border-radius: 9px !important;
             padding: 6px !important;
-            height: 38px !important;
-            min-height: 38px;
+            height: 42px !important;
+            min-height: 42px;
             border-right-width: 1px !important;
           }
 
@@ -1492,6 +1491,10 @@ const ExperiencesPage = () => {
             font-size: 12px !important;
           }
 
+          .experience-card-actions {
+            margin-top: 8px !important;
+          }
+
           .experience-modal {
             width: 100% !important;
             max-height: 86vh;
@@ -1508,8 +1511,8 @@ const ExperiencesPage = () => {
           }
 
           .experience-card {
-            height: 184px !important;
-            min-height: 184px !important;
+            height: auto !important;
+            min-height: 208px !important;
           }
         }
       `}</style>
