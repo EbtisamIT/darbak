@@ -1,6 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
+const homeFont = "'Aniq', 'Cairo', sans-serif";
+
 const MovingGreenPath = () => {
   return (
     <div style={{ position: "relative", display: "inline-block" }}>
@@ -81,6 +83,7 @@ const MovingGreenPath = () => {
           fontWeight: "700",
           position: "relative",
           zIndex: 2,
+          fontFamily: homeFont,
         }}
       >
         تعلّـم من تجارب غيرك ودربك خضـر
@@ -125,7 +128,7 @@ const HomePage = () => {
         justifyContent: "center",
         alignItems: "center",
         textAlign: "center",
-        fontFamily: "'Cairo', sans-serif",
+        fontFamily: homeFont,
         padding: "20px",
       }}
     >
@@ -138,6 +141,7 @@ const HomePage = () => {
           maxWidth: "600px",
           margin: "25px auto 35px auto",
           lineHeight: "1.8",
+          fontFamily: homeFont,
         }}
       >
         منصة <strong>دربك</strong> تساعد الطلاب والطالبات على اكتشاف أفضل
@@ -155,6 +159,7 @@ const HomePage = () => {
             borderRadius: "10px",
             padding: "14px 40px",
             fontSize: "18px",
+            fontFamily: homeFont,
             cursor: "pointer",
             transition: "0.3s",
             boxShadow: "0 0 15px rgba(125,219,205,0.3)",
