@@ -5,6 +5,31 @@ import HomePage from "./pages/HomePage";
 import ExperiencesPage from "./pages/ExperiencesPage";
 import AddExperienceModal from "./pages/AddExperienceModal";
 import Footer from "./pages/Footer";
+import { useLocation } from "react-router-dom";
+
+function PageBanner() {
+  const location = useLocation();
+  const isExperiencesPage = location.pathname === "/experiences";
+
+  return (
+    <div
+      style={{
+        color: isExperiencesPage ? "#e5e7eb" : "#00A651",
+        textAlign: "center",
+        padding: isExperiencesPage ? "8px 14px 2px" : "5px 10px 2px",
+        fontSize: isExperiencesPage ? "14px" : "30px",
+        fontWeight: isExperiencesPage ? "600" : "800",
+        letterSpacing: 0,
+        lineHeight: 1.7,
+      }}
+    >
+      {isExperiencesPage
+        ? "التجارب المعروضة تعكس آراء أصحابها وتجاربهم الشخصية، ولا تمثل بالضرورة الجهات أو الشركات المذكورة."
+        : "صُنع بأيادٍ سعودية للشعب السعودي"}
+    </div>
+  );
+}
+
 function App() {
   const appStyle = {
     minHeight: "100vh",
@@ -33,19 +58,7 @@ function App() {
       <div style={appStyle}>
         <Navbar />
 
-        <div
-          style={{
-            color: "#00A651",
-            textAlign: "center",
-            padding: "5px 10px 2px",
-            fontSize: "30px",
-            fontWeight: "800",
-            letterSpacing: 0,
-            lineHeight: 1.4,
-          }}
-        >
-          صُنع بأيادٍ سعودية للشعب السعودي
-        </div>
+        <PageBanner />
 
       
 
