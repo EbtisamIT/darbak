@@ -14,17 +14,17 @@ function PageBanner() {
   return (
     <div
       style={{
-        color: isExperiencesPage ? "#e5e7eb" : "#00A651",
+        color: isExperiencesPage ? "#fff" : "#00A651",
         textAlign: "center",
         padding: isExperiencesPage ? "8px 14px 2px" : "5px 10px 2px",
         fontSize: isExperiencesPage ? "14px" : "30px",
-        fontWeight: isExperiencesPage ? "600" : "800",
+        fontWeight: isExperiencesPage ? "400" : "800",
         letterSpacing: 0,
         lineHeight: 1.7,
       }}
     >
       {isExperiencesPage
-        ? "التجارب المعروضة تعكس آراء أصحابها وتجاربهم الشخصية، ولا تمثل بالضرورة الجهات أو الشركات المذكورة."
+        ? "تنويه: التجارب شخصية وتمثل أصحابها، ولا تمثل بالضرورة الجهات المذكورة."
         : "صُنع بأيادٍ سعودية للشعب السعودي"}
     </div>
   );
