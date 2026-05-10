@@ -284,7 +284,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   style={{
                     width: `${progressPercent}%`,
                     height: "100%",
-                    background: "linear-gradient(90deg,#9fb0c7,#06b6d4)",
+                    background: "linear-gradient(90deg,#9fb0c7,#7ddbcd)",
                     transition: "width 300ms ease",
                   }}
                 />
@@ -409,7 +409,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                       borderRadius: 10,
                       background:
                         howApplied === opt
-                          ? "linear-gradient(90deg,#9fb0c7,#06b6d4)"
+                          ? "linear-gradient(90deg,#9fb0c7,#7ddbcd)"
                           : "rgba(255,255,255,0.03)",
                       color: "#fff",
                       border: "1px solid rgba(255,255,255,0.03)",
@@ -437,7 +437,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                       borderRadius: 10,
                       background:
                         duration === d
-                          ? "linear-gradient(90deg,#9fb0c7,#06b6d4)"
+                          ? "linear-gradient(90deg,#9fb0c7,#7ddbcd)"
                           : "rgba(255,255,255,0.02)",
                       color: "#fff",
                       border: "1px solid rgba(255,255,255,0.03)",
@@ -468,7 +468,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                         padding: "12px 16px",
                         borderRadius: 12,
                         background: selected
-                          ? "linear-gradient(90deg,#9fb0c7,#06b6d4)"
+                          ? "linear-gradient(90deg,#9fb0c7,#7ddbcd)"
                           : "rgba(255,255,255,0.02)",
                         color: "#fff",
                         border: "1px solid rgba(255,255,255,0.03)",
@@ -567,7 +567,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   marginTop: 10,
                   padding: "10px 16px",
                   borderRadius: 10,
-                  background: "linear-gradient(90deg,#9fb0c7,#06b6d4)",
+                  background: "linear-gradient(90deg,#9fb0c7,#7ddbcd)",
                   color: "#fff",
                   border: "none",
                   cursor: "pointer",
@@ -654,7 +654,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                     borderRadius: 10,
                     background: loading
                       ? "rgba(125,125,125,0.5)"
-                      : "linear-gradient(90deg,#9fb0c7,#06b6d4)",
+                      : "linear-gradient(90deg,#9fb0c7,#7ddbcd)",
                     color: "#fff",
                     border: "none",
                     cursor: loading ? "not-allowed" : "pointer",
@@ -674,7 +674,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   style={{
                     padding: "8px 14px",
                     borderRadius: 10,
-                    background: "linear-gradient(90deg,#9fb0c7,#06b6d4)",
+                    background: "linear-gradient(90deg,#9fb0c7,#7ddbcd)",
                     color: "#fff",
                     border: "none",
                     cursor: "pointer",
