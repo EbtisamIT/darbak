@@ -5,7 +5,7 @@ const homeFont = "'Aniq', 'Cairo', sans-serif";
 
 const MovingGreenPath = () => {
   return (
-    <div style={{ position: "relative", display: "inline-block" }}>
+    <div className="home-title-wrap" style={{ position: "relative", display: "inline-block" }}>
       {/* 🌌 خلفية نجوم محسّنة */}
       <div
         style={{
@@ -76,6 +76,7 @@ const MovingGreenPath = () => {
 
       {/* العنوان */}
       <h1
+        className="home-title"
         style={{
           fontSize: "42px",
           color: "hsl(150, 45.5%, 46%)",
@@ -119,10 +120,13 @@ const MovingGreenPath = () => {
 const HomePage = () => {
   return (
     <div
+      className="home-page"
       style={{
         backgroundColor: "#0f1115",
         color: "#fff",
         minHeight: "calc(100vh - 80px)",
+        width: "100%",
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
@@ -135,6 +139,7 @@ const HomePage = () => {
       <MovingGreenPath />
 
       <p
+        className="home-copy"
         style={{
           fontSize: "19px",
           color: "#ccc",
@@ -152,6 +157,7 @@ const HomePage = () => {
 
       <Link to="/experiences" style={{ textDecoration: "none" }}>
         <button
+          className="home-cta"
           style={{
             backgroundColor: "#7ddbcd",
             color: "#fff",
@@ -168,6 +174,61 @@ const HomePage = () => {
           استعرض التجارب 🚀
         </button>
       </Link>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .home-page {
+            width: calc(100% + 40px) !important;
+            margin-inline: -20px;
+            min-height: calc(100vh - 170px) !important;
+            padding: 28px 14px 36px !important;
+            justify-content: flex-start !important;
+            overflow-x: hidden;
+          }
+
+          .home-title-wrap {
+            width: 100%;
+            max-width: 100%;
+            display: block !important;
+          }
+
+          .home-title-wrap > div:first-child {
+            display: none;
+          }
+
+          .home-title {
+            font-size: 30px !important;
+            line-height: 1.45 !important;
+            max-width: 100%;
+            margin-inline: auto !important;
+            padding-inline: 8px;
+          }
+
+          .home-copy {
+            font-size: 16px !important;
+            line-height: 1.8 !important;
+            margin: 18px auto 24px !important;
+            max-width: 92vw !important;
+          }
+
+          .home-cta {
+            width: min(100%, 280px);
+            padding: 12px 24px !important;
+            font-size: 16px !important;
+          }
+        }
+
+        @media (max-width: 390px) {
+          .home-title {
+            font-size: 26px !important;
+          }
+
+          .home-copy {
+            font-size: 15px !important;
+            max-width: 94vw !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };
