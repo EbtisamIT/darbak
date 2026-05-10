@@ -4,8 +4,8 @@ import { Link } from "react-router-dom";
 const homeFont = "'Aniq', 'Cairo', sans-serif";
 
 const homeStats = [
-  { value: "88", label: "مدينة سعودية" },
-  { value: "29", label: "تخصص رئيسي" },
+  { value: "+20", label: "مدينة رئيسية" },
+  { value: "+25", label: "تخصص رئيسي" },
   { value: "بحث ذكي", label: "بالعربي والإنجليزي" },
 ];
 
