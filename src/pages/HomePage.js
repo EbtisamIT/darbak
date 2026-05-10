@@ -3,6 +3,12 @@ import { Link } from "react-router-dom";
 
 const homeFont = "'Aniq', 'Cairo', sans-serif";
 
+const homeStats = [
+  { value: "88", label: "مدينة سعودية" },
+  { value: "29", label: "تخصص رئيسي" },
+  { value: "بحث ذكي", label: "بالعربي والإنجليزي" },
+];
+
 const MovingGreenPath = () => {
   return (
     <div className="home-title-wrap" style={{ position: "relative", display: "inline-block" }}>
@@ -136,6 +142,26 @@ const HomePage = () => {
         padding: "20px",
       }}
     >
+      <div
+        className="home-kicker"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#7ddbcd",
+          border: "1px solid rgba(125, 219, 205, 0.35)",
+          backgroundColor: "rgba(125, 219, 205, 0.08)",
+          borderRadius: "999px",
+          padding: "8px 14px",
+          marginBottom: "22px",
+          fontSize: "15px",
+          lineHeight: 1.4,
+          fontFamily: homeFont,
+        }}
+      >
+        منصة طلابية سعودية لتبادل التجارب
+      </div>
+
       <MovingGreenPath />
 
       <p
@@ -175,6 +201,54 @@ const HomePage = () => {
         </button>
       </Link>
 
+      <div
+        className="home-stats"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: "12px",
+          width: "min(100%, 560px)",
+          marginTop: "30px",
+        }}
+      >
+        {homeStats.map((stat) => (
+          <div
+            key={stat.label}
+            className="home-stat-card"
+            style={{
+              border: "1px solid rgba(125, 219, 205, 0.2)",
+              borderRadius: "10px",
+              padding: "14px 10px",
+              backgroundColor: "rgba(255, 255, 255, 0.035)",
+              boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
+            }}
+          >
+            <strong
+              style={{
+                display: "block",
+                color: "#7ddbcd",
+                fontSize: "22px",
+                lineHeight: 1.2,
+                fontWeight: 700,
+                marginBottom: "6px",
+              }}
+            >
+              {stat.value}
+            </strong>
+            <span
+              style={{
+                display: "block",
+                color: "#c9c9c9",
+                fontSize: "13px",
+                lineHeight: 1.5,
+              }}
+            >
+              {stat.label}
+            </span>
+          </div>
+        ))}
+      </div>
+
       <style>{`
         @media (max-width: 768px) {
           .home-page {
@@ -184,6 +258,12 @@ const HomePage = () => {
             padding: 28px 14px 36px !important;
             justify-content: flex-start !important;
             overflow-x: hidden;
+          }
+
+          .home-kicker {
+            font-size: 14px !important;
+            margin-bottom: 18px !important;
+            padding: 7px 12px !important;
           }
 
           .home-title-wrap {
@@ -216,6 +296,25 @@ const HomePage = () => {
             padding: 12px 24px !important;
             font-size: 16px !important;
           }
+
+          .home-stats {
+            width: min(100%, 340px) !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 8px !important;
+            margin-top: 22px !important;
+          }
+
+          .home-stat-card {
+            padding: 10px 6px !important;
+          }
+
+          .home-stat-card strong {
+            font-size: 18px !important;
+          }
+
+          .home-stat-card span {
+            font-size: 11px !important;
+          }
         }
 
         @media (max-width: 390px) {
@@ -226,6 +325,10 @@ const HomePage = () => {
           .home-copy {
             font-size: 15px !important;
             max-width: 94vw !important;
+          }
+
+          .home-stats {
+            width: 100% !important;
           }
         }
       `}</style>

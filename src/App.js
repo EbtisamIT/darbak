@@ -11,21 +11,21 @@ function PageBanner() {
   const location = useLocation();
   const isExperiencesPage = location.pathname === "/experiences";
 
+  if (!isExperiencesPage) return null;
+
   return (
     <div
       style={{
-        color: isExperiencesPage ? "#fff" : "#00A651",
+        color: "#fff",
         textAlign: "center",
-        padding: isExperiencesPage ? "8px 14px 2px" : "5px 10px 2px",
-        fontSize: isExperiencesPage ? "14px" : "30px",
-        fontWeight: isExperiencesPage ? "400" : "800",
+        padding: "8px 14px 2px",
+        fontSize: "14px",
+        fontWeight: "400",
         letterSpacing: 0,
         lineHeight: 1.7,
       }}
     >
-      {isExperiencesPage
-        ? "تنويه: التجارب الطلابية شخصية ومرتبطة بظروف وبيئات مختلفة؛ ما يناسب غيرك قد لا يكون الأفضل لك، والعكس صحيح."
-        : "صُنع بأيادٍ سعودية للشعب السعودي"}
+      تنويه: التجارب الطلابية شخصية ومرتبطة بظروف وبيئات مختلفة؛ ما يناسب غيرك قد لا يكون الأفضل لك، والعكس صحيح.
     </div>
   );
 }
