@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function Footer() {
     return (
       <footer
@@ -31,6 +33,43 @@ export default function Footer() {
           </a>{" "}
           💚
         </p>
+
+        <nav
+          aria-label="روابط قانونية"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: "14px",
+            flexWrap: "wrap",
+            marginTop: "14px",
+            fontSize: "13px",
+          }}
+        >
+          <Link
+            to="/terms"
+            style={{
+              color: "#9ca3af",
+              textDecoration: "none",
+              borderBottom: "1px solid rgba(125,219,205,0.35)",
+              paddingBottom: "3px",
+            }}
+          >
+            سياسة الاستخدام
+          </Link>
+          <span style={{ color: "#374151" }}>•</span>
+          <Link
+            to="/privacy"
+            style={{
+              color: "#9ca3af",
+              textDecoration: "none",
+              borderBottom: "1px solid rgba(125,219,205,0.35)",
+              paddingBottom: "3px",
+            }}
+          >
+            سياسة الخصوصية
+          </Link>
+        </nav>
   
         <p
           style={{

@@ -4,6 +4,8 @@ import Navbar from "./pages/Navbar";
 import HomePage from "./pages/HomePage";
 import ExperiencesPage from "./pages/ExperiencesPage";
 import AddExperienceModal from "./pages/AddExperienceModal";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import Footer from "./pages/Footer";
 import { useLocation } from "react-router-dom";
 
@@ -68,6 +70,8 @@ function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/experiences" element={<ExperiencesPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/AddExperienceModal" element={<AddExperienceModal />} />
 
             </Routes>
