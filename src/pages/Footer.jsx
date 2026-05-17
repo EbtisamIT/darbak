@@ -47,7 +47,7 @@ export default function Footer() {
           }}
         >
           <Link
-            to="/terms"
+            to="/legal#terms"
             style={{
               color: "#9ca3af",
               textDecoration: "none",
@@ -59,7 +59,7 @@ export default function Footer() {
           </Link>
           <span style={{ color: "#374151" }}>•</span>
           <Link
-            to="/privacy"
+            to="/legal#privacy"
             style={{
               color: "#9ca3af",
               textDecoration: "none",
