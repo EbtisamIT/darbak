@@ -1409,6 +1409,21 @@ const ExperiencesPage = () => {
               ))}
             </div>
 
+            <p
+              style={{
+                margin: "-6px 0 16px",
+                padding: "9px 12px",
+                borderRadius: "12px",
+                background: "rgba(125,219,205,0.08)",
+                border: "1px solid rgba(125,219,205,0.18)",
+                color: "#d1d5db",
+                fontSize: "12px",
+                lineHeight: 1.7,
+              }}
+            >
+              هذه تجربة شخصية لا تمثل الجهة بالضرورة، وقد تختلف حسب الوقت والظروف.
+            </p>
+
             <div style={{ marginTop: "20px" }}>
               {renderStepContent()}
             </div>
