@@ -70,6 +70,25 @@ export default function AdminReviewPage() {
     }
   };
 
+  const deleteExperience = async (id) => {
+    const confirmed = window.confirm(
+      "هل أنتِ متأكدة من حذف هذه التجربة نهائيًا؟ لا يمكن التراجع عن الحذف."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setMessage("");
+      await axios.delete(`${API_BASE_URL}/api/admin/experiences/${id}`, {
+        headers: authHeaders,
+      });
+      setExperiences((prev) => prev.filter((exp) => exp._id !== id));
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر حذف التجربة.");
+    }
+  };
+
   return (
     <main
       style={{
@@ -250,6 +269,21 @@ export default function AdminReviewPage() {
                     رفض
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => deleteExperience(exp._id)}
+                  style={{
+                    background: "rgba(127,29,29,0.2)",
+                    color: "#fecaca",
+                    border: "1px solid rgba(248,113,113,0.35)",
+                    borderRadius: "10px",
+                    padding: "9px 14px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  حذف نهائي
+                </button>
               </div>
             </article>
           ))

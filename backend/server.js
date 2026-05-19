@@ -272,6 +272,25 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
   }
 });
 
+app.delete('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const deleted = await Experience.findByIdAndDelete(req.params.id).lean();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Experience not found" });
+    }
+
+    res.json({ success: true, id: req.params.id });
+  } catch (err) {
+    console.error("❌ Admin delete error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

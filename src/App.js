@@ -73,7 +73,7 @@ function App() {
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/terms" element={<LegalPage />} />
               <Route path="/privacy" element={<LegalPage />} />
-              <Route path="/admin-review" element={<AdminReviewPage />} />
+              <Route path="/darbak-owner-review-2026" element={<AdminReviewPage />} />
               <Route path="/AddExperienceModal" element={<AddExperienceModal />} />
 
             </Routes>
