@@ -318,7 +318,10 @@ const ExperiencesPage = () => {
   const [companySearch, setCompanySearch] = useState("");
   const [sortOption, setSortOption] = useState("latest");
   const [fetchError, setFetchError] = useState("");
-  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalExperiences, setTotalExperiences] = useState(() => getCachedExperiences().length);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
 
@@ -329,35 +332,6 @@ const ExperiencesPage = () => {
     challenging: "🤔 متوسطة وفيها تحديات",
     notgood: "😕 غير مرضية",
   };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsRefreshing(true);
-
-      try {
-        const { data } = await axios.get(`${API_BASE_URL}/api/experiences`);
-
-        if (!Array.isArray(data)) {
-          throw new Error("Unexpected API response");
-        }
-
-        const sorted = [...data].sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-        );
-
-        setExperiences(sorted);
-        cacheExperiences(sorted);
-        setFetchError("");
-      } catch (err) {
-        console.error(err);
-        setFetchError("تعذر تحميل التجارب حاليًا. تأكدي من اتصال خدمة API.");
-      } finally {
-        setLoading(false);
-        setIsRefreshing(false);
-      }
-    };
-    fetchData();
-  }, []);
 
   const toggleMajor = (major) => {
     if (major === "الكل") {
@@ -464,13 +438,65 @@ const ExperiencesPage = () => {
   );
 
   const visibleExperiences = useMemo(
-    () => filteredExperiences.slice(0, visibleCount),
-    [filteredExperiences, visibleCount]
+    () => filteredExperiences,
+    [filteredExperiences]
+  );
+
+  const fetchExperiencesPage = useCallback(
+    async (nextPage = 1, { append = false } = {}) => {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setIsRefreshing(true);
+      }
+
+      try {
+        const { data } = await axios.get(`${API_BASE_URL}/api/experiences`, {
+          params: {
+            page: nextPage,
+            limit: INITIAL_VISIBLE_COUNT,
+            sort: sortOption,
+            majors: selectedMajors.join(","),
+            terms: searchTerms.join("|"),
+          },
+        });
+
+        const items = Array.isArray(data) ? data : data.data;
+
+        if (!Array.isArray(items)) {
+          throw new Error("Unexpected API response");
+        }
+
+        setExperiences((prev) => (append ? [...prev, ...items] : items));
+
+        if (!append) {
+          cacheExperiences(items);
+        }
+
+        setCurrentPage(data.page || nextPage);
+        setTotalExperiences(data.total ?? items.length);
+        setHasMore(Boolean(data.hasMore));
+        setFetchError("");
+      } catch (err) {
+        console.error(err);
+        setFetchError("تعذر تحميل التجارب حاليًا. تأكدي من اتصال خدمة API.");
+      } finally {
+        setLoading(false);
+        setIsRefreshing(false);
+        setLoadingMore(false);
+      }
+    },
+    [searchTerms, selectedMajors, sortOption]
   );
 
   useEffect(() => {
-    setVisibleCount(INITIAL_VISIBLE_COUNT);
-  }, [selectedMajors, companySearch, sortOption]);
+    fetchExperiencesPage(1, { append: false });
+  }, [fetchExperiencesPage]);
+
+  const loadMoreExperiences = () => {
+    if (loadingMore || !hasMore) return;
+    fetchExperiencesPage(currentPage + 1, { append: true });
+  };
 
   const StarRating = ({ value = 0 }) => (
     <div
@@ -943,7 +969,7 @@ const ExperiencesPage = () => {
                 whiteSpace: "nowrap",
               }}
             >
-              {filteredExperiences.length} تجربة
+              {totalExperiences} تجربة
             </div>
 
             {companySearch && (
@@ -1300,25 +1326,24 @@ const ExperiencesPage = () => {
               ))}
             </div>
 
-            {visibleCount < filteredExperiences.length && (
+            {hasMore && (
               <div style={{ textAlign: "center", marginTop: "22px" }}>
                 <button
                   type="button"
-                  onClick={() =>
-                    setVisibleCount((count) => count + INITIAL_VISIBLE_COUNT)
-                  }
+                  onClick={loadMoreExperiences}
+                  disabled={loadingMore}
                   style={{
-                    background: "#7ddbcd",
+                    background: loadingMore ? "rgba(125,219,205,0.5)" : "#7ddbcd",
                     color: "#000",
                     border: "none",
                     borderRadius: "14px",
                     padding: "11px 24px",
-                    cursor: "pointer",
+                    cursor: loadingMore ? "not-allowed" : "pointer",
                     fontFamily: "inherit",
                     fontWeight: "bold",
                   }}
                 >
-                  عرض المزيد
+                  {loadingMore ? "جاري التحميل..." : "عرض المزيد"}
                 </button>
               </div>
             )}

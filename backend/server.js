@@ -7,6 +7,22 @@ const Experience = require('./models/Experience');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const DEFAULT_EXPERIENCES_LIMIT = 36;
+const MAX_EXPERIENCES_LIMIT = 60;
+
+const normalizeSearchText = (value = "") =>
+  value
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[أإآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ـ/g, "")
+    .replace(/[\u064B-\u065F]/g, "")
+    .replace(/\s+/g, " ");
 
 // ===== Middlewares =====
 app.use(cors());
@@ -63,11 +79,72 @@ app.get('/api/experiences', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const experiences = await Experience.find().sort({ createdAt: -1 }).lean();
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const requestedLimit = parseInt(req.query.limit, 10) || DEFAULT_EXPERIENCES_LIMIT;
+    const limit = Math.min(Math.max(requestedLimit, 1), MAX_EXPERIENCES_LIMIT);
+    const skip = (page - 1) * limit;
+    const sortOption = req.query.sort || "latest";
+    const majors = req.query.majors
+      ? req.query.majors.split(",").map((major) => major.trim()).filter(Boolean)
+      : [];
+    const searchTerms = req.query.terms
+      ? req.query.terms.split("|").map(normalizeSearchText).filter(Boolean)
+      : [];
+
+    const baseFilter = {};
+
+    if (majors.length > 0) {
+      baseFilter.major = { $in: majors };
+    }
+
+    const sort =
+      sortOption === "rating"
+        ? { starRating: -1, createdAt: -1 }
+        : { createdAt: -1 };
+
+    let experiences;
+    let total;
+
+    if (searchTerms.length > 0) {
+      const candidates = await Experience.find(baseFilter).sort(sort).lean();
+
+      const matchesSearch = (exp) => {
+        const searchableValues = [
+          exp.organizationName,
+          exp.companyName,
+          exp.major,
+          exp.title,
+        ]
+          .filter(Boolean)
+          .map(normalizeSearchText);
+
+        return searchableValues.some((value) =>
+          searchTerms.some((term) => value.includes(term))
+        );
+      };
+
+      const filtered = candidates.filter(matchesSearch);
+      total = filtered.length;
+      experiences = filtered.slice(skip, skip + limit);
+    } else {
+      const [items, count] = await Promise.all([
+        Experience.find(baseFilter).sort(sort).skip(skip).limit(limit).lean(),
+        Experience.countDocuments(baseFilter),
+      ]);
+
+      experiences = items;
+      total = count;
+    }
 
     console.log("✅ Data fetched:", experiences.length);
 
-    res.json(experiences);
+    res.json({
+      data: experiences,
+      page,
+      limit,
+      total,
+      hasMore: skip + experiences.length < total,
+    });
   } catch (err) {
     console.error("❌ FULL ERROR:", err);
     res.status(500).json({ error: err.message });
