@@ -9,6 +9,37 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const DEFAULT_EXPERIENCES_LIMIT = 36;
 const MAX_EXPERIENCES_LIMIT = 60;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const BLOCKED_TERMS = [
+  "غبي",
+  "غباء",
+  "حقير",
+  "حقيره",
+  "فاشل",
+  "فاشله",
+  "نصاب",
+  "نصابه",
+  "حرامي",
+  "حراميه",
+  "زباله",
+  "كلب",
+  "حيوان",
+  "عنصري",
+  "عنصريه",
+  "لعنه",
+  "قذر",
+  "قذره",
+  "stupid",
+  "idiot",
+  "trash",
+  "scam",
+  "scammer",
+  "thief",
+  "racist",
+  "hate",
+  "sucks",
+  "damn",
+];
 
 const normalizeSearchText = (value = "") =>
   value
@@ -23,6 +54,25 @@ const normalizeSearchText = (value = "") =>
     .replace(/ـ/g, "")
     .replace(/[\u064B-\u065F]/g, "")
     .replace(/\s+/g, " ");
+
+const containsBlockedTerms = (value = "") => {
+  const normalizedValue = normalizeSearchText(value);
+  return BLOCKED_TERMS.some((term) =>
+    normalizedValue.includes(normalizeSearchText(term))
+  );
+};
+
+const requireAdmin = (req, res, next) => {
+  if (!ADMIN_PASSWORD) {
+    return res.status(500).json({ error: "Admin password is not configured" });
+  }
+
+  if (req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  next();
+};
 
 // ===== Middlewares =====
 app.use(cors());
@@ -63,7 +113,25 @@ app.post('/api/experiences', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const newExp = new Experience(req.body);
+    const fieldsToCheck = [
+      req.body.organizationName,
+      req.body.city,
+      req.body.major,
+      req.body.howApplied,
+      req.body.duration,
+      req.body.description,
+    ];
+
+    if (fieldsToCheck.some(containsBlockedTerms)) {
+      return res.status(400).json({
+        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة ثم المحاولة مرة أخرى.",
+      });
+    }
+
+    const newExp = new Experience({
+      ...req.body,
+      status: "pending",
+    });
     await newExp.save();
     res.json(newExp);
   } catch (err) {
@@ -91,7 +159,9 @@ app.get('/api/experiences', async (req, res) => {
       ? req.query.terms.split("|").map(normalizeSearchText).filter(Boolean)
       : [];
 
-    const baseFilter = {};
+    const baseFilter = {
+      $or: [{ status: "approved" }, { status: { $exists: false } }],
+    };
 
     if (majors.length > 0) {
       baseFilter.major = { $in: majors };
@@ -147,6 +217,57 @@ app.get('/api/experiences', async (req, res) => {
     });
   } catch (err) {
     console.error("❌ FULL ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/experiences', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const status = ["pending", "approved", "rejected"].includes(req.query.status)
+      ? req.query.status
+      : "pending";
+
+    const experiences = await Experience.find({ status })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    res.json({ data: experiences });
+  } catch (err) {
+    console.error("❌ Admin fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const { status } = req.body;
+
+    if (!["approved", "rejected", "pending"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const updated = await Experience.findByIdAndUpdate(
+      req.params.id,
+      { status, reviewedAt: new Date() },
+      { new: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Experience not found" });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("❌ Admin update error:", err);
     res.status(500).json({ error: err.message });
   }
 });

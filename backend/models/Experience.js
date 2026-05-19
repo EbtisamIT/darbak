@@ -41,6 +41,15 @@ const experienceSchema = new mongoose.Schema(
     title: {
       type: String,
     },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+      index: true,
+    },
+    reviewedAt: {
+      type: Date,
+    },
 
     // ✅ التخصص الجديد
     major: {

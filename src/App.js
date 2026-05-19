@@ -5,6 +5,7 @@ import HomePage from "./pages/HomePage";
 import ExperiencesPage from "./pages/ExperiencesPage";
 import AddExperienceModal from "./pages/AddExperienceModal";
 import LegalPage from "./pages/LegalPage";
+import AdminReviewPage from "./pages/AdminReviewPage";
 import Footer from "./pages/Footer";
 import { useLocation } from "react-router-dom";
 
@@ -72,6 +73,7 @@ function App() {
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/terms" element={<LegalPage />} />
               <Route path="/privacy" element={<LegalPage />} />
+              <Route path="/admin-review" element={<AdminReviewPage />} />
               <Route path="/AddExperienceModal" element={<AddExperienceModal />} />
 
             </Routes>

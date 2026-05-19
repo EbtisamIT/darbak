@@ -210,7 +210,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     } catch (err) {
       console.error("Error saving experience:", err);
       setLoading(false);
-      setError("حدث خطأ أثناء الحفظ. تأكدي من اتصال خدمة API ثم حاولي مرة أخرى.");
+      setError(
+        err.response?.data?.error ||
+          "حدث خطأ أثناء الحفظ. تأكدي من اتصال خدمة API ثم حاولي مرة أخرى."
+      );
     }
   };
 
@@ -557,9 +560,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {/* بعد الحفظ */}
           {step >= totalSteps && (
             <div style={{ textAlign: "center", padding: 20 }}>
-              <h3 style={{ color: "#e6eef6" }}>تمت الإضافة بنجاح 🎉</h3>
+              <h3 style={{ color: "#e6eef6" }}>وصلتنا تجربتك 🎉</h3>
               <p style={{ color: "#a9c0d6" }}>
-                شكراً لمشاركتك! ستظهر تجربتك في صفحة التجارب قريبًا.
+                شكراً لمشاركتك! ستظهر تجربتك بعد مراجعتها واعتمادها.
               </p>
               <button
                 onClick={handleClose}
