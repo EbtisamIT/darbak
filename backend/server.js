@@ -63,7 +63,7 @@ app.get('/api/experiences', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const experiences = await Experience.find().sort({ createdAt: -1 });
+    const experiences = await Experience.find().sort({ createdAt: -1 }).lean();
 
     console.log("✅ Data fetched:", experiences.length);
 

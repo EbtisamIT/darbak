@@ -1,9 +1,38 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
 
 const HEADER_HEIGHT = 90;
+const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v1";
+const INITIAL_VISIBLE_COUNT = 36;
+
+const getCachedExperiences = () => {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const cached = window.localStorage.getItem(EXPERIENCES_CACHE_KEY);
+    if (!cached) return [];
+
+    const parsed = JSON.parse(cached);
+    return Array.isArray(parsed?.data) ? parsed.data : [];
+  } catch {
+    return [];
+  }
+};
+
+const cacheExperiences = (data) => {
+  if (typeof window === "undefined" || !Array.isArray(data)) return;
+
+  try {
+    window.localStorage.setItem(
+      EXPERIENCES_CACHE_KEY,
+      JSON.stringify({ data, cachedAt: Date.now() })
+    );
+  } catch {
+    // Ignore storage quota or private browsing errors.
+  }
+};
 
 const COMPANY_SEARCH_ALIASES = {
   // Generic government entity terms.
@@ -216,9 +245,72 @@ const MAJOR_SEARCH_ALIASES = {
   "الأمن والسلامة": ["امن", "أمن", "سلامه", "سلامة", "safety", "security", "hse"],
 };
 
+const normalizeSearchText = (value = "") =>
+  value
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[أإآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ـ/g, "")
+    .replace(/[\u064B-\u065F]/g, "")
+    .replace(/\s+/g, " ");
+
+const getCompanySearchTerms = (value) => {
+  const normalizedValue = normalizeSearchText(value);
+
+  if (!normalizedValue) return [];
+
+  const aliases = Object.entries(COMPANY_SEARCH_ALIASES).flatMap(
+    ([company, alternatives]) => {
+      const normalizedCompany = normalizeSearchText(company);
+      const normalizedAlternatives = alternatives.map(normalizeSearchText);
+
+      if (
+        normalizedCompany.includes(normalizedValue) ||
+        normalizedAlternatives.some((alias) => alias.includes(normalizedValue))
+      ) {
+        return [normalizedCompany, ...normalizedAlternatives];
+      }
+
+      return [];
+    }
+  );
+
+  return Array.from(new Set([normalizedValue, ...aliases]));
+};
+
+const getMajorSearchTerms = (value) => {
+  const normalizedValue = normalizeSearchText(value);
+
+  if (!normalizedValue) return [];
+
+  const aliases = Object.entries(MAJOR_SEARCH_ALIASES).flatMap(
+    ([major, alternatives]) => {
+      const normalizedMajor = normalizeSearchText(major);
+      const normalizedAlternatives = alternatives.map(normalizeSearchText);
+
+      if (
+        normalizedMajor.includes(normalizedValue) ||
+        normalizedAlternatives.some((alias) => alias.includes(normalizedValue))
+      ) {
+        return [normalizedMajor, ...normalizedAlternatives];
+      }
+
+      return [];
+    }
+  );
+
+  return Array.from(new Set([normalizedValue, ...aliases]));
+};
+
 const ExperiencesPage = () => {
-  const [experiences, setExperiences] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [experiences, setExperiences] = useState(() => getCachedExperiences());
+  const [loading, setLoading] = useState(() => getCachedExperiences().length === 0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedExperience, setSelectedExperience] = useState(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedMajors, setSelectedMajors] = useState([]);
@@ -226,6 +318,7 @@ const ExperiencesPage = () => {
   const [companySearch, setCompanySearch] = useState("");
   const [sortOption, setSortOption] = useState("latest");
   const [fetchError, setFetchError] = useState("");
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT);
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
 
@@ -239,6 +332,8 @@ const ExperiencesPage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsRefreshing(true);
+
       try {
         const { data } = await axios.get(`${API_BASE_URL}/api/experiences`);
 
@@ -246,16 +341,19 @@ const ExperiencesPage = () => {
           throw new Error("Unexpected API response");
         }
 
-        const sorted = data.sort(
+        const sorted = [...data].sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         );
+
         setExperiences(sorted);
+        cacheExperiences(sorted);
         setFetchError("");
       } catch (err) {
         console.error(err);
         setFetchError("تعذر تحميل التجارب حاليًا. تأكدي من اتصال خدمة API.");
       } finally {
         setLoading(false);
+        setIsRefreshing(false);
       }
     };
     fetchData();
@@ -275,78 +373,23 @@ const ExperiencesPage = () => {
     );
   };
 
-  const normalizeSearchText = (value = "") =>
-    value
-      .toString()
-      .toLowerCase()
-      .trim()
-      .replace(/[أإآا]/g, "ا")
-      .replace(/ى/g, "ي")
-      .replace(/ة/g, "ه")
-      .replace(/ؤ/g, "و")
-      .replace(/ئ/g, "ي")
-      .replace(/ـ/g, "")
-      .replace(/[\u064B-\u065F]/g, "")
-      .replace(/\s+/g, " ");
-
-  const normalizedCompanySearch = normalizeSearchText(companySearch);
-
-  const getCompanySearchTerms = (value) => {
-    const normalizedValue = normalizeSearchText(value);
-
-    if (!normalizedValue) return [];
-
-    const aliases = Object.entries(COMPANY_SEARCH_ALIASES).flatMap(
-      ([company, alternatives]) => {
-        const normalizedCompany = normalizeSearchText(company);
-        const normalizedAlternatives = alternatives.map(normalizeSearchText);
-
-        if (
-          normalizedCompany.includes(normalizedValue) ||
-          normalizedAlternatives.some((alias) => alias.includes(normalizedValue))
-        ) {
-          return [normalizedCompany, ...normalizedAlternatives];
-        }
-
-        return [];
-      }
-    );
-
-    return Array.from(new Set([normalizedValue, ...aliases]));
-  };
-
-  const getMajorSearchTerms = (value) => {
-    const normalizedValue = normalizeSearchText(value);
-
-    if (!normalizedValue) return [];
-
-    const aliases = Object.entries(MAJOR_SEARCH_ALIASES).flatMap(
-      ([major, alternatives]) => {
-        const normalizedMajor = normalizeSearchText(major);
-        const normalizedAlternatives = alternatives.map(normalizeSearchText);
-
-        if (
-          normalizedMajor.includes(normalizedValue) ||
-          normalizedAlternatives.some((alias) => alias.includes(normalizedValue))
-        ) {
-          return [normalizedMajor, ...normalizedAlternatives];
-        }
-
-        return [];
-      }
-    );
-
-    return Array.from(new Set([normalizedValue, ...aliases]));
-  };
-
-  const searchTerms = Array.from(
-    new Set([
-      ...getCompanySearchTerms(companySearch),
-      ...getMajorSearchTerms(companySearch),
-    ])
+  const normalizedCompanySearch = useMemo(
+    () => normalizeSearchText(companySearch),
+    [companySearch]
   );
 
-  const getSearchScore = (exp) => {
+  const searchTerms = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...getCompanySearchTerms(companySearch),
+          ...getMajorSearchTerms(companySearch),
+        ])
+      ),
+    [companySearch]
+  );
+
+  const getSearchScore = useCallback((exp) => {
     if (searchTerms.length === 0) return 0;
 
     const searchableValues = [
@@ -372,41 +415,62 @@ const ExperiencesPage = () => {
       if (includesMatch) return score + 2;
       return score;
     }, 0);
-  };
+  }, [searchTerms]);
 
-  const filteredExperiences = experiences
-    .filter((exp) => {
-      const matchesMajor =
-        selectedMajors.length === 0 || selectedMajors.includes(exp.major);
+  const filteredExperiences = useMemo(
+    () =>
+      experiences
+        .filter((exp) => {
+          const matchesMajor =
+            selectedMajors.length === 0 || selectedMajors.includes(exp.major);
 
-      const searchableNames = [
-        exp.organizationName,
-        exp.companyName,
-        exp.major,
-      ].filter(Boolean);
+          const searchableNames = [
+            exp.organizationName,
+            exp.companyName,
+            exp.major,
+          ].filter(Boolean);
 
-      const normalizedSearchableNames = searchableNames.map(normalizeSearchText);
+          const normalizedSearchableNames =
+            searchableNames.map(normalizeSearchText);
 
-      const matchesSearch =
-        normalizedCompanySearch.length === 0 ||
-        normalizedSearchableNames.some((name) =>
-          searchTerms.some((term) => name.includes(term))
-        );
+          const matchesSearch =
+            normalizedCompanySearch.length === 0 ||
+            normalizedSearchableNames.some((name) =>
+              searchTerms.some((term) => name.includes(term))
+            );
 
-      return matchesMajor && matchesSearch;
-    })
-    .sort((a, b) => {
-      if (sortOption === "rating") {
-        return (b.starRating || 0) - (a.starRating || 0);
-      }
+          return matchesMajor && matchesSearch;
+        })
+        .sort((a, b) => {
+          if (sortOption === "rating") {
+            return (b.starRating || 0) - (a.starRating || 0);
+          }
 
-      if (sortOption === "relevance" && normalizedCompanySearch) {
-        const scoreDiff = getSearchScore(b) - getSearchScore(a);
-        if (scoreDiff !== 0) return scoreDiff;
-      }
+          if (sortOption === "relevance" && normalizedCompanySearch) {
+            const scoreDiff = getSearchScore(b) - getSearchScore(a);
+            if (scoreDiff !== 0) return scoreDiff;
+          }
 
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-    });
+          return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        }),
+    [
+      experiences,
+      selectedMajors,
+      normalizedCompanySearch,
+      searchTerms,
+      sortOption,
+      getSearchScore,
+    ]
+  );
+
+  const visibleExperiences = useMemo(
+    () => filteredExperiences.slice(0, visibleCount),
+    [filteredExperiences, visibleCount]
+  );
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE_COUNT);
+  }, [selectedMajors, companySearch, sortOption]);
 
   const StarRating = ({ value = 0 }) => (
     <div
@@ -1034,6 +1098,19 @@ const ExperiencesPage = () => {
           </div>
         )}
 
+        {isRefreshing && experiences.length > 0 && !fetchError && (
+          <div
+            style={{
+              textAlign: "center",
+              margin: "0 auto 14px",
+              color: "#9ca3af",
+              fontSize: "12px",
+            }}
+          >
+            يتم تحديث التجارب...
+          </div>
+        )}
+
         {loading ? (
           <div
             style={{
@@ -1056,171 +1133,196 @@ const ExperiencesPage = () => {
             </p>
           </div>
         ) : (
-          <div
-            className="experience-cards-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(165px, 1fr))",
-              gap: "14px",
-            }}
-          >
-            {filteredExperiences.map((exp) => (
-              <div
-                className="experience-card"
-                key={exp._id}
-                onClick={() => {
-                  setSelectedExperience(exp);
-                  setCurrentStep(1);
-                }}
-                style={{
-                  background:
-                    "linear-gradient(180deg, #1b1e25 0%, #16181f 100%)",
-                  borderRadius: "20px",
-                  padding: "14px",
-                  border: "1px solid rgba(255,255,255,0.07)",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  minHeight: "178px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
-                  transition: "0.3s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-5px)";
-                  e.currentTarget.style.boxShadow =
-                    "0 15px 30px rgba(125,219,205,0.12)";
-                  e.currentTarget.style.border =
-                    "1px solid rgba(125,219,205,0.35)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow =
-                    "0 10px 25px rgba(0,0,0,0.25)";
-                  e.currentTarget.style.border =
-                    "1px solid rgba(255,255,255,0.07)";
-                }}
-              >
-                <div>
-                  <div
-                    className="experience-title-box"
-                    style={{
-                      marginBottom: "10px",
-                      minHeight: "40px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <h3
+          <>
+            <div
+              className="experience-cards-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(165px, 1fr))",
+                gap: "14px",
+              }}
+            >
+              {visibleExperiences.map((exp) => (
+                <div
+                  className="experience-card"
+                  key={exp._id}
+                  onClick={() => {
+                    setSelectedExperience(exp);
+                    setCurrentStep(1);
+                  }}
+                  style={{
+                    background:
+                      "linear-gradient(180deg, #1b1e25 0%, #16181f 100%)",
+                    borderRadius: "20px",
+                    padding: "14px",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    cursor: "pointer",
+                    textAlign: "center",
+                    minHeight: "178px",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
+                    transition: "0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-5px)";
+                    e.currentTarget.style.boxShadow =
+                      "0 15px 30px rgba(125,219,205,0.12)";
+                    e.currentTarget.style.border =
+                      "1px solid rgba(125,219,205,0.35)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow =
+                      "0 10px 25px rgba(0,0,0,0.25)";
+                    e.currentTarget.style.border =
+                      "1px solid rgba(255,255,255,0.07)";
+                  }}
+                >
+                  <div>
+                    <div
+                      className="experience-title-box"
                       style={{
+                        marginBottom: "10px",
+                        minHeight: "40px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <h3
+                        style={{
+                          color: "#7ddbcd",
+                          fontSize: "16px",
+                          margin: 0,
+                          lineHeight: "1.45",
+                          fontWeight: "800",
+                        }}
+                      >
+                        {exp.title}
+                      </h3>
+                    </div>
+
+                    <div
+                      className="experience-card-info"
+                      style={{
+                        display: "grid",
+                        gap: "8px",
+                      }}
+                    >
+                      <div
+                        className="experience-info-box"
+                        style={{
+                          background: "#14161c",
+                          borderRadius: "12px",
+                          padding: "8px",
+                          border: "1px solid rgba(255,255,255,0.05)",
+                        }}
+                      >
+                        <p
+                          style={{
+                            color: "#7ddbcd",
+                            fontSize: "11px",
+                            margin: "0 0 4px",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          🏢 الجهة
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "12px",
+                            color: "#e5e7eb",
+                            margin: 0,
+                            fontWeight:"bold"
+
+                          }}
+                        >
+                          {exp.organizationName}
+                        </p>
+                      </div>
+
+                      <div
+                        className="experience-info-box"
+                        style={{
+                          background: "#14161c",
+                          borderRadius: "12px",
+                          padding: "8px",
+                          border: "1px solid rgba(255,255,255,0.05)",
+                        }}
+                      >
+                        <p
+                          style={{
+                            color: "#7ddbcd",
+                            fontSize: "11px",
+                            margin: "0 0 4px",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          🎓 التخصص
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "12px",
+                            color: "#e5e7eb",
+                            margin: 0,
+                            fontWeight:"bold"
+                          }}
+                        >
+                          {exp.major}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: "10px" }}>
+                    <StarRating value={exp.starRating || 0} />
+
+                    <button
+                      style={{
+                        marginTop: "5px",
+                        width: "100%",
+                        padding: "7px",
+                        borderRadius: "12px",
+                        border: "1px solid rgba(125,219,205,0.45)",
+                        background: "transparent",
                         color: "#7ddbcd",
-                        fontSize: "16px",
-                        margin: 0,
-                        lineHeight: "1.45",
-                        fontWeight: "800",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                        fontWeight: "bold",
                       }}
                     >
-                      {exp.title}
-                    </h3>
-                  </div>
-
-                  <div
-                    className="experience-card-info"
-                    style={{
-                      display: "grid",
-                      gap: "8px",
-                    }}
-                  >
-                    <div
-                      className="experience-info-box"
-                      style={{
-                        background: "#14161c",
-                        borderRadius: "12px",
-                        padding: "8px",
-                        border: "1px solid rgba(255,255,255,0.05)",
-                      }}
-                    >
-                      <p
-                        style={{
-                          color: "#7ddbcd",
-                          fontSize: "11px",
-                          margin: "0 0 4px",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        🏢 الجهة
-                      </p>
-                      <p
-                        style={{
-                          fontSize: "12px",
-                          color: "#e5e7eb",
-                          margin: 0,
-                          fontWeight:"bold"
-
-                        }}
-                      >
-                        {exp.organizationName}
-                      </p>
-                    </div>
-
-                    <div
-                      className="experience-info-box"
-                      style={{
-                        background: "#14161c",
-                        borderRadius: "12px",
-                        padding: "8px",
-                        border: "1px solid rgba(255,255,255,0.05)",
-                      }}
-                    >
-                      <p
-                        style={{
-                          color: "#7ddbcd",
-                          fontSize: "11px",
-                          margin: "0 0 4px",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        🎓 التخصص
-                      </p>
-                      <p
-                        style={{
-                          fontSize: "12px",
-                          color: "#e5e7eb",
-                          margin: 0,
-                          fontWeight:"bold"
-                        }}
-                      >
-                        {exp.major}
-                      </p>
-                    </div>
+                      عرض التفاصيل
+                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
 
-                <div style={{ marginTop: "10px" }}>
-                  <StarRating value={exp.starRating || 0} />
-
-                  <button
-                    style={{
-                      marginTop: "5px",
-                      width: "100%",
-                      padding: "7px",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(125,219,205,0.45)",
-                      background: "transparent",
-                      color: "#7ddbcd",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    عرض التفاصيل
-                  </button>
-                </div>
+            {visibleCount < filteredExperiences.length && (
+              <div style={{ textAlign: "center", marginTop: "22px" }}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisibleCount((count) => count + INITIAL_VISIBLE_COUNT)
+                  }
+                  style={{
+                    background: "#7ddbcd",
+                    color: "#000",
+                    border: "none",
+                    borderRadius: "14px",
+                    padding: "11px 24px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontWeight: "bold",
+                  }}
+                >
+                  عرض المزيد
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
 
