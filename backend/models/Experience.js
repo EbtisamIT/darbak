@@ -18,6 +18,19 @@ const experienceSchema = new mongoose.Schema(
       type: String,
       required: true, // مدة التدريب
     },
+    trainingYear: {
+      type: String,
+    },
+    wasHired: {
+      type: String,
+      enum: ["yes", "no", "not_sure", ""],
+      default: "",
+    },
+    hadReward: {
+      type: String,
+      enum: ["yes", "no", "not_sure", ""],
+      default: "",
+    },
     starRating: {
       type: Number,
       required: true,

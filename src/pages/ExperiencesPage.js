@@ -598,6 +598,12 @@ const ExperiencesPage = () => {
     </div>
   );
 
+  const optionalAnswerLabels = {
+    yes: "نعم",
+    no: "لا",
+    not_sure: "غير مؤكد",
+  };
+
   const SkeletonCard = () => (
     <div
       style={{
@@ -645,6 +651,38 @@ const ExperiencesPage = () => {
             label="طريقة التقديم"
             value={exp.howApplied}
           />
+
+          {(exp.trainingYear || exp.wasHired || exp.hadReward) && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gap: "10px",
+              }}
+            >
+              {exp.trainingYear && (
+                <InfoBox
+                  icon="📅"
+                  label="سنة التدريب"
+                  value={exp.trainingYear}
+                />
+              )}
+              {exp.wasHired && (
+                <InfoBox
+                  icon="💼"
+                  label="تم التوظيف؟"
+                  value={optionalAnswerLabels[exp.wasHired] || exp.wasHired}
+                />
+              )}
+              {exp.hadReward && (
+                <InfoBox
+                  icon="🎁"
+                  label="فيه مكافأة؟"
+                  value={optionalAnswerLabels[exp.hadReward] || exp.hadReward}
+                />
+              )}
+            </div>
+          )}
         </div>
       );
     }

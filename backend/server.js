@@ -119,6 +119,9 @@ app.post('/api/experiences', async (req, res) => {
       req.body.major,
       req.body.howApplied,
       req.body.duration,
+      req.body.trainingYear,
+      req.body.wasHired,
+      req.body.hadReward,
       req.body.description,
     ];
 

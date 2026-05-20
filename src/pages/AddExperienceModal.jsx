@@ -15,6 +15,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const [ratings, setRatings] = useState([]); // up to 2
   const [description, setDescription] = useState("");
   const [major, setMajor] = useState("");
+  const [trainingYear, setTrainingYear] = useState("");
+  const [wasHired, setWasHired] = useState("");
+  const [hadReward, setHadReward] = useState("");
   
 
   const [loading, setLoading] = useState(false);
@@ -139,6 +142,34 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     i + 1 === 1 ? "شهر" : `${i + 1} أشهر`
   );
 
+  const currentYear = new Date().getFullYear();
+  const trainingYearOptions = Array.from({ length: 7 }, (_, i) =>
+    String(currentYear - i)
+  );
+
+  const quickOptionalFields = [
+    {
+      label: "هل تم التوظيف؟",
+      value: wasHired,
+      setter: setWasHired,
+      options: [
+        { value: "yes", label: "نعم" },
+        { value: "no", label: "لا" },
+        { value: "not_sure", label: "غير مؤكد" },
+      ],
+    },
+    {
+      label: "هل فيه مكافأة؟",
+      value: hadReward,
+      setter: setHadReward,
+      options: [
+        { value: "yes", label: "نعم" },
+        { value: "no", label: "لا" },
+        { value: "not_sure", label: "غير مؤكد" },
+      ],
+    },
+  ];
+
   const handleClose = () => {
     if (onClose) onClose();
   };
@@ -189,6 +220,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       major,
       howApplied,
       duration,
+      trainingYear,
+      wasHired,
+      hadReward,
       ratings,        // ممكن تخلينه أو تحذفينه لاحقًا
       starRating,     // ⭐ الجديد
       description,
@@ -493,6 +527,122 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 </p>
 
 <StarRating value={starRating} onChange={setStarRating} />
+
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: 14,
+                  borderRadius: 14,
+                  background: "rgba(125,219,205,0.06)",
+                  border: "1px solid rgba(125,219,205,0.18)",
+                }}
+              >
+                <h4 style={{ margin: "0 0 6px", color: "#e6eef6" }}>
+                  لإفادة الطالب أكثر
+                </h4>
+                <p style={{ color: "#9fb0c7", fontSize: 13, margin: "0 0 12px" }}>
+                  اختاري الإجابات الصحيحة بسرعة، وكلها اختيارية.
+                </p>
+
+                <div
+                  className="quick-info-grid"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                    gap: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      borderRadius: 12,
+                      padding: 10,
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "block",
+                        color: "#dbeafe",
+                        fontSize: 13,
+                        marginBottom: 8,
+                      }}
+                    >
+                      سنة التدريب
+                    </label>
+                    <select
+                      value={trainingYear}
+                      onChange={(e) => setTrainingYear(e.target.value)}
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        padding: "9px 8px",
+                        borderRadius: 10,
+                        background: "rgba(255,255,255,0.03)",
+                        color: "#fff",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      <option value="">اختياري</option>
+                      {trainingYearOptions.map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {quickOptionalFields.map((field) => (
+                    <div
+                      key={field.label}
+                      style={{
+                        background: "rgba(255,255,255,0.03)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        borderRadius: 12,
+                        padding: 10,
+                      }}
+                    >
+                      <p
+                        style={{
+                          color: "#dbeafe",
+                          fontSize: 13,
+                          margin: "0 0 8px",
+                        }}
+                      >
+                        {field.label}
+                      </p>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        {field.options.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() =>
+                              field.setter(
+                                field.value === option.value ? "" : option.value
+                              )
+                            }
+                            style={{
+                              padding: "7px 8px",
+                              borderRadius: 9,
+                              background:
+                                field.value === option.value
+                                  ? "linear-gradient(90deg,#9fb0c7,#7ddbcd)"
+                                  : "rgba(255,255,255,0.02)",
+                              color: "#fff",
+                              border: "1px solid rgba(255,255,255,0.06)",
+                              cursor: "pointer",
+                              fontSize: 12,
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
 <div
   style={{
     marginTop: 14,
@@ -733,11 +883,16 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           }
 
           .option-grid button,
-          .option-grid div {
+          .option-grid div,
+          .quick-info-grid > div {
             width: 100% !important;
             min-width: 0 !important;
             box-sizing: border-box;
             padding: 10px 12px !important;
+          }
+
+          .quick-info-grid {
+            grid-template-columns: 1fr !important;
           }
 
           .stepper-modal-footer {
