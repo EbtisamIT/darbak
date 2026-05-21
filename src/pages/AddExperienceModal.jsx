@@ -1,30 +1,54 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import majors from "../majors"; // قائمة التخصصات
 import API_BASE_URL from "../config/api";
 
+const EXPERIENCE_DRAFT_KEY = "darbak_add_experience_draft_v1";
+
+const getSavedDraft = () => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const savedDraft = window.localStorage.getItem(EXPERIENCE_DRAFT_KEY);
+    return savedDraft ? JSON.parse(savedDraft) : null;
+  } catch {
+    return null;
+  }
+};
+
+const clearSavedDraft = () => {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.removeItem(EXPERIENCE_DRAFT_KEY);
+  } catch {
+    // Ignore private browsing or storage permission errors.
+  }
+};
+
 export default function AddExperienceModal({ onClose, onSaved }) {
-  const [step, setStep] = useState(0);
+  const savedDraft = useMemo(() => getSavedDraft(), []);
+  const [step, setStep] = useState(savedDraft?.step || 0);
   const totalSteps = 6; // خطوات الإدخال: 0..5 ، بعد الحفظ step === totalSteps => شاشة النجاح
 
   // form state
-  const [organizationName, setOrganizationName] = useState("");
-  const [city, setCity] = useState("");
-  const [customCity, setCustomCity] = useState("");
-  const [duration, setDuration] = useState("");
-  const [howApplied, setHowApplied] = useState("");
-  const [ratings, setRatings] = useState([]); // up to 2
-  const [description, setDescription] = useState("");
-  const [major, setMajor] = useState("");
-  const [customMajor, setCustomMajor] = useState("");
-  const [trainingYear, setTrainingYear] = useState("");
-  const [wasHired, setWasHired] = useState("");
-  const [hadReward, setHadReward] = useState("");
+  const [organizationName, setOrganizationName] = useState(savedDraft?.organizationName || "");
+  const [city, setCity] = useState(savedDraft?.city || "");
+  const [customCity, setCustomCity] = useState(savedDraft?.customCity || "");
+  const [duration, setDuration] = useState(savedDraft?.duration || "");
+  const [howApplied, setHowApplied] = useState(savedDraft?.howApplied || "");
+  const [ratings, setRatings] = useState(Array.isArray(savedDraft?.ratings) ? savedDraft.ratings : []); // up to 2
+  const [description, setDescription] = useState(savedDraft?.description || "");
+  const [major, setMajor] = useState(savedDraft?.major || "");
+  const [customMajor, setCustomMajor] = useState(savedDraft?.customMajor || "");
+  const [trainingYear, setTrainingYear] = useState(savedDraft?.trainingYear || "");
+  const [wasHired, setWasHired] = useState(savedDraft?.wasHired || "");
+  const [hadReward, setHadReward] = useState(savedDraft?.hadReward || "");
   
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [starRating, setStarRating] = useState(0); // من 1 إلى 5
+  const [starRating, setStarRating] = useState(savedDraft?.starRating || 0); // من 1 إلى 5
   const minDescriptionLength = 50;
   const descriptionLength = description.trim().length;
   const finalCity = city === "أخرى" ? customCity.trim() : city.trim();
@@ -178,6 +202,90 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     if (onClose) onClose();
   };
 
+  const hasDraftContent = useMemo(
+    () =>
+      Boolean(
+        organizationName.trim() ||
+          city.trim() ||
+          customCity.trim() ||
+          duration.trim() ||
+          howApplied.trim() ||
+          ratings.length > 0 ||
+          description.trim() ||
+          major.trim() ||
+          customMajor.trim() ||
+          trainingYear.trim() ||
+          wasHired.trim() ||
+          hadReward.trim() ||
+          starRating > 0
+      ),
+    [
+      organizationName,
+      city,
+      customCity,
+      duration,
+      howApplied,
+      ratings,
+      description,
+      major,
+      customMajor,
+      trainingYear,
+      wasHired,
+      hadReward,
+      starRating,
+    ]
+  );
+
+  useEffect(() => {
+    if (step >= totalSteps) return;
+
+    if (!hasDraftContent) {
+      clearSavedDraft();
+      return;
+    }
+
+    const draft = {
+      step,
+      organizationName,
+      city,
+      customCity,
+      duration,
+      howApplied,
+      ratings,
+      description,
+      major,
+      customMajor,
+      trainingYear,
+      wasHired,
+      hadReward,
+      starRating,
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      window.localStorage.setItem(EXPERIENCE_DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // Ignore private browsing or storage quota errors.
+    }
+  }, [
+    step,
+    totalSteps,
+    hasDraftContent,
+    organizationName,
+    city,
+    customCity,
+    duration,
+    howApplied,
+    ratings,
+    description,
+    major,
+    customMajor,
+    trainingYear,
+    wasHired,
+    hadReward,
+    starRating,
+  ]);
+
   const toggleRating = (id) => {
     setRatings((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -246,6 +354,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
       setLoading(false);
       if (onSaved) onSaved(res.data);
+      clearSavedDraft();
       setStep(totalSteps); // شاشة النجاح
     } catch (err) {
       console.error("Error saving experience:", err);
