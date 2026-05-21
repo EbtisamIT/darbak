@@ -617,11 +617,11 @@ const ExperiencesPage = () => {
         border: isReward ? "rgba(245,158,11,0.32)" : "rgba(52,211,153,0.32)",
       },
       no: {
-        label: isReward ? "بدون مكافأة" : "بدون توظيف",
-        icon: isReward ? "💸" : "—",
-        color: "#94a3b8",
-        background: "rgba(148,163,184,0.1)",
-        border: "rgba(148,163,184,0.24)",
+        label: isReward ? "بدون مكافأة" : "لم يتم التوظيف",
+        icon: isReward ? "💸" : "💼",
+        color: isReward ? "#f59e0b" : "#34d399",
+        background: isReward ? "rgba(245,158,11,0.13)" : "rgba(52,211,153,0.13)",
+        border: isReward ? "rgba(245,158,11,0.32)" : "rgba(52,211,153,0.32)",
       },
       not_sure: {
         label: isReward ? "مكافأة غير مؤكدة" : "توظيف غير مؤكد",
