@@ -604,6 +604,67 @@ const ExperiencesPage = () => {
     not_sure: "غير مؤكد",
   };
 
+  const getOutcomeBadge = (type, value) => {
+    if (!value) return null;
+
+    const isReward = type === "reward";
+    const configs = {
+      yes: {
+        label: isReward ? "فيه مكافأة" : "تم التوظيف",
+        icon: isReward ? "💰" : "💼",
+        color: isReward ? "#f59e0b" : "#34d399",
+        background: isReward ? "rgba(245,158,11,0.13)" : "rgba(52,211,153,0.13)",
+        border: isReward ? "rgba(245,158,11,0.32)" : "rgba(52,211,153,0.32)",
+      },
+      no: {
+        label: isReward ? "بدون مكافأة" : "بدون توظيف",
+        icon: isReward ? "💸" : "—",
+        color: "#94a3b8",
+        background: "rgba(148,163,184,0.1)",
+        border: "rgba(148,163,184,0.24)",
+      },
+      not_sure: {
+        label: isReward ? "مكافأة غير مؤكدة" : "توظيف غير مؤكد",
+        icon: "؟",
+        color: "#93c5fd",
+        background: "rgba(147,197,253,0.1)",
+        border: "rgba(147,197,253,0.25)",
+      },
+    };
+
+    return configs[value] || null;
+  };
+
+  const OutcomeBadge = ({ type, value }) => {
+    const badge = getOutcomeBadge(type, value);
+    if (!badge) return null;
+
+    return (
+      <span
+        className="experience-outcome-badge"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "4px",
+          minWidth: 0,
+          padding: "4px 7px",
+          borderRadius: "999px",
+          background: badge.background,
+          border: `1px solid ${badge.border}`,
+          color: badge.color,
+          fontSize: "10px",
+          fontWeight: "800",
+          lineHeight: 1,
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span aria-hidden="true">{badge.icon}</span>
+        <span>{badge.label}</span>
+      </span>
+    );
+  };
+
   const SkeletonCard = () => (
     <div
       style={{
@@ -1338,6 +1399,24 @@ const ExperiencesPage = () => {
                         </p>
                       </div>
                     </div>
+
+                    {(exp.wasHired || exp.hadReward) && (
+                      <div
+                        className="experience-outcome-badges"
+                        style={{
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          gap: "6px",
+                          flexWrap: "wrap",
+                          minHeight: "24px",
+                          marginTop: "8px",
+                        }}
+                      >
+                        <OutcomeBadge type="hired" value={exp.wasHired} />
+                        <OutcomeBadge type="reward" value={exp.hadReward} />
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ marginTop: "10px" }}>
@@ -1709,6 +1788,18 @@ const ExperiencesPage = () => {
 
           .experience-card span {
             font-size: 10px !important;
+          }
+
+          .experience-outcome-badges {
+            gap: 3px !important;
+            min-height: 16px !important;
+            margin-top: 4px !important;
+          }
+
+          .experience-outcome-badge {
+            padding: 2px 4px !important;
+            font-size: 7px !important;
+            max-width: 100%;
           }
 
           .experience-modal {
