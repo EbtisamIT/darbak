@@ -10,11 +10,13 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   // form state
   const [organizationName, setOrganizationName] = useState("");
   const [city, setCity] = useState("");
+  const [customCity, setCustomCity] = useState("");
   const [duration, setDuration] = useState("");
   const [howApplied, setHowApplied] = useState("");
   const [ratings, setRatings] = useState([]); // up to 2
   const [description, setDescription] = useState("");
   const [major, setMajor] = useState("");
+  const [customMajor, setCustomMajor] = useState("");
   const [trainingYear, setTrainingYear] = useState("");
   const [wasHired, setWasHired] = useState("");
   const [hadReward, setHadReward] = useState("");
@@ -25,6 +27,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const [starRating, setStarRating] = useState(0); // من 1 إلى 5
   const minDescriptionLength = 50;
   const descriptionLength = description.trim().length;
+  const finalCity = city === "أخرى" ? customCity.trim() : city.trim();
+  const finalMajor = major === "أخرى" ? customMajor.trim() : major.trim();
 
   const howAppliedOptions = [
     "موقع الجهة الرسمي",
@@ -186,9 +190,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const canNext = () => {
     switch (step) {
       case 0:
-        return organizationName.trim().length > 0 && city.trim().length > 0;
+        return organizationName.trim().length > 0 && finalCity.length > 0;
       case 1:
-        return major.trim().length > 0;
+        return finalMajor.length > 0;
       case 2:
         return howApplied.trim().length > 0;
       case 3:
@@ -205,7 +209,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
   const handleSubmit = async () => {
     setError(null);
-    if (!organizationName.trim() || !city.trim() || !major.trim() || !howApplied.trim() || !duration.trim() || ratings.length === 0) {
+    if (!organizationName.trim() || !finalCity || !finalMajor || !howApplied.trim() || !duration.trim() || ratings.length === 0) {
       setError("الرجاء إكمال جميع الحقول المطلوبة.");
       return;
     }
@@ -218,8 +222,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     const payload = {
       title: `تجربتي في ${organizationName}`,
       organizationName,
-      city,
-      major,
+      city: finalCity,
+      major: finalMajor,
       howApplied,
       duration,
       trainingYear,
@@ -383,7 +387,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
               <select
                 value={city}
-                onChange={(e) => setCity(e.target.value)}
+                onChange={(e) => {
+                  setCity(e.target.value);
+                  if (e.target.value !== "أخرى") setCustomCity("");
+                }}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -401,6 +408,25 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   </option>
                 ))}
               </select>
+
+              {city === "أخرى" && (
+                <input
+                  type="text"
+                  placeholder="اكتب/ي اسم المدينة"
+                  value={customCity}
+                  onChange={(e) => setCustomCity(e.target.value)}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: 12,
+                    borderRadius: 10,
+                    background: "rgba(255,255,255,0.02)",
+                    color: "#fff",
+                    border: "1px solid rgba(255,255,255,0.04)",
+                    marginTop: 12,
+                  }}
+                />
+              )}
             </div>
           )}
 
@@ -412,7 +438,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
               <select
   value={major}
-  onChange={(e) => setMajor(e.target.value)}
+  onChange={(e) => {
+    setMajor(e.target.value);
+    if (e.target.value !== "أخرى") setCustomMajor("");
+  }}
   style={{
     width: "100%",
     boxSizing: "border-box",
@@ -431,7 +460,27 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       {m.name}
     </option>
   ))}
+  <option value="أخرى">أخرى</option>
 </select>
+
+{major === "أخرى" && (
+  <input
+    type="text"
+    placeholder="اكتب/ي اسم التخصص"
+    value={customMajor}
+    onChange={(e) => setCustomMajor(e.target.value)}
+    style={{
+      width: "100%",
+      boxSizing: "border-box",
+      padding: 12,
+      borderRadius: 10,
+      background: "rgba(255,255,255,0.02)",
+      color: "#fff",
+      border: "1px solid rgba(255,255,255,0.04)",
+      marginTop: 12,
+    }}
+  />
+)}
 </div>
           )}
           {/* الخطوة 2 - طريقة التقديم */}
