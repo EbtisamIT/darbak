@@ -5,7 +5,7 @@ import API_BASE_URL from "../config/api";
 
 export default function AddExperienceModal({ onClose, onSaved }) {
   const [step, setStep] = useState(0);
-  const totalSteps = 5; // خطوات الإدخال: 0..4 ، بعد الحفظ step === totalSteps => شاشة النجاح
+  const totalSteps = 6; // خطوات الإدخال: 0..5 ، بعد الحفظ step === totalSteps => شاشة النجاح
 
   // form state
   const [organizationName, setOrganizationName] = useState("");
@@ -193,8 +193,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
         return howApplied.trim().length > 0;
       case 3:
         return duration.trim().length > 0;
-        case 4:
-          return starRating > 0 && descriptionLength >= minDescriptionLength;
+      case 4:
+        return starRating > 0 && descriptionLength >= minDescriptionLength;
+      case 5:
+        return true;
         
       default:
         return false;
@@ -360,7 +362,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {step === 0 && (
             <div>
               <h3 style={{ color: "#e6eef6" }}>بيانات الجهة</h3>
-              <p style={{ color: "#9fb0c7" }}>املئي اسم الجهة والمدينة.</p>
+              <p style={{ color: "#9fb0c7" }}>اكتب/ي اسم الجهة والمدينة.</p>
 
               <input
                 type="text"
@@ -406,7 +408,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {step === 1 && (
             <div>
               <h3 style={{ color: "#e6eef6" }}>ما هو تخصصك؟</h3>
-              <p style={{ color: "#9fb0c7" }}>اختار/ي التخصص الذي ينتمي له التدريب.</p>
+              <p style={{ color: "#9fb0c7" }}>اختر/ي التخصص الذي ينتمي له التدريب.</p>
 
               <select
   value={major}
@@ -422,7 +424,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     marginTop: 10,
   }}
 >
-  <option value="">🎓 اختار/ي التخصص</option>
+  <option value="">🎓 اختر/ي التخصص</option>
 
   {majors.map((m, i) => (
     <option key={i} value={m.name}>
@@ -491,7 +493,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {/* الخطوة 4 - التقييم والوصف */}
           {step === 4 && (
             <div>
-              <h3 style={{ color: "#e6eef6" }}>قيّمي تجربتك</h3>
+              <h3 style={{ color: "#e6eef6" }}>قيّم/ي تجربتك</h3>
               <p style={{ color: "#9fb0c7" }}>يمكنك اختيار تقييمين كحد أقصى.</p>
 
               <div className="option-grid" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
@@ -523,125 +525,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   التقييم العام للتجربة
 </h4>
 <p style={{ color: "#9fb0c7", fontSize: 14 }}>
-  قيّمي التجربة من 1 إلى 5 نجوم
+  قيّم/ي التجربة من 1 إلى 5 نجوم
 </p>
 
 <StarRating value={starRating} onChange={setStarRating} />
-
-              <div
-                style={{
-                  marginTop: 18,
-                  padding: 14,
-                  borderRadius: 14,
-                  background: "rgba(125,219,205,0.06)",
-                  border: "1px solid rgba(125,219,205,0.18)",
-                }}
-              >
-                <h4 style={{ margin: "0 0 6px", color: "#e6eef6" }}>
-                  لإفادة الطالب أكثر
-                </h4>
-                <p style={{ color: "#9fb0c7", fontSize: 13, margin: "0 0 12px" }}>
-                  اختاري الإجابات الصحيحة بسرعة، وكلها اختيارية.
-                </p>
-
-                <div
-                  className="quick-info-grid"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                    gap: 10,
-                  }}
-                >
-                  <div
-                    style={{
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                      borderRadius: 12,
-                      padding: 10,
-                    }}
-                  >
-                    <label
-                      style={{
-                        display: "block",
-                        color: "#dbeafe",
-                        fontSize: 13,
-                        marginBottom: 8,
-                      }}
-                    >
-                      سنة التدريب
-                    </label>
-                    <select
-                      value={trainingYear}
-                      onChange={(e) => setTrainingYear(e.target.value)}
-                      style={{
-                        width: "100%",
-                        boxSizing: "border-box",
-                        padding: "9px 8px",
-                        borderRadius: 10,
-                        background: "rgba(255,255,255,0.03)",
-                        color: "#fff",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                      }}
-                    >
-                      <option value="">اختياري</option>
-                      {trainingYearOptions.map((year) => (
-                        <option key={year} value={year}>
-                          {year}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {quickOptionalFields.map((field) => (
-                    <div
-                      key={field.label}
-                      style={{
-                        background: "rgba(255,255,255,0.03)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                        borderRadius: 12,
-                        padding: 10,
-                      }}
-                    >
-                      <p
-                        style={{
-                          color: "#dbeafe",
-                          fontSize: 13,
-                          margin: "0 0 8px",
-                        }}
-                      >
-                        {field.label}
-                      </p>
-                      <div style={{ display: "grid", gap: 6 }}>
-                        {field.options.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() =>
-                              field.setter(
-                                field.value === option.value ? "" : option.value
-                              )
-                            }
-                            style={{
-                              padding: "7px 8px",
-                              borderRadius: 9,
-                              background:
-                                field.value === option.value
-                                  ? "linear-gradient(90deg,#9fb0c7,#7ddbcd)"
-                                  : "rgba(255,255,255,0.02)",
-                              color: "#fff",
-                              border: "1px solid rgba(255,255,255,0.06)",
-                              cursor: "pointer",
-                              fontSize: 12,
-                            }}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
 <div
   style={{
@@ -704,6 +591,116 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               
          
          
+            </div>
+          )}
+
+          {/* الخطوة 5 - معلومات اختيارية */}
+          {step === 5 && (
+            <div>
+              <h3 style={{ color: "#e6eef6" }}>لإفادة الطالب أكثر</h3>
+              <p style={{ color: "#9fb0c7", fontSize: 14, lineHeight: 1.7 }}>
+                اختر/ي الإجابات الصحيحة بسرعة. هذه المعلومات اختيارية بالكامل
+                ويمكن نشر التجربة بدونها.
+              </p>
+
+              <div
+                className="quick-info-grid"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: 10,
+                  marginTop: 16,
+                }}
+              >
+                <div
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    borderRadius: 12,
+                    padding: 10,
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "block",
+                      color: "#dbeafe",
+                      fontSize: 13,
+                      marginBottom: 8,
+                    }}
+                  >
+                    سنة التدريب
+                  </label>
+                  <select
+                    value={trainingYear}
+                    onChange={(e) => setTrainingYear(e.target.value)}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "9px 8px",
+                      borderRadius: 10,
+                      background: "rgba(255,255,255,0.03)",
+                      color: "#fff",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <option value="">اختياري</option>
+                    {trainingYearOptions.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {quickOptionalFields.map((field) => (
+                  <div
+                    key={field.label}
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      borderRadius: 12,
+                      padding: 10,
+                    }}
+                  >
+                    <p
+                      style={{
+                        color: "#dbeafe",
+                        fontSize: 13,
+                        margin: "0 0 8px",
+                      }}
+                    >
+                      {field.label}
+                    </p>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      {field.options.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            field.setter(
+                              field.value === option.value ? "" : option.value
+                            )
+                          }
+                          style={{
+                            padding: "7px 8px",
+                            borderRadius: 9,
+                            background:
+                              field.value === option.value
+                                ? "linear-gradient(90deg,#9fb0c7,#7ddbcd)"
+                                : "rgba(255,255,255,0.02)",
+                            color: "#fff",
+                            border: "1px solid rgba(255,255,255,0.06)",
+                            cursor: "pointer",
+                            fontSize: 12,
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -813,7 +810,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                     cursor: loading ? "not-allowed" : "pointer",
                   }}
                 >
-                  {loading ? "جاري الحفظ..." : "حفظ التجربة"}
+                  {loading ? "جاري النشر..." : "نشر التجربة"}
                 </button>
               </div>
             ) : (
