@@ -652,7 +652,18 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {step === 4 && (
             <div>
               <h3 style={{ color: "#e6eef6" }}>قيّم/ي تجربتك</h3>
-              <p style={{ color: "#9fb0c7" }}>يمكنك اختيار تقييمين كحد أقصى.</p>
+              <h4 style={{ marginTop: 12, color: "#e6eef6" }}>
+  التقييم العام للتجربة
+</h4>
+<p style={{ color: "#9fb0c7", fontSize: 14 }}>
+  قيّم/ي التجربة من 1 إلى 5 نجوم
+</p>
+
+<StarRating value={starRating} onChange={setStarRating} />
+
+              <p style={{ color: "#9fb0c7", marginTop: 18 }}>
+                يمكنك اختيار تقييمين كحد أقصى.
+              </p>
 
               <div className="option-grid" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
                 {ratingOptions.map((r) => {
@@ -679,14 +690,6 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   );
                 })}
               </div>
-              <h4 style={{ marginTop: 20, color: "#e6eef6" }}>
-  التقييم العام للتجربة
-</h4>
-<p style={{ color: "#9fb0c7", fontSize: 14 }}>
-  قيّم/ي التجربة من 1 إلى 5 نجوم
-</p>
-
-<StarRating value={starRating} onChange={setStarRating} />
 
 <div
   style={{
