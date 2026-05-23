@@ -183,9 +183,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
   const quickOptionalFields = [
     {
-      label: "هل تم التوظيف؟",
-      value: wasHired,
-      setter: setWasHired,
+      label: "هل فيه مكافأة؟",
+      value: hadReward,
+      setter: setHadReward,
       options: [
         { value: "yes", label: "نعم" },
         { value: "no", label: "لا" },
@@ -193,9 +193,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       ],
     },
     {
-      label: "هل فيه مكافأة؟",
-      value: hadReward,
-      setter: setHadReward,
+      label: "هل تم التوظيف؟",
+      value: wasHired,
+      setter: setWasHired,
       options: [
         { value: "yes", label: "نعم" },
         { value: "no", label: "لا" },
