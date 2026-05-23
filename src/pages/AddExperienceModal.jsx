@@ -193,7 +193,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       ],
     },
     {
-      label: "هل تم التوظيف؟",
+      label: "هل حصلت على عرض توظيف؟",
       value: wasHired,
       setter: setWasHired,
       options: [

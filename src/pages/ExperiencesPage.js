@@ -630,21 +630,21 @@ const ExperiencesPage = () => {
     const isReward = type === "reward";
     const configs = {
       yes: {
-        label: isReward ? "فيه مكافأة" : "تم التوظيف",
+        label: isReward ? "فيه مكافأة" : "عرض توظيف",
         icon: isReward ? "💰" : "💼",
         color: isReward ? "#f59e0b" : "#34d399",
         background: isReward ? "rgba(245,158,11,0.13)" : "rgba(52,211,153,0.13)",
         border: isReward ? "rgba(245,158,11,0.32)" : "rgba(52,211,153,0.32)",
       },
       no: {
-        label: isReward ? "بدون مكافأة" : "لم يتم التوظيف",
+        label: isReward ? "بدون مكافأة" : "لا يوجد عرض توظيف",
         icon: isReward ? "💸" : "💼",
         color: isReward ? "#f59e0b" : "#34d399",
         background: isReward ? "rgba(245,158,11,0.13)" : "rgba(52,211,153,0.13)",
         border: isReward ? "rgba(245,158,11,0.32)" : "rgba(52,211,153,0.32)",
       },
       not_sure: {
-        label: isReward ? "مكافأة غير مؤكدة" : "توظيف غير مؤكد",
+        label: isReward ? "مكافأة غير مؤكدة" : "عرض غير مؤكد",
         icon: "؟",
         color: "#93c5fd",
         background: "rgba(147,197,253,0.1)",
@@ -751,7 +751,7 @@ const ExperiencesPage = () => {
               {exp.wasHired && (
                 <InfoBox
                   icon="💼"
-                  label="تم التوظيف؟"
+                  label="عرض توظيف؟"
                   value={optionalAnswerLabels[exp.wasHired] || exp.wasHired}
                 />
               )}
