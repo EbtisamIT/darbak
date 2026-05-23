@@ -369,6 +369,7 @@ const ExperiencesPage = () => {
     const searchableValues = [
       exp.organizationName,
       exp.companyName,
+      exp.majorCategory,
       exp.major,
       exp.title,
     ]
@@ -391,16 +392,34 @@ const ExperiencesPage = () => {
     }, 0);
   }, [searchTerms]);
 
+  const selectedMajorTerms = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          selectedMajors.flatMap((selectedMajor) => {
+            const majorItem = majors.find((item) => item.name === selectedMajor);
+            return majorItem
+              ? [majorItem.name, ...(majorItem.subMajors || [])]
+              : [selectedMajor];
+          })
+        )
+      ),
+    [selectedMajors]
+  );
+
   const filteredExperiences = useMemo(
     () =>
       experiences
         .filter((exp) => {
           const matchesMajor =
-            selectedMajors.length === 0 || selectedMajors.includes(exp.major);
+            selectedMajors.length === 0 ||
+            selectedMajorTerms.includes(exp.major) ||
+            selectedMajorTerms.includes(exp.majorCategory);
 
           const searchableNames = [
             exp.organizationName,
             exp.companyName,
+            exp.majorCategory,
             exp.major,
           ].filter(Boolean);
 
@@ -430,6 +449,7 @@ const ExperiencesPage = () => {
     [
       experiences,
       selectedMajors,
+      selectedMajorTerms,
       normalizedCompanySearch,
       searchTerms,
       sortOption,
@@ -456,7 +476,7 @@ const ExperiencesPage = () => {
             page: nextPage,
             limit: INITIAL_VISIBLE_COUNT,
             sort: sortOption,
-            majors: selectedMajors.join(","),
+            majors: selectedMajorTerms.join(","),
             terms: searchTerms.join("|"),
           },
         });
@@ -486,7 +506,7 @@ const ExperiencesPage = () => {
         setLoadingMore(false);
       }
     },
-    [searchTerms, selectedMajors, sortOption]
+    [searchTerms, selectedMajorTerms, sortOption]
   );
 
   useEffect(() => {

@@ -116,6 +116,7 @@ app.post('/api/experiences', async (req, res) => {
     const fieldsToCheck = [
       req.body.organizationName,
       req.body.city,
+      req.body.majorCategory,
       req.body.major,
       req.body.howApplied,
       req.body.duration,
@@ -167,7 +168,14 @@ app.get('/api/experiences', async (req, res) => {
     };
 
     if (majors.length > 0) {
-      baseFilter.major = { $in: majors };
+      baseFilter.$and = [
+        {
+          $or: [
+            { major: { $in: majors } },
+            { majorCategory: { $in: majors } },
+          ],
+        },
+      ];
     }
 
     const sort =
@@ -185,6 +193,7 @@ app.get('/api/experiences', async (req, res) => {
         const searchableValues = [
           exp.organizationName,
           exp.companyName,
+          exp.majorCategory,
           exp.major,
           exp.title,
         ]

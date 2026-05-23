@@ -39,6 +39,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const [howApplied, setHowApplied] = useState(savedDraft?.howApplied || "");
   const [ratings, setRatings] = useState(Array.isArray(savedDraft?.ratings) ? savedDraft.ratings : []); // up to 2
   const [description, setDescription] = useState(savedDraft?.description || "");
+  const [majorCategory, setMajorCategory] = useState(savedDraft?.majorCategory || "");
+  const [customMajorCategory, setCustomMajorCategory] = useState(savedDraft?.customMajorCategory || "");
   const [major, setMajor] = useState(savedDraft?.major || "");
   const [customMajor, setCustomMajor] = useState(savedDraft?.customMajor || "");
   const [trainingYear, setTrainingYear] = useState(savedDraft?.trainingYear || "");
@@ -52,7 +54,11 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const minDescriptionLength = 50;
   const descriptionLength = description.trim().length;
   const finalCity = city === "أخرى" ? customCity.trim() : city.trim();
+  const finalMajorCategory =
+    majorCategory === "أخرى" ? customMajorCategory.trim() : majorCategory.trim();
   const finalMajor = major === "أخرى" ? customMajor.trim() : major.trim();
+  const selectedMajorCategory = majors.find((item) => item.name === majorCategory);
+  const subMajorOptions = selectedMajorCategory?.subMajors || [];
 
   const howAppliedOptions = [
     "موقع الجهة الرسمي",
@@ -212,6 +218,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           howApplied.trim() ||
           ratings.length > 0 ||
           description.trim() ||
+          majorCategory.trim() ||
+          customMajorCategory.trim() ||
           major.trim() ||
           customMajor.trim() ||
           trainingYear.trim() ||
@@ -227,6 +235,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       howApplied,
       ratings,
       description,
+      majorCategory,
+      customMajorCategory,
       major,
       customMajor,
       trainingYear,
@@ -253,6 +263,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       howApplied,
       ratings,
       description,
+      majorCategory,
+      customMajorCategory,
       major,
       customMajor,
       trainingYear,
@@ -278,6 +290,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     howApplied,
     ratings,
     description,
+    majorCategory,
+    customMajorCategory,
     major,
     customMajor,
     trainingYear,
@@ -300,7 +314,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       case 0:
         return organizationName.trim().length > 0 && finalCity.length > 0;
       case 1:
-        return finalMajor.length > 0;
+        return finalMajorCategory.length > 0 && finalMajor.length > 0;
       case 2:
         return howApplied.trim().length > 0;
       case 3:
@@ -317,7 +331,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
   const handleSubmit = async () => {
     setError(null);
-    if (!organizationName.trim() || !finalCity || !finalMajor || !howApplied.trim() || !duration.trim() || ratings.length === 0) {
+    if (!organizationName.trim() || !finalCity || !finalMajorCategory || !finalMajor || !howApplied.trim() || !duration.trim() || ratings.length === 0) {
       setError("الرجاء إكمال جميع الحقول المطلوبة.");
       return;
     }
@@ -331,6 +345,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       title: `تجربتي في ${organizationName}`,
       organizationName,
       city: finalCity,
+      majorCategory: finalMajorCategory,
       major: finalMajor,
       howApplied,
       duration,
@@ -543,54 +558,104 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {step === 1 && (
             <div>
               <h3 style={{ color: "#e6eef6" }}>ما هو تخصصك؟</h3>
-              <p style={{ color: "#9fb0c7" }}>اختر/ي التخصص الذي ينتمي له التدريب.</p>
+              <p style={{ color: "#9fb0c7" }}>
+                اختر/ي التخصص الرئيسي أولًا، ثم التخصص الفرعي.
+              </p>
 
               <select
-  value={major}
-  onChange={(e) => {
-    setMajor(e.target.value);
-    if (e.target.value !== "أخرى") setCustomMajor("");
-  }}
-  style={{
-    width: "100%",
-    boxSizing: "border-box",
-    padding: 12,
-    borderRadius: 10,
-    background: "rgba(255,255,255,0.02)",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,0.04)",
-    marginTop: 10,
-  }}
->
-  <option value="">🎓 اختر/ي التخصص</option>
+                value={majorCategory}
+                onChange={(e) => {
+                  setMajorCategory(e.target.value);
+                  setMajor("");
+                  setCustomMajor("");
+                  if (e.target.value !== "أخرى") setCustomMajorCategory("");
+                }}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: 12,
+                  borderRadius: 10,
+                  background: "rgba(255,255,255,0.02)",
+                  color: "#fff",
+                  border: "1px solid rgba(255,255,255,0.04)",
+                  marginTop: 10,
+                }}
+              >
+                <option value="">🏛️ اختر/ي التخصص الرئيسي أو الكلية</option>
+                {majors.map((m, i) => (
+                  <option key={i} value={m.name}>
+                    {m.name}
+                  </option>
+                ))}
+                <option value="أخرى">أخرى</option>
+              </select>
 
-  {majors.map((m, i) => (
-    <option key={i} value={m.name}>
-      {m.name}
-    </option>
-  ))}
-  <option value="أخرى">أخرى</option>
-</select>
+              {majorCategory === "أخرى" && (
+                <input
+                  type="text"
+                  placeholder="اكتب/ي التخصص الرئيسي أو الكلية"
+                  value={customMajorCategory}
+                  onChange={(e) => setCustomMajorCategory(e.target.value)}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: 12,
+                    borderRadius: 10,
+                    background: "rgba(255,255,255,0.02)",
+                    color: "#fff",
+                    border: "1px solid rgba(255,255,255,0.04)",
+                    marginTop: 12,
+                  }}
+                />
+              )}
 
-{major === "أخرى" && (
-  <input
-    type="text"
-    placeholder="اكتب/ي اسم التخصص"
-    value={customMajor}
-    onChange={(e) => setCustomMajor(e.target.value)}
-    style={{
-      width: "100%",
-      boxSizing: "border-box",
-      padding: 12,
-      borderRadius: 10,
-      background: "rgba(255,255,255,0.02)",
-      color: "#fff",
-      border: "1px solid rgba(255,255,255,0.04)",
-      marginTop: 12,
-    }}
-  />
-)}
-</div>
+              <select
+                value={major}
+                onChange={(e) => {
+                  setMajor(e.target.value);
+                  if (e.target.value !== "أخرى") setCustomMajor("");
+                }}
+                disabled={!majorCategory}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: 12,
+                  borderRadius: 10,
+                  background: "rgba(255,255,255,0.02)",
+                  color: "#fff",
+                  border: "1px solid rgba(255,255,255,0.04)",
+                  marginTop: 12,
+                  opacity: majorCategory ? 1 : 0.55,
+                }}
+              >
+                <option value="">🎓 اختر/ي التخصص الفرعي</option>
+                {subMajorOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+                <option value="أخرى">أخرى</option>
+              </select>
+
+              {major === "أخرى" && (
+                <input
+                  type="text"
+                  placeholder="اكتب/ي التخصص الفرعي"
+                  value={customMajor}
+                  onChange={(e) => setCustomMajor(e.target.value)}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: 12,
+                    borderRadius: 10,
+                    background: "rgba(255,255,255,0.02)",
+                    color: "#fff",
+                    border: "1px solid rgba(255,255,255,0.04)",
+                    marginTop: 12,
+                  }}
+                />
+              )}
+            </div>
           )}
           {/* الخطوة 2 - طريقة التقديم */}
           {step === 2 && (

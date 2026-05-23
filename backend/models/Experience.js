@@ -65,6 +65,9 @@ const experienceSchema = new mongoose.Schema(
     },
 
     // ✅ التخصص
+    majorCategory: {
+      type: String,
+    },
     major: {
       type: String,
       required: true,
