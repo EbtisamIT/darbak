@@ -673,7 +673,7 @@ const ExperiencesPage = () => {
           background: badge.background,
           border: `1px solid ${badge.border}`,
           color: badge.color,
-          fontSize: "10px",
+          fontSize: "9px",
           fontWeight: "800",
           lineHeight: 1,
           whiteSpace: "nowrap",
@@ -1818,7 +1818,7 @@ const ExperiencesPage = () => {
 
           .experience-outcome-badge {
             padding: 2px 4px !important;
-            font-size: 7px !important;
+            font-size: 6.5px !important;
             max-width: 100%;
           }
 
