@@ -183,23 +183,23 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
   const quickOptionalFields = [
     {
-      label: "هل فيه مكافأة؟",
+      label: "هل كانت التجربة بمكافأة؟",
       value: hadReward,
       setter: setHadReward,
       options: [
-        { value: "yes", label: "نعم" },
-        { value: "no", label: "لا" },
-        { value: "not_sure", label: "غير مؤكد" },
+        { value: "yes", label: "نعم، بمكافأة" },
+        { value: "no", label: "لا، بدون مكافأة" },
+        { value: "not_sure", label: "غير واضح" },
       ],
     },
     {
-      label: "هل حصلت على عرض توظيف؟",
+      label: "هل وصلك عرض توظيف بعد التدريب؟",
       value: wasHired,
       setter: setWasHired,
       options: [
-        { value: "yes", label: "نعم" },
-        { value: "no", label: "لا" },
-        { value: "not_sure", label: "غير مؤكد" },
+        { value: "yes", label: "نعم، وصلني عرض" },
+        { value: "no", label: "لا، ما وصلني عرض" },
+        { value: "not_sure", label: "غير واضح" },
       ],
     },
   ];

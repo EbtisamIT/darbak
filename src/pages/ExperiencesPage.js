@@ -624,27 +624,39 @@ const ExperiencesPage = () => {
     not_sure: "غير مؤكد",
   };
 
+  const rewardAnswerLabels = {
+    yes: "نعم، بمكافأة",
+    no: "لا، بدون مكافأة",
+    not_sure: "غير واضح",
+  };
+
+  const jobOfferAnswerLabels = {
+    yes: "نعم، وصلني عرض",
+    no: "لا، ما وصلني عرض",
+    not_sure: "غير واضح",
+  };
+
   const getOutcomeBadge = (type, value) => {
     if (!value) return null;
 
     const isReward = type === "reward";
     const configs = {
       yes: {
-        label: isReward ? "فيه مكافأة" : "عرض توظيف",
+        label: isReward ? "مكافأة" : "عرض وظيفي",
         icon: isReward ? "💰" : "💼",
         color: isReward ? "#f59e0b" : "#34d399",
         background: isReward ? "rgba(245,158,11,0.13)" : "rgba(52,211,153,0.13)",
         border: isReward ? "rgba(245,158,11,0.32)" : "rgba(52,211,153,0.32)",
       },
       no: {
-        label: isReward ? "بدون مكافأة" : "لا يوجد عرض توظيف",
+        label: isReward ? "بدون مكافأة" : "لا يوجد عرض",
         icon: isReward ? "💸" : "💼",
-        color: isReward ? "#f59e0b" : "#34d399",
-        background: isReward ? "rgba(245,158,11,0.13)" : "rgba(52,211,153,0.13)",
-        border: isReward ? "rgba(245,158,11,0.32)" : "rgba(52,211,153,0.32)",
+        color: isReward ? "#d97706" : "#10b981",
+        background: isReward ? "rgba(217,119,6,0.1)" : "rgba(16,185,129,0.1)",
+        border: isReward ? "rgba(217,119,6,0.22)" : "rgba(16,185,129,0.22)",
       },
       not_sure: {
-        label: isReward ? "مكافأة غير مؤكدة" : "عرض غير مؤكد",
+        label: "غير واضح",
         icon: "؟",
         color: "#93c5fd",
         background: "rgba(147,197,253,0.1)",
@@ -752,14 +764,14 @@ const ExperiencesPage = () => {
                 <InfoBox
                   icon="💼"
                   label="عرض توظيف؟"
-                  value={optionalAnswerLabels[exp.wasHired] || exp.wasHired}
+                  value={jobOfferAnswerLabels[exp.wasHired] || optionalAnswerLabels[exp.wasHired] || exp.wasHired}
                 />
               )}
               {exp.hadReward && (
                 <InfoBox
                   icon="🎁"
-                  label="فيه مكافأة؟"
-                  value={optionalAnswerLabels[exp.hadReward] || exp.hadReward}
+                  label="مكافأة التدريب؟"
+                  value={rewardAnswerLabels[exp.hadReward] || optionalAnswerLabels[exp.hadReward] || exp.hadReward}
                 />
               )}
             </div>
@@ -1433,8 +1445,8 @@ const ExperiencesPage = () => {
                           marginTop: "8px",
                         }}
                       >
-                        <OutcomeBadge type="hired" value={exp.wasHired} />
                         <OutcomeBadge type="reward" value={exp.hadReward} />
+                        <OutcomeBadge type="hired" value={exp.wasHired} />
                       </div>
                     )}
                   </div>
