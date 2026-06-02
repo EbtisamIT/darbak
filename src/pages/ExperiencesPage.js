@@ -736,23 +736,33 @@ const ExperiencesPage = () => {
           alignItems: "center",
           justifyContent: "space-between",
           gap: "4px",
+          width: "100%",
           minWidth: 0,
-          padding: "5px 7px",
-          borderRadius: "9px",
+          boxSizing: "border-box",
+          padding: "5px 8px",
+          borderRadius: "8px",
           background: badge.background,
           border: `1px solid ${badge.border}`,
           color: badge.color,
           fontSize: "9px",
           fontWeight: "800",
           lineHeight: 1.2,
-          whiteSpace: "nowrap",
+          whiteSpace: "normal",
+          overflow: "hidden",
         }}
       >
-        <span style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "3px",
+            minWidth: 0,
+          }}
+        >
           <span aria-hidden="true">{badge.icon}</span>
           <span>{badge.label}:</span>
         </span>
-        <span>{badge.value}</span>
+        <span style={{ minWidth: 0, textAlign: "left" }}>{badge.value}</span>
       </div>
     );
   };
@@ -1530,11 +1540,11 @@ const ExperiencesPage = () => {
                       className="experience-outcome-badges"
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                        gridTemplateColumns: "1fr",
                         alignItems: "stretch",
-                        gap: "6px",
-                        minHeight: "30px",
-                        marginBottom: "5px",
+                        gap: "5px",
+                        minHeight: "48px",
+                        marginBottom: "4px",
                       }}
                     >
                       <OutcomeBadge type="reward" value={exp.hadReward} />
@@ -1922,16 +1932,17 @@ const ExperiencesPage = () => {
           }
 
           .experience-outcome-badges {
-            gap: 3px !important;
-            min-height: 20px !important;
+            gap: 2px !important;
+            min-height: 30px !important;
             margin-bottom: 3px !important;
           }
 
           .experience-outcome-badge {
-            padding: 2px 4px !important;
-            font-size: 6.5px !important;
+            padding: 2px 3px !important;
+            font-size: 6px !important;
             max-width: 100%;
             border-radius: 6px !important;
+            line-height: 1.15 !important;
           }
 
           .experience-outcome-badge span {
