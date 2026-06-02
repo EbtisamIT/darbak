@@ -3,7 +3,6 @@ import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
 
-const HEADER_HEIGHT = 90;
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v1";
 const EXPERIENCE_COUNT_ANIMATION_KEY = "darbak_experience_count_animated_v1";
 const INITIAL_VISIBLE_COUNT = 36;
@@ -977,7 +976,7 @@ const ExperiencesPage = () => {
       <div
         className="experiences-shell"
         style={{
-          marginTop: HEADER_HEIGHT - 20,
+          marginTop: 28,
           padding: "15px 12px",
         }}
       >
@@ -1798,7 +1797,7 @@ const ExperiencesPage = () => {
           backdrop-filter: blur(12px);
           border-bottom: 1px solid rgba(255,255,255,0.06);
           margin: -15px -12px 18px;
-          padding: 15px 12px 4px;
+          padding: 8px 12px 4px;
         }
 
         @media (max-width: 900px) {
