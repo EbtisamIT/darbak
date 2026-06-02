@@ -976,26 +976,27 @@ const ExperiencesPage = () => {
             className="experience-count-card"
             aria-label={`عدد التجارب ${totalExperiences}`}
             style={{
-              width: "min(520px, 100%)",
-              margin: "0 auto 18px",
-              padding: "13px 18px",
-              borderRadius: "18px",
-              border: "1px solid rgba(201,130,30,0.78)",
+              width: "min(360px, 100%)",
+              margin: "0 auto 10px",
+              padding: "6px 12px 8px",
+              borderRadius: "16px",
+              border: "1px solid rgba(125,219,205,0.16)",
               background:
-                "linear-gradient(180deg, rgba(201,130,30,0.13), rgba(201,130,30,0.04))",
-              color: "#f6b64a",
-              display: "flex",
+                "linear-gradient(180deg, rgba(125,219,205,0.08), rgba(125,219,205,0.02))",
+              color: "#7ddbcd",
+              display: "grid",
               alignItems: "center",
               justifyContent: "center",
-              gap: "10px",
-              boxShadow: "0 12px 28px rgba(201,130,30,0.08)",
+              gap: "3px",
+              textAlign: "center",
+              boxShadow: "0 10px 24px rgba(125,219,205,0.06)",
             }}
           >
             <span
               style={{
-                fontSize: "24px",
+                fontSize: "34px",
                 fontWeight: "900",
-                lineHeight: 1,
+                lineHeight: 0.95,
                 letterSpacing: "0",
               }}
             >
@@ -1003,9 +1004,10 @@ const ExperiencesPage = () => {
             </span>
             <span
               style={{
-                color: "#f3d29a",
-                fontSize: "14px",
-                fontWeight: "800",
+                color: "#b8fff3",
+                fontSize: "12px",
+                fontWeight: "700",
+                lineHeight: 1.3,
               }}
             >
               تجربة تدريبية مشاركة
@@ -1801,17 +1803,17 @@ const ExperiencesPage = () => {
           }
 
           .experience-count-card {
-            margin-bottom: 12px !important;
-            padding: 10px 12px !important;
-            border-radius: 14px !important;
+            margin-bottom: 8px !important;
+            padding: 5px 10px 7px !important;
+            border-radius: 13px !important;
           }
 
           .experience-count-card span:first-child {
-            font-size: 20px !important;
+            font-size: 28px !important;
           }
 
           .experience-count-card span:last-child {
-            font-size: 12px !important;
+            font-size: 11px !important;
           }
 
           .majors-grid {
