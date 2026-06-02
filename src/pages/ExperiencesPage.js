@@ -5,6 +5,7 @@ import API_BASE_URL from "../config/api";
 
 const HEADER_HEIGHT = 90;
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v1";
+const EXPERIENCE_COUNT_ANIMATION_KEY = "darbak_experience_count_animated_v1";
 const INITIAL_VISIBLE_COUNT = 36;
 
 const getCachedExperiences = () => {
@@ -29,6 +30,26 @@ const cacheExperiences = (data) => {
       EXPERIENCES_CACHE_KEY,
       JSON.stringify({ data, cachedAt: Date.now() })
     );
+  } catch {
+    // Ignore storage quota or private browsing errors.
+  }
+};
+
+const hasSeenExperienceCountAnimation = () => {
+  if (typeof window === "undefined") return true;
+
+  try {
+    return window.localStorage.getItem(EXPERIENCE_COUNT_ANIMATION_KEY) === "true";
+  } catch {
+    return true;
+  }
+};
+
+const markExperienceCountAnimationSeen = () => {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(EXPERIENCE_COUNT_ANIMATION_KEY, "true");
   } catch {
     // Ignore storage quota or private browsing errors.
   }
@@ -320,6 +341,9 @@ const ExperiencesPage = () => {
   const [fetchError, setFetchError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalExperiences, setTotalExperiences] = useState(() => getCachedExperiences().length);
+  const [displayExperienceCount, setDisplayExperienceCount] = useState(() =>
+    hasSeenExperienceCountAnimation() ? getCachedExperiences().length : 0
+  );
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -512,6 +536,41 @@ const ExperiencesPage = () => {
   useEffect(() => {
     fetchExperiencesPage(1, { append: false });
   }, [fetchExperiencesPage]);
+
+  useEffect(() => {
+    if (totalExperiences <= 0) {
+      setDisplayExperienceCount(0);
+      return;
+    }
+
+    if (hasSeenExperienceCountAnimation()) {
+      setDisplayExperienceCount(totalExperiences);
+      return;
+    }
+
+    const duration = 900;
+    const startTime = Date.now();
+    const startValue = 0;
+    const targetValue = totalExperiences;
+
+    const intervalId = window.setInterval(() => {
+      const progress = Math.min((Date.now() - startTime) / duration, 1);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+      const nextValue = Math.round(
+        startValue + (targetValue - startValue) * easedProgress
+      );
+
+      setDisplayExperienceCount(nextValue);
+
+      if (progress >= 1) {
+        window.clearInterval(intervalId);
+        setDisplayExperienceCount(targetValue);
+        markExperienceCountAnimationSeen();
+      }
+    }, 24);
+
+    return () => window.clearInterval(intervalId);
+  }, [totalExperiences]);
 
   const loadMoreExperiences = () => {
     if (loadingMore || !hasMore) return;
@@ -914,6 +973,46 @@ const ExperiencesPage = () => {
       >
         <div className="experience-controls-sticky">
           <div
+            className="experience-count-card"
+            aria-label={`عدد التجارب ${totalExperiences}`}
+            style={{
+              width: "min(520px, 100%)",
+              margin: "0 auto 18px",
+              padding: "13px 18px",
+              borderRadius: "18px",
+              border: "1px solid rgba(201,130,30,0.78)",
+              background:
+                "linear-gradient(180deg, rgba(201,130,30,0.13), rgba(201,130,30,0.04))",
+              color: "#f6b64a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
+              boxShadow: "0 12px 28px rgba(201,130,30,0.08)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "24px",
+                fontWeight: "900",
+                lineHeight: 1,
+                letterSpacing: "0",
+              }}
+            >
+              +{displayExperienceCount}
+            </span>
+            <span
+              style={{
+                color: "#f3d29a",
+                fontSize: "14px",
+                fontWeight: "800",
+              }}
+            >
+              تجربة تدريبية مشاركة
+            </span>
+          </div>
+
+          <div
             className="mobile-majors-menu"
             style={{
               display: "none",
@@ -1091,17 +1190,6 @@ const ExperiencesPage = () => {
                   textAlign: "right",
                 }}
               />
-            </div>
-
-            <div
-              className="results-count"
-              style={{
-                color: "#9ca3af",
-                fontSize: "13px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {totalExperiences} تجربة
             </div>
 
             {companySearch && (
@@ -1712,6 +1800,20 @@ const ExperiencesPage = () => {
             padding: 10px 10px 2px;
           }
 
+          .experience-count-card {
+            margin-bottom: 12px !important;
+            padding: 10px 12px !important;
+            border-radius: 14px !important;
+          }
+
+          .experience-count-card span:first-child {
+            font-size: 20px !important;
+          }
+
+          .experience-count-card span:last-child {
+            font-size: 12px !important;
+          }
+
           .majors-grid {
             display: none !important;
           }
@@ -1761,10 +1863,6 @@ const ExperiencesPage = () => {
           .active-filter-chips {
             justify-content: flex-start !important;
             margin-top: -4px !important;
-          }
-
-          .results-count {
-            display: none;
           }
 
           .experience-cards-grid {
