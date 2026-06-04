@@ -985,27 +985,24 @@ const ExperiencesPage = () => {
             className="experience-count-card"
             aria-label={`عدد التجارب ${totalExperiences}`}
             style={{
-              width: "min(360px, 100%)",
-              margin: "0 auto 10px",
-              padding: "6px 12px 8px",
-              borderRadius: "16px",
-              border: "1px solid rgba(125,219,205,0.16)",
-              background:
-                "linear-gradient(180deg, rgba(125,219,205,0.08), rgba(125,219,205,0.02))",
+              display: "none",
+              width: "fit-content",
+              minWidth: "150px",
+              margin: "0 auto 12px",
+              padding: "0 18px 8px",
+              borderBottom: "1px solid rgba(125,219,205,0.28)",
               color: "#7ddbcd",
-              display: "grid",
               alignItems: "center",
               justifyContent: "center",
-              gap: "3px",
+              gap: "2px",
               textAlign: "center",
-              boxShadow: "0 10px 24px rgba(125,219,205,0.06)",
             }}
           >
             <span
               style={{
-                fontSize: "34px",
+                fontSize: "36px",
                 fontWeight: "900",
-                lineHeight: 0.95,
+                lineHeight: 0.9,
                 letterSpacing: "0",
               }}
             >
@@ -1013,9 +1010,9 @@ const ExperiencesPage = () => {
             </span>
             <span
               style={{
-                color: "#b8fff3",
-                fontSize: "12px",
-                fontWeight: "700",
+                color: "#c7fff6",
+                fontSize: "11px",
+                fontWeight: "600",
                 lineHeight: 1.3,
               }}
             >
@@ -1812,17 +1809,17 @@ const ExperiencesPage = () => {
           }
 
           .experience-count-card {
-            margin-bottom: 8px !important;
-            padding: 5px 10px 7px !important;
-            border-radius: 13px !important;
+            min-width: 128px !important;
+            margin-bottom: 9px !important;
+            padding: 0 12px 6px !important;
           }
 
           .experience-count-card span:first-child {
-            font-size: 28px !important;
+            font-size: 30px !important;
           }
 
           .experience-count-card span:last-child {
-            font-size: 11px !important;
+            font-size: 10px !important;
           }
 
           .majors-grid {
