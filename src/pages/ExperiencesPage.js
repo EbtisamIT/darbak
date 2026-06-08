@@ -4,7 +4,7 @@ import majors from "../majors";
 import API_BASE_URL from "../config/api";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v1";
-const EXPERIENCE_COUNT_ANIMATION_KEY = "darbak_experience_count_animated_v1";
+const EXPERIENCE_COUNT_ANIMATION_KEY = "darbak_experience_count_animated_v2";
 const INITIAL_VISIBLE_COUNT = 36;
 
 const getCachedExperiences = () => {
@@ -985,16 +985,15 @@ const ExperiencesPage = () => {
             className="experience-count-card"
             aria-label={`عدد التجارب ${totalExperiences}`}
             style={{
-              display: "none",
+              display: "grid",
               width: "fit-content",
-              minWidth: "150px",
-              margin: "0 auto 12px",
-              padding: "0 18px 8px",
-              borderBottom: "1px solid rgba(125,219,205,0.28)",
+              minWidth: "118px",
+              margin: "0 auto 10px",
+              padding: "0",
               color: "#7ddbcd",
               alignItems: "center",
               justifyContent: "center",
-              gap: "2px",
+              gap: "1px",
               textAlign: "center",
             }}
           >
@@ -1010,9 +1009,9 @@ const ExperiencesPage = () => {
             </span>
             <span
               style={{
-                color: "#c7fff6",
+                color: "rgba(229,255,250,0.82)",
                 fontSize: "11px",
-                fontWeight: "600",
+                fontWeight: "500",
                 lineHeight: 1.3,
               }}
             >
