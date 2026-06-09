@@ -1020,6 +1020,26 @@ const ExperiencesPage = () => {
           </div>
 
           <div
+            className="experience-contribution-note"
+            style={{
+              width: "min(760px, 100%)",
+              margin: "0 auto 12px",
+              padding: "10px 14px",
+              borderRadius: "14px",
+              background: "rgba(125,219,205,0.055)",
+              border: "1px solid rgba(125,219,205,0.14)",
+              color: "#e8fffb",
+              textAlign: "center",
+              fontSize: "13px",
+              fontWeight: "500",
+              lineHeight: 1.75,
+            }}
+          >
+            إذا سبق وتدربت، شارك تجربتك في دربك لعلها تفيد طالبًا غيرك.
+            المنصة جديدة وتحتاج مساهمتك، وكتابة التجربة ما تأخذ إلا دقائق.
+          </div>
+
+          <div
             className="mobile-majors-menu"
             style={{
               display: "none",
@@ -1819,6 +1839,14 @@ const ExperiencesPage = () => {
 
           .experience-count-card span:last-child {
             font-size: 10px !important;
+          }
+
+          .experience-contribution-note {
+            margin-bottom: 10px !important;
+            padding: 9px 11px !important;
+            border-radius: 12px !important;
+            font-size: 12px !important;
+            line-height: 1.65 !important;
           }
 
           .majors-grid {
