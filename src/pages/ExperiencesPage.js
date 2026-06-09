@@ -5,6 +5,8 @@ import API_BASE_URL from "../config/api";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v1";
 const EXPERIENCE_COUNT_ANIMATION_KEY = "darbak_experience_count_animated_v2";
+const EXPERIENCE_CONTRIBUTION_PROMPT_KEY =
+  "darbak_experience_contribution_prompt_seen_v1";
 const INITIAL_VISIBLE_COUNT = 36;
 
 const getCachedExperiences = () => {
@@ -49,6 +51,28 @@ const markExperienceCountAnimationSeen = () => {
 
   try {
     window.localStorage.setItem(EXPERIENCE_COUNT_ANIMATION_KEY, "true");
+  } catch {
+    // Ignore storage quota or private browsing errors.
+  }
+};
+
+const hasSeenContributionPrompt = () => {
+  if (typeof window === "undefined") return true;
+
+  try {
+    return (
+      window.localStorage.getItem(EXPERIENCE_CONTRIBUTION_PROMPT_KEY) === "true"
+    );
+  } catch {
+    return true;
+  }
+};
+
+const markContributionPromptSeen = () => {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(EXPERIENCE_CONTRIBUTION_PROMPT_KEY, "true");
   } catch {
     // Ignore storage quota or private browsing errors.
   }
@@ -332,6 +356,7 @@ const ExperiencesPage = () => {
   const [loading, setLoading] = useState(() => getCachedExperiences().length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedExperience, setSelectedExperience] = useState(null);
+  const [showContributionPrompt, setShowContributionPrompt] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedMajors, setSelectedMajors] = useState([]);
   const [majorsMenuOpen, setMajorsMenuOpen] = useState(false);
@@ -535,6 +560,20 @@ const ExperiencesPage = () => {
   useEffect(() => {
     fetchExperiencesPage(1, { append: false });
   }, [fetchExperiencesPage]);
+
+  useEffect(() => {
+    setShowContributionPrompt(!hasSeenContributionPrompt());
+  }, []);
+
+  const closeContributionPrompt = () => {
+    markContributionPromptSeen();
+    setShowContributionPrompt(false);
+  };
+
+  const openAddExperienceFromPrompt = () => {
+    closeContributionPrompt();
+    window.dispatchEvent(new Event("darbak:open-add-experience"));
+  };
 
   useEffect(() => {
     if (totalExperiences <= 0) {
@@ -1017,26 +1056,6 @@ const ExperiencesPage = () => {
             >
               تجربة تدريبية مشاركة
             </span>
-          </div>
-
-          <div
-            className="experience-contribution-note"
-            style={{
-              width: "min(760px, 100%)",
-              margin: "0 auto 12px",
-              padding: "10px 14px",
-              borderRadius: "14px",
-              background: "rgba(125,219,205,0.055)",
-              border: "1px solid rgba(125,219,205,0.14)",
-              color: "#e8fffb",
-              textAlign: "center",
-              fontSize: "13px",
-              fontWeight: "500",
-              lineHeight: 1.75,
-            }}
-          >
-            إذا سبق وتدربت، شارك تجربتك في دربك لعلها تفيد طالبًا غيرك.
-            المنصة جديدة وتحتاج مساهمتك، وكتابة التجربة ما تأخذ إلا دقائق.
           </div>
 
           <div
@@ -1614,6 +1633,149 @@ const ExperiencesPage = () => {
         )}
       </div>
 
+      {showContributionPrompt && !selectedExperience && (
+        <div
+          className="experience-prompt-overlay"
+          onClick={closeContributionPrompt}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 900,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "18px",
+            background: "rgba(0,0,0,0.58)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <div
+            className="experience-prompt-card"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="experience-prompt-title"
+            style={{
+              width: "min(420px, 100%)",
+              borderRadius: "22px",
+              border: "1px solid rgba(125,219,205,0.22)",
+              background: "linear-gradient(180deg, #191c22 0%, #111318 100%)",
+              boxShadow: "0 22px 60px rgba(0,0,0,0.42)",
+              padding: "22px 20px 18px",
+              textAlign: "center",
+            }}
+          >
+            <button
+              type="button"
+              onClick={closeContributionPrompt}
+              aria-label="إغلاق"
+              style={{
+                width: "34px",
+                height: "34px",
+                borderRadius: "50%",
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.04)",
+                color: "#d6f7f1",
+                cursor: "pointer",
+                float: "left",
+                fontSize: "18px",
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+
+            <div
+              aria-hidden="true"
+              style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "16px",
+                display: "grid",
+                placeItems: "center",
+                margin: "4px auto 12px",
+                background: "rgba(125,219,205,0.12)",
+                color: "#7ddbcd",
+                fontSize: "24px",
+              }}
+            >
+              ✍️
+            </div>
+
+            <h2
+              id="experience-prompt-title"
+              style={{
+                margin: "0 0 8px",
+                color: "#7ddbcd",
+                fontSize: "21px",
+                lineHeight: 1.4,
+              }}
+            >
+              شارك تجربتك في دربك
+            </h2>
+
+            <p
+              style={{
+                margin: "0 auto 18px",
+                color: "rgba(245,255,253,0.86)",
+                fontSize: "14px",
+                fontWeight: 500,
+                lineHeight: 1.85,
+                maxWidth: "330px",
+              }}
+            >
+              إذا سبق وتدربت، اكتب تجربتك لعلها تفيد طالبًا غيرك. دربك منصة
+              جديدة وتحتاج مساهمتك، والكتابة ما تأخذ إلا دقائق.
+            </p>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "10px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={openAddExperienceFromPrompt}
+                style={{
+                  border: "none",
+                  borderRadius: "14px",
+                  padding: "11px 12px",
+                  background: "#7ddbcd",
+                  color: "#07100e",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: "800",
+                  fontSize: "13px",
+                  boxShadow: "0 12px 28px rgba(125,219,205,0.22)",
+                }}
+              >
+                أضف تجربتك
+              </button>
+
+              <button
+                type="button"
+                onClick={closeContributionPrompt}
+                style={{
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: "14px",
+                  padding: "11px 12px",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#e9fffb",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: "700",
+                  fontSize: "13px",
+                }}
+              >
+                لاحقًا
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= Modal ================= */}
       {selectedExperience && (
         <div
@@ -1841,12 +2003,21 @@ const ExperiencesPage = () => {
             font-size: 10px !important;
           }
 
-          .experience-contribution-note {
-            margin-bottom: 10px !important;
-            padding: 9px 11px !important;
-            border-radius: 12px !important;
-            font-size: 12px !important;
-            line-height: 1.65 !important;
+          .experience-prompt-card {
+            padding: 20px 16px 16px !important;
+            border-radius: 18px !important;
+          }
+
+          .experience-prompt-card h2 {
+            font-size: 19px !important;
+          }
+
+          .experience-prompt-card p {
+            font-size: 13px !important;
+          }
+
+          .experience-prompt-card > div:last-child {
+            grid-template-columns: 1fr !important;
           }
 
           .majors-grid {

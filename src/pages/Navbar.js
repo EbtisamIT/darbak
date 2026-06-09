@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { Link, useLocation } from "react-router-dom";
 import logo from "./logo.png";
@@ -8,6 +8,18 @@ const Navbar = () => {
   
   const location = useLocation();
   const isMobile = window.innerWidth < 768;
+
+  useEffect(() => {
+    const openAddExperienceModal = () => setShowModal(true);
+
+    window.addEventListener("darbak:open-add-experience", openAddExperienceModal);
+    return () => {
+      window.removeEventListener(
+        "darbak:open-add-experience",
+        openAddExperienceModal
+      );
+    };
+  }, []);
 
   const linkStyle = (path) => ({
     textDecoration: "none",
