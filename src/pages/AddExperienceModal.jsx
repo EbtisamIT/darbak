@@ -855,14 +855,12 @@ export default function AddExperienceModal({ onClose, onSaved }) {
             </div>
           )}
 
-          {/* الخطوة 5 - معلومات اختيارية */}
+          {/* الخطوة 5 - معلومات سريعة */}
           {step === 5 && (
             <div>
-              <h3 style={{ color: "#e6eef6" }}>لإفادة الطالب أكثر</h3>
-              <p style={{ color: "#9fb0c7", fontSize: 14, lineHeight: 1.7 }}>
-                اختر/ي الإجابات الصحيحة بسرعة. هذه المعلومات اختيارية بالكامل
-                ويمكن نشر التجربة بدونها.
-              </p>
+              <h3 style={{ color: "#e6eef6", marginBottom: 12 }}>
+                معلومات سريعة عن التجربة
+              </h3>
 
               <div
                 className="quick-info-grid"
@@ -904,7 +902,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                       border: "1px solid rgba(255,255,255,0.08)",
                     }}
                   >
-                    <option value="">اختياري</option>
+                    <option value="">لم أحدد</option>
                     {trainingYearOptions.map((year) => (
                       <option key={year} value={year}>
                         {year}

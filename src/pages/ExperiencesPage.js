@@ -740,9 +740,8 @@ const ExperiencesPage = () => {
   };
 
   const getOutcomeBadge = (type, value) => {
-    if (!value) return null;
-
     const isReward = type === "reward";
+    const answerValue = value || "not_sure";
     const typeConfig = isReward
       ? {
           label: "مكافأة",
@@ -765,7 +764,9 @@ const ExperiencesPage = () => {
       not_sure: "غير مؤكد",
     };
 
-    return configs[value] ? { ...typeConfig, value: configs[value] } : null;
+    return configs[answerValue]
+      ? { ...typeConfig, value: configs[answerValue] }
+      : { ...typeConfig, value: configs.not_sure };
   };
 
   const OutcomeBadge = ({ type, value }) => {
@@ -859,37 +860,39 @@ const ExperiencesPage = () => {
             value={exp.howApplied}
           />
 
-          {(exp.trainingYear || exp.wasHired || exp.hadReward) && (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                gap: "10px",
-              }}
-            >
-              {exp.trainingYear && (
-                <InfoBox
-                  icon="📅"
-                  label="سنة التدريب"
-                  value={exp.trainingYear}
-                />
-              )}
-              {exp.wasHired && (
-                <InfoBox
-                  icon="💼"
-                  label="عرض توظيف؟"
-                  value={jobOfferAnswerLabels[exp.wasHired] || optionalAnswerLabels[exp.wasHired] || exp.wasHired}
-                />
-              )}
-              {exp.hadReward && (
-                <InfoBox
-                  icon="🎁"
-                  label="مكافأة التدريب؟"
-                  value={rewardAnswerLabels[exp.hadReward] || optionalAnswerLabels[exp.hadReward] || exp.hadReward}
-                />
-              )}
-            </div>
-          )}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: "10px",
+            }}
+          >
+            {exp.trainingYear && (
+              <InfoBox
+                icon="📅"
+                label="سنة التدريب"
+                value={exp.trainingYear}
+              />
+            )}
+            <InfoBox
+              icon="💼"
+              label="عرض توظيف؟"
+              value={
+                jobOfferAnswerLabels[exp.wasHired] ||
+                optionalAnswerLabels[exp.wasHired] ||
+                "غير مؤكد"
+              }
+            />
+            <InfoBox
+              icon="🎁"
+              label="مكافأة التدريب؟"
+              value={
+                rewardAnswerLabels[exp.hadReward] ||
+                optionalAnswerLabels[exp.hadReward] ||
+                "غير مؤكد"
+              }
+            />
+          </div>
         </div>
       );
     }
