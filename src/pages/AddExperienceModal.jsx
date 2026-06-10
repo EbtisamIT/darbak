@@ -780,9 +780,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     marginTop: 14,
     padding: 12,
     borderRadius: 10,
-    background: "rgba(124,58,237,0.08)",
-    border: "1px solid rgba(124,58,237,0.2)",
-    color: "#dbeafe",
+    background: "var(--app-brand-soft)",
+    border: "1px solid var(--app-brand-border)",
+    color: "var(--app-text-soft)",
     fontSize: 14,
     lineHeight: 1.7,
   }}
@@ -820,7 +820,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   borderRadius: 10,
                   background: "var(--app-brand-soft)",
                   border: "1px solid var(--app-brand-border)",
-                  color: "#d8fff8",
+                  color: "var(--app-text-soft)",
                   fontSize: 12,
                   lineHeight: 1.8,
                 }}
