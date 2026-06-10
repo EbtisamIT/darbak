@@ -75,18 +75,64 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           onClick={toggleTheme}
           aria-label={theme === "dark" ? "تفعيل الوضع الصباحي" : "تفعيل الوضع المسائي"}
           style={{
+            position: "relative",
+            width: "58px",
+            height: "30px",
             backgroundColor: "var(--app-input-bg)",
             color: "var(--app-text)",
             border: "1px solid var(--app-border)",
             borderRadius: "999px",
-            padding: "9px 11px",
-            fontSize: "14px",
+            padding: "0",
             cursor: "pointer",
-            fontFamily: "inherit",
-            minWidth: "42px",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            overflow: "hidden",
+            boxShadow: "inset 0 0 0 1px var(--app-border-soft)",
+            transition: "background-color 0.25s ease, border-color 0.25s ease",
           }}
         >
-          {theme === "dark" ? "☀️" : "🌙"}
+          <span
+            aria-hidden="true"
+            style={{
+              width: "50%",
+              display: "grid",
+              placeItems: "center",
+              color: theme === "light" ? "#07100e" : "var(--app-muted)",
+              fontSize: "13px",
+              zIndex: 2,
+            }}
+          >
+            ☼
+          </span>
+          <span
+            aria-hidden="true"
+            style={{
+              width: "50%",
+              display: "grid",
+              placeItems: "center",
+              color: theme === "dark" ? "#07100e" : "var(--app-muted)",
+              fontSize: "13px",
+              zIndex: 2,
+            }}
+          >
+            ◐
+          </span>
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              top: "3px",
+              right: theme === "dark" ? "31px" : "3px",
+              width: "22px",
+              height: "22px",
+              borderRadius: "50%",
+              background: "var(--app-brand)",
+              boxShadow: "0 4px 12px var(--app-brand-border)",
+              transition: "right 0.25s ease",
+              zIndex: 1,
+            }}
+          />
         </button>
 
         <div style={{ display: "flex", gap: "26px", alignItems: "center" }}>
