@@ -391,19 +391,59 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
   const StarRating = ({ value, onChange }) => {
     return (
-      <div style={{ display: "flex", gap: 6, fontSize: 26 }}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <span
-            key={star}
-            onClick={() => onChange(star)}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          justifyContent: "center",
+          margin: "12px 0 4px",
+        }}
+      >
+        {[1, 2, 3, 4, 5].map((segment) => (
+          <button
+            type="button"
+            key={segment}
+            onClick={() => onChange(segment)}
+            aria-label={`تقييم ${segment} من 5`}
             style={{
+              position: "relative",
+              width: 38,
+              height: 14,
+              borderRadius: 999,
+              border:
+                segment <= value
+                  ? "1px solid rgba(125,219,205,0.95)"
+                  : "1px solid rgba(148,163,184,0.22)",
+              background:
+                segment <= value
+                  ? "linear-gradient(90deg, #7ddbcd, #b8fff4)"
+                  : "rgba(148,163,184,0.18)",
               cursor: "pointer",
-              color: star <= value ? "#facc15" : "#334155",
-              transition: "color 0.2s",
+              boxShadow:
+                segment <= value
+                  ? "0 0 14px rgba(125,219,205,0.2)"
+                  : "none",
+              transition: "background 0.2s, border-color 0.2s, transform 0.2s",
             }}
           >
-            ★
-          </span>
+            <span
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: 8,
+                right: 8,
+                height: 2,
+                transform: "translateY(-50%)",
+                borderRadius: 999,
+                background:
+                  segment <= value
+                    ? "rgba(8,21,18,0.38)"
+                    : "rgba(15,23,42,0.34)",
+              }}
+            />
+          </button>
         ))}
       </div>
     );
@@ -721,7 +761,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   التقييم العام للتجربة
 </h4>
 <p style={{ color: "#9fb0c7", fontSize: 14 }}>
-  قيّم/ي التجربة من 1 إلى 5 نجوم
+  قيّم/ي التجربة من 1 إلى 5 مسارات
 </p>
 
 <StarRating value={starRating} onChange={setStarRating} />
