@@ -63,6 +63,10 @@ const experienceSchema = new mongoose.Schema(
     reviewedAt: {
       type: Date,
     },
+    rejectionReason: {
+      type: String,
+      default: "",
+    },
 
     // ✅ التخصص
     majorCategory: {

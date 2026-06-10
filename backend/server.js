@@ -261,7 +261,7 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const { status } = req.body;
+    const { status, rejectionReason = "" } = req.body;
 
     if (!["approved", "rejected", "pending"].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
@@ -269,7 +269,11 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
 
     const updated = await Experience.findByIdAndUpdate(
       req.params.id,
-      { status, reviewedAt: new Date() },
+      {
+        status,
+        reviewedAt: new Date(),
+        rejectionReason: status === "rejected" ? rejectionReason.trim() : "",
+      },
       { new: true }
     ).lean();
 

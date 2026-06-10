@@ -10,6 +10,9 @@ const cardStyle = {
   textAlign: "right",
 };
 
+const defaultRejectionReason =
+  "لم يتم قبول التجربة بسبب وجود عبارات شخصية أو صياغة قد تُفهم كتجريح أو تشهير. يمكنك إعادة إرسالها بصياغة تركّز على الوقائع والتجربة بدون وصف أشخاص أو هويات.";
+
 export default function AdminReviewPage() {
   const [password, setPassword] = useState(
     () => sessionStorage.getItem("darbak_admin_password") || ""
@@ -55,12 +58,12 @@ export default function AdminReviewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  const updateStatus = async (id, nextStatus) => {
+  const updateStatus = async (id, nextStatus, rejectionReason = "") => {
     try {
       setMessage("");
       await axios.patch(
         `${API_BASE_URL}/api/admin/experiences/${id}/status`,
-        { status: nextStatus },
+        { status: nextStatus, rejectionReason },
         { headers: authHeaders }
       );
       setExperiences((prev) => prev.filter((exp) => exp._id !== id));
@@ -68,6 +71,20 @@ export default function AdminReviewPage() {
       console.error(err);
       setMessage("تعذر تحديث حالة التجربة.");
     }
+  };
+
+  const rejectExperience = (id) => {
+    const reason = window.prompt("سبب الرفض", defaultRejectionReason);
+
+    if (reason === null) return;
+
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
+      setMessage("اكتب سبب الرفض أو ألغِ العملية.");
+      return;
+    }
+
+    updateStatus(id, "rejected", trimmedReason);
   };
 
   const deleteExperience = async (id) => {
@@ -225,6 +242,24 @@ export default function AdminReviewPage() {
                 {exp.description}
               </p>
 
+              {exp.rejectionReason && (
+                <div
+                  style={{
+                    marginTop: "12px",
+                    padding: "10px 12px",
+                    borderRadius: "12px",
+                    background: "rgba(244,63,94,0.08)",
+                    border: "1px solid rgba(244,63,94,0.18)",
+                    color: "#fecdd3",
+                    lineHeight: 1.8,
+                    fontSize: "13px",
+                  }}
+                >
+                  <strong>سبب الرفض: </strong>
+                  {exp.rejectionReason}
+                </div>
+              )}
+
               <div
                 style={{
                   display: "flex",
@@ -255,7 +290,7 @@ export default function AdminReviewPage() {
                 {status !== "rejected" && (
                   <button
                     type="button"
-                    onClick={() => updateStatus(exp._id, "rejected")}
+                    onClick={() => rejectExperience(exp._id)}
                     style={{
                       background: "transparent",
                       color: "#fecdd3",
