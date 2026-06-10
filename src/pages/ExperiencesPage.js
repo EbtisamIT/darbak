@@ -619,46 +619,26 @@ const ExperiencesPage = () => {
     <div
       style={{
         display: "flex",
-        gap: "5px",
+        gap: "3px",
         margin: "8px 0",
         justifyContent: "center",
         alignItems: "center",
         minHeight: "18px",
       }}
     >
-      {[1, 2, 3, 4, 5].map((segment) => (
+      {[1, 2, 3, 4, 5].map((star) => (
         <span
-          key={segment}
+          key={star}
           aria-hidden="true"
           style={{
-            position: "relative",
-            display: "inline-block",
-            width: "21px",
-            height: "8px",
-            borderRadius: "999px",
-            background:
-              segment <= value
-                ? "linear-gradient(90deg, #7ddbcd, #b8fff4)"
-                : "rgba(148,163,184,0.24)",
-            boxShadow:
-              segment <= value ? "0 0 10px rgba(125,219,205,0.2)" : "none",
+            color: star <= value ? "#7ddbcd" : "rgba(148,163,184,0.35)",
+            fontSize: "17px",
+            lineHeight: 1,
+            textShadow:
+              star <= value ? "0 0 10px rgba(125,219,205,0.24)" : "none",
           }}
         >
-          <span
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "5px",
-              right: "5px",
-              height: "1px",
-              transform: "translateY(-50%)",
-              borderRadius: "999px",
-              background:
-                segment <= value
-                  ? "rgba(8,21,18,0.38)"
-                  : "rgba(15,23,42,0.36)",
-            }}
-          />
+          ★
         </span>
       ))}
     </div>
