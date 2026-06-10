@@ -7,9 +7,9 @@ export default function Footer() {
           marginTop: "0px",
           padding: "28px 16px",
           textAlign: "center",
-          color: "#94a3b8",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
-          backgroundColor: "#0f1115",
+          color: "var(--app-muted)",
+          borderTop: "1px solid var(--app-border)",
+          backgroundColor: "var(--app-bg)",
           fontFamily: "'Cairo', sans-serif",
         }}
       >
@@ -20,7 +20,7 @@ export default function Footer() {
             target="_blank"
             rel="noopener noreferrer"
             style={{
-              color: "#22c55e", // أخضر جميل
+              color: "var(--app-brand-strong)",
               fontWeight: "600",
               fontSize:"20px",
               textDecoration: "none",
@@ -49,21 +49,21 @@ export default function Footer() {
           <Link
             to="/legal#terms"
             style={{
-              color: "#9ca3af",
+              color: "var(--app-muted)",
               textDecoration: "none",
-              borderBottom: "1px solid rgba(125,219,205,0.35)",
+              borderBottom: "1px solid var(--app-brand-border)",
               paddingBottom: "3px",
             }}
           >
             سياسة الاستخدام
           </Link>
-          <span style={{ color: "#374151" }}>•</span>
+          <span style={{ color: "var(--app-border)" }}>•</span>
           <Link
             to="/legal#privacy"
             style={{
-              color: "#9ca3af",
+              color: "var(--app-muted)",
               textDecoration: "none",
-              borderBottom: "1px solid rgba(125,219,205,0.35)",
+              borderBottom: "1px solid var(--app-brand-border)",
               paddingBottom: "3px",
             }}
           >
@@ -75,7 +75,7 @@ export default function Footer() {
           style={{
             marginTop: "18px",
             fontSize: "12px",
-            color: "#6b7280",
+            color: "var(--app-muted)",
           }}
         >
           © {new Date().getFullYear()} دربك — جميع الحقوق محفوظة

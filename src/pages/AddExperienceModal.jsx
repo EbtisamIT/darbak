@@ -411,7 +411,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               height: 34,
               border: "none",
               background: "transparent",
-              color: star <= value ? "#7ddbcd" : "rgba(148,163,184,0.38)",
+              color: star <= value ? "var(--app-brand)" : "rgba(148,163,184,0.38)",
               cursor: "pointer",
               fontSize: 28,
               lineHeight: 1,
@@ -435,7 +435,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0,0,0,0.65)",
+        backgroundColor: "var(--app-overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -451,9 +451,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           width: "100%",
           maxWidth: 720,
           borderRadius: 14,
-          background: "linear-gradient(180deg, rgba(25,25,30,0.95), rgba(18,18,22,0.98))",
-          color: "#fff",
-          boxShadow: "0 12px 40px rgba(2,6,23,0.7)",
+          background: "var(--app-surface)",
+          color: "var(--app-text)",
+          boxShadow: "0 12px 40px var(--app-shadow)",
           overflow: "hidden",
           maxHeight: "calc(100dvh - 40px)",
           display: "flex",
@@ -462,20 +462,20 @@ export default function AddExperienceModal({ onClose, onSaved }) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* header */}
-        <div style={{ padding: 18, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+        <div style={{ padding: 18, borderBottom: "1px solid var(--app-border-soft)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <div style={{ flex: 1 }}>
-              <div style={{ height: 8, background: "#0f1115", borderRadius: 8 }}>
+              <div style={{ height: 8, background: "var(--app-bg)", borderRadius: 8 }}>
                 <div
                   style={{
                     width: `${progressPercent}%`,
                     height: "100%",
-                    background: "linear-gradient(90deg,#9fb0c7,#7ddbcd)",
+                    background: "linear-gradient(90deg,var(--app-muted),var(--app-brand))",
                     transition: "width 300ms ease",
                   }}
                 />
               </div>
-              <div style={{ fontSize: 13, color: "#bfc7d3", marginTop: 8 }}>
+              <div style={{ fontSize: 13, color: "var(--app-muted)", marginTop: 8 }}>
                 خطوة {Math.min(step + 1, totalSteps)}/{totalSteps}
               </div>
             </div>
@@ -484,7 +484,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               style={{
                 background: "transparent",
                 border: "none",
-                color: "#cbd5e1",
+                color: "var(--app-text-soft)",
                 fontSize: 22,
                 cursor: "pointer",
               }}
@@ -508,8 +508,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {/* الخطوة 0 - بيانات الجهة */}
           {step === 0 && (
             <div>
-              <h3 style={{ color: "#e6eef6" }}>بيانات الجهة</h3>
-              <p style={{ color: "#9fb0c7" }}>اكتب/ي اسم الجهة والمدينة.</p>
+              <h3 style={{ color: "var(--app-text)" }}>بيانات الجهة</h3>
+              <p style={{ color: "var(--app-muted)" }}>اكتب/ي اسم الجهة والمدينة.</p>
 
               <input
                 type="text"
@@ -521,9 +521,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   boxSizing: "border-box",
                   padding: 12,
                   borderRadius: 10,
-                  background: "rgba(255,255,255,0.02)",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.04)",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
+                  border: "1px solid var(--app-border-soft)",
                   marginBottom: 12,
                 }}
               />
@@ -539,9 +539,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   boxSizing: "border-box",
                   padding: 12,
                   borderRadius: 10,
-                  background: "rgba(255,255,255,0.02)",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.04)",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
+                  border: "1px solid var(--app-border-soft)",
                 }}
               >
                 <option value="">📍 اختر المدينة</option>
@@ -563,9 +563,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                     boxSizing: "border-box",
                     padding: 12,
                     borderRadius: 10,
-                    background: "rgba(255,255,255,0.02)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,0.04)",
+                    background: "var(--app-input-bg)",
+                    color: "var(--app-text)",
+                    border: "1px solid var(--app-border-soft)",
                     marginTop: 12,
                   }}
                 />
@@ -576,8 +576,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {/* الخطوة 1 - التخصص */}
           {step === 1 && (
             <div>
-              <h3 style={{ color: "#e6eef6" }}>ما هو تخصصك؟</h3>
-              <p style={{ color: "#9fb0c7" }}>
+              <h3 style={{ color: "var(--app-text)" }}>ما هو تخصصك؟</h3>
+              <p style={{ color: "var(--app-muted)" }}>
                 اختر/ي التخصص الرئيسي أولًا، ثم التخصص الفرعي.
               </p>
 
@@ -594,9 +594,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   boxSizing: "border-box",
                   padding: 12,
                   borderRadius: 10,
-                  background: "rgba(255,255,255,0.02)",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.04)",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
+                  border: "1px solid var(--app-border-soft)",
                   marginTop: 10,
                 }}
               >
@@ -620,9 +620,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                     boxSizing: "border-box",
                     padding: 12,
                     borderRadius: 10,
-                    background: "rgba(255,255,255,0.02)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,0.04)",
+                    background: "var(--app-input-bg)",
+                    color: "var(--app-text)",
+                    border: "1px solid var(--app-border-soft)",
                     marginTop: 12,
                   }}
                 />
@@ -640,9 +640,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   boxSizing: "border-box",
                   padding: 12,
                   borderRadius: 10,
-                  background: "rgba(255,255,255,0.02)",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.04)",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
+                  border: "1px solid var(--app-border-soft)",
                   marginTop: 12,
                   opacity: majorCategory ? 1 : 0.55,
                 }}
@@ -667,9 +667,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                     boxSizing: "border-box",
                     padding: 12,
                     borderRadius: 10,
-                    background: "rgba(255,255,255,0.02)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,0.04)",
+                    background: "var(--app-input-bg)",
+                    color: "var(--app-text)",
+                    border: "1px solid var(--app-border-soft)",
                     marginTop: 12,
                   }}
                 />
@@ -679,7 +679,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {/* الخطوة 2 - طريقة التقديم */}
           {step === 2 && (
             <div>
-              <h3 style={{ color: "#e6eef6" }}>كيف حصلت على فرصة التدريب؟</h3>
+              <h3 style={{ color: "var(--app-text)" }}>كيف حصلت على فرصة التدريب؟</h3>
               <div className="option-grid" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
                 {howAppliedOptions.map((opt) => (
                   <button
@@ -690,10 +690,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                       borderRadius: 10,
                       background:
                         howApplied === opt
-                          ? "linear-gradient(90deg,#9fb0c7,#7ddbcd)"
-                          : "rgba(255,255,255,0.03)",
-                      color: "#fff",
-                      border: "1px solid rgba(255,255,255,0.03)",
+                          ? "linear-gradient(90deg,var(--app-muted),var(--app-brand))"
+                          : "var(--app-input-bg)",
+                      color: "var(--app-text)",
+                      border: "1px solid var(--app-input-bg)",
                       cursor: "pointer",
                     }}
                   >
@@ -707,7 +707,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {/* الخطوة 3 - مدة التدريب */}
           {step === 3 && (
             <div>
-              <h3 style={{ color: "#e6eef6" }}>كم كانت مدة التدريب؟</h3>
+              <h3 style={{ color: "var(--app-text)" }}>كم كانت مدة التدريب؟</h3>
               <div className="option-grid" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
                 {durationOptions.map((d) => (
                   <button
@@ -718,10 +718,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                       borderRadius: 10,
                       background:
                         duration === d
-                          ? "linear-gradient(90deg,#9fb0c7,#7ddbcd)"
-                          : "rgba(255,255,255,0.02)",
-                      color: "#fff",
-                      border: "1px solid rgba(255,255,255,0.03)",
+                          ? "linear-gradient(90deg,var(--app-muted),var(--app-brand))"
+                          : "var(--app-input-bg)",
+                      color: "var(--app-text)",
+                      border: "1px solid var(--app-input-bg)",
                       cursor: "pointer",
                     }}
                   >
@@ -735,17 +735,17 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {/* الخطوة 4 - التقييم والوصف */}
           {step === 4 && (
             <div>
-              <h3 style={{ color: "#e6eef6" }}>قيّم/ي تجربتك</h3>
-              <h4 style={{ marginTop: 12, color: "#e6eef6" }}>
+              <h3 style={{ color: "var(--app-text)" }}>قيّم/ي تجربتك</h3>
+              <h4 style={{ marginTop: 12, color: "var(--app-text)" }}>
   التقييم العام للتجربة
 </h4>
-<p style={{ color: "#9fb0c7", fontSize: 14 }}>
+<p style={{ color: "var(--app-muted)", fontSize: 14 }}>
   قيّم/ي التجربة من 1 إلى 5 نجوم
 </p>
 
 <StarRating value={starRating} onChange={setStarRating} />
 
-              <p style={{ color: "#9fb0c7", marginTop: 18 }}>
+              <p style={{ color: "var(--app-muted)", marginTop: 18 }}>
                 يمكنك اختيار تقييمين كحد أقصى.
               </p>
 
@@ -760,10 +760,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                         padding: "12px 16px",
                         borderRadius: 12,
                         background: selected
-                          ? "linear-gradient(90deg,#9fb0c7,#7ddbcd)"
-                          : "rgba(255,255,255,0.02)",
-                        color: "#fff",
-                        border: "1px solid rgba(255,255,255,0.03)",
+                          ? "linear-gradient(90deg,var(--app-muted),var(--app-brand))"
+                          : "var(--app-input-bg)",
+                        color: "var(--app-text)",
+                        border: "1px solid var(--app-input-bg)",
                         cursor: "pointer",
                         minWidth: 200,
                         flex: "1 1 200px",
@@ -806,9 +806,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   marginTop: 16,
                   padding: 12,
                   borderRadius: 10,
-                  background: "rgba(255,255,255,0.02)",
-                  color: "#fff",
-                  border: "1px solid rgba(255,255,255,0.04)",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
+                  border: "1px solid var(--app-border-soft)",
                   whiteSpace: "pre-wrap",
                 }}
               />
@@ -818,8 +818,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   marginTop: 9,
                   padding: "9px 11px",
                   borderRadius: 10,
-                  background: "rgba(125,219,205,0.08)",
-                  border: "1px solid rgba(125,219,205,0.18)",
+                  background: "var(--app-brand-soft)",
+                  border: "1px solid var(--app-brand-border)",
                   color: "#d8fff8",
                   fontSize: 12,
                   lineHeight: 1.8,
@@ -858,7 +858,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {/* الخطوة 5 - معلومات سريعة */}
           {step === 5 && (
             <div>
-              <h3 style={{ color: "#e6eef6", marginBottom: 12 }}>
+              <h3 style={{ color: "var(--app-text)", marginBottom: 12 }}>
                 معلومات سريعة عن التجربة
               </h3>
 
@@ -873,8 +873,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               >
                 <div
                   style={{
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "var(--app-input-bg)",
+                    border: "1px solid var(--app-input-bg)",
                     borderRadius: 12,
                     padding: 10,
                   }}
@@ -897,9 +897,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                       boxSizing: "border-box",
                       padding: "9px 8px",
                       borderRadius: 10,
-                      background: "rgba(255,255,255,0.03)",
-                      color: "#fff",
-                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "var(--app-input-bg)",
+                      color: "var(--app-text)",
+                      border: "1px solid var(--app-input-bg)",
                     }}
                   >
                     <option value="">لم أحدد</option>
@@ -915,8 +915,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   <div
                     key={field.label}
                     style={{
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.06)",
+                      background: "var(--app-input-bg)",
+                      border: "1px solid var(--app-input-bg)",
                       borderRadius: 12,
                       padding: 10,
                     }}
@@ -945,10 +945,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                             borderRadius: 9,
                             background:
                               field.value === option.value
-                                ? "linear-gradient(90deg,#9fb0c7,#7ddbcd)"
-                                : "rgba(255,255,255,0.02)",
-                            color: "#fff",
-                            border: "1px solid rgba(255,255,255,0.06)",
+                                ? "linear-gradient(90deg,var(--app-muted),var(--app-brand))"
+                                : "var(--app-input-bg)",
+                            color: "var(--app-text)",
+                            border: "1px solid var(--app-input-bg)",
                             cursor: "pointer",
                             fontSize: 12,
                           }}
@@ -966,7 +966,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {/* بعد الحفظ */}
           {step >= totalSteps && (
             <div style={{ textAlign: "center", padding: 20 }}>
-              <h3 style={{ color: "#e6eef6" }}>وصلتنا تجربتك 🎉</h3>
+              <h3 style={{ color: "var(--app-text)" }}>وصلتنا تجربتك 🎉</h3>
               <p style={{ color: "#a9c0d6" }}>
                 شكراً لمشاركتك! ستظهر تجربتك بعد مراجعتها واعتمادها.
               </p>
@@ -976,8 +976,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   marginTop: 10,
                   padding: "10px 16px",
                   borderRadius: 10,
-                  background: "linear-gradient(90deg,#9fb0c7,#7ddbcd)",
-                  color: "#fff",
+                  background: "linear-gradient(90deg,var(--app-muted),var(--app-brand))",
+                  color: "var(--app-text)",
                   border: "none",
                   cursor: "pointer",
                 }}
@@ -996,13 +996,13 @@ export default function AddExperienceModal({ onClose, onSaved }) {
             className="stepper-modal-footer"
             style={{
               padding: 18,
-              borderTop: "1px solid rgba(255,255,255,0.03)",
+              borderTop: "1px solid var(--app-border-soft)",
               display: "flex",
               justifyContent: "space-between",
               gap: 12,
               alignItems: "center",
               flexShrink: 0,
-              background: "rgba(18,18,22,0.98)",
+              background: "var(--app-surface)",
             }}
           >
           <div className="modal-footer-group" style={{ display: "flex", gap: 8 }}>
@@ -1012,8 +1012,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 padding: "8px 12px",
                 borderRadius: 10,
                 background: "transparent",
-                color: "#bfc7d3",
-                border: "1px solid rgba(255,255,255,0.03)",
+                color: "var(--app-muted)",
+                border: "1px solid var(--app-border-soft)",
                 cursor: "pointer",
               }}
             >
@@ -1027,9 +1027,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               style={{
                 padding: "8px 12px",
                 borderRadius: 10,
-                background: step === 0 ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.06)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.03)",
+                background: step === 0 ? "var(--app-input-bg)" : "var(--app-brand-soft)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-border-soft)",
                 cursor: step === 0 ? "not-allowed" : "pointer",
               }}
             >
@@ -1046,9 +1046,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   style={{
                     padding: "8px 14px",
                     borderRadius: 10,
-                    background: "rgba(255,255,255,0.08)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "var(--app-input-bg)",
+                    color: "var(--app-text)",
+                    border: "1px solid var(--app-border)",
                     cursor: "pointer",
                   }}
                 >
@@ -1063,8 +1063,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                     borderRadius: 10,
                     background: loading
                       ? "rgba(125,125,125,0.5)"
-                      : "linear-gradient(90deg,#9fb0c7,#7ddbcd)",
-                    color: "#fff",
+                      : "linear-gradient(90deg,var(--app-muted),var(--app-brand))",
+                    color: "#07100e",
                     border: "none",
                     cursor: loading ? "not-allowed" : "pointer",
                   }}
@@ -1083,8 +1083,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   style={{
                     padding: "8px 14px",
                     borderRadius: 10,
-                    background: "linear-gradient(90deg,#9fb0c7,#7ddbcd)",
-                    color: "#fff",
+                    background: "linear-gradient(90deg,var(--app-muted),var(--app-brand))",
+                    color: "#07100e",
                     border: "none",
                     cursor: "pointer",
                   }}
@@ -1104,6 +1104,34 @@ export default function AddExperienceModal({ onClose, onSaved }) {
         .stepper-modal-card textarea,
         .stepper-modal-card button {
           font-family: inherit;
+        }
+
+        .stepper-modal-card input,
+        .stepper-modal-card select,
+        .stepper-modal-card textarea {
+          background: var(--app-input-bg) !important;
+          color: var(--app-text) !important;
+          border-color: var(--app-border-soft) !important;
+        }
+
+        .stepper-modal-card input::placeholder,
+        .stepper-modal-card textarea::placeholder {
+          color: var(--app-muted) !important;
+        }
+
+        .stepper-modal-body h3,
+        .stepper-modal-body h4 {
+          color: var(--app-text) !important;
+        }
+
+        .stepper-modal-body p,
+        .stepper-modal-body label {
+          color: var(--app-muted) !important;
+        }
+
+        .stepper-modal-body > div > div,
+        .quick-info-grid > div {
+          border-color: var(--app-border-soft) !important;
         }
 
         @media (max-width: 640px) {

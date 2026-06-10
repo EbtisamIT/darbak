@@ -1,34 +1,34 @@
 import React from "react";
 
 const policyCardStyle = {
-  backgroundColor: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  backgroundColor: "var(--app-surface)",
+  border: "1px solid var(--app-border)",
   borderRadius: "10px",
   padding: "18px",
   minHeight: "100%",
 };
 
 const sectionStyle = {
-  borderTop: "1px solid rgba(255,255,255,0.08)",
+  borderTop: "1px solid var(--app-border)",
   paddingTop: "14px",
   marginTop: "14px",
 };
 
 const headingStyle = {
-  color: "#7ddbcd",
+  color: "var(--app-brand)",
   margin: "0 0 10px",
   fontSize: "19px",
 };
 
 const paragraphStyle = {
-  color: "#d1d5db",
+  color: "var(--app-text-soft)",
   lineHeight: 1.9,
   margin: "0 0 10px",
   fontSize: "15px",
 };
 
 const listStyle = {
-  color: "#d1d5db",
+  color: "var(--app-text-soft)",
   lineHeight: 1.9,
   margin: "0",
   paddingRight: "22px",
@@ -39,8 +39,8 @@ const Badge = () => (
   <p
     style={{
       display: "inline-block",
-      color: "#7ddbcd",
-      border: "1px solid rgba(125,219,205,0.35)",
+      color: "var(--app-brand)",
+      border: "1px solid var(--app-brand-border)",
       borderRadius: "999px",
       padding: "7px 12px",
       margin: "0 0 14px",
@@ -65,7 +65,7 @@ export default function LegalPage() {
     >
       <header style={{ marginBottom: "24px", textAlign: "center" }}>
         <Badge />
-        <h1 style={{ color: "#fff", margin: 0, fontSize: "34px" }}>
+        <h1 style={{ color: "var(--app-text)", margin: 0, fontSize: "34px" }}>
           السياسات القانونية لدربك
         </h1>
         <p
@@ -73,7 +73,7 @@ export default function LegalPage() {
             ...paragraphStyle,
             maxWidth: "760px",
             margin: "12px auto 0",
-            color: "#b8c2c0",
+            color: "var(--app-muted)",
           }}
         >
           توضح هذه الصفحة سياسة الاستخدام وسياسة الخصوصية لحماية حقوق منصة
@@ -83,7 +83,7 @@ export default function LegalPage() {
 
       <div className="legal-grid">
         <article id="terms" style={policyCardStyle}>
-          <h2 style={{ color: "#fff", margin: 0, fontSize: "28px" }}>
+          <h2 style={{ color: "var(--app-text)", margin: 0, fontSize: "28px" }}>
             سياسة الاستخدام
           </h2>
           <p style={{ ...paragraphStyle, marginTop: "10px" }}>
@@ -152,7 +152,7 @@ export default function LegalPage() {
         </article>
 
         <article id="privacy" style={policyCardStyle}>
-          <h2 style={{ color: "#fff", margin: 0, fontSize: "28px" }}>
+          <h2 style={{ color: "var(--app-text)", margin: 0, fontSize: "28px" }}>
             سياسة الخصوصية
           </h2>
           <p style={{ ...paragraphStyle, marginTop: "10px" }}>

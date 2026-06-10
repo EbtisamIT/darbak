@@ -36,14 +36,14 @@ const MovingGreenPath = () => {
 
         <style>
           {`
-            .star {
+          .star {
               position: absolute;
               width: 4px;
               height: 4px;
-              background: white;
+              background: var(--app-text);
               border-radius: 50%;
               opacity: 0.8;
-              filter: drop-shadow(0 0 6px white);
+              filter: drop-shadow(0 0 6px var(--app-text));
               animation: twinkle 2.2s infinite ease-in-out;
             }
 
@@ -63,10 +63,10 @@ const MovingGreenPath = () => {
               left: -40px;
               width: 120px;
               height: 2px;
-              background: linear-gradient(90deg, white, transparent);
+              background: linear-gradient(90deg, var(--app-text), transparent);
               opacity: 0;
               transform: rotate(25deg);
-              filter: drop-shadow(0 0 4px white);
+              filter: drop-shadow(0 0 4px var(--app-text));
               animation: shoot 3.5s infinite ease-out;
             }
 
@@ -85,7 +85,7 @@ const MovingGreenPath = () => {
         className="home-title"
         style={{
           fontSize: "42px",
-          color: "hsl(150, 45.5%, 46%)",
+          color: "var(--app-brand-strong)",
           margin: 0,
           fontWeight: "700",
           position: "relative",
@@ -105,7 +105,7 @@ const MovingGreenPath = () => {
           width: "100%",
           height: "4px",
           background:
-            "linear-gradient(90deg, transparent, hsl(150,45%,46%), transparent)",
+            "linear-gradient(90deg, transparent, var(--app-brand-strong), transparent)",
           animation: "moveRoad 5s linear infinite",
           borderRadius: "20px",
         }}
@@ -128,8 +128,8 @@ const HomePage = () => {
     <div
       className="home-page"
       style={{
-        backgroundColor: "#0f1115",
-        color: "#fff",
+        backgroundColor: "var(--app-bg)",
+        color: "var(--app-text)",
         minHeight: "calc(100vh - 80px)",
         width: "100%",
         boxSizing: "border-box",
@@ -148,9 +148,9 @@ const HomePage = () => {
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "#7ddbcd",
-          border: "1px solid rgba(125, 219, 205, 0.35)",
-          backgroundColor: "rgba(125, 219, 205, 0.08)",
+          color: "var(--app-brand)",
+          border: "1px solid var(--app-brand-border)",
+          backgroundColor: "var(--app-brand-soft)",
           borderRadius: "999px",
           padding: "8px 14px",
           marginBottom: "22px",
@@ -168,7 +168,7 @@ const HomePage = () => {
         className="home-copy"
         style={{
           fontSize: "19px",
-          color: "#ccc",
+          color: "var(--app-muted-2)",
           maxWidth: "600px",
           margin: "25px auto 35px auto",
           lineHeight: "1.8",
@@ -185,8 +185,8 @@ const HomePage = () => {
         <button
           className="home-cta"
           style={{
-            backgroundColor: "#7ddbcd",
-            color: "#fff",
+            backgroundColor: "var(--app-brand)",
+            color: "#07100e",
             border: "none",
             borderRadius: "10px",
             padding: "14px 40px",
@@ -194,7 +194,7 @@ const HomePage = () => {
             fontFamily: homeFont,
             cursor: "pointer",
             transition: "0.3s",
-            boxShadow: "0 0 15px rgba(125,219,205,0.3)",
+            boxShadow: "0 0 15px var(--app-brand-border)",
           }}
         >
           استعرض التجارب 🚀
@@ -216,17 +216,17 @@ const HomePage = () => {
             key={stat.label}
             className="home-stat-card"
             style={{
-              border: "1px solid rgba(125, 219, 205, 0.2)",
+              border: "1px solid var(--app-brand-border)",
               borderRadius: "10px",
               padding: "14px 10px",
-              backgroundColor: "rgba(255, 255, 255, 0.035)",
-              boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
+              backgroundColor: "var(--app-surface)",
+              boxShadow: "0 8px 20px var(--app-shadow)",
             }}
           >
             <strong
               style={{
                 display: "block",
-                color: "#7ddbcd",
+                color: "var(--app-brand)",
                 fontSize: "22px",
                 lineHeight: 1.2,
                 fontWeight: 700,
@@ -238,7 +238,7 @@ const HomePage = () => {
             <span
               style={{
                 display: "block",
-                color: "#c9c9c9",
+                color: "var(--app-muted-2)",
                 fontSize: "13px",
                 lineHeight: 1.5,
               }}

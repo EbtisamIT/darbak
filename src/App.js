@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import "./App.css";
 import Navbar from "./pages/Navbar";
 import HomePage from "./pages/HomePage";
 import ExperiencesPage from "./pages/ExperiencesPage";
@@ -18,7 +19,7 @@ function PageBanner() {
   return (
     <div
       style={{
-        color: "#fff",
+        color: "var(--app-text)",
         textAlign: "center",
         padding: "8px 14px 2px",
         fontSize: "14px",
@@ -33,13 +34,24 @@ function PageBanner() {
 }
 
 function App() {
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined") return "dark";
+    return window.localStorage.getItem("darbak_theme") || "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem("darbak_theme", theme);
+  }, [theme]);
+
   const appStyle = {
     minHeight: "100vh",
-    backgroundColor: "#0f1115",
-    color: "#e0e0e0",
+    backgroundColor: "var(--app-bg)",
+    color: "var(--app-text-soft)",
     fontFamily: "'Cairo', sans-serif",
     display: "flex",
     flexDirection: "column",
+    transition: "background-color 0.25s ease, color 0.25s ease",
   };
 
   const contentContainer = {
@@ -58,7 +70,7 @@ function App() {
   return (
     <Router>
       <div style={appStyle}>
-        <Navbar />
+        <Navbar theme={theme} setTheme={setTheme} />
 
         <PageBanner />
 

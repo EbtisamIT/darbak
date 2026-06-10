@@ -631,11 +631,11 @@ const ExperiencesPage = () => {
           key={star}
           aria-hidden="true"
           style={{
-            color: star <= value ? "#7ddbcd" : "rgba(148,163,184,0.35)",
+            color: star <= value ? "var(--app-brand)" : "rgba(148,163,184,0.35)",
             fontSize: "17px",
             lineHeight: 1,
             textShadow:
-              star <= value ? "0 0 10px rgba(125,219,205,0.24)" : "none",
+              star <= value ? "0 0 10px var(--app-brand-border)" : "none",
           }}
         >
           ★
@@ -659,7 +659,7 @@ const ExperiencesPage = () => {
     setSortOption("latest");
   };
 
-  const MajorButton = ({ name, Icon, color = "#7ddbcd", active, isAll }) => (
+  const MajorButton = ({ name, Icon, color = "var(--app-brand)", active, isAll }) => (
     <button
       type="button"
       onClick={() => toggleMajor(name)}
@@ -669,10 +669,10 @@ const ExperiencesPage = () => {
         padding: "14px 12px",
         borderRadius: "20px",
         border: isAll
-          ? "1px solid #7ddbcd"
-          : "1px solid rgba(255,255,255,0.15)",
-        background: active ? "#7ddbcd" : "#181a20",
-        color: active ? "#000" : "#fff",
+          ? "1px solid var(--app-brand)"
+          : "1px solid var(--app-border)",
+        background: active ? "var(--app-brand)" : "var(--app-surface-2)",
+        color: active ? "#07100e" : "var(--app-text)",
         fontWeight: isAll || active ? "bold" : "500",
         cursor: "pointer",
         display: "flex",
@@ -683,7 +683,7 @@ const ExperiencesPage = () => {
         minWidth: 0,
       }}
     >
-      {Icon && <Icon size={18} color={active ? "#000" : color} />}
+      {Icon && <Icon size={18} color={active ? "#07100e" : color} />}
       <span className="major-filter-text">{name}</span>
     </button>
   );
@@ -691,8 +691,8 @@ const ExperiencesPage = () => {
   const InfoBox = ({ label, value, icon }) => (
     <div
       style={{
-        background: "#151820",
-        border: "1px solid rgba(255,255,255,0.07)",
+        background: "var(--app-card)",
+        border: "1px solid var(--app-border)",
         borderRadius: "14px",
         padding: "14px",
         textAlign: "center",
@@ -701,7 +701,7 @@ const ExperiencesPage = () => {
     >
       <div
         style={{
-          color: "#7ddbcd",
+          color: "var(--app-brand)",
           fontSize: "13px",
           fontWeight: "bold",
           marginBottom: "7px",
@@ -711,7 +711,7 @@ const ExperiencesPage = () => {
       </div>
       <div
         style={{
-          color: "#e5e7eb",
+          color: "var(--app-text-soft)",
           fontSize: "14px",
           lineHeight: "1.7",
         }}
@@ -815,7 +815,7 @@ const ExperiencesPage = () => {
   const SkeletonCard = () => (
     <div
       style={{
-        background: "#181a20",
+        background: "var(--app-surface-2)",
         borderRadius: "18px",
         height: "210px",
         animation: "pulse 1.4s infinite",
@@ -901,8 +901,8 @@ const ExperiencesPage = () => {
       <div>
         <div
           style={{
-            background: "#151820",
-            border: "1px solid rgba(255,255,255,0.07)",
+            background: "var(--app-card)",
+            border: "1px solid var(--app-border)",
             borderRadius: "14px",
             padding: "16px",
             textAlign: "center",
@@ -911,7 +911,7 @@ const ExperiencesPage = () => {
         >
           <div
             style={{
-              color: "#7ddbcd",
+              color: "var(--app-brand)",
               fontSize: "13px",
               fontWeight: "bold",
               marginBottom: "6px",
@@ -926,8 +926,8 @@ const ExperiencesPage = () => {
         {Array.isArray(exp.ratings) && exp.ratings.length > 0 && (
           <div
             style={{
-              background: "#151820",
-              border: "1px solid rgba(255,255,255,0.07)",
+              background: "var(--app-card)",
+              border: "1px solid var(--app-border)",
               borderRadius: "14px",
               padding: "16px",
               textAlign: "center",
@@ -936,7 +936,7 @@ const ExperiencesPage = () => {
           >
             <div
               style={{
-                color: "#7ddbcd",
+                color: "var(--app-brand)",
                 fontSize: "13px",
                 fontWeight: "bold",
                 marginBottom: "10px",
@@ -957,9 +957,9 @@ const ExperiencesPage = () => {
                 <span
                   key={rating}
                   style={{
-                    background: "rgba(125,219,205,0.09)",
-                    border: "1px solid rgba(125,219,205,0.22)",
-                    color: "#e5e7eb",
+                    background: "var(--app-brand-soft)",
+                    border: "1px solid var(--app-brand-border)",
+                    color: "var(--app-text-soft)",
                     borderRadius: "999px",
                     padding: "7px 10px",
                     fontSize: "12px",
@@ -975,8 +975,8 @@ const ExperiencesPage = () => {
 
         <div
           style={{
-            background: "#151820",
-            border: "1px solid rgba(255,255,255,0.07)",
+            background: "var(--app-card)",
+            border: "1px solid var(--app-border)",
             borderRadius: "14px",
             padding: "18px",
             textAlign: "center",
@@ -984,7 +984,7 @@ const ExperiencesPage = () => {
         >
           <div
             style={{
-              color: "#7ddbcd",
+              color: "var(--app-brand)",
               fontSize: "13px",
               fontWeight: "bold",
               marginBottom: "10px",
@@ -995,7 +995,7 @@ const ExperiencesPage = () => {
 
           <p
             style={{
-              color: "#ddd",
+              color: "var(--app-text-soft)",
               lineHeight: "1.9",
               fontSize: "14px",
               margin: 0,
@@ -1013,9 +1013,9 @@ const ExperiencesPage = () => {
   return (
     <div
       style={{
-        background: "#0f1115",
+        background: "var(--app-bg)",
         minHeight: "100vh",
-        color: "#fff",
+        color: "var(--app-text)",
         fontFamily: "'Cairo', sans-serif",
         direction: "rtl",
       }}
@@ -1038,7 +1038,7 @@ const ExperiencesPage = () => {
               minWidth: "118px",
               margin: "0 auto 10px",
               padding: "0",
-              color: "#7ddbcd",
+              color: "var(--app-brand)",
               alignItems: "center",
               justifyContent: "center",
               gap: "1px",
@@ -1057,7 +1057,7 @@ const ExperiencesPage = () => {
             </span>
             <span
               style={{
-                color: "rgba(229,255,250,0.82)",
+                color: "var(--app-muted)",
                 fontSize: "11px",
                 fontWeight: "500",
                 lineHeight: 1.3,
@@ -1079,9 +1079,9 @@ const ExperiencesPage = () => {
               onClick={() => setMajorsMenuOpen((open) => !open)}
               style={{
                 width: "100%",
-                background: "#181a20",
-                color: "#fff",
-                border: "1px solid rgba(125,219,205,0.35)",
+                background: "var(--app-surface-2)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-brand-border)",
                 borderRadius: "16px",
                 padding: "12px 14px",
                 display: "flex",
@@ -1101,7 +1101,7 @@ const ExperiencesPage = () => {
               >
                 <span
                   style={{
-                    color: "#7ddbcd",
+                    color: "var(--app-brand)",
                     fontSize: "12px",
                     fontWeight: "bold",
                   }}
@@ -1110,7 +1110,7 @@ const ExperiencesPage = () => {
                 </span>
                 <span
                   style={{
-                    color: "#e5e7eb",
+                    color: "var(--app-text-soft)",
                     fontSize: "13px",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -1122,7 +1122,7 @@ const ExperiencesPage = () => {
               </span>
               <span
                 style={{
-                  color: "#7ddbcd",
+                  color: "var(--app-brand)",
                   fontSize: "18px",
                   lineHeight: 1,
                   transform: majorsMenuOpen ? "rotate(180deg)" : "rotate(0)",
@@ -1138,8 +1138,8 @@ const ExperiencesPage = () => {
                 className="mobile-majors-list"
                 style={{
                   marginTop: "10px",
-                  background: "#151820",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "var(--app-card)",
+                  border: "1px solid var(--app-border)",
                   borderRadius: "16px",
                   padding: "10px",
                   display: "grid",
@@ -1220,7 +1220,7 @@ const ExperiencesPage = () => {
                   right: "14px",
                   top: "50%",
                   transform: "translateY(-50%)",
-                  color: "#7ddbcd",
+                  color: "var(--app-brand)",
                   fontSize: "16px",
                 }}
               >
@@ -1234,9 +1234,9 @@ const ExperiencesPage = () => {
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
-                  background: "#181a20",
-                  color: "#fff",
-                  border: "1px solid rgba(125,219,205,0.28)",
+                  background: "var(--app-surface-2)",
+                  color: "var(--app-text)",
+                  border: "1px solid var(--app-brand-border)",
                   borderRadius: "16px",
                   padding: "12px 44px 12px 14px",
                   outline: "none",
@@ -1253,8 +1253,8 @@ const ExperiencesPage = () => {
                 onClick={() => setCompanySearch("")}
                 style={{
                   background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  color: "#e5e7eb",
+                  border: "1px solid var(--app-border)",
+                  color: "var(--app-text-soft)",
                   borderRadius: "12px",
                   padding: "10px 12px",
                   cursor: "pointer",
@@ -1271,9 +1271,9 @@ const ExperiencesPage = () => {
               onChange={(e) => setSortOption(e.target.value)}
               aria-label="ترتيب التجارب"
               style={{
-                background: "#181a20",
-                color: "#fff",
-                border: "1px solid rgba(125,219,205,0.28)",
+                background: "var(--app-surface-2)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-brand-border)",
                 borderRadius: "12px",
                 padding: "10px 12px",
                 cursor: "pointer",
@@ -1453,32 +1453,32 @@ const ExperiencesPage = () => {
                   }}
                   style={{
                     background:
-                      "linear-gradient(180deg, #1b1e25 0%, #16181f 100%)",
+                      "linear-gradient(180deg, var(--app-surface-2) 0%, var(--app-card) 100%)",
                     borderRadius: "20px",
                     padding: "14px",
-                    border: "1px solid rgba(255,255,255,0.07)",
+                    border: "1px solid var(--app-border)",
                     cursor: "pointer",
                     textAlign: "center",
                     minHeight: "178px",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
-                    boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
+                    boxShadow: "0 10px 25px var(--app-shadow)",
                     transition: "0.3s ease",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = "translateY(-5px)";
                     e.currentTarget.style.boxShadow =
-                      "0 15px 30px rgba(125,219,205,0.12)";
+                      "0 15px 30px var(--app-shadow)";
                     e.currentTarget.style.border =
-                      "1px solid rgba(125,219,205,0.35)";
+                      "1px solid var(--app-brand-border)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "translateY(0)";
                     e.currentTarget.style.boxShadow =
-                      "0 10px 25px rgba(0,0,0,0.25)";
+                      "0 10px 25px var(--app-shadow)";
                     e.currentTarget.style.border =
-                      "1px solid rgba(255,255,255,0.07)";
+                      "1px solid var(--app-border)";
                   }}
                 >
                   <div>
@@ -1494,7 +1494,7 @@ const ExperiencesPage = () => {
                     >
                       <h3
                         style={{
-                          color: "#7ddbcd",
+                          color: "var(--app-brand)",
                           fontSize: "16px",
                           margin: 0,
                           lineHeight: "1.45",
@@ -1515,15 +1515,15 @@ const ExperiencesPage = () => {
                       <div
                         className="experience-info-box"
                         style={{
-                          background: "#14161c",
+                          background: "var(--app-input-bg)",
                           borderRadius: "12px",
                           padding: "8px",
-                          border: "1px solid rgba(255,255,255,0.05)",
+                          border: "1px solid var(--app-border-soft)",
                         }}
                       >
                         <p
                           style={{
-                            color: "#7ddbcd",
+                            color: "var(--app-brand)",
                             fontSize: "11px",
                             margin: "0 0 4px",
                             fontWeight: "bold",
@@ -1534,7 +1534,7 @@ const ExperiencesPage = () => {
                         <p
                           style={{
                             fontSize: "12px",
-                            color: "#e5e7eb",
+                            color: "var(--app-text-soft)",
                             margin: 0,
                             fontWeight:"bold"
 
@@ -1547,15 +1547,15 @@ const ExperiencesPage = () => {
                       <div
                         className="experience-info-box"
                         style={{
-                          background: "#14161c",
+                          background: "var(--app-input-bg)",
                           borderRadius: "12px",
                           padding: "8px",
-                          border: "1px solid rgba(255,255,255,0.05)",
+                          border: "1px solid var(--app-border-soft)",
                         }}
                       >
                         <p
                           style={{
-                            color: "#7ddbcd",
+                            color: "var(--app-brand)",
                             fontSize: "11px",
                             margin: "0 0 4px",
                             fontWeight: "bold",
@@ -1566,7 +1566,7 @@ const ExperiencesPage = () => {
                         <p
                           style={{
                             fontSize: "12px",
-                            color: "#e5e7eb",
+                            color: "var(--app-text-soft)",
                             margin: 0,
                             fontWeight:"bold"
                           }}
@@ -1602,9 +1602,9 @@ const ExperiencesPage = () => {
                         width: "100%",
                         padding: "7px",
                         borderRadius: "12px",
-                        border: "1px solid rgba(125,219,205,0.45)",
+                        border: "1px solid var(--app-brand-border)",
                         background: "transparent",
-                        color: "#7ddbcd",
+                        color: "var(--app-brand)",
                         cursor: "pointer",
                         fontSize: "12px",
                         fontWeight: "bold",
@@ -1624,8 +1624,8 @@ const ExperiencesPage = () => {
                   onClick={loadMoreExperiences}
                   disabled={loadingMore}
                   style={{
-                    background: loadingMore ? "rgba(125,219,205,0.5)" : "#7ddbcd",
-                    color: "#000",
+                    background: loadingMore ? "var(--app-brand-soft)" : "var(--app-brand)",
+                    color: "#07100e",
                     border: "none",
                     borderRadius: "14px",
                     padding: "11px 24px",
@@ -1654,7 +1654,7 @@ const ExperiencesPage = () => {
             alignItems: "center",
             justifyContent: "center",
             padding: "18px",
-            background: "rgba(0,0,0,0.58)",
+            background: "var(--app-overlay)",
             backdropFilter: "blur(8px)",
           }}
         >
@@ -1667,9 +1667,9 @@ const ExperiencesPage = () => {
             style={{
               width: "min(420px, 100%)",
               borderRadius: "22px",
-              border: "1px solid rgba(125,219,205,0.22)",
-              background: "linear-gradient(180deg, #191c22 0%, #111318 100%)",
-              boxShadow: "0 22px 60px rgba(0,0,0,0.42)",
+              border: "1px solid var(--app-brand-border)",
+              background: "var(--app-surface)",
+              boxShadow: "0 22px 60px var(--app-shadow)",
               padding: "22px 20px 18px",
               textAlign: "center",
             }}
@@ -1682,9 +1682,9 @@ const ExperiencesPage = () => {
                 width: "34px",
                 height: "34px",
                 borderRadius: "50%",
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "rgba(255,255,255,0.04)",
-                color: "#d6f7f1",
+                border: "1px solid var(--app-border)",
+                background: "var(--app-input-bg)",
+                color: "var(--app-text)",
                 cursor: "pointer",
                 float: "left",
                 fontSize: "18px",
@@ -1703,8 +1703,8 @@ const ExperiencesPage = () => {
                 display: "grid",
                 placeItems: "center",
                 margin: "4px auto 12px",
-                background: "rgba(125,219,205,0.12)",
-                color: "#7ddbcd",
+                background: "var(--app-brand-soft)",
+                color: "var(--app-brand)",
                 fontSize: "24px",
               }}
             >
@@ -1715,7 +1715,7 @@ const ExperiencesPage = () => {
               id="experience-prompt-title"
               style={{
                 margin: "0 0 8px",
-                color: "#7ddbcd",
+                color: "var(--app-brand)",
                 fontSize: "21px",
                 lineHeight: 1.4,
               }}
@@ -1726,7 +1726,7 @@ const ExperiencesPage = () => {
             <p
               style={{
                 margin: "0 auto 18px",
-                color: "rgba(245,255,253,0.86)",
+                color: "var(--app-text-soft)",
                 fontSize: "14px",
                 fontWeight: 500,
                 lineHeight: 1.85,
@@ -1751,13 +1751,13 @@ const ExperiencesPage = () => {
                   border: "none",
                   borderRadius: "14px",
                   padding: "11px 12px",
-                  background: "#7ddbcd",
+                  background: "var(--app-brand)",
                   color: "#07100e",
                   cursor: "pointer",
                   fontFamily: "inherit",
                   fontWeight: "800",
                   fontSize: "13px",
-                  boxShadow: "0 12px 28px rgba(125,219,205,0.22)",
+                  boxShadow: "0 12px 28px var(--app-brand-border)",
                 }}
               >
                 أضف تجربتك
@@ -1767,18 +1767,18 @@ const ExperiencesPage = () => {
                 type="button"
                 onClick={closeContributionPrompt}
                 style={{
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  border: "1px solid var(--app-border)",
                   borderRadius: "14px",
                   padding: "11px 12px",
-                  background: "rgba(255,255,255,0.04)",
-                  color: "#e9fffb",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
                   cursor: "pointer",
                   fontFamily: "inherit",
                   fontWeight: "700",
                   fontSize: "13px",
                 }}
               >
-                لاحقًا
+                استكشف التجارب
               </button>
             </div>
           </div>
@@ -1792,7 +1792,7 @@ const ExperiencesPage = () => {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.85)",
+            background: "var(--app-overlay)",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
@@ -1804,13 +1804,13 @@ const ExperiencesPage = () => {
             className="experience-modal"
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: "linear-gradient(180deg, #1c1f27, #15171d)",
+              background: "var(--app-surface)",
               borderRadius: "22px",
               padding: "26px",
               width: "92%",
               maxWidth: "620px",
-              border: "1px solid rgba(255,255,255,0.08)",
-              boxShadow: "0 20px 50px rgba(0,0,0,0.45)",
+              border: "1px solid var(--app-border)",
+              boxShadow: "0 20px 50px var(--app-shadow)",
               textAlign: "center",
             }}
           >
@@ -1827,11 +1827,11 @@ const ExperiencesPage = () => {
                 <div
                   key={i}
                   style={{
-                    color: currentStep === i + 1 ? "#000" : "#aaa",
+                    color: currentStep === i + 1 ? "#07100e" : "var(--app-muted)",
                     background:
                       currentStep === i + 1
-                        ? "#7ddbcd"
-                        : "rgba(255,255,255,0.06)",
+                        ? "var(--app-brand)"
+                        : "var(--app-input-bg)",
                     fontSize: "13px",
                     padding: "8px 12px",
                     borderRadius: "999px",
@@ -1848,9 +1848,9 @@ const ExperiencesPage = () => {
                 margin: "-6px 0 16px",
                 padding: "9px 12px",
                 borderRadius: "12px",
-                background: "rgba(125,219,205,0.08)",
-                border: "1px solid rgba(125,219,205,0.18)",
-                color: "#d1d5db",
+                background: "var(--app-brand-soft)",
+                border: "1px solid var(--app-brand-border)",
+                color: "var(--app-text-soft)",
                 fontSize: "12px",
                 lineHeight: 1.7,
               }}
@@ -1877,12 +1877,12 @@ const ExperiencesPage = () => {
                   flex: 1,
                   padding: "10px",
                   borderRadius: "12px",
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  border: "1px solid var(--app-border)",
                   background:
                     currentStep === 1
-                      ? "rgba(255,255,255,0.04)"
+                      ? "var(--app-input-bg)"
                       : "transparent",
-                  color: currentStep === 1 ? "#777" : "#fff",
+                  color: currentStep === 1 ? "var(--app-muted)" : "var(--app-text)",
                   cursor: currentStep === 1 ? "not-allowed" : "pointer",
                 }}
               >
@@ -1897,8 +1897,8 @@ const ExperiencesPage = () => {
                     padding: "10px",
                     borderRadius: "12px",
                     border: "none",
-                    background: "#7ddbcd",
-                    color: "#000",
+                    background: "var(--app-brand)",
+                    color: "#07100e",
                     cursor: "pointer",
                     fontWeight: "bold",
                   }}
@@ -1913,8 +1913,8 @@ const ExperiencesPage = () => {
                     padding: "10px",
                     borderRadius: "12px",
                     border: "none",
-                    background: "#7ddbcd",
-                    color: "#000",
+                    background: "var(--app-brand)",
+                    color: "#07100e",
                     cursor: "pointer",
                     fontWeight: "bold",
                   }}
@@ -1960,12 +1960,12 @@ const ExperiencesPage = () => {
         }
 
         .majors-grid::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.04);
+          background: var(--app-input-bg);
           border-radius: 999px;
         }
 
         .majors-grid::-webkit-scrollbar-thumb {
-          background: rgba(125,219,205,0.35);
+          background: var(--app-brand-border);
           border-radius: 999px;
         }
 
@@ -1980,9 +1980,9 @@ const ExperiencesPage = () => {
           position: sticky;
           top: 0;
           z-index: 50;
-          background: rgba(15, 17, 21, 0.96);
+          background: color-mix(in srgb, var(--app-bg) 94%, transparent);
           backdrop-filter: blur(12px);
-          border-bottom: 1px solid rgba(255,255,255,0.06);
+          border-bottom: 1px solid var(--app-border-soft);
           margin: -15px -12px 18px;
           padding: 8px 12px 4px;
         }
