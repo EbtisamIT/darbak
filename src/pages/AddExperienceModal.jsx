@@ -796,6 +796,22 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
               <div
                 style={{
+                  marginTop: 9,
+                  padding: "9px 11px",
+                  borderRadius: 10,
+                  background: "rgba(125,219,205,0.08)",
+                  border: "1px solid rgba(125,219,205,0.18)",
+                  color: "#d8fff8",
+                  fontSize: 12,
+                  lineHeight: 1.8,
+                }}
+              >
+                لضمان قبول التجربة، الرجاء التركيز على الوقائع وتجنب ذكر أشخاص
+                أو هويات أو عبارات شخصية أو تجريح مباشر.
+              </div>
+
+              <div
+                style={{
                   display: "flex",
                   justifyContent: "space-between",
                   gap: 12,
