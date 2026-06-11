@@ -1,13 +1,8 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import API_BASE_URL from "../config/api";
 
 const homeFont = "'Aniq', 'Cairo', sans-serif";
-
-const homeStats = [
-  { value: "+20", label: "مدينة رئيسية" },
-  { value: "+25", label: "تخصص رئيسي" },
-  { value: "بحث ذكي", label: "بالعربي والإنجليزي" },
-];
 
 const MovingGreenPath = () => {
   return (
@@ -124,6 +119,38 @@ const MovingGreenPath = () => {
 };
 
 const HomePage = () => {
+  const [experiencesCount, setExperiencesCount] = useState(null);
+
+  useEffect(() => {
+    const fetchExperiencesCount = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/experiences?limit=1`);
+        const data = await response.json();
+
+        if (typeof data.total === "number") {
+          setExperiencesCount(data.total);
+        }
+      } catch (error) {
+        console.error("تعذر جلب عدد التجارب:", error);
+      }
+    };
+
+    fetchExperiencesCount();
+  }, []);
+
+  const homeStats = useMemo(
+    () => [
+      { value: "+20", label: "مدينة رئيسية" },
+      { value: "+25", label: "تخصص رئيسي" },
+      {
+        value:
+          typeof experiencesCount === "number" ? `+${experiencesCount}` : "+",
+        label: "تجربة مشاركة",
+      },
+    ],
+    [experiencesCount]
+  );
+
   return (
     <div
       className="home-page"
@@ -176,7 +203,7 @@ const HomePage = () => {
         }}
       >
         منصة <strong>دربك</strong> تساعد الطلاب والطالبات على اكتشاف أفضل
-        تجارب التدريب التعاوني عبر مشاركة قصص حقيقية…  
+        تجارب التدريب التعاوني عبر مشاركة قصص حقيقية 
         <br />
         لتكون بداية مشوارك المهني أوضح وأسهل.
       </p>

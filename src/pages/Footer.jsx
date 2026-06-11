@@ -22,7 +22,7 @@ export default function Footer() {
             style={{
               color: "var(--app-brand-strong)",
               fontWeight: "600",
-              fontSize:"20px",
+              fontSize:"14px",
               textDecoration: "none",
               transition: "0.25s",
             }}
@@ -55,7 +55,7 @@ export default function Footer() {
               paddingBottom: "3px",
             }}
           >
-            سياسة الاستخدام
+           سياسة الاستخدام والخصوصية
           </Link>
           <span style={{ color: "var(--app-border)" }}>•</span>
           <Link
@@ -67,7 +67,6 @@ export default function Footer() {
               paddingBottom: "3px",
             }}
           >
-            سياسة الخصوصية
           </Link>
         </nav>
   
@@ -80,6 +79,7 @@ export default function Footer() {
         >
           © {new Date().getFullYear()} دربك — جميع الحقوق محفوظة
         </p>
+        
       </footer>
     );
   }
