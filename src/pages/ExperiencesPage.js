@@ -417,6 +417,7 @@ const ExperiencesPage = () => {
     const searchableValues = [
       exp.organizationName,
       exp.companyName,
+      exp.city,
       exp.majorCategory,
       exp.major,
       exp.title,
@@ -1229,8 +1230,8 @@ const ExperiencesPage = () => {
               <input
                 value={companySearch}
                 onChange={(e) => setCompanySearch(e.target.value)}
-                placeholder="ابحث باسم الشركة، الجهة، أو التخصص"
-                aria-label="ابحث باسم الشركة، الجهة، أو التخصص"
+                placeholder="ابحث باسم الشركة، الجهة، المدينة، أو التخصص"
+                aria-label="ابحث باسم الشركة، الجهة، المدينة، أو التخصص"
                 style={{
                   width: "100%",
                   boxSizing: "border-box",

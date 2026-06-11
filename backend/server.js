@@ -193,6 +193,7 @@ app.get('/api/experiences', async (req, res) => {
         const searchableValues = [
           exp.organizationName,
           exp.companyName,
+          exp.city,
           exp.majorCategory,
           exp.major,
           exp.title,
