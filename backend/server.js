@@ -289,6 +289,67 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
   }
 });
 
+app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const allowedFields = [
+      "organizationName",
+      "city",
+      "majorCategory",
+      "major",
+      "howApplied",
+      "duration",
+      "trainingYear",
+      "wasHired",
+      "hadReward",
+      "starRating",
+      "ratings",
+      "description",
+      "rejectionReason",
+    ];
+
+    const updates = {};
+
+    allowedFields.forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    if (updates.organizationName || updates.city) {
+      const current = await Experience.findById(req.params.id).lean();
+
+      if (!current) {
+        return res.status(404).json({ error: "Experience not found" });
+      }
+
+      const organizationName = updates.organizationName || current.organizationName;
+      const city = updates.city || current.city;
+
+      updates.title = city
+        ? `تجربتي في ${organizationName} بـ${city}`
+        : `تجربتي في ${organizationName}`;
+    }
+
+    const updated = await Experience.findByIdAndUpdate(req.params.id, updates, {
+      new: true,
+      runValidators: true,
+    }).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Experience not found" });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("❌ Admin edit error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {

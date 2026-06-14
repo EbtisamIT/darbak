@@ -13,6 +13,30 @@ const cardStyle = {
 const defaultRejectionReason =
   "لم يتم قبول التجربة بسبب وجود عبارات شخصية أو صياغة قد تُفهم كتجريح أو تشهير. يمكنك إعادة إرسالها بصياغة تركّز على الوقائع والتجربة بدون وصف أشخاص أو هويات.";
 
+const editableFields = [
+  "organizationName",
+  "city",
+  "majorCategory",
+  "major",
+  "howApplied",
+  "duration",
+  "trainingYear",
+  "wasHired",
+  "hadReward",
+  "starRating",
+  "description",
+  "rejectionReason",
+];
+
+const formatAdminDateTime = (value) => {
+  if (!value) return "غير محدد";
+
+  return new Date(value).toLocaleString("ar-SA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+};
+
 export default function AdminReviewPage() {
   const [password, setPassword] = useState(
     () => sessionStorage.getItem("darbak_admin_password") || ""
@@ -21,6 +45,9 @@ export default function AdminReviewPage() {
   const [experiences, setExperiences] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const authHeaders = password ? { "x-admin-password": password } : {};
 
@@ -85,6 +112,57 @@ export default function AdminReviewPage() {
     }
 
     updateStatus(id, "rejected", trimmedReason);
+  };
+
+  const startEditing = (exp) => {
+    const nextForm = {};
+
+    editableFields.forEach((field) => {
+      nextForm[field] = exp[field] ?? "";
+    });
+
+    nextForm.starRating = String(exp.starRating || "");
+    setEditingId(exp._id);
+    setEditForm(nextForm);
+    setMessage("");
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditForm({});
+  };
+
+  const updateEditField = (field, value) => {
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const saveExperienceEdit = async (id) => {
+    try {
+      setSavingEdit(true);
+      setMessage("");
+
+      const payload = {
+        ...editForm,
+        starRating: Number(editForm.starRating) || 1,
+      };
+
+      const { data } = await axios.patch(
+        `${API_BASE_URL}/api/admin/experiences/${id}`,
+        payload,
+        { headers: authHeaders }
+      );
+
+      setExperiences((prev) =>
+        prev.map((exp) => (exp._id === id ? data : exp))
+      );
+      cancelEditing();
+      setMessage("تم حفظ تعديل التجربة.");
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر حفظ تعديل التجربة.");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const deleteExperience = async (id) => {
@@ -226,21 +304,191 @@ export default function AdminReviewPage() {
                     {exp.organizationName} - {exp.city} - {exp.major}
                   </p>
                 </div>
-                <span style={{ color: "#9ca3af", fontSize: "13px" }}>
-                  {new Date(exp.createdAt).toLocaleDateString("ar-SA")}
-                </span>
+                <div
+                  style={{
+                    color: "#9ca3af",
+                    fontSize: "13px",
+                    lineHeight: 1.8,
+                    textAlign: "left",
+                  }}
+                >
+                  <div>أضيفت:</div>
+                  <strong style={{ color: "#cbd5e1", fontWeight: "600" }}>
+                    {formatAdminDateTime(exp.createdAt)}
+                  </strong>
+                </div>
               </div>
 
-              <p
-                style={{
-                  color: "#e5e7eb",
-                  lineHeight: 1.9,
-                  whiteSpace: "pre-wrap",
-                  overflowWrap: "anywhere",
-                }}
-              >
-                {exp.description}
-              </p>
+              {editingId === exp._id ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "10px",
+                    marginTop: "12px",
+                  }}
+                >
+                  <div className="admin-edit-grid">
+                    {[
+                      ["organizationName", "اسم الجهة"],
+                      ["city", "المدينة"],
+                      ["majorCategory", "التخصص الرئيسي"],
+                      ["major", "التخصص"],
+                      ["howApplied", "طريقة التقديم"],
+                      ["duration", "مدة التدريب"],
+                      ["trainingYear", "سنة التدريب"],
+                    ].map(([field, label]) => (
+                      <label key={field} style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                        {label}
+                        <input
+                          value={editForm[field] || ""}
+                          onChange={(e) => updateEditField(field, e.target.value)}
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            marginTop: "5px",
+                            background: "#111318",
+                            color: "#fff",
+                            border: "1px solid rgba(125,219,205,0.25)",
+                            borderRadius: "9px",
+                            padding: "9px",
+                            fontFamily: "inherit",
+                          }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="admin-edit-grid">
+                    <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                      التقييم
+                      <select
+                        value={editForm.starRating || ""}
+                        onChange={(e) => updateEditField("starRating", e.target.value)}
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          marginTop: "5px",
+                          background: "#111318",
+                          color: "#fff",
+                          border: "1px solid rgba(125,219,205,0.25)",
+                          borderRadius: "9px",
+                          padding: "9px",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        {[1, 2, 3, 4, 5].map((rating) => (
+                          <option key={rating} value={rating}>
+                            {rating}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                      المكافأة
+                      <select
+                        value={editForm.hadReward || ""}
+                        onChange={(e) => updateEditField("hadReward", e.target.value)}
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          marginTop: "5px",
+                          background: "#111318",
+                          color: "#fff",
+                          border: "1px solid rgba(125,219,205,0.25)",
+                          borderRadius: "9px",
+                          padding: "9px",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <option value="">غير مؤكد</option>
+                        <option value="yes">يوجد</option>
+                        <option value="no">لا يوجد</option>
+                        <option value="not_sure">غير مؤكد</option>
+                      </select>
+                    </label>
+
+                    <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                      عرض التوظيف
+                      <select
+                        value={editForm.wasHired || ""}
+                        onChange={(e) => updateEditField("wasHired", e.target.value)}
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          marginTop: "5px",
+                          background: "#111318",
+                          color: "#fff",
+                          border: "1px solid rgba(125,219,205,0.25)",
+                          borderRadius: "9px",
+                          padding: "9px",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <option value="">غير مؤكد</option>
+                        <option value="yes">يوجد</option>
+                        <option value="no">لا يوجد</option>
+                        <option value="not_sure">غير مؤكد</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                    وصف التجربة
+                    <textarea
+                      value={editForm.description || ""}
+                      onChange={(e) => updateEditField("description", e.target.value)}
+                      rows={6}
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        marginTop: "5px",
+                        background: "#111318",
+                        color: "#fff",
+                        border: "1px solid rgba(125,219,205,0.25)",
+                        borderRadius: "9px",
+                        padding: "10px",
+                        fontFamily: "inherit",
+                        lineHeight: 1.8,
+                      }}
+                    />
+                  </label>
+
+                  <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                    سبب الرفض
+                    <textarea
+                      value={editForm.rejectionReason || ""}
+                      onChange={(e) =>
+                        updateEditField("rejectionReason", e.target.value)
+                      }
+                      rows={3}
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        marginTop: "5px",
+                        background: "#111318",
+                        color: "#fff",
+                        border: "1px solid rgba(125,219,205,0.25)",
+                        borderRadius: "9px",
+                        padding: "10px",
+                        fontFamily: "inherit",
+                        lineHeight: 1.8,
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <p
+                  style={{
+                    color: "#e5e7eb",
+                    lineHeight: 1.9,
+                    whiteSpace: "pre-wrap",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {exp.description}
+                </p>
+              )}
 
               {exp.rejectionReason && (
                 <div
@@ -269,56 +517,111 @@ export default function AdminReviewPage() {
                   marginTop: "12px",
                 }}
               >
-                {status !== "approved" && (
-                  <button
-                    type="button"
-                    onClick={() => updateStatus(exp._id, "approved")}
-                    style={{
-                      background: "#7ddbcd",
-                      color: "#000",
-                      border: "none",
-                      borderRadius: "10px",
-                      padding: "9px 14px",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    قبول
-                  </button>
+                {editingId === exp._id ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => saveExperienceEdit(exp._id)}
+                      disabled={savingEdit}
+                      style={{
+                        background: "#7ddbcd",
+                        color: "#000",
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "9px 14px",
+                        cursor: savingEdit ? "not-allowed" : "pointer",
+                        fontFamily: "inherit",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {savingEdit ? "حفظ..." : "حفظ التعديل"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditing}
+                      style={{
+                        background: "transparent",
+                        color: "#cbd5e1",
+                        border: "1px solid rgba(203,213,225,0.35)",
+                        borderRadius: "10px",
+                        padding: "9px 14px",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      إلغاء التعديل
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {status !== "approved" && (
+                      <button
+                        type="button"
+                        onClick={() => updateStatus(exp._id, "approved")}
+                        style={{
+                          background: "#7ddbcd",
+                          color: "#000",
+                          border: "none",
+                          borderRadius: "10px",
+                          padding: "9px 14px",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        قبول
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => startEditing(exp)}
+                      style={{
+                        background: "rgba(125,219,205,0.08)",
+                        color: "#7ddbcd",
+                        border: "1px solid rgba(125,219,205,0.35)",
+                        borderRadius: "10px",
+                        padding: "9px 14px",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      تعديل
+                    </button>
+                    {status !== "rejected" && (
+                      <button
+                        type="button"
+                        onClick={() => rejectExperience(exp._id)}
+                        style={{
+                          background: "transparent",
+                          color: "#fecdd3",
+                          border: "1px solid rgba(244,63,94,0.35)",
+                          borderRadius: "10px",
+                          padding: "9px 14px",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        رفض
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => deleteExperience(exp._id)}
+                      style={{
+                        background: "rgba(127,29,29,0.2)",
+                        color: "#fecaca",
+                        border: "1px solid rgba(248,113,113,0.35)",
+                        borderRadius: "10px",
+                        padding: "9px 14px",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      حذف نهائي
+                    </button>
+                  </>
                 )}
-                {status !== "rejected" && (
-                  <button
-                    type="button"
-                    onClick={() => rejectExperience(exp._id)}
-                    style={{
-                      background: "transparent",
-                      color: "#fecdd3",
-                      border: "1px solid rgba(244,63,94,0.35)",
-                      borderRadius: "10px",
-                      padding: "9px 14px",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    رفض
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => deleteExperience(exp._id)}
-                  style={{
-                    background: "rgba(127,29,29,0.2)",
-                    color: "#fecaca",
-                    border: "1px solid rgba(248,113,113,0.35)",
-                    borderRadius: "10px",
-                    padding: "9px 14px",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  حذف نهائي
-                </button>
               </div>
             </article>
           ))
@@ -330,6 +633,16 @@ export default function AdminReviewPage() {
           main section:first-of-type {
             grid-template-columns: 1fr !important;
           }
+
+          .admin-edit-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        .admin-edit-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
         }
       `}</style>
     </main>
