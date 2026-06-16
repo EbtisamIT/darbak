@@ -19,16 +19,22 @@ function PageBanner() {
   return (
     <div
       style={{
-        color: "var(--app-text)",
+        width: "min(920px, calc(100% - 28px))",
+        margin: "8px auto -18px",
+        color: "var(--app-text-soft)",
         textAlign: "center",
-        padding: "8px 14px 2px",
-        fontSize: "14px",
+        padding: "6px 14px",
+        fontSize: "15px",
         fontWeight: "400",
         letterSpacing: 0,
-        lineHeight: 1.7,
+        lineHeight: 1.75,
+        fontFamily: "'Aniq', 'Cairo', sans-serif",
       }}
     >
-      تنويه: التجارب الطلابية شخصية ومرتبطة بظروف وبيئات مختلفة؛ ما يناسب غيرك قد لا يكون الأفضل لك، والعكس صحيح.
+      <span style={{ color: "var(--app-brand)", fontWeight: "600" }}>
+        تنويه:
+      </span>{" "}
+      خذ من تجارب غيرك ما يفيدك، لكن تذكّر أن لكل طالب رحلته وتجربته الخاصة. 🤍
     </div>
   );
 }
