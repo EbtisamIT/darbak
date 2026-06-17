@@ -4,14 +4,15 @@ import { Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
 import logo from "./logo.png";
-import AddExperienceModal from "./AddExperienceModal"
+import AddExperienceModal from "./AddExperienceModal";
+
 const Navbar = ({ theme = "dark", setTheme }) => {
-    const [showModal, setShowModal] = useState(false);
-    const [showSuggestionBox, setShowSuggestionBox] = useState(false);
-    const [suggestionText, setSuggestionText] = useState("");
-    const [suggestionMessage, setSuggestionMessage] = useState("");
-    const [sendingSuggestion, setSendingSuggestion] = useState(false);
-  
+  const [showModal, setShowModal] = useState(false);
+  const [showSuggestionBox, setShowSuggestionBox] = useState(false);
+  const [suggestionText, setSuggestionText] = useState("");
+  const [suggestionMessage, setSuggestionMessage] = useState("");
+  const [sendingSuggestion, setSendingSuggestion] = useState(false);
+
   const location = useLocation();
   const isMobile = window.innerWidth < 768;
 
@@ -32,8 +33,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     color: location.pathname === path ? "var(--app-brand)" : "var(--app-text-soft)",
     fontWeight: location.pathname === path ? "bold" : "normal",
     transition: "0.3s",
-    fontSize: "15px",
-    whiteSpace: "nowrap",
   });
 
   const actionButtonStyle = {
@@ -48,7 +47,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     transition: "0.3s",
     fontFamily: "inherit",
     fontWeight: "700",
-    whiteSpace: "nowrap",
   };
 
   const toggleTheme = () => {
@@ -81,140 +79,137 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     }
   };
 
+  const themeToggleButton = (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      aria-label={theme === "dark" ? "تفعيل الوضع الصباحي" : "تفعيل الوضع المسائي"}
+      style={{
+        position: "relative",
+        width: "58px",
+        height: "30px",
+        backgroundColor: "var(--app-input-bg)",
+        color: "var(--app-text)",
+        border: "1px solid var(--app-border)",
+        borderRadius: "999px",
+        padding: "0",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        overflow: "hidden",
+        boxShadow: "inset 0 0 0 1px var(--app-border-soft)",
+        transition: "background-color 0.25s ease, border-color 0.25s ease",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          width: "50%",
+          display: "grid",
+          placeItems: "center",
+          color: theme === "light" ? "#07100e" : "var(--app-muted)",
+          fontSize: "13px",
+          zIndex: 2,
+        }}
+      >
+        ☼
+      </span>
+      <span
+        aria-hidden="true"
+        style={{
+          width: "50%",
+          display: "grid",
+          placeItems: "center",
+          color: theme === "dark" ? "#07100e" : "var(--app-muted)",
+          fontSize: "13px",
+          zIndex: 2,
+        }}
+      >
+        ◐
+      </span>
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: "3px",
+          right: theme === "dark" ? "31px" : "3px",
+          width: "22px",
+          height: "22px",
+          borderRadius: "50%",
+          background: "var(--app-brand)",
+          boxShadow: "0 4px 12px var(--app-brand-border)",
+          transition: "right 0.25s ease",
+          zIndex: 1,
+        }}
+      />
+    </button>
+  );
+
   return (
     <>
       <nav
         style={{
-          width: "100%",
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "14px 24px",
           backgroundColor: "var(--app-surface)",
           borderBottom: "1px solid var(--app-border)",
+          gap: isMobile ? "14px" : "30px",
+          overflow: "auto",
           transition: "background-color 0.25s ease, border-color 0.25s ease",
         }}
       >
         <div
           style={{
-            width: "min(100%, 1200px)",
-            margin: "0 auto",
-            boxSizing: "border-box",
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "auto minmax(0, 1fr) auto",
+            display: "flex",
             alignItems: "center",
-            gap: isMobile ? "10px" : "22px",
-            padding: isMobile ? "10px 14px 12px" : "10px 24px",
-            direction: "rtl",
+            gap: "10px",
+            flexDirection: isMobile ? "column" : "row",
           }}
         >
-          <Link
-            to="/"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: isMobile ? "center" : "flex-start",
-            }}
-          >
+          <Link to="/" style={{ display: "flex", alignItems: "center" }}>
             <img
               src={logo}
               alt="شعار دربك"
               style={{
-                height: isMobile ? "58px" : "72px",
-                width: isMobile ? "68px" : "78px",
+                height: "80px",
+                width: "85px",
                 objectFit: "contain",
               }}
             />
+          </Link>
+          {themeToggleButton}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "18px",
+            alignItems: "center",
+            flexWrap: "wrap",
+            justifyContent: "center",
+          }}
+        >
+          <Link to="/" style={linkStyle("/")}>
+            🏠 الرئيسية
+          </Link>
+
+          <Link to="/experiences" style={linkStyle("/experiences")}>
+            📄 التجارب
           </Link>
 
           <div
             style={{
               display: "flex",
-              gap: isMobile ? "12px" : "20px",
+              gap: "10px",
               alignItems: "center",
+              flexWrap: "wrap",
               justifyContent: "center",
-              flexWrap: "wrap",
             }}
           >
-            <Link to="/" style={linkStyle("/")}>
-              🏠 الرئيسية
-            </Link>
-
-            <Link to="/experiences" style={linkStyle("/experiences")}>
-              📄 التجارب
-            </Link>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              alignItems: "center",
-              justifyContent: isMobile ? "center" : "flex-end",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={theme === "dark" ? "تفعيل الوضع الصباحي" : "تفعيل الوضع المسائي"}
-              style={{
-                position: "relative",
-                width: "58px",
-                height: "32px",
-                backgroundColor: "var(--app-input-bg)",
-                color: "var(--app-text)",
-                border: "1px solid var(--app-border)",
-                borderRadius: "999px",
-                padding: "0",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                overflow: "hidden",
-                boxShadow: "inset 0 0 0 1px var(--app-border-soft)",
-                transition: "background-color 0.25s ease, border-color 0.25s ease",
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  width: "50%",
-                  display: "grid",
-                  placeItems: "center",
-                  color: theme === "light" ? "#07100e" : "var(--app-muted)",
-                  fontSize: "13px",
-                  zIndex: 2,
-                }}
-              >
-                ☼
-              </span>
-              <span
-                aria-hidden="true"
-                style={{
-                  width: "50%",
-                  display: "grid",
-                  placeItems: "center",
-                  color: theme === "dark" ? "#07100e" : "var(--app-muted)",
-                  fontSize: "13px",
-                  zIndex: 2,
-                }}
-              >
-                ◐
-              </span>
-              <span
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  top: "4px",
-                  right: theme === "dark" ? "31px" : "4px",
-                  width: "22px",
-                  height: "22px",
-                  borderRadius: "50%",
-                  background: "var(--app-brand)",
-                  boxShadow: "0 4px 12px var(--app-brand-border)",
-                  transition: "right 0.25s ease",
-                  zIndex: 1,
-                }}
-              />
-            </button>
-
             <button
               type="button"
               onClick={() => {
@@ -233,92 +228,93 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               + أضف تجربتك
             </button>
           </div>
+
+          {showModal && (
+            <AddExperienceModal
+              onAddExperience={(exp) => console.log("تمت الإضافة:", exp)}
+              onClose={() => setShowModal(false)}
+            />
+          )}
         </div>
-        {showModal && (
-          <AddExperienceModal
-            onAddExperience={(exp) => console.log("تمت الإضافة:", exp)}
-            onClose={() => setShowModal(false)}
-          />
-        )}
       </nav>
-    {showSuggestionBox && (
-      <div
-        style={{
-          width: "100%",
-          background: "var(--app-surface)",
-          borderBottom: "1px solid var(--app-border)",
-          padding: "12px 16px",
-          boxSizing: "border-box",
-        }}
-      >
-        <form
-          onSubmit={submitSuggestion}
+      {showSuggestionBox && (
+        <div
           style={{
-            width: "min(100%, 560px)",
-            margin: "0 auto",
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) auto",
-            gap: "10px",
-            alignItems: "center",
-            direction: "rtl",
+            width: "100%",
+            background: "var(--app-surface)",
+            borderBottom: "1px solid var(--app-border)",
+            padding: "12px 16px",
+            boxSizing: "border-box",
           }}
         >
-          <textarea
-            value={suggestionText}
-            onChange={(e) => setSuggestionText(e.target.value)}
-            placeholder="اكتب اقتراحك لدربك..."
-            rows={isMobile ? 3 : 2}
-            maxLength={1000}
+          <form
+            onSubmit={submitSuggestion}
             style={{
-              width: "100%",
-              boxSizing: "border-box",
-              resize: "vertical",
-              background: "var(--app-input-bg)",
-              color: "var(--app-text)",
-              border: "1px solid var(--app-border)",
-              borderRadius: "12px",
-              padding: "10px 12px",
-              fontFamily: "inherit",
-              lineHeight: 1.7,
-              textAlign: "right",
-            }}
-          />
-          <button
-            type="submit"
-            disabled={sendingSuggestion}
-            style={{
-              background: "var(--app-brand)",
-              color: "#101418",
-              border: "none",
-              borderRadius: "12px",
-              padding: "11px 18px",
-              cursor: sendingSuggestion ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
-              fontWeight: "800",
-              whiteSpace: "nowrap",
+              width: "min(100%, 560px)",
+              margin: "0 auto",
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) auto",
+              gap: "10px",
+              alignItems: "center",
+              direction: "rtl",
             }}
           >
-            {sendingSuggestion ? "إرسال..." : "إرسال"}
-          </button>
-        </form>
-      </div>
-    )}
-    {suggestionMessage && (
-      <p
-        style={{
-          margin: "8px auto 0",
-          padding: "0 16px",
-          textAlign: "center",
-          fontSize: "12px",
-          color: suggestionMessage.includes("وصلنا")
-            ? "var(--app-brand-strong)"
-            : "#fecdd3",
-          fontFamily: "'Cairo', sans-serif",
-        }}
-      >
-        {suggestionMessage}
-      </p>
-    )}
+            <textarea
+              value={suggestionText}
+              onChange={(e) => setSuggestionText(e.target.value)}
+              placeholder="اكتب اقتراحك لدربك..."
+              rows={isMobile ? 3 : 2}
+              maxLength={1000}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                resize: "vertical",
+                background: "var(--app-input-bg)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-border)",
+                borderRadius: "12px",
+                padding: "10px 12px",
+                fontFamily: "inherit",
+                lineHeight: 1.7,
+                textAlign: "right",
+              }}
+            />
+            <button
+              type="submit"
+              disabled={sendingSuggestion}
+              style={{
+                background: "var(--app-brand)",
+                color: "#101418",
+                border: "none",
+                borderRadius: "12px",
+                padding: "11px 18px",
+                cursor: sendingSuggestion ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+                fontWeight: "800",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {sendingSuggestion ? "إرسال..." : "إرسال"}
+            </button>
+          </form>
+        </div>
+      )}
+      {suggestionMessage && (
+        <p
+          style={{
+            margin: "8px auto 0",
+            padding: "0 16px",
+            textAlign: "center",
+            fontSize: "12px",
+            color: suggestionMessage.includes("وصلنا")
+              ? "var(--app-brand-strong)"
+              : "#fecdd3",
+            fontFamily: "'Cairo', sans-serif",
+          }}
+        >
+          {suggestionMessage}
+        </p>
+      )}
     </>
   );
 };
