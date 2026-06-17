@@ -194,15 +194,17 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         <button
             onClick={() => setShowModal(true)}
             style={{
-              backgroundColor: "var(--app-brand)",
-              color: "#000",
-              border: "none",
+              backgroundColor: "var(--app-input-bg)",
+              color: "var(--app-brand-strong)",
+              border: "1px solid var(--app-brand-border)",
               borderRadius: "12px",
-              padding: "10px 10px",
+              padding: "10px 12px",
               fontSize: "14px",
               cursor: "pointer",
-              boxShadow: "0 0 14px var(--app-brand-border)",
+              boxShadow: "0 0 10px rgba(125, 219, 205, 0.12)",
               transition: "0.3s",
+              fontFamily: "inherit",
+              fontWeight: "700",
             }}
           >
             ➕أضف تجربتك 
