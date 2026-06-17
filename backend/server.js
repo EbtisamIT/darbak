@@ -4,6 +4,7 @@ const cors = require("cors");
 require('dotenv').config();
 
 const Experience = require('./models/Experience');
+const Suggestion = require('./models/Suggestion');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -104,6 +105,32 @@ app.get('/', (req, res) => {
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', database: mongoose.connection.readyState === 1 });
+});
+
+app.post('/api/suggestions', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const text = (req.body.text || "").trim();
+
+    if (text.length < 3) {
+      return res.status(400).json({ error: "اكتب اقتراحًا واضحًا قبل الإرسال." });
+    }
+
+    if (containsBlockedTerms(text)) {
+      return res.status(400).json({
+        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة ثم المحاولة مرة أخرى.",
+      });
+    }
+
+    const suggestion = await Suggestion.create({ text });
+    res.json(suggestion);
+  } catch (err) {
+    console.error("❌ Error saving suggestion:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // إنشاء تجربة
@@ -256,6 +283,24 @@ app.get('/api/admin/experiences', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/suggestions', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const suggestions = await Suggestion.find()
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    res.json({ data: suggestions });
+  } catch (err) {
+    console.error("❌ Admin suggestions fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -365,6 +410,25 @@ app.delete('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
     res.json({ success: true, id: req.params.id });
   } catch (err) {
     console.error("❌ Admin delete error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/suggestions/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const deleted = await Suggestion.findByIdAndDelete(req.params.id).lean();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Suggestion not found" });
+    }
+
+    res.json({ success: true, id: req.params.id });
+  } catch (err) {
+    console.error("❌ Admin suggestion delete error:", err);
     res.status(500).json({ error: err.message });
   }
 });

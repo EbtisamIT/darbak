@@ -41,8 +41,10 @@ export default function AdminReviewPage() {
   const [password, setPassword] = useState(
     () => sessionStorage.getItem("darbak_admin_password") || ""
   );
+  const [adminView, setAdminView] = useState("experiences");
   const [status, setStatus] = useState("pending");
   const [experiences, setExperiences] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -53,7 +55,7 @@ export default function AdminReviewPage() {
 
   const fetchExperiences = async () => {
     if (!password) {
-      setMessage("اكتبي كلمة المرور لعرض التجارب.");
+      setMessage("اكتب كلمة المرور لعرض المحتوى.");
       return;
     }
 
@@ -80,10 +82,53 @@ export default function AdminReviewPage() {
     }
   };
 
+  const fetchSuggestions = async () => {
+    if (!password) {
+      setMessage("اكتب كلمة المرور لعرض المحتوى.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      sessionStorage.setItem("darbak_admin_password", password);
+
+      const { data } = await axios.get(`${API_BASE_URL}/api/admin/suggestions`, {
+        headers: authHeaders,
+      });
+
+      setSuggestions(Array.isArray(data.data) ? data.data : []);
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.status === 401
+          ? "كلمة المرور غير صحيحة."
+          : "تعذر تحميل الاقتراحات."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (password) fetchExperiences();
+    if (!password) return;
+
+    if (adminView === "suggestions") {
+      fetchSuggestions();
+    } else {
+      fetchExperiences();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, adminView]);
+
+  const refreshCurrentView = () => {
+    if (adminView === "suggestions") {
+      fetchSuggestions();
+      return;
+    }
+
+    fetchExperiences();
+  };
 
   const updateStatus = async (id, nextStatus, rejectionReason = "") => {
     try {
@@ -184,6 +229,25 @@ export default function AdminReviewPage() {
     }
   };
 
+  const deleteSuggestion = async (id) => {
+    const confirmed = window.confirm(
+      "هل أنت متأكد من حذف هذا الاقتراح؟ لا يمكن التراجع عن الحذف."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setMessage("");
+      await axios.delete(`${API_BASE_URL}/api/admin/suggestions/${id}`, {
+        headers: authHeaders,
+      });
+      setSuggestions((prev) => prev.filter((suggestion) => suggestion._id !== id));
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر حذف الاقتراح.");
+    }
+  };
+
   return (
     <main
       style={{
@@ -195,9 +259,9 @@ export default function AdminReviewPage() {
       }}
     >
       <header style={{ marginBottom: "20px", textAlign: "right" }}>
-        <h1 style={{ color: "#fff", margin: 0 }}>مراجعة التجارب</h1>
+        <h1 style={{ color: "#fff", margin: 0 }}>مراجعة التجارب والاقتراحات</h1>
         <p style={{ color: "#9ca3af", lineHeight: 1.8 }}>
-          صفحة خاصة لاعتماد أو رفض التجارب قبل ظهورها للزوار.
+          صفحة خاصة لاعتماد التجارب ومتابعة اقتراحات الزوار.
         </p>
       </header>
 
@@ -205,7 +269,7 @@ export default function AdminReviewPage() {
         style={{
           ...cardStyle,
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) auto auto",
+          gridTemplateColumns: "minmax(0, 1fr) auto auto auto",
           gap: "10px",
           alignItems: "center",
           marginBottom: "16px",
@@ -229,8 +293,8 @@ export default function AdminReviewPage() {
         />
 
         <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
+          value={adminView}
+          onChange={(e) => setAdminView(e.target.value)}
           style={{
             background: "#111318",
             border: "1px solid rgba(125,219,205,0.25)",
@@ -240,6 +304,24 @@ export default function AdminReviewPage() {
             fontFamily: "inherit",
           }}
         >
+          <option value="experiences">التجارب</option>
+          <option value="suggestions">الاقتراحات</option>
+        </select>
+
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          disabled={adminView === "suggestions"}
+          style={{
+            background: "#111318",
+            border: "1px solid rgba(125,219,205,0.25)",
+            borderRadius: "10px",
+            color: "#fff",
+            padding: "11px 12px",
+            fontFamily: "inherit",
+            opacity: adminView === "suggestions" ? 0.45 : 1,
+          }}
+        >
           <option value="pending">بانتظار المراجعة</option>
           <option value="approved">المقبولة</option>
           <option value="rejected">المرفوضة</option>
@@ -247,7 +329,7 @@ export default function AdminReviewPage() {
 
         <button
           type="button"
-          onClick={fetchExperiences}
+          onClick={refreshCurrentView}
           disabled={loading}
           style={{
             background: "#7ddbcd",
@@ -279,13 +361,81 @@ export default function AdminReviewPage() {
         </p>
       )}
 
-      <div style={{ display: "grid", gap: "12px" }}>
-        {experiences.length === 0 && !loading ? (
-          <div style={{ ...cardStyle, color: "#9ca3af", textAlign: "center" }}>
-            لا توجد تجارب في هذا التصنيف.
-          </div>
-        ) : (
-          experiences.map((exp) => (
+      {adminView === "suggestions" ? (
+        <div style={{ display: "grid", gap: "12px" }}>
+          {suggestions.length === 0 && !loading ? (
+            <div style={{ ...cardStyle, color: "#9ca3af", textAlign: "center" }}>
+              لا توجد اقتراحات حاليًا.
+            </div>
+          ) : (
+            suggestions.map((suggestion) => (
+              <article key={suggestion._id} style={cardStyle}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <h3 style={{ color: "#7ddbcd", margin: 0 }}>اقتراح من زائر</h3>
+                  <div
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: "13px",
+                      lineHeight: 1.8,
+                      textAlign: "left",
+                    }}
+                  >
+                    <div>أضيف:</div>
+                    <strong style={{ color: "#cbd5e1", fontWeight: "600" }}>
+                      {formatAdminDateTime(suggestion.createdAt)}
+                    </strong>
+                  </div>
+                </div>
+
+                <p
+                  style={{
+                    color: "#e5e7eb",
+                    lineHeight: 1.9,
+                    whiteSpace: "pre-wrap",
+                    overflowWrap: "anywhere",
+                    margin: "0 0 14px",
+                  }}
+                >
+                  {suggestion.text}
+                </p>
+
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() => deleteSuggestion(suggestion._id)}
+                    style={{
+                      background: "rgba(127,29,29,0.2)",
+                      color: "#fecaca",
+                      border: "1px solid rgba(248,113,113,0.35)",
+                      borderRadius: "10px",
+                      padding: "9px 14px",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    حذف
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: "12px" }}>
+          {experiences.length === 0 && !loading ? (
+            <div style={{ ...cardStyle, color: "#9ca3af", textAlign: "center" }}>
+              لا توجد تجارب في هذا التصنيف.
+            </div>
+          ) : (
+            experiences.map((exp) => (
             <article key={exp._id} style={cardStyle}>
               <div
                 style={{
@@ -624,9 +774,10 @@ export default function AdminReviewPage() {
                 )}
               </div>
             </article>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      )}
 
       <style>{`
         @media (max-width: 640px) {
