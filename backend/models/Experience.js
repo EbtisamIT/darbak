@@ -12,7 +12,7 @@ const experienceSchema = new mongoose.Schema(
     },
     howApplied: {
       type: String,
-      required: true, // كيف قدم
+      default: "", // كيف حصل على الفرصة
     },
     duration: {
       type: String,

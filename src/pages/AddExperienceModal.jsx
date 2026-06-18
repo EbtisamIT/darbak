@@ -61,12 +61,12 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const subMajorOptions = selectedMajorCategory?.subMajors || [];
 
   const howAppliedOptions = [
-    "موقع الجهة الرسمي",
-    "ترشيح من الجامعة",
-    "توصية من أصدقاء/معارف",
-    "LinkedIn",
-    "منصة توظيف / تمهير",
-    "بحث شخصي / مراسلة مباشرة",
+    "إعلان رسمي",
+    "الموقع الإلكتروني",
+    "لينكدإن",
+    "إيميل مباشر",
+    "ترشيح",
+    "معرض توظيف",
     "أخرى",
   ];
 
@@ -316,7 +316,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       case 1:
         return finalMajorCategory.length > 0 && finalMajor.length > 0;
       case 2:
-        return howApplied.trim().length > 0;
+        return true;
       case 3:
         return duration.trim().length > 0;
       case 4:
@@ -331,7 +331,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
   const handleSubmit = async () => {
     setError(null);
-    if (!organizationName.trim() || !finalCity || !finalMajorCategory || !finalMajor || !howApplied.trim() || !duration.trim() || ratings.length === 0) {
+    if (!organizationName.trim() || !finalCity || !finalMajorCategory || !finalMajor || !duration.trim() || ratings.length === 0) {
       setError("الرجاء إكمال جميع الحقول المطلوبة.");
       return;
     }
@@ -680,6 +680,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           {step === 2 && (
             <div>
               <h3 style={{ color: "var(--app-text)" }}>كيف حصلت على فرصة التدريب؟</h3>
+              <p style={{ color: "var(--app-muted)", fontSize: 13, marginTop: 8 }}>
+                هذا السؤال اختياري، لكنه يساعد الطلاب يعرفون أفضل طرق الوصول للفرص.
+              </p>
               <div className="option-grid" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
                 {howAppliedOptions.map((opt) => (
                   <button

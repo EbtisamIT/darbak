@@ -654,6 +654,34 @@ const ExperiencesPage = () => {
     relevance: "الأكثر صلة",
   };
 
+  const trainingTips = [
+    {
+      icon: "📧",
+      title: "لا تكتفِ بالتقديم عبر الموقع",
+      text: "ابحث عن بريد القسم أو الجهة وأرسل خطاب التدريب وسيرتك الذاتية مباشرة.",
+    },
+    {
+      icon: "💼",
+      title: "استخدم لينكدإن بذكاء",
+      text: "تواصل باحترافية مع الموارد البشرية أو متدربين سابقين واسأل عن آلية التقديم.",
+    },
+    {
+      icon: "⏰",
+      title: "قدّم مبكرًا",
+      text: "كثير من الجهات تغلق المقاعد قبل بدء التدريب بفترة طويلة.",
+    },
+    {
+      icon: "👥",
+      title: "اسأل طلابًا سبقوك",
+      text: "التجارب السابقة قد توفر لك معلومات لا تجدها في الإعلانات الرسمية.",
+    },
+    {
+      icon: "📄",
+      title: "خصص سيرتك الذاتية",
+      text: "ركز على المهارات المرتبطة بالتخصص والجهة التي تتقدم لها.",
+    },
+  ];
+
   const clearAllFilters = () => {
     setSelectedMajors([]);
     setCompanySearch("");
@@ -857,7 +885,7 @@ const ExperiencesPage = () => {
 
           <InfoBox
             icon="📝"
-            label="طريقة التقديم"
+            label="كيف حصلت على الفرصة"
             value={exp.howApplied}
           />
 
@@ -1029,6 +1057,76 @@ const ExperiencesPage = () => {
           padding: "15px 12px",
         }}
       >
+        <section
+          aria-label="نصائح للحصول على التدريب"
+          style={{
+            width: "min(100%, 1120px)",
+            margin: "0 auto 18px",
+            padding: "0 4px",
+          }}
+        >
+          <h2
+            style={{
+              margin: "0 0 12px",
+              color: "var(--app-text)",
+              fontSize: "clamp(18px, 2vw, 24px)",
+              textAlign: "right",
+              lineHeight: 1.5,
+            }}
+          >
+            🚀 خطوات ساعدت طلابًا في الحصول على فرص تدريب
+          </h2>
+
+          <div
+            className="training-tips-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+              gap: "10px",
+            }}
+          >
+            {trainingTips.map((tip) => (
+              <article
+                key={tip.title}
+                style={{
+                  background: "var(--app-surface-2)",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "14px",
+                  padding: "12px",
+                  minHeight: "118px",
+                  boxSizing: "border-box",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    color: "var(--app-brand)",
+                    fontWeight: "800",
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                    marginBottom: "7px",
+                  }}
+                >
+                  <span aria-hidden="true">{tip.icon}</span>
+                  <span>{tip.title}</span>
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--app-text-soft)",
+                    fontSize: "12px",
+                    lineHeight: 1.75,
+                  }}
+                >
+                  {tip.text}
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <div className="experience-controls-sticky">
           <div
             className="experience-count-card"
@@ -1988,6 +2086,12 @@ const ExperiencesPage = () => {
           padding: 8px 12px 4px;
         }
 
+        @media (max-width: 1100px) {
+          .training-tips-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+        }
+
         @media (max-width: 900px) {
           .experiences-shell {
             margin-top: 72px !important;
@@ -2028,6 +2132,10 @@ const ExperiencesPage = () => {
 
           .experience-prompt-card > div:last-child {
             grid-template-columns: 1fr !important;
+          }
+
+          .training-tips-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
           }
 
           .majors-grid {
@@ -2163,6 +2271,10 @@ const ExperiencesPage = () => {
         }
 
         @media (max-width: 430px) {
+          .training-tips-grid {
+            grid-template-columns: 1fr !important;
+          }
+
           .experience-cards-grid {
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
             gap: 7px !important;
