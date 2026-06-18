@@ -483,7 +483,7 @@ export default function AdminReviewPage() {
                       ["city", "المدينة"],
                       ["majorCategory", "التخصص الرئيسي"],
                       ["major", "التخصص"],
-                      ["howApplied", "كيف حصلت على الفرصة"],
+                      ["howApplied", "طريقة التقديم"],
                       ["duration", "مدة التدريب"],
                       ["trainingYear", "سنة التدريب"],
                     ].map(([field, label]) => (

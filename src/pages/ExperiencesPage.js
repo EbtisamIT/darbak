@@ -885,7 +885,7 @@ const ExperiencesPage = () => {
 
           <InfoBox
             icon="📝"
-            label="كيف حصلت على الفرصة"
+            label="طريقة التقديم"
             value={exp.howApplied}
           />
 
