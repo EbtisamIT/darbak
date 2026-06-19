@@ -52,6 +52,9 @@ export default function AdminReviewPage() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const authHeaders = password ? { "x-admin-password": password } : {};
+  const currentItemsCount =
+    adminView === "suggestions" ? suggestions.length : experiences.length;
+  const currentItemsLabel = adminView === "suggestions" ? "اقتراح" : "تجربة";
 
   const fetchExperiences = async () => {
     if (!password) {
@@ -264,6 +267,44 @@ export default function AdminReviewPage() {
           صفحة خاصة لاعتماد التجارب ومتابعة اقتراحات الزوار.
         </p>
       </header>
+
+      <section
+        style={{
+          ...cardStyle,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "12px",
+          flexWrap: "wrap",
+          marginBottom: "16px",
+        }}
+      >
+        <div>
+          <p style={{ color: "#9ca3af", margin: "0 0 4px", fontSize: "13px" }}>
+            العدد الحالي
+          </p>
+          <strong
+            style={{
+              color: "#7ddbcd",
+              fontSize: "34px",
+              lineHeight: 1,
+              letterSpacing: 0,
+            }}
+          >
+            {currentItemsCount}
+          </strong>
+        </div>
+        <p
+          style={{
+            color: "#e5e7eb",
+            margin: 0,
+            fontSize: "14px",
+            lineHeight: 1.7,
+          }}
+        >
+          {currentItemsLabel} في العرض الحالي
+        </p>
+      </section>
 
       <section
         style={{

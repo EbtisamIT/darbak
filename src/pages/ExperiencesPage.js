@@ -4,7 +4,6 @@ import majors from "../majors";
 import API_BASE_URL from "../config/api";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v1";
-const EXPERIENCE_COUNT_ANIMATION_KEY = "darbak_experience_count_animated_v2";
 const EXPERIENCE_CONTRIBUTION_PROMPT_KEY =
   "darbak_experience_contribution_prompt_seen_v1";
 const INITIAL_VISIBLE_COUNT = 36;
@@ -31,26 +30,6 @@ const cacheExperiences = (data) => {
       EXPERIENCES_CACHE_KEY,
       JSON.stringify({ data, cachedAt: Date.now() })
     );
-  } catch {
-    // Ignore storage quota or private browsing errors.
-  }
-};
-
-const hasSeenExperienceCountAnimation = () => {
-  if (typeof window === "undefined") return true;
-
-  try {
-    return window.localStorage.getItem(EXPERIENCE_COUNT_ANIMATION_KEY) === "true";
-  } catch {
-    return true;
-  }
-};
-
-const markExperienceCountAnimationSeen = () => {
-  if (typeof window === "undefined") return;
-
-  try {
-    window.localStorage.setItem(EXPERIENCE_COUNT_ANIMATION_KEY, "true");
   } catch {
     // Ignore storage quota or private browsing errors.
   }
@@ -364,10 +343,7 @@ const ExperiencesPage = () => {
   const [sortOption, setSortOption] = useState("latest");
   const [fetchError, setFetchError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalExperiences, setTotalExperiences] = useState(() => getCachedExperiences().length);
-  const [displayExperienceCount, setDisplayExperienceCount] = useState(() =>
-    hasSeenExperienceCountAnimation() ? getCachedExperiences().length : 0
-  );
+  const [, setTotalExperiences] = useState(() => getCachedExperiences().length);
   const [showAllTrainingTips, setShowAllTrainingTips] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -576,41 +552,6 @@ const ExperiencesPage = () => {
     closeContributionPrompt();
     window.dispatchEvent(new Event("darbak:open-add-experience"));
   };
-
-  useEffect(() => {
-    if (totalExperiences <= 0) {
-      setDisplayExperienceCount(0);
-      return;
-    }
-
-    if (hasSeenExperienceCountAnimation()) {
-      setDisplayExperienceCount(totalExperiences);
-      return;
-    }
-
-    const duration = 900;
-    const startTime = Date.now();
-    const startValue = 0;
-    const targetValue = totalExperiences;
-
-    const intervalId = window.setInterval(() => {
-      const progress = Math.min((Date.now() - startTime) / duration, 1);
-      const easedProgress = 1 - Math.pow(1 - progress, 3);
-      const nextValue = Math.round(
-        startValue + (targetValue - startValue) * easedProgress
-      );
-
-      setDisplayExperienceCount(nextValue);
-
-      if (progress >= 1) {
-        window.clearInterval(intervalId);
-        setDisplayExperienceCount(targetValue);
-        markExperienceCountAnimationSeen();
-      }
-    }, 24);
-
-    return () => window.clearInterval(intervalId);
-  }, [totalExperiences]);
 
   const loadMoreExperiences = () => {
     if (loadingMore || !hasMore) return;
@@ -1166,44 +1107,6 @@ const ExperiencesPage = () => {
         </section>
 
         <div className="experience-controls-sticky">
-          <div
-            className="experience-count-card"
-            aria-label={`عدد التجارب ${totalExperiences}`}
-            style={{
-              display: "grid",
-              width: "fit-content",
-              minWidth: "118px",
-              margin: "0 auto 10px",
-              padding: "0",
-              color: "var(--app-brand)",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "1px",
-              textAlign: "center",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "36px",
-                fontWeight: "900",
-                lineHeight: 0.9,
-                letterSpacing: "0",
-              }}
-            >
-              +{displayExperienceCount}
-            </span>
-            <span
-              style={{
-                color: "var(--app-muted)",
-                fontSize: "11px",
-                fontWeight: "500",
-                lineHeight: 1.3,
-              }}
-            >
-              تجربة تدريبية مشاركة
-            </span>
-          </div>
-
           <div
             className="mobile-majors-menu"
             style={{
@@ -2139,20 +2042,6 @@ const ExperiencesPage = () => {
           .experience-controls-sticky {
             margin: -12px -10px 14px;
             padding: 10px 10px 2px;
-          }
-
-          .experience-count-card {
-            min-width: 128px !important;
-            margin-bottom: 9px !important;
-            padding: 0 12px 6px !important;
-          }
-
-          .experience-count-card span:first-child {
-            font-size: 30px !important;
-          }
-
-          .experience-count-card span:last-child {
-            font-size: 10px !important;
           }
 
           .experience-prompt-card {
