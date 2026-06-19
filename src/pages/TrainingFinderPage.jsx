@@ -212,6 +212,83 @@ const suggestedOrganizationsByRegion = {
   ],
 };
 
+const organizationHomepageEntries = [
+  ...Object.values(suggestedOrganizationsByRegion)
+    .flat()
+    .map((organization) => [organization.name, organization.url]),
+  ["علم", "https://www.elm.sa/"],
+  ["elm", "https://www.elm.sa/"],
+  ["اس تي سي", "https://www.stc.com.sa/"],
+  ["الاتصالات السعودية", "https://www.stc.com.sa/"],
+  ["أرامكو", "https://www.aramco.com/"],
+  ["ارامكو", "https://www.aramco.com/"],
+  ["aramco", "https://www.aramco.com/"],
+  ["سابك", "https://www.sabic.com/"],
+  ["sabic", "https://www.sabic.com/"],
+  ["هيئة السوق المالية", "https://cma.org.sa/"],
+  ["الهيئة السوق المالية", "https://cma.org.sa/"],
+  ["cma", "https://cma.org.sa/"],
+  ["زين", "https://sa.zain.com/"],
+  ["شركة زين", "https://sa.zain.com/"],
+  ["zain", "https://sa.zain.com/"],
+  ["EY", "https://www.ey.com/ar_sa"],
+  ["EY (Ernst & Young)", "https://www.ey.com/ar_sa"],
+  ["Ernst & Young", "https://www.ey.com/ar_sa"],
+  ["ارامكو", "https://www.aramco.com/"],
+  ["معادن", "https://www.maaden.com.sa/"],
+  ["maaden", "https://www.maaden.com.sa/"],
+  ["سدايا", "https://sdaia.gov.sa/"],
+  ["sdaia", "https://sdaia.gov.sa/"],
+  ["منشآت", "https://www.monshaat.gov.sa/"],
+  ["منشات", "https://www.monshaat.gov.sa/"],
+  ["مسك", "https://misk.org.sa/"],
+  ["misk", "https://misk.org.sa/"],
+];
+
+const organizationHomepageMap = new Map(
+  organizationHomepageEntries.map(([name, url]) => [normalizeName(name), url])
+);
+
+const getOrganizationLookupKeys = (value = "") => {
+  const normalized = normalizeName(value);
+  const withoutGenericPrefix = normalized.replace(
+    /^(شركه|شركة|الهيئه|هيئه|الوزاره|وزاره|جامعه|غرفه|امانه)\s+/,
+    ""
+  );
+
+  return Array.from(
+    new Set([
+      normalized,
+      withoutGenericPrefix,
+      normalized.replace(/\s+بالرياض$/, ""),
+      normalized.replace(/\s+بجده$/, ""),
+      normalized.replace(/\s+بمكه$/, ""),
+      normalized.replace(/\s+بالمدينه$/, ""),
+    ].filter(Boolean))
+  );
+};
+
+const resolveOrganizationHomepageUrl = (organizationName) => {
+  const lookupKeys = getOrganizationLookupKeys(organizationName);
+  const directUrl = lookupKeys
+    .map((key) => organizationHomepageMap.get(key))
+    .find(Boolean);
+
+  if (directUrl) return directUrl;
+
+  const normalizedOrganization = normalizeName(organizationName);
+  if (normalizedOrganization.length < 4) return "";
+
+  return organizationHomepageEntries.find(([name]) => {
+    const normalizedName = normalizeName(name);
+    return (
+      normalizedName.length >= 4 &&
+      (normalizedOrganization.includes(normalizedName) ||
+        normalizedName.includes(normalizedOrganization))
+    );
+  })?.[1] || "";
+};
+
 export default function TrainingFinderPage() {
   const [majorCategory, setMajorCategory] = useState("");
   const [city, setCity] = useState("");
@@ -266,11 +343,6 @@ export default function TrainingFinderPage() {
       setLoading(false);
     }
   };
-
-  const buildCareerSearchUrl = (organizationName) =>
-    `https://www.google.com/search?q=${encodeURIComponent(
-      `${organizationName} تدريب تعاوني وظائف`
-    )}`;
 
   return (
     <main
@@ -582,123 +654,131 @@ export default function TrainingFinderPage() {
                   gap: "12px",
                 }}
               >
-                {targets.map((target) => (
-                  <article
-                    key={target.organizationName}
-                    style={{
-                      background: "var(--app-surface)",
-                      border: "1px solid var(--app-border)",
-                      borderRadius: "16px",
-                      padding: "16px",
-                      display: "grid",
-                      gap: "12px",
-                      boxShadow: "0 10px 24px var(--app-shadow)",
-                    }}
-                  >
-                    <div>
-                      <h3
-                        style={{
-                          margin: "0 0 6px",
-                          color: "var(--app-brand)",
-                          fontSize: "24px",
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {target.organizationName}
-                      </h3>
-                      <p
-                        style={{
-                          margin: 0,
-                          color: "var(--app-text-soft)",
-                          fontSize: "13px",
-                        }}
-                      >
-                        {target.cities?.join("، ") || "مدينة غير محددة"}
-                      </p>
-                    </div>
+                {targets.map((target) => {
+                  const organizationHomepageUrl = resolveOrganizationHomepageUrl(
+                    target.organizationName
+                  );
 
-                    <div
+                  return (
+                    <article
+                      key={target.organizationName}
                       style={{
-                        background: "var(--app-card)",
+                        background: "var(--app-surface)",
                         border: "1px solid var(--app-border)",
-                        borderRadius: "12px",
-                        padding: "11px",
+                        borderRadius: "16px",
+                        padding: "16px",
+                        display: "grid",
+                        gap: "12px",
+                        boxShadow: "0 10px 24px var(--app-shadow)",
                       }}
                     >
-                      <p style={{ margin: "0 0 7px", color: "var(--app-brand)", fontWeight: "800", fontSize: "13px" }}>
-                        سبق أن تدرب فيها طلاب من:
-                      </p>
-                      <p style={{ margin: 0, color: "var(--app-text-soft)", fontSize: "13px", lineHeight: 1.7 }}>
-                        {target.majors?.length ? target.majors.join("، ") : "تخصصات غير محددة"}
-                      </p>
-                    </div>
+                      <div>
+                        <h3
+                          style={{
+                            margin: "0 0 6px",
+                            color: "var(--app-brand)",
+                            fontSize: "24px",
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {target.organizationName}
+                        </h3>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "var(--app-text-soft)",
+                            fontSize: "13px",
+                          }}
+                        >
+                          {target.cities?.join("، ") || "مدينة غير محددة"}
+                        </p>
+                      </div>
 
-                    <div>
-                      <p style={{ margin: "0 0 8px", color: "var(--app-brand)", fontWeight: "800", fontSize: "13px" }}>
-                        طرق الحصول على الفرصة المذكورة:
-                      </p>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "7px" }}>
-                        {(target.methods?.length ? target.methods : ["غير محدد"]).map((method) => (
-                          <span
-                            key={method}
+                      <div
+                        style={{
+                          background: "var(--app-card)",
+                          border: "1px solid var(--app-border)",
+                          borderRadius: "12px",
+                          padding: "11px",
+                        }}
+                      >
+                        <p style={{ margin: "0 0 7px", color: "var(--app-brand)", fontWeight: "800", fontSize: "13px" }}>
+                          سبق أن تدرب فيها طلاب من:
+                        </p>
+                        <p style={{ margin: 0, color: "var(--app-text-soft)", fontSize: "13px", lineHeight: 1.7 }}>
+                          {target.majors?.length ? target.majors.join("، ") : "تخصصات غير محددة"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p style={{ margin: "0 0 8px", color: "var(--app-brand)", fontWeight: "800", fontSize: "13px" }}>
+                          طرق الحصول على الفرصة المذكورة:
+                        </p>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "7px" }}>
+                          {(target.methods?.length ? target.methods : ["غير محدد"]).map((method) => (
+                            <span
+                              key={method}
+                              style={{
+                                background: "var(--app-brand-soft)",
+                                border: "1px solid var(--app-brand-border)",
+                                color: "var(--app-text-soft)",
+                                borderRadius: "999px",
+                                padding: "6px 9px",
+                                fontSize: "12px",
+                              }}
+                            >
+                              {method}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <Link to="/experiences" style={{ textDecoration: "none" }}>
+                          <button
+                            type="button"
                             style={{
-                              background: "var(--app-brand-soft)",
-                              border: "1px solid var(--app-brand-border)",
-                              color: "var(--app-text-soft)",
-                              borderRadius: "999px",
-                              padding: "6px 9px",
-                              fontSize: "12px",
+                              background: "var(--app-brand)",
+                              color: "#07100e",
+                              border: "none",
+                              borderRadius: "10px",
+                              padding: "9px 12px",
+                              fontFamily: "inherit",
+                              fontWeight: "800",
+                              cursor: "pointer",
                             }}
                           >
-                            {method}
-                          </span>
-                        ))}
+                            قراءة التجارب
+                          </button>
+                        </Link>
+                        {organizationHomepageUrl && (
+                          <a
+                            href={organizationHomepageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ textDecoration: "none" }}
+                          >
+                            <button
+                              type="button"
+                              style={{
+                                background: "var(--app-input-bg)",
+                                color: "var(--app-brand)",
+                                border: "1px solid var(--app-brand-border)",
+                                borderRadius: "10px",
+                                padding: "9px 12px",
+                                fontFamily: "inherit",
+                                fontWeight: "800",
+                                cursor: "pointer",
+                              }}
+                            >
+                              زيارة صفحة الجهة
+                            </button>
+                          </a>
+                        )}
                       </div>
-                    </div>
-
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <Link to="/experiences" style={{ textDecoration: "none" }}>
-                        <button
-                          type="button"
-                          style={{
-                            background: "var(--app-brand)",
-                            color: "#07100e",
-                            border: "none",
-                            borderRadius: "10px",
-                            padding: "9px 12px",
-                            fontFamily: "inherit",
-                            fontWeight: "800",
-                            cursor: "pointer",
-                          }}
-                        >
-                          قراءة التجارب
-                        </button>
-                      </Link>
-                      <a
-                        href={buildCareerSearchUrl(target.organizationName)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ textDecoration: "none" }}
-                      >
-                        <button
-                          type="button"
-                          style={{
-                            background: "var(--app-input-bg)",
-                            color: "var(--app-brand)",
-                            border: "1px solid var(--app-brand-border)",
-                            borderRadius: "10px",
-                            padding: "9px 12px",
-                            fontFamily: "inherit",
-                            fontWeight: "800",
-                            cursor: "pointer",
-                          }}
-                        >
-                          زيارة صفحة التوظيف
-                        </button>
-                      </a>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             )}
 
@@ -838,7 +918,7 @@ export default function TrainingFinderPage() {
                             cursor: "pointer",
                           }}
                         >
-                          رابط الموقع أو التقديم
+                          زيارة صفحة الجهة
                         </button>
                       </a>
                     </article>
