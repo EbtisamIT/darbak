@@ -96,6 +96,34 @@ const cityOptions = [
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
 
+const trainingTips = [
+  {
+    icon: "📧",
+    title: "لا تكتفِ بالتقديم عبر الموقع",
+    text: "ابحث عن بريد القسم أو الجهة وأرسل خطاب التدريب وسيرتك الذاتية مباشرة.",
+  },
+  {
+    icon: "💼",
+    title: "استخدم لينكدإن بذكاء",
+    text: "تواصل باحترافية مع الموارد البشرية أو متدربين سابقين واسأل عن آلية التقديم.",
+  },
+  {
+    icon: "⏰",
+    title: "قدّم مبكرًا",
+    text: "كثير من الجهات تغلق المقاعد قبل بدء التدريب بفترة طويلة.",
+  },
+  {
+    icon: "👥",
+    title: "اسأل طلابًا سبقوك",
+    text: "التجارب السابقة قد توفر لك معلومات لا تجدها في الإعلانات الرسمية.",
+  },
+  {
+    icon: "📄",
+    title: "خصص سيرتك الذاتية",
+    text: "ركز على المهارات المرتبطة بالتخصص والجهة التي تتقدم لها.",
+  },
+];
+
 const normalizeName = (value = "") =>
   value
     .toString()
@@ -191,6 +219,7 @@ export default function TrainingFinderPage() {
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showAllTrainingTips, setShowAllTrainingTips] = useState(false);
 
   const selectedMajorLabel = useMemo(
     () => majors.find((major) => major.name === majorCategory)?.name || "",
@@ -295,6 +324,116 @@ export default function TrainingFinderPage() {
             شارك الطلاب تجارب تدريبهم فيها.
           </p>
         </header>
+
+        <section
+          className={`training-tips-section ${
+            showAllTrainingTips ? "is-expanded" : ""
+          }`}
+          aria-label="نصائح للحصول على التدريب"
+          style={{
+            background: "var(--app-surface)",
+            border: "1px solid var(--app-border)",
+            borderRadius: "16px",
+            padding: "14px",
+            display: "grid",
+            gap: "12px",
+            boxShadow: "0 10px 24px var(--app-shadow)",
+          }}
+        >
+          <div>
+            <h2
+              style={{
+                margin: "0 0 5px",
+                color: "var(--app-text)",
+                fontSize: "clamp(17px, 2vw, 23px)",
+                lineHeight: 1.5,
+              }}
+            >
+              🚀 خطوات ساعدت طلابًا في الحصول على فرص تدريب
+            </h2>
+            <p
+              className="training-tips-mobile-summary"
+              style={{
+                display: "none",
+                margin: 0,
+                color: "var(--app-text-soft)",
+                fontSize: "12px",
+                lineHeight: 1.7,
+              }}
+            >
+              نصائح سريعة قبل البحث عن الجهات المناسبة.
+            </p>
+          </div>
+
+          <div
+            className="training-tips-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+              gap: "10px",
+            }}
+          >
+            {trainingTips.map((tip) => (
+              <article
+                key={tip.title}
+                style={{
+                  background: "var(--app-card)",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "14px",
+                  padding: "12px",
+                  minHeight: "118px",
+                  boxSizing: "border-box",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    color: "var(--app-brand)",
+                    fontWeight: "800",
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                    marginBottom: "7px",
+                  }}
+                >
+                  <span aria-hidden="true">{tip.icon}</span>
+                  <span>{tip.title}</span>
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--app-text-soft)",
+                    fontSize: "12px",
+                    lineHeight: 1.75,
+                  }}
+                >
+                  {tip.text}
+                </p>
+              </article>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            className="training-tips-toggle"
+            onClick={() => setShowAllTrainingTips((prev) => !prev)}
+            style={{
+              display: "none",
+              width: "100%",
+              border: "1px solid var(--app-brand-border)",
+              background: "var(--app-brand-soft)",
+              color: "var(--app-brand)",
+              borderRadius: "12px",
+              padding: "9px 12px",
+              fontFamily: "inherit",
+              fontWeight: "800",
+              cursor: "pointer",
+            }}
+          >
+            {showAllTrainingTips ? "إخفاء النصائح" : "عرض كل النصائح"}
+          </button>
+        </section>
 
         <form
           onSubmit={fetchTrainingTargets}
@@ -712,9 +851,54 @@ export default function TrainingFinderPage() {
       </section>
 
       <style>{`
+        @media (max-width: 980px) {
+          .training-tips-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+        }
+
         @media (max-width: 760px) {
           .training-finder-form {
             grid-template-columns: 1fr !important;
+          }
+
+          .training-tips-section {
+            padding: 12px !important;
+            gap: 9px !important;
+          }
+
+          .training-tips-section h2 {
+            font-size: 16px !important;
+            margin-bottom: 4px !important;
+          }
+
+          .training-tips-mobile-summary,
+          .training-tips-toggle {
+            display: block !important;
+          }
+
+          .training-tips-grid {
+            grid-template-columns: 1fr !important;
+            gap: 7px !important;
+          }
+
+          .training-tips-grid article {
+            min-height: auto !important;
+            padding: 10px 11px !important;
+          }
+
+          .training-tips-grid article div {
+            margin-bottom: 3px !important;
+            font-size: 12px !important;
+          }
+
+          .training-tips-grid article p {
+            font-size: 11px !important;
+            line-height: 1.65 !important;
+          }
+
+          .training-tips-section:not(.is-expanded) .training-tips-grid article:nth-child(n + 2) {
+            display: none !important;
           }
 
           .training-targets-grid {
