@@ -26,6 +26,14 @@ const clearSavedDraft = () => {
   }
 };
 
+const isUnclearMajorText = (value = "") => {
+  const text = value.toString().trim();
+  if (!text) return true;
+
+  const letters = text.match(/[A-Za-z\u0600-\u06FF]/g) || [];
+  return letters.length < 2;
+};
+
 export default function AddExperienceModal({ onClose, onSaved }) {
   const savedDraft = useMemo(() => getSavedDraft(), []);
   const [step, setStep] = useState(savedDraft?.step || 0);
@@ -57,6 +65,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const finalMajorCategory =
     majorCategory === "أخرى" ? customMajorCategory.trim() : majorCategory.trim();
   const finalMajor = major === "أخرى" ? customMajor.trim() : major.trim();
+  const hasClearMajorCategory =
+    finalMajorCategory.length > 0 && !isUnclearMajorText(finalMajorCategory);
+  const hasClearMajor = finalMajor.length > 0 && !isUnclearMajorText(finalMajor);
   const selectedMajorCategory = majors.find((item) => item.name === majorCategory);
   const subMajorOptions = selectedMajorCategory?.subMajors || [];
 
@@ -314,7 +325,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       case 0:
         return organizationName.trim().length > 0 && finalCity.length > 0;
       case 1:
-        return finalMajorCategory.length > 0 && finalMajor.length > 0;
+        return hasClearMajorCategory && hasClearMajor;
       case 2:
         return howApplied.trim().length > 0;
       case 3:
@@ -333,6 +344,11 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     setError(null);
     if (!organizationName.trim() || !finalCity || !finalMajorCategory || !finalMajor || !howApplied.trim() || !duration.trim() || ratings.length === 0) {
       setError("الرجاء إكمال جميع الحقول المطلوبة.");
+      return;
+    }
+
+    if (!hasClearMajorCategory || !hasClearMajor) {
+      setError("الرجاء اختيار أو كتابة تخصص واضح بدون رموز أو أرقام فقط.");
       return;
     }
 
@@ -610,22 +626,30 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               </select>
 
               {majorCategory === "أخرى" && (
-                <input
-                  type="text"
-                  placeholder="اكتب/ي التخصص الرئيسي أو الكلية"
-                  value={customMajorCategory}
-                  onChange={(e) => setCustomMajorCategory(e.target.value)}
-                  style={{
-                    width: "100%",
-                    boxSizing: "border-box",
-                    padding: 12,
-                    borderRadius: 10,
-                    background: "var(--app-input-bg)",
-                    color: "var(--app-text)",
-                    border: "1px solid var(--app-border-soft)",
-                    marginTop: 12,
-                  }}
-                />
+                <>
+                  <input
+                    type="text"
+                    placeholder="اكتب/ي التخصص الرئيسي أو الكلية"
+                    value={customMajorCategory}
+                    onChange={(e) => setCustomMajorCategory(e.target.value)}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: 12,
+                      borderRadius: 10,
+                      background: "var(--app-input-bg)",
+                      color: "var(--app-text)",
+                      border: "1px solid var(--app-border-soft)",
+                      marginTop: 12,
+                    }}
+                  />
+                  {customMajorCategory.trim() &&
+                    isUnclearMajorText(customMajorCategory) && (
+                      <p style={{ color: "#fca5a5", fontSize: 12, margin: "7px 0 0" }}>
+                        اكتب/ي اسم تخصص واضح، وليس أرقامًا أو رموزًا فقط.
+                      </p>
+                    )}
+                </>
               )}
 
               <select
@@ -657,22 +681,29 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               </select>
 
               {major === "أخرى" && (
-                <input
-                  type="text"
-                  placeholder="اكتب/ي التخصص الفرعي"
-                  value={customMajor}
-                  onChange={(e) => setCustomMajor(e.target.value)}
-                  style={{
-                    width: "100%",
-                    boxSizing: "border-box",
-                    padding: 12,
-                    borderRadius: 10,
-                    background: "var(--app-input-bg)",
-                    color: "var(--app-text)",
-                    border: "1px solid var(--app-border-soft)",
-                    marginTop: 12,
-                  }}
-                />
+                <>
+                  <input
+                    type="text"
+                    placeholder="اكتب/ي التخصص الفرعي"
+                    value={customMajor}
+                    onChange={(e) => setCustomMajor(e.target.value)}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: 12,
+                      borderRadius: 10,
+                      background: "var(--app-input-bg)",
+                      color: "var(--app-text)",
+                      border: "1px solid var(--app-border-soft)",
+                      marginTop: 12,
+                    }}
+                  />
+                  {customMajor.trim() && isUnclearMajorText(customMajor) && (
+                    <p style={{ color: "#fca5a5", fontSize: 12, margin: "7px 0 0" }}>
+                      اكتب/ي اسم تخصص واضح، وليس أرقامًا أو رموزًا فقط.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}

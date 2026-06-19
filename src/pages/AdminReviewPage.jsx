@@ -37,6 +37,17 @@ const formatAdminDateTime = (value) => {
   });
 };
 
+const isUnclearMajorText = (value = "") => {
+  const text = value.toString().trim();
+  if (!text) return true;
+
+  const letters = text.match(/[A-Za-z\u0600-\u06FF]/g) || [];
+  return letters.length < 2;
+};
+
+const getReadableMajor = (exp = {}) =>
+  isUnclearMajorText(exp.major) ? exp.majorCategory || exp.major : exp.major;
+
 export default function AdminReviewPage() {
   const [password, setPassword] = useState(
     () => sessionStorage.getItem("darbak_admin_password") || ""
@@ -513,7 +524,7 @@ export default function AdminReviewPage() {
                     {exp.title || `تجربة في ${exp.organizationName}`}
                   </h3>
                   <p style={{ color: "#cbd5e1", margin: 0, lineHeight: 1.7 }}>
-                    {exp.organizationName} - {exp.city} - {exp.major}
+                    {exp.organizationName} - {exp.city} - {getReadableMajor(exp)}
                   </p>
                 </div>
                 <div

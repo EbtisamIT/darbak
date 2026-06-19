@@ -282,6 +282,17 @@ const normalizeSearchText = (value = "") =>
     .replace(/[\u064B-\u065F]/g, "")
     .replace(/\s+/g, " ");
 
+const isUnclearMajorText = (value = "") => {
+  const text = value.toString().trim();
+  if (!text) return true;
+
+  const letters = text.match(/[A-Za-z\u0600-\u06FF]/g) || [];
+  return letters.length < 2;
+};
+
+const getReadableMajor = (exp = {}) =>
+  isUnclearMajorText(exp.major) ? exp.majorCategory || exp.major : exp.major;
+
 const getCompanySearchTerms = (value) => {
   const normalizedValue = normalizeSearchText(value);
 
@@ -816,7 +827,7 @@ const ExperiencesPage = () => {
           <InfoBox
             icon="🎓"
             label="التخصص"
-            value={exp.major}
+            value={getReadableMajor(exp)}
           />
 
           <InfoBox
@@ -1611,7 +1622,7 @@ const ExperiencesPage = () => {
                             fontWeight:"bold"
                           }}
                         >
-                          {exp.major}
+                          {getReadableMajor(exp)}
                         </p>
                       </div>
                     </div>

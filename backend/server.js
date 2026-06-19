@@ -63,6 +63,17 @@ const containsBlockedTerms = (value = "") => {
   );
 };
 
+const isUnclearMajorText = (value = "") => {
+  const text = value.toString().trim();
+  if (!text) return true;
+
+  const letters = text.match(/[A-Za-z\u0600-\u06FF]/g) || [];
+  return letters.length < 2;
+};
+
+const getReadableMajor = (major, majorCategory) =>
+  isUnclearMajorText(major) ? majorCategory || major : major;
+
 const requireAdmin = (req, res, next) => {
   if (!ADMIN_PASSWORD) {
     return res.status(500).json({ error: "Admin password is not configured" });
@@ -183,7 +194,8 @@ app.get('/api/training-targets', async (req, res) => {
       target.count += 1;
 
       if (exp.city) target.cities.add(exp.city);
-      if (exp.major) target.majors.add(exp.major);
+      const readableMajor = getReadableMajor(exp.major, exp.majorCategory);
+      if (readableMajor) target.majors.add(readableMajor);
       if (exp.howApplied) target.methods.add(exp.howApplied);
     });
 
@@ -228,6 +240,15 @@ app.post('/api/experiences', async (req, res) => {
     if (fieldsToCheck.some(containsBlockedTerms)) {
       return res.status(400).json({
         error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة ثم المحاولة مرة أخرى.",
+      });
+    }
+
+    if (
+      isUnclearMajorText(req.body.majorCategory) ||
+      isUnclearMajorText(req.body.major)
+    ) {
+      return res.status(400).json({
+        error: "الرجاء اختيار أو كتابة تخصص واضح بدون رموز أو أرقام فقط.",
       });
     }
 
@@ -435,6 +456,24 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
         updates[field] = req.body[field];
       }
     });
+
+    if (
+      Object.prototype.hasOwnProperty.call(updates, "majorCategory") &&
+      isUnclearMajorText(updates.majorCategory)
+    ) {
+      return res.status(400).json({
+        error: "الرجاء كتابة تخصص رئيسي واضح بدون رموز أو أرقام فقط.",
+      });
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(updates, "major") &&
+      isUnclearMajorText(updates.major)
+    ) {
+      return res.status(400).json({
+        error: "الرجاء كتابة تخصص واضح بدون رموز أو أرقام فقط.",
+      });
+    }
 
     if (updates.organizationName || updates.city) {
       const current = await Experience.findById(req.params.id).lean();
