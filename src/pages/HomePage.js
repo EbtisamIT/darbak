@@ -242,7 +242,7 @@ const HomePage = () => {
             className="home-cta home-secondary-cta"
             style={{
               backgroundColor: "var(--app-input-bg)",
-              color: "var(--app-brand)",
+              color: "var(--app-brand-strong)",
               border: "1px solid var(--app-brand-border)",
               borderRadius: "10px",
               padding: "14px 34px",
@@ -250,7 +250,8 @@ const HomePage = () => {
               fontFamily: homeFont,
               cursor: "pointer",
               transition: "0.3s",
-              boxShadow: "0 0 12px rgba(125, 219, 205, 0.12)",
+              fontWeight: "700",
+              boxShadow: "0 0 10px rgba(125, 219, 205, 0.12)",
             }}
           >
             وين أتدرب؟

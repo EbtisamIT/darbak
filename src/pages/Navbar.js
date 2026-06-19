@@ -201,6 +201,10 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             📄 التجارب
           </Link>
 
+          <Link to="/where-to-train" style={linkStyle("/where-to-train")}>
+            🎯 وين أتدرب؟
+          </Link>
+
           <div
             style={{
               display: "flex",
