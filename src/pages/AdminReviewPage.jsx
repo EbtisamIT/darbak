@@ -271,6 +271,43 @@ export default function AdminReviewPage() {
       <section
         style={{
           ...cardStyle,
+          display: "grid",
+          gap: "8px",
+          marginBottom: "16px",
+        }}
+      >
+        <label
+          htmlFor="admin-password"
+          style={{
+            color: "#cbd5e1",
+            fontSize: "13px",
+            fontWeight: "700",
+          }}
+        >
+          كلمة مرور الإدارة
+        </label>
+        <input
+          id="admin-password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="اكتب كلمة المرور هنا"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            background: "#111318",
+            border: "1px solid rgba(125,219,205,0.35)",
+            borderRadius: "10px",
+            color: "#fff",
+            padding: "12px",
+            fontFamily: "inherit",
+          }}
+        />
+      </section>
+
+      <section
+        style={{
+          ...cardStyle,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -310,29 +347,13 @@ export default function AdminReviewPage() {
         style={{
           ...cardStyle,
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) auto auto auto",
+          gridTemplateColumns: "repeat(3, minmax(0, max-content))",
           gap: "10px",
           alignItems: "center",
+          justifyContent: "start",
           marginBottom: "16px",
         }}
       >
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="كلمة مرور الإدارة"
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            background: "#111318",
-            border: "1px solid rgba(125,219,205,0.25)",
-            borderRadius: "10px",
-            color: "#fff",
-            padding: "11px 12px",
-            fontFamily: "inherit",
-          }}
-        />
-
         <select
           value={adminView}
           onChange={(e) => setAdminView(e.target.value)}
