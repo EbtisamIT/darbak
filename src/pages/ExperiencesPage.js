@@ -368,6 +368,7 @@ const ExperiencesPage = () => {
   const [displayExperienceCount, setDisplayExperienceCount] = useState(() =>
     hasSeenExperienceCountAnimation() ? getCachedExperiences().length : 0
   );
+  const [showAllTrainingTips, setShowAllTrainingTips] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -1058,6 +1059,9 @@ const ExperiencesPage = () => {
         }}
       >
         <section
+          className={`training-tips-section ${
+            showAllTrainingTips ? "is-expanded" : ""
+          }`}
           aria-label="نصائح للحصول على التدريب"
           style={{
             width: "min(100%, 1120px)",
@@ -1076,6 +1080,19 @@ const ExperiencesPage = () => {
           >
             🚀 خطوات ساعدت طلابًا في الحصول على فرص تدريب
           </h2>
+
+          <p
+            className="training-tips-mobile-summary"
+            style={{
+              display: "none",
+              margin: "-6px 0 10px",
+              color: "var(--app-text-soft)",
+              fontSize: "12px",
+              lineHeight: 1.7,
+            }}
+          >
+            نصائح سريعة قبل التقديم، والتجارب بالأسفل مباشرة.
+          </p>
 
           <div
             className="training-tips-grid"
@@ -1125,6 +1142,27 @@ const ExperiencesPage = () => {
               </article>
             ))}
           </div>
+
+          <button
+            type="button"
+            className="training-tips-toggle"
+            onClick={() => setShowAllTrainingTips((prev) => !prev)}
+            style={{
+              display: "none",
+              width: "100%",
+              marginTop: "10px",
+              border: "1px solid var(--app-brand-border)",
+              background: "var(--app-brand-soft)",
+              color: "var(--app-brand)",
+              borderRadius: "12px",
+              padding: "9px 12px",
+              fontFamily: "inherit",
+              fontWeight: "800",
+              cursor: "pointer",
+            }}
+          >
+            {showAllTrainingTips ? "إخفاء النصائح" : "عرض كل النصائح"}
+          </button>
         </section>
 
         <div className="experience-controls-sticky">
@@ -2134,8 +2172,43 @@ const ExperiencesPage = () => {
             grid-template-columns: 1fr !important;
           }
 
+          .training-tips-section {
+            margin-bottom: 10px !important;
+          }
+
+          .training-tips-section h2 {
+            font-size: 16px !important;
+            margin-bottom: 8px !important;
+            line-height: 1.5 !important;
+          }
+
+          .training-tips-mobile-summary,
+          .training-tips-toggle {
+            display: block !important;
+          }
+
           .training-tips-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            grid-template-columns: 1fr !important;
+            gap: 7px !important;
+          }
+
+          .training-tips-grid article {
+            min-height: auto !important;
+            padding: 10px 11px !important;
+          }
+
+          .training-tips-grid article div {
+            margin-bottom: 3px !important;
+            font-size: 12px !important;
+          }
+
+          .training-tips-grid article p {
+            font-size: 11px !important;
+            line-height: 1.65 !important;
+          }
+
+          .training-tips-section:not(.is-expanded) .training-tips-grid article:nth-child(n + 2) {
+            display: none !important;
           }
 
           .majors-grid {
