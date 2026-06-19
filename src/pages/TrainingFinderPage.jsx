@@ -14,6 +14,9 @@ const cityOptions = [
   "الظهران",
   "الأحساء",
   "الجبيل",
+  "القطيف",
+  "رأس تنورة",
+  "حفر الباطن",
   "الطائف",
   "تبوك",
   "أبها",
@@ -23,11 +26,163 @@ const cityOptions = [
   "الباحة",
   "حائل",
   "بريدة",
+  "عنيزة",
+  "الرس",
+  "سكاكا",
+  "عرعر",
+  "رفحاء",
+  "القريات",
   "ينبع",
+  "رابغ",
   "الخرج",
+  "الدرعية",
+  "المجمعة",
+  "الزلفي",
+  "الدوادمي",
+  "وادي الدواسر",
+  "القويعية",
+  "شقراء",
+  "عفيف",
+  "حوطة بني تميم",
+  "المذنب",
+  "البكيرية",
+  "البدائع",
+  "الأسياح",
+  "رياض الخبراء",
+  "الخفجي",
+  "بقيق",
+  "النعيرية",
+  "قرية العليا",
+  "الوجه",
+  "ضباء",
+  "أملج",
+  "تيماء",
+  "البدع",
+  "العلا",
+  "خيبر",
+  "بدر",
+  "المهد",
+  "الحناكية",
+  "القنفذة",
+  "الليث",
+  "رنية",
+  "تربة",
+  "الخرمة",
+  "بحرة",
+  "بيشة",
+  "محايل عسير",
+  "النماص",
+  "تنومة",
+  "رجال ألمع",
+  "سراة عبيدة",
+  "ظهران الجنوب",
+  "شرورة",
+  "حبونا",
+  "يدمة",
+  "صبيا",
+  "أبو عريش",
+  "صامطة",
+  "بيش",
+  "الدرب",
+  "فرسان",
+  "بلجرشي",
+  "المندق",
+  "العقيق",
+  "المخواة",
+  "طريف",
+  "دومة الجندل",
+  "طبرجل",
 ];
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
+
+const normalizeName = (value = "") =>
+  value
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[أإآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ـ/g, "")
+    .replace(/[\u064B-\u065F]/g, "")
+    .replace(/\s+/g, " ");
+
+const EASTERN_CITIES = new Set([
+  "الدمام",
+  "الخبر",
+  "الظهران",
+  "الأحساء",
+  "الجبيل",
+  "القطيف",
+  "رأس تنورة",
+  "حفر الباطن",
+  "الخفجي",
+  "بقيق",
+  "النعيرية",
+  "قرية العليا",
+]);
+
+const resolveSuggestionRegion = (cityName) => {
+  if (!cityName) return "";
+  if (cityName === "الرياض") return "الرياض";
+  if (cityName === "جدة") return "جدة";
+  if (cityName === "مكة المكرمة") return "مكة";
+  if (cityName === "جازان") return "جازان";
+  if (cityName === "أبها") return "أبها";
+  if (cityName === "المدينة المنورة") return "المدينة";
+  if (EASTERN_CITIES.has(cityName)) return "المنطقة الشرقية";
+  return "";
+};
+
+const suggestedOrganizationsByRegion = {
+  الرياض: [
+    { name: "stc", url: "https://www.stc.com.sa/", note: "اتصالات وتقنية" },
+    { name: "شركة علم", url: "https://www.elm.sa/", note: "حلول رقمية" },
+    { name: "سدايا", url: "https://sdaia.gov.sa/", note: "بيانات وذكاء اصطناعي" },
+    { name: "منشآت", url: "https://www.monshaat.gov.sa/", note: "ريادة وأعمال" },
+    { name: "مسك", url: "https://misk.org.sa/", note: "برامج وفرص تطوير" },
+  ],
+  جدة: [
+    { name: "الخطوط السعودية", url: "https://www.saudia.com/", note: "طيران وتشغيل" },
+    { name: "بوبا العربية", url: "https://www.bupa.com.sa/", note: "تأمين وصحة" },
+    { name: "مجموعة صافولا", url: "https://www.savola.com/", note: "أعمال وسلاسل إمداد" },
+    { name: "جامعة الملك عبدالعزيز", url: "https://www.kau.edu.sa/", note: "تعليم وإدارة" },
+  ],
+  مكة: [
+    { name: "الهيئة الملكية لمدينة مكة والمشاعر المقدسة", url: "https://www.rcmc.gov.sa/", note: "تطوير حضري" },
+    { name: "كدانة", url: "https://kidana.com.sa/", note: "تطوير المشاعر" },
+    { name: "جامعة أم القرى", url: "https://uqu.edu.sa/", note: "تعليم وبحث" },
+    { name: "غرفة مكة", url: "https://makkahcci.org.sa/", note: "أعمال وقطاع خاص" },
+  ],
+  جازان: [
+    { name: "جامعة جازان", url: "https://www.jazanu.edu.sa/", note: "تعليم وبحث" },
+    { name: "غرفة جازان", url: "https://www.jazancci.org.sa/", note: "أعمال وتدريب" },
+    { name: "أمانة منطقة جازان", url: "https://www.jazan.sa/", note: "خدمات بلدية" },
+    { name: "أرامكو", url: "https://www.aramco.com/", note: "طاقة وتشغيل" },
+  ],
+  أبها: [
+    { name: "هيئة تطوير عسير", url: "https://www.asda.gov.sa/", note: "تطوير وسياحة" },
+    { name: "جامعة الملك خالد", url: "https://www.kku.edu.sa/", note: "تعليم وبحث" },
+    { name: "أمانة منطقة عسير", url: "https://www.ars.gov.sa/", note: "خدمات بلدية" },
+    { name: "وزارة السياحة", url: "https://mt.gov.sa/", note: "سياحة وضيافة" },
+  ],
+  المدينة: [
+    { name: "هيئة تطوير منطقة المدينة المنورة", url: "https://mda.gov.sa/", note: "تطوير حضري" },
+    { name: "رؤى المدينة", url: "https://www.ruaalmadinah.com/", note: "تطوير وضيافة" },
+    { name: "جامعة طيبة", url: "https://www.taibahu.edu.sa/", note: "تعليم وبحث" },
+    { name: "غرفة المدينة المنورة", url: "https://www.mcci.org.sa/", note: "أعمال وقطاع خاص" },
+  ],
+  "المنطقة الشرقية": [
+    { name: "أرامكو", url: "https://www.aramco.com/", note: "طاقة وهندسة" },
+    { name: "سابك", url: "https://www.sabic.com/", note: "صناعة وكيمياء" },
+    { name: "معادن", url: "https://www.maaden.com.sa/", note: "تعدين وصناعة" },
+    { name: "الهيئة الملكية للجبيل وينبع", url: "https://www.rcjy.gov.sa/", note: "صناعة وإدارة مدن" },
+    { name: "جامعة الملك فهد للبترول والمعادن", url: "https://www.kfupm.edu.sa/", note: "تعليم وتقنية" },
+  ],
+};
 
 export default function TrainingFinderPage() {
   const [majorCategory, setMajorCategory] = useState("");
@@ -41,6 +196,20 @@ export default function TrainingFinderPage() {
     () => majors.find((major) => major.name === majorCategory)?.name || "",
     [majorCategory]
   );
+  const suggestionRegion = resolveSuggestionRegion(city);
+  const existingTargetNames = useMemo(
+    () => new Set(targets.map((target) => normalizeName(target.organizationName))),
+    [targets]
+  );
+  const suggestedOrganizations = useMemo(() => {
+    const organizations = suggestionRegion
+      ? suggestedOrganizationsByRegion[suggestionRegion] || []
+      : Object.values(suggestedOrganizationsByRegion).flat();
+
+    return organizations.filter(
+      (organization) => !existingTargetNames.has(normalizeName(organization.name))
+    );
+  }, [existingTargetNames, suggestionRegion]);
 
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
@@ -235,8 +404,19 @@ export default function TrainingFinderPage() {
                 lineHeight: 1.5,
               }}
             >
-              نتائج {selectedMajorLabel}
-              {city ? ` في ${city}` : ""}
+              شركات فيها تجارب سابقة في دربك
+              <span
+                style={{
+                  display: "block",
+                  color: "var(--app-muted)",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  marginTop: "4px",
+                }}
+              >
+                نتائج {selectedMajorLabel}
+                {city ? ` في ${city}` : ""}
+              </span>
             </h2>
 
             {targets.length === 0 ? (
@@ -395,6 +575,138 @@ export default function TrainingFinderPage() {
               الجهات المعروضة مبنية على تجارب طلاب سابقة، ولا يعني ظهور الجهة
               توفر فرصة تدريب حاليًا.
             </p>
+
+            <section
+              style={{
+                display: "grid",
+                gap: "12px",
+                marginTop: "10px",
+              }}
+            >
+              <div>
+                <h2
+                  style={{
+                    margin: "0 0 5px",
+                    color: "var(--app-text)",
+                    fontSize: "20px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  جهات نقترحها عليك للتقديم
+                </h2>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--app-muted)",
+                    fontSize: "13px",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  هذه جهات نقترحها عليك تقدم فيها وليست موجودة ضمن نتائج تجارب
+                  دربك الحالية
+                  {suggestionRegion ? ` في ${suggestionRegion}` : " في المناطق المحددة"}.
+                </p>
+              </div>
+
+              {city && !suggestionRegion ? (
+                <div
+                  style={{
+                    background: "var(--app-surface)",
+                    border: "1px solid var(--app-border)",
+                    borderRadius: "16px",
+                    padding: "16px",
+                    color: "var(--app-text-soft)",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  الاقتراحات الحالية مفعلة للرياض، جدة، مكة، جازان، أبها،
+                  المدينة، والمنطقة الشرقية. نقدر نضيف هذه المدينة لاحقًا.
+                </div>
+              ) : suggestedOrganizations.length === 0 ? (
+                <div
+                  style={{
+                    background: "var(--app-surface)",
+                    border: "1px solid var(--app-border)",
+                    borderRadius: "16px",
+                    padding: "16px",
+                    color: "var(--app-text-soft)",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  كل الجهات المقترحة لهذه المنطقة موجودة بالفعل ضمن تجارب دربك
+                  الحالية.
+                </div>
+              ) : (
+                <div
+                  className="suggested-targets-grid"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                    gap: "10px",
+                  }}
+                >
+                  {suggestedOrganizations.map((organization) => (
+                    <article
+                      key={`${organization.name}-${organization.url}`}
+                      style={{
+                        background: "var(--app-surface)",
+                        border: "1px solid var(--app-border)",
+                        borderRadius: "15px",
+                        padding: "14px",
+                        display: "grid",
+                        gap: "10px",
+                      }}
+                    >
+                      <div>
+                        <h3
+                          style={{
+                            margin: "0 0 5px",
+                            color: "var(--app-brand)",
+                            fontSize: "17px",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {organization.name}
+                        </h3>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "var(--app-text-soft)",
+                            fontSize: "12px",
+                            lineHeight: 1.7,
+                          }}
+                        >
+                          {organization.note}
+                        </p>
+                      </div>
+                      <a
+                        href={organization.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ textDecoration: "none" }}
+                      >
+                        <button
+                          type="button"
+                          style={{
+                            width: "100%",
+                            background: "var(--app-input-bg)",
+                            color: "var(--app-brand)",
+                            border: "1px solid var(--app-brand-border)",
+                            borderRadius: "10px",
+                            padding: "9px 10px",
+                            fontFamily: "inherit",
+                            fontWeight: "800",
+                            cursor: "pointer",
+                          }}
+                        >
+                          رابط الموقع أو التقديم
+                        </button>
+                      </a>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
           </section>
         )}
       </section>
@@ -406,6 +718,10 @@ export default function TrainingFinderPage() {
           }
 
           .training-targets-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .suggested-targets-grid {
             grid-template-columns: 1fr !important;
           }
         }
