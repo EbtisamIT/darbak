@@ -208,25 +208,55 @@ const HomePage = () => {
         لتكون بداية مشوارك المهني أوضح وأسهل.
       </p>
 
-      <Link to="/experiences" style={{ textDecoration: "none" }}>
-        <button
-          className="home-cta"
-          style={{
-            backgroundColor: "var(--app-brand)",
-            color: "#07100e",
-            border: "none",
-            borderRadius: "10px",
-            padding: "14px 40px",
-            fontSize: "18px",
-            fontFamily: homeFont,
-            cursor: "pointer",
-            transition: "0.3s",
-            boxShadow: "0 0 15px var(--app-brand-border)",
-          }}
-        >
-          استعرض التجارب 🚀
-        </button>
-      </Link>
+      <div
+        className="home-actions"
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: "10px",
+          flexWrap: "wrap",
+        }}
+      >
+        <Link to="/experiences" style={{ textDecoration: "none" }}>
+          <button
+            className="home-cta"
+            style={{
+              backgroundColor: "var(--app-brand)",
+              color: "#07100e",
+              border: "none",
+              borderRadius: "10px",
+              padding: "14px 34px",
+              fontSize: "18px",
+              fontFamily: homeFont,
+              cursor: "pointer",
+              transition: "0.3s",
+              boxShadow: "0 0 15px var(--app-brand-border)",
+            }}
+          >
+            استعرض التجارب 🚀
+          </button>
+        </Link>
+
+        <Link to="/where-to-train" style={{ textDecoration: "none" }}>
+          <button
+            className="home-cta home-secondary-cta"
+            style={{
+              backgroundColor: "var(--app-input-bg)",
+              color: "var(--app-brand)",
+              border: "1px solid var(--app-brand-border)",
+              borderRadius: "10px",
+              padding: "14px 34px",
+              fontSize: "18px",
+              fontFamily: homeFont,
+              cursor: "pointer",
+              transition: "0.3s",
+              boxShadow: "0 0 12px rgba(125, 219, 205, 0.12)",
+            }}
+          >
+            وين أتدرب؟
+          </button>
+        </Link>
+      </div>
 
       <div
         className="home-stats"
@@ -322,6 +352,10 @@ const HomePage = () => {
             width: min(100%, 280px);
             padding: 12px 24px !important;
             font-size: 16px !important;
+          }
+
+          .home-actions {
+            width: min(100%, 320px);
           }
 
           .home-stats {

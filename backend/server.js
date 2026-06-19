@@ -133,6 +133,78 @@ app.post('/api/suggestions', async (req, res) => {
   }
 });
 
+app.get('/api/training-targets', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const majorCategory = (req.query.majorCategory || "").trim();
+    const city = (req.query.city || "").trim();
+
+    if (!majorCategory) {
+      return res.status(400).json({ error: "majorCategory is required" });
+    }
+
+    const filter = {
+      $or: [{ status: "approved" }, { status: { $exists: false } }],
+      majorCategory,
+    };
+
+    if (city) {
+      filter.city = city;
+    }
+
+    const experiences = await Experience.find(filter)
+      .select("organizationName city major howApplied")
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean();
+
+    const groupedTargets = new Map();
+
+    experiences.forEach((exp) => {
+      const organizationName = (exp.organizationName || "").trim();
+      if (!organizationName) return;
+
+      const key = normalizeSearchText(organizationName);
+
+      if (!groupedTargets.has(key)) {
+        groupedTargets.set(key, {
+          organizationName,
+          cities: new Set(),
+          majors: new Set(),
+          methods: new Set(),
+          count: 0,
+        });
+      }
+
+      const target = groupedTargets.get(key);
+      target.count += 1;
+
+      if (exp.city) target.cities.add(exp.city);
+      if (exp.major) target.majors.add(exp.major);
+      if (exp.howApplied) target.methods.add(exp.howApplied);
+    });
+
+    const data = Array.from(groupedTargets.values())
+      .map((target) => ({
+        organizationName: target.organizationName,
+        cities: Array.from(target.cities),
+        majors: Array.from(target.majors),
+        methods: Array.from(target.methods),
+        count: target.count,
+      }))
+      .sort((a, b) => b.count - a.count || a.organizationName.localeCompare(b.organizationName, "ar"))
+      .slice(0, 30);
+
+    res.json({ data, total: data.length });
+  } catch (err) {
+    console.error("❌ Training targets error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // إنشاء تجربة
 app.post('/api/experiences', async (req, res) => {
   try {

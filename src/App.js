@@ -4,6 +4,7 @@ import "./App.css";
 import Navbar from "./pages/Navbar";
 import HomePage from "./pages/HomePage";
 import ExperiencesPage from "./pages/ExperiencesPage";
+import TrainingFinderPage from "./pages/TrainingFinderPage";
 import AddExperienceModal from "./pages/AddExperienceModal";
 import LegalPage from "./pages/LegalPage";
 import AdminReviewPage from "./pages/AdminReviewPage";
@@ -88,6 +89,7 @@ function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/experiences" element={<ExperiencesPage />} />
+              <Route path="/where-to-train" element={<TrainingFinderPage />} />
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/terms" element={<LegalPage />} />
               <Route path="/privacy" element={<LegalPage />} />
