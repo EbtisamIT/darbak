@@ -859,7 +859,15 @@ export default function TrainingFinderPage() {
                       </div>
 
                       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                        <Link to="/experiences" style={{ textDecoration: "none" }}>
+                        <Link
+                          to={{
+                            pathname: "/experiences",
+                            search: `?company=${encodeURIComponent(
+                              target.organizationName
+                            )}`,
+                          }}
+                          style={{ textDecoration: "none" }}
+                        >
                           <button
                             type="button"
                             style={{

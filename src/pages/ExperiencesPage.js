@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
@@ -7,6 +8,19 @@ const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v1";
 const EXPERIENCE_CONTRIBUTION_PROMPT_KEY =
   "darbak_experience_contribution_prompt_seen_v1";
 const INITIAL_VISIBLE_COUNT = 36;
+
+const getCompanySearchFromUrl = (search = "") => {
+  try {
+    return new URLSearchParams(search).get("company") || "";
+  } catch {
+    return "";
+  }
+};
+
+const getInitialCompanySearch = () => {
+  if (typeof window === "undefined") return "";
+  return getCompanySearchFromUrl(window.location.search);
+};
 
 const getCachedExperiences = () => {
   if (typeof window === "undefined") return [];
@@ -342,6 +356,8 @@ const getMajorSearchTerms = (value) => {
 };
 
 const ExperiencesPage = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [experiences, setExperiences] = useState(() => getCachedExperiences());
   const [loading, setLoading] = useState(() => getCachedExperiences().length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -350,8 +366,10 @@ const ExperiencesPage = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedMajors, setSelectedMajors] = useState([]);
   const [majorsMenuOpen, setMajorsMenuOpen] = useState(false);
-  const [companySearch, setCompanySearch] = useState("");
-  const [sortOption, setSortOption] = useState("latest");
+  const [companySearch, setCompanySearch] = useState(getInitialCompanySearch);
+  const [sortOption, setSortOption] = useState(() =>
+    getInitialCompanySearch() ? "relevance" : "latest"
+  );
   const [fetchError, setFetchError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [, setTotalExperiences] = useState(() => getCachedExperiences().length);
@@ -359,6 +377,27 @@ const ExperiencesPage = () => {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
+
+  useEffect(() => {
+    const companyFromUrl = getCompanySearchFromUrl(location.search);
+    if (companyFromUrl) {
+      setCompanySearch(companyFromUrl);
+      setSortOption("relevance");
+      return;
+    }
+
+    if (!location.search) {
+      setCompanySearch("");
+      setSortOption("latest");
+    }
+  }, [location.search]);
+
+  const clearCompanySearch = () => {
+    setCompanySearch("");
+    if (getCompanySearchFromUrl(location.search)) {
+      navigate("/experiences", { replace: true });
+    }
+  };
 
   const ratingLabels = {
     excellent: "😍 ممتازة ومثرية جدًا",
@@ -608,7 +647,7 @@ const ExperiencesPage = () => {
 
   const clearAllFilters = () => {
     setSelectedMajors([]);
-    setCompanySearch("");
+    clearCompanySearch();
     setSortOption("latest");
   };
 
@@ -1165,7 +1204,7 @@ const ExperiencesPage = () => {
             {companySearch && (
               <button
                 type="button"
-                onClick={() => setCompanySearch("")}
+                onClick={clearCompanySearch}
                 style={{
                   background: "transparent",
                   border: "1px solid var(--app-border)",
@@ -1242,7 +1281,7 @@ const ExperiencesPage = () => {
               {companySearch && (
                 <button
                   type="button"
-                  onClick={() => setCompanySearch("")}
+                  onClick={clearCompanySearch}
                   style={{
                     background: "rgba(250,204,21,0.09)",
                     border: "1px solid rgba(250,204,21,0.25)",
