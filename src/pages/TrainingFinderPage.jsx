@@ -138,70 +138,136 @@ const normalizeName = (value = "") =>
     .replace(/[\u064B-\u065F]/g, "")
     .replace(/\s+/g, " ");
 
-const EASTERN_CITIES = new Set([
-  "الدمام",
-  "الخبر",
-  "الظهران",
-  "الأحساء",
-  "الجبيل",
-  "القطيف",
-  "رأس تنورة",
-  "حفر الباطن",
-  "الخفجي",
-  "بقيق",
-  "النعيرية",
-  "قرية العليا",
-]);
+const regionCities = {
+  "منطقة الرياض": [
+    "الرياض",
+    "الخرج",
+    "الدرعية",
+    "المجمعة",
+    "الزلفي",
+    "الدوادمي",
+    "وادي الدواسر",
+    "القويعية",
+    "شقراء",
+    "عفيف",
+    "حوطة بني تميم",
+  ],
+  "منطقة مكة المكرمة": [
+    "جدة",
+    "مكة المكرمة",
+    "الطائف",
+    "رابغ",
+    "القنفذة",
+    "الليث",
+    "رنية",
+    "تربة",
+    "الخرمة",
+    "بحرة",
+  ],
+  "منطقة المدينة المنورة": [
+    "المدينة المنورة",
+    "ينبع",
+    "العلا",
+    "خيبر",
+    "بدر",
+    "المهد",
+    "الحناكية",
+  ],
+  "المنطقة الشرقية": [
+    "الدمام",
+    "الخبر",
+    "الظهران",
+    "الأحساء",
+    "الجبيل",
+    "القطيف",
+    "رأس تنورة",
+    "حفر الباطن",
+    "الخفجي",
+    "بقيق",
+    "النعيرية",
+    "قرية العليا",
+  ],
+  "منطقة القصيم": [
+    "بريدة",
+    "عنيزة",
+    "الرس",
+    "المذنب",
+    "البكيرية",
+    "البدائع",
+    "الأسياح",
+    "رياض الخبراء",
+  ],
+  "منطقة عسير": [
+    "أبها",
+    "خميس مشيط",
+    "بيشة",
+    "محايل عسير",
+    "النماص",
+    "تنومة",
+    "رجال ألمع",
+    "سراة عبيدة",
+    "ظهران الجنوب",
+  ],
+  "منطقة تبوك": ["تبوك", "الوجه", "ضباء", "أملج", "تيماء", "البدع"],
+  "منطقة حائل": ["حائل"],
+  "منطقة الحدود الشمالية": ["عرعر", "رفحاء", "طريف"],
+  "منطقة جازان": [
+    "جازان",
+    "صبيا",
+    "أبو عريش",
+    "صامطة",
+    "بيش",
+    "الدرب",
+    "فرسان",
+  ],
+  "منطقة نجران": ["نجران", "شرورة", "حبونا", "يدمة"],
+  "منطقة الباحة": ["الباحة", "بلجرشي", "المندق", "العقيق", "المخواة"],
+  "منطقة الجوف": ["سكاكا", "القريات", "دومة الجندل", "طبرجل"],
+};
+
+const cityToSuggestionRegion = new Map(
+  Object.entries(regionCities).flatMap(([region, cities]) =>
+    cities.map((cityName) => [cityName, region])
+  )
+);
 
 const resolveSuggestionRegion = (cityName) => {
   if (!cityName) return "";
-  if (cityName === "الرياض") return "الرياض";
-  if (cityName === "جدة") return "جدة";
-  if (cityName === "مكة المكرمة") return "مكة";
-  if (cityName === "جازان") return "جازان";
-  if (cityName === "أبها") return "أبها";
-  if (cityName === "المدينة المنورة") return "المدينة";
-  if (EASTERN_CITIES.has(cityName)) return "المنطقة الشرقية";
-  return "";
+  return cityToSuggestionRegion.get(cityName) || "";
 };
 
+const dedupeOrganizations = (organizations = []) =>
+  Array.from(
+    new Map(
+      organizations.map((organization) => [
+        `${normalizeName(organization.name)}-${organization.url}`,
+        organization,
+      ])
+    ).values()
+  );
+
 const suggestedOrganizationsByRegion = {
-  الرياض: [
+  "منطقة الرياض": [
     { name: "stc", url: "https://www.stc.com.sa/", note: "اتصالات وتقنية" },
     { name: "شركة علم", url: "https://www.elm.sa/", note: "حلول رقمية" },
     { name: "سدايا", url: "https://sdaia.gov.sa/", note: "بيانات وذكاء اصطناعي" },
     { name: "منشآت", url: "https://www.monshaat.gov.sa/", note: "ريادة وأعمال" },
-    { name: "مسك", url: "https://misk.org.sa/", note: "برامج وفرص تطوير" },
+    { name: "القدية", url: "https://www.qiddiya.com/", note: "ترفيه ومشاريع كبرى" },
   ],
-  جدة: [
+  "منطقة مكة المكرمة": [
     { name: "الخطوط السعودية", url: "https://www.saudia.com/", note: "طيران وتشغيل" },
     { name: "بوبا العربية", url: "https://www.bupa.com.sa/", note: "تأمين وصحة" },
     { name: "مجموعة صافولا", url: "https://www.savola.com/", note: "أعمال وسلاسل إمداد" },
     { name: "جامعة الملك عبدالعزيز", url: "https://www.kau.edu.sa/", note: "تعليم وإدارة" },
-  ],
-  مكة: [
-    { name: "الهيئة الملكية لمدينة مكة والمشاعر المقدسة", url: "https://www.rcmc.gov.sa/", note: "تطوير حضري" },
     { name: "كدانة", url: "https://kidana.com.sa/", note: "تطوير المشاعر" },
     { name: "جامعة أم القرى", url: "https://uqu.edu.sa/", note: "تعليم وبحث" },
-    { name: "غرفة مكة", url: "https://makkahcci.org.sa/", note: "أعمال وقطاع خاص" },
   ],
-  جازان: [
-    { name: "جامعة جازان", url: "https://www.jazanu.edu.sa/", note: "تعليم وبحث" },
-    { name: "غرفة جازان", url: "https://www.jazancci.org.sa/", note: "أعمال وتدريب" },
-    { name: "أمانة منطقة جازان", url: "https://www.jazan.sa/", note: "خدمات بلدية" },
-    { name: "أرامكو", url: "https://www.aramco.com/", note: "طاقة وتشغيل" },
-  ],
-  أبها: [
-    { name: "هيئة تطوير عسير", url: "https://www.asda.gov.sa/", note: "تطوير وسياحة" },
-    { name: "جامعة الملك خالد", url: "https://www.kku.edu.sa/", note: "تعليم وبحث" },
-    { name: "أمانة منطقة عسير", url: "https://www.ars.gov.sa/", note: "خدمات بلدية" },
-    { name: "وزارة السياحة", url: "https://mt.gov.sa/", note: "سياحة وضيافة" },
-  ],
-  المدينة: [
+  "منطقة المدينة المنورة": [
     { name: "هيئة تطوير منطقة المدينة المنورة", url: "https://mda.gov.sa/", note: "تطوير حضري" },
     { name: "رؤى المدينة", url: "https://www.ruaalmadinah.com/", note: "تطوير وضيافة" },
     { name: "جامعة طيبة", url: "https://www.taibahu.edu.sa/", note: "تعليم وبحث" },
-    { name: "غرفة المدينة المنورة", url: "https://www.mcci.org.sa/", note: "أعمال وقطاع خاص" },
+    { name: "الهيئة الملكية لمحافظة العلا", url: "https://www.rcu.gov.sa/", note: "ثقافة وسياحة" },
+    { name: "الهيئة الملكية للجبيل وينبع", url: "https://www.rcjy.gov.sa/", note: "صناعة وإدارة مدن" },
   ],
   "المنطقة الشرقية": [
     { name: "أرامكو", url: "https://www.aramco.com/", note: "طاقة وهندسة" },
@@ -209,6 +275,64 @@ const suggestedOrganizationsByRegion = {
     { name: "معادن", url: "https://www.maaden.com.sa/", note: "تعدين وصناعة" },
     { name: "الهيئة الملكية للجبيل وينبع", url: "https://www.rcjy.gov.sa/", note: "صناعة وإدارة مدن" },
     { name: "جامعة الملك فهد للبترول والمعادن", url: "https://www.kfupm.edu.sa/", note: "تعليم وتقنية" },
+  ],
+  "منطقة القصيم": [
+    { name: "جامعة القصيم", url: "https://www.qu.edu.sa/", note: "تعليم وبحث" },
+    { name: "غرفة القصيم", url: "https://www.qcc.org.sa/", note: "أعمال وتدريب" },
+    { name: "المراعي", url: "https://www.almarai.com/", note: "أغذية وتشغيل" },
+    { name: "وزارة البيئة والمياه والزراعة", url: "https://www.mewa.gov.sa/", note: "زراعة وبيئة" },
+    { name: "صندوق التنمية الزراعية", url: "https://www.adf.gov.sa/", note: "تمويل وزراعة" },
+  ],
+  "منطقة عسير": [
+    { name: "هيئة تطوير عسير", url: "https://www.asda.gov.sa/", note: "تطوير وسياحة" },
+    { name: "جامعة الملك خالد", url: "https://www.kku.edu.sa/", note: "تعليم وبحث" },
+    { name: "أمانة منطقة عسير", url: "https://www.ars.gov.sa/", note: "خدمات بلدية" },
+    { name: "وزارة السياحة", url: "https://mt.gov.sa/", note: "سياحة وضيافة" },
+    { name: "السودة للتطوير", url: "https://www.soudah.sa/", note: "سياحة ومشاريع كبرى" },
+  ],
+  "منطقة تبوك": [
+    { name: "نيوم", url: "https://www.neom.com/", note: "مشاريع كبرى وتقنية" },
+    { name: "البحر الأحمر الدولية", url: "https://www.redseaglobal.com/", note: "سياحة واستدامة" },
+    { name: "أمالا", url: "https://www.amaala.com/", note: "سياحة وضيافة" },
+    { name: "جامعة تبوك", url: "https://www.ut.edu.sa/", note: "تعليم وبحث" },
+    { name: "وزارة البيئة والمياه والزراعة", url: "https://www.mewa.gov.sa/", note: "بيئة وزراعة" },
+  ],
+  "منطقة حائل": [
+    { name: "جامعة حائل", url: "https://www.uoh.edu.sa/", note: "تعليم وبحث" },
+    { name: "المراعي", url: "https://www.almarai.com/", note: "أغذية وتشغيل" },
+    { name: "وزارة البيئة والمياه والزراعة", url: "https://www.mewa.gov.sa/", note: "زراعة وبيئة" },
+    { name: "صندوق التنمية الزراعية", url: "https://www.adf.gov.sa/", note: "تمويل وزراعة" },
+  ],
+  "منطقة الحدود الشمالية": [
+    { name: "جامعة الحدود الشمالية", url: "https://www.nbu.edu.sa/", note: "تعليم وبحث" },
+    { name: "أمانة منطقة الحدود الشمالية", url: "https://arar-mu.momah.gov.sa/", note: "خدمات بلدية" },
+    { name: "معادن", url: "https://www.maaden.com.sa/", note: "تعدين وصناعة" },
+    { name: "وزارة البيئة والمياه والزراعة", url: "https://www.mewa.gov.sa/", note: "بيئة وزراعة" },
+  ],
+  "منطقة جازان": [
+    { name: "جامعة جازان", url: "https://www.jazanu.edu.sa/", note: "تعليم وبحث" },
+    { name: "غرفة جازان", url: "https://www.jazancci.org.sa/", note: "أعمال وتدريب" },
+    { name: "أمانة منطقة جازان", url: "https://www.jazan.sa/", note: "خدمات بلدية" },
+    { name: "أرامكو", url: "https://www.aramco.com/", note: "طاقة وتشغيل" },
+    { name: "وزارة البيئة والمياه والزراعة", url: "https://www.mewa.gov.sa/", note: "بيئة وزراعة" },
+  ],
+  "منطقة نجران": [
+    { name: "جامعة نجران", url: "https://www.nu.edu.sa/", note: "تعليم وبحث" },
+    { name: "أمانة منطقة نجران", url: "https://www.najran.gov.sa/", note: "خدمات بلدية" },
+    { name: "وزارة البيئة والمياه والزراعة", url: "https://www.mewa.gov.sa/", note: "بيئة وزراعة" },
+    { name: "صندوق التنمية الزراعية", url: "https://www.adf.gov.sa/", note: "تمويل وزراعة" },
+  ],
+  "منطقة الباحة": [
+    { name: "جامعة الباحة", url: "https://bu.edu.sa/", note: "تعليم وبحث" },
+    { name: "أمانة منطقة الباحة", url: "https://baha.gov.sa/", note: "خدمات بلدية" },
+    { name: "وزارة السياحة", url: "https://mt.gov.sa/", note: "سياحة وضيافة" },
+    { name: "وزارة البيئة والمياه والزراعة", url: "https://www.mewa.gov.sa/", note: "بيئة وزراعة" },
+  ],
+  "منطقة الجوف": [
+    { name: "جامعة الجوف", url: "https://www.ju.edu.sa/", note: "تعليم وبحث" },
+    { name: "نادك", url: "https://nadec.com/", note: "زراعة وأغذية" },
+    { name: "وزارة البيئة والمياه والزراعة", url: "https://www.mewa.gov.sa/", note: "بيئة وزراعة" },
+    { name: "صندوق التنمية الزراعية", url: "https://www.adf.gov.sa/", note: "تمويل وزراعة" },
   ],
 };
 
@@ -312,8 +436,9 @@ export default function TrainingFinderPage() {
       ? suggestedOrganizationsByRegion[suggestionRegion] || []
       : Object.values(suggestedOrganizationsByRegion).flat();
 
-    return organizations.filter(
-      (organization) => !existingTargetNames.has(normalizeName(organization.name))
+    return dedupeOrganizations(organizations).filter(
+      (organization) =>
+        !existingTargetNames.has(normalizeName(organization.name))
     );
   }, [existingTargetNames, suggestionRegion]);
 
@@ -838,8 +963,8 @@ export default function TrainingFinderPage() {
                     lineHeight: 1.8,
                   }}
                 >
-                  الاقتراحات الحالية مفعلة للرياض، جدة، مكة، جازان، أبها،
-                  المدينة، والمنطقة الشرقية. نقدر نضيف هذه المدينة لاحقًا.
+                  ما قدرنا نحدد منطقة هذه المدينة حاليًا، جرّب البحث بدون
+                  تحديد مدينة لعرض اقتراحات من كل المناطق.
                 </div>
               ) : suggestedOrganizations.length === 0 ? (
                 <div
