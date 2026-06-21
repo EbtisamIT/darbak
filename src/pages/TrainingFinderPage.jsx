@@ -525,6 +525,92 @@ export default function TrainingFinderPage() {
           gap: "18px",
         }}
       >
+        <section
+          className="training-guide-banner"
+          aria-label="دليل التقديم على التدريب التعاوني لعام 2026"
+          style={{
+            position: "relative",
+            overflow: "hidden",
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) auto",
+            gap: "16px",
+            alignItems: "center",
+            background:
+              "linear-gradient(135deg, rgba(125,219,205,0.18), var(--app-surface) 52%, rgba(245,158,11,0.12))",
+            border: "1px solid var(--app-brand-border)",
+            borderRadius: "18px",
+            padding: "18px",
+            boxShadow: "0 16px 36px var(--app-shadow)",
+          }}
+        >
+          <div style={{ display: "grid", gap: "7px" }}>
+            <span
+              style={{
+                width: "fit-content",
+                background: "rgba(245,158,11,0.14)",
+                border: "1px solid rgba(245,158,11,0.28)",
+                color: "#facc15",
+                borderRadius: "999px",
+                padding: "5px 10px",
+                fontSize: "12px",
+                fontWeight: "900",
+              }}
+            >
+              دليل تفاعلي 2026
+            </span>
+            <h2
+              style={{
+                margin: 0,
+                color: "var(--app-text)",
+                fontSize: "clamp(20px, 3vw, 30px)",
+                lineHeight: 1.35,
+              }}
+            >
+              حبل النجاة للتدريب التعاوني لعام 2026
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--app-text-soft)",
+                fontSize: "14px",
+                lineHeight: 1.8,
+                maxWidth: "660px",
+              }}
+            >
+              اختصرنا عليك مجهود الشهور: دليل تفاعلي شامل للتقديم على أكثر
+              من 700 جهة، مع متابعة طلباتك خطوة بخطوة.
+            </p>
+          </div>
+
+          <a
+            href="https://darbakk.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: "none" }}
+          >
+            <button
+              type="button"
+              style={{
+                background: "var(--app-brand)",
+                color: "#07100e",
+                border: "none",
+                borderRadius: "14px",
+                padding: "12px 16px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontWeight: "900",
+                fontSize: "13px",
+                lineHeight: 1.6,
+                whiteSpace: "normal",
+                maxWidth: "230px",
+                boxShadow: "0 0 18px var(--app-brand-border)",
+              }}
+            >
+              احصل على دليلك التفاعلي الآن بـ 25 ريال فقط
+            </button>
+          </a>
+        </section>
+
         <header style={{ textAlign: "center" }}>
           <p
             style={{
@@ -1113,6 +1199,22 @@ export default function TrainingFinderPage() {
         }
 
         @media (max-width: 760px) {
+          .training-guide-banner {
+            grid-template-columns: 1fr !important;
+            padding: 14px !important;
+            gap: 12px !important;
+          }
+
+          .training-guide-banner a,
+          .training-guide-banner button {
+            width: 100% !important;
+            max-width: none !important;
+          }
+
+          .training-guide-banner h2 {
+            font-size: 20px !important;
+          }
+
           .training-finder-form {
             grid-template-columns: 1fr !important;
           }
