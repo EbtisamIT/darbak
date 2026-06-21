@@ -147,7 +147,16 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   );
 
   return (
-    <>
+    <header
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 1800,
+        width: "100%",
+        background: "var(--app-surface)",
+        boxShadow: "0 10px 24px rgba(0,0,0,0.12)",
+      }}
+    >
       <nav
         style={{
           display: "flex",
@@ -319,7 +328,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           {suggestionMessage}
         </p>
       )}
-    </>
+    </header>
   );
 };
 
