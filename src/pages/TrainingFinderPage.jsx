@@ -335,8 +335,148 @@ const suggestedOrganizationsByRegion = {
   ],
 };
 
+const suggestedOrganizationsByMajorCategory = {
+  "الطب والعلوم الصحية": [
+    { name: "وزارة الصحة", url: "https://www.moh.gov.sa/", note: "صحة عامة وإدارة صحية" },
+    { name: "الهيئة العامة للغذاء والدواء", url: "https://www.sfda.gov.sa/", note: "رقابة ومختبرات وصحة" },
+    { name: "مستشفى الملك فيصل التخصصي", url: "https://www.kfshrc.edu.sa/", note: "رعاية صحية وبحث" },
+    { name: "مجلس الضمان الصحي", url: "https://chi.gov.sa/", note: "تأمين صحي وتنظيم" },
+    { name: "بوبا العربية", url: "https://www.bupa.com.sa/", note: "تأمين وخدمات صحية" },
+    { name: "مجموعة الدكتور سليمان الحبيب", url: "https://hmg.com/", note: "تشغيل صحي ومستشفيات" },
+    { name: "دله الصحية", url: "https://www.dallah-health.com/", note: "رعاية صحية وتشغيل" },
+  ],
+  "الهندسة والطاقة": [
+    { name: "أرامكو", url: "https://www.aramco.com/", note: "طاقة وهندسة وتشغيل" },
+    { name: "سابك", url: "https://www.sabic.com/", note: "صناعة وكيمياء وهندسة" },
+    { name: "معادن", url: "https://www.maaden.com.sa/", note: "تعدين وصناعة" },
+    { name: "الشركة السعودية للكهرباء", url: "https://www.se.com.sa/", note: "طاقة كهربائية وتشغيل" },
+    { name: "أكوا باور", url: "https://www.acwapower.com/", note: "طاقة ومياه واستدامة" },
+    { name: "الهيئة الملكية للجبيل وينبع", url: "https://www.rcjy.gov.sa/", note: "مدن صناعية وهندسة" },
+    { name: "نيوم", url: "https://www.neom.com/", note: "مشاريع كبرى وتقنية" },
+    { name: "البحر الأحمر الدولية", url: "https://www.redseaglobal.com/", note: "استدامة ومشاريع" },
+  ],
+  "الحاسب والتقنية": [
+    { name: "سدايا", url: "https://sdaia.gov.sa/", note: "بيانات وذكاء اصطناعي" },
+    { name: "هيئة الحكومة الرقمية", url: "https://dga.gov.sa/", note: "تحول رقمي وحوكمة" },
+    { name: "هيئة الاتصالات والفضاء والتقنية", url: "https://www.cst.gov.sa/", note: "تقنية واتصالات وتنظيم" },
+    { name: "stc", url: "https://www.stc.com.sa/", note: "اتصالات وتقنية" },
+    { name: "شركة علم", url: "https://www.elm.sa/", note: "حلول رقمية ومنتجات" },
+    { name: "زين السعودية", url: "https://sa.zain.com/", note: "اتصالات وتقنية" },
+    { name: "موبايلي", url: "https://www.mobily.com.sa/", note: "اتصالات وتقنية" },
+    { name: "SITE", url: "https://site.sa/", note: "أمن سيبراني وتقنية" },
+  ],
+  "القانون والسياسة": [
+    { name: "وزارة العدل", url: "https://www.moj.gov.sa/", note: "قانون وخدمات عدلية" },
+    { name: "ديوان المظالم", url: "https://www.bog.gov.sa/", note: "قضاء إداري وأنظمة" },
+    { name: "النيابة العامة", url: "https://pp.gov.sa/", note: "أنظمة وعدالة جنائية" },
+    { name: "هيئة حقوق الإنسان", url: "https://www.hrc.gov.sa/", note: "حقوق وأنظمة" },
+    { name: "هيئة الخبراء بمجلس الوزراء", url: "https://www.boe.gov.sa/", note: "تشريعات وسياسات" },
+    { name: "وزارة الخارجية", url: "https://www.mofa.gov.sa/", note: "سياسة وعلاقات دولية" },
+    { name: "هيئة السوق المالية", url: "https://cma.org.sa/", note: "أنظمة مالية وتنظيم" },
+  ],
+  "المالية والإدارية": [
+    { name: "البنك المركزي السعودي", url: "https://www.sama.gov.sa/", note: "مالية وبنوك وتنظيم" },
+    { name: "هيئة السوق المالية", url: "https://cma.org.sa/", note: "أسواق مالية وحوكمة" },
+    { name: "تداول السعودية", url: "https://www.saudiexchange.sa/", note: "أسواق مالية وعمليات" },
+    { name: "صندوق الاستثمارات العامة", url: "https://www.pif.gov.sa/", note: "استثمار وإدارة" },
+    { name: "وزارة المالية", url: "https://www.mof.gov.sa/", note: "مالية عامة وإدارة" },
+    { name: "هيئة الزكاة والضريبة والجمارك", url: "https://zatca.gov.sa/", note: "ضريبة وجمارك وامتثال" },
+    { name: "EY", url: "https://www.ey.com/ar_sa", note: "استشارات ومراجعة" },
+    { name: "PwC الشرق الأوسط", url: "https://www.pwc.com/m1/en/countries/saudi-arabia.html", note: "استشارات ومراجعة" },
+    { name: "Deloitte الشرق الأوسط", url: "https://www.deloitte.com/middle-east/en/about/locations/saudi-arabia.html", note: "استشارات ومراجعة" },
+    { name: "KPMG السعودية", url: "https://kpmg.com/sa/", note: "استشارات ومراجعة" },
+  ],
+  "السياحة والضيافة": [
+    { name: "وزارة السياحة", url: "https://mt.gov.sa/", note: "سياحة وتنظيم" },
+    { name: "الهيئة السعودية للسياحة", url: "https://www.sta.gov.sa/", note: "تسويق وتجارب سياحية" },
+    { name: "البحر الأحمر الدولية", url: "https://www.redseaglobal.com/", note: "سياحة وضيافة واستدامة" },
+    { name: "أمالا", url: "https://www.amaala.com/", note: "وجهات سياحية فاخرة" },
+    { name: "رؤى المدينة", url: "https://www.ruaalmadinah.com/", note: "ضيافة وتطوير وجهات" },
+    { name: "كدانة", url: "https://kidana.com.sa/", note: "تطوير المشاعر وخدمات" },
+    { name: "الهيئة الملكية لمحافظة العلا", url: "https://www.rcu.gov.sa/", note: "ثقافة وسياحة" },
+    { name: "السودة للتطوير", url: "https://www.soudah.sa/", note: "سياحة ومشاريع كبرى" },
+  ],
+  "الإعلام والإتصال": [
+    { name: "وزارة الإعلام", url: "https://media.gov.sa/", note: "إعلام واتصال حكومي" },
+    { name: "هيئة الإذاعة والتلفزيون", url: "https://www.sba.sa/", note: "إنتاج وبث إعلامي" },
+    { name: "وكالة الأنباء السعودية", url: "https://www.spa.gov.sa/", note: "صحافة وأخبار" },
+    { name: "الهيئة العامة لتنظيم الإعلام", url: "https://gc.gov.sa/", note: "تنظيم إعلامي" },
+    { name: "MBC", url: "https://www.mbc.net/", note: "إعلام وإنتاج" },
+    { name: "المجموعة السعودية للأبحاث والإعلام", url: "https://www.srmg.com/", note: "إعلام ونشر" },
+    { name: "هيئة الاتصالات والفضاء والتقنية", url: "https://www.cst.gov.sa/", note: "اتصال وتقنية وتنظيم" },
+  ],
+  "اللغات والآداب": [
+    { name: "وزارة الثقافة", url: "https://www.moc.gov.sa/", note: "ثقافة ومبادرات" },
+    { name: "هيئة الأدب والنشر والترجمة", url: "https://lpt.moc.gov.sa/", note: "أدب ونشر وترجمة" },
+    { name: "مجمع الملك سلمان العالمي للغة العربية", url: "https://ksaa.gov.sa/", note: "لغة عربية ومحتوى" },
+    { name: "مكتبة الملك فهد الوطنية", url: "https://www.kfnl.gov.sa/", note: "مكتبات ومعلومات" },
+    { name: "دارة الملك عبدالعزيز", url: "https://www.darah.org.sa/", note: "توثيق وتاريخ" },
+    { name: "هيئة التراث", url: "https://heritage.moc.gov.sa/", note: "تراث ومحتوى ثقافي" },
+  ],
+  "التصميم والفنون": [
+    { name: "وزارة الثقافة", url: "https://www.moc.gov.sa/", note: "ثقافة وفنون" },
+    { name: "هيئة فنون العمارة والتصميم", url: "https://archdesign.moc.gov.sa/", note: "تصميم وعمارة" },
+    { name: "هيئة الفنون البصرية", url: "https://visualarts.moc.gov.sa/", note: "فنون بصرية" },
+    { name: "هيئة الأفلام", url: "https://film.moc.gov.sa/", note: "إنتاج وصناعة أفلام" },
+    { name: "معهد مسك للفنون", url: "https://miskartinstitute.org/", note: "فنون وتطوير إبداعي" },
+    { name: "إثراء", url: "https://www.ithra.com/", note: "ثقافة وإبداع" },
+    { name: "بوابة الدرعية", url: "https://www.diriyah.sa/", note: "تصميم وتجارب ثقافية" },
+  ],
+  "العلوم الأساسية": [
+    { name: "كاوست", url: "https://www.kaust.edu.sa/", note: "بحث وعلوم متقدمة" },
+    { name: "مدينة الملك عبدالعزيز للعلوم والتقنية", url: "https://www.kacst.gov.sa/", note: "بحث وابتكار" },
+    { name: "هيئة المساحة الجيولوجية السعودية", url: "https://sgs.gov.sa/", note: "جيولوجيا وعلوم أرض" },
+    { name: "المركز الوطني للأرصاد", url: "https://ncm.gov.sa/", note: "أرصاد وبيانات" },
+    { name: "الهيئة العامة للغذاء والدواء", url: "https://www.sfda.gov.sa/", note: "مختبرات ورقابة" },
+    { name: "المركز الوطني للرقابة على الالتزام البيئي", url: "https://ncec.gov.sa/", note: "بيئة واستدامة" },
+  ],
+  "العلوم الإنسانية": [
+    { name: "دارة الملك عبدالعزيز", url: "https://www.darah.org.sa/", note: "تاريخ وتوثيق" },
+    { name: "هيئة التراث", url: "https://heritage.moc.gov.sa/", note: "تراث وأبحاث" },
+    { name: "وزارة الثقافة", url: "https://www.moc.gov.sa/", note: "ثقافة ومشاريع" },
+    { name: "مكتبة الملك فهد الوطنية", url: "https://www.kfnl.gov.sa/", note: "مكتبات ومعلومات" },
+    { name: "الهيئة الملكية لمحافظة العلا", url: "https://www.rcu.gov.sa/", note: "تراث وسياحة" },
+    { name: "مجمع الملك سلمان العالمي للغة العربية", url: "https://ksaa.gov.sa/", note: "لغة ومحتوى" },
+  ],
+  "العلوم الإجتماعية": [
+    { name: "وزارة الموارد البشرية والتنمية الاجتماعية", url: "https://www.hrsd.gov.sa/", note: "تنمية اجتماعية وعمل" },
+    { name: "هيئة حقوق الإنسان", url: "https://www.hrc.gov.sa/", note: "حقوق ومجتمع" },
+    { name: "مركز الملك سلمان للإغاثة", url: "https://www.ksrelief.org/", note: "عمل إنساني وتنمية" },
+    { name: "جمعية إنسان", url: "https://ensanonline.com/", note: "خدمة اجتماعية" },
+    { name: "مؤسسة مسك", url: "https://misk.org.sa/", note: "تمكين شباب ومبادرات" },
+    { name: "جمعية الأطفال ذوي الإعاقة", url: "https://dca.org.sa/", note: "خدمة اجتماعية ورعاية" },
+  ],
+  "العلوم التربوية": [
+    { name: "وزارة التعليم", url: "https://www.moe.gov.sa/", note: "تعليم وسياسات" },
+    { name: "هيئة تقويم التعليم والتدريب", url: "https://etec.gov.sa/", note: "تقويم وتعليم" },
+    { name: "المركز الوطني للتعليم الإلكتروني", url: "https://nelc.gov.sa/", note: "تعليم رقمي" },
+    { name: "موهبة", url: "https://www.mawhiba.org/", note: "تعليم وموهوبون" },
+    { name: "مؤسسة مسك", url: "https://misk.org.sa/", note: "تعليم وتمكين" },
+    { name: "جامعة الملك سعود", url: "https://ksu.edu.sa/", note: "تعليم وبحث" },
+  ],
+  "العلوم الزراعية": [
+    { name: "وزارة البيئة والمياه والزراعة", url: "https://www.mewa.gov.sa/", note: "زراعة وبيئة ومياه" },
+    { name: "صندوق التنمية الزراعية", url: "https://www.adf.gov.sa/", note: "تمويل زراعي" },
+    { name: "نادك", url: "https://nadec.com/", note: "زراعة وأغذية" },
+    { name: "المراعي", url: "https://www.almarai.com/", note: "أغذية وتشغيل" },
+    { name: "المركز الوطني لتنمية الغطاء النباتي", url: "https://www.ncv.gov.sa/", note: "بيئة واستدامة" },
+    { name: "الهيئة العامة للغذاء والدواء", url: "https://www.sfda.gov.sa/", note: "غذاء ورقابة" },
+  ],
+  "العلوم الرياضية": [
+    { name: "وزارة الرياضة", url: "https://www.mos.gov.sa/", note: "رياضة وإدارة" },
+    { name: "اللجنة الأولمبية والبارالمبية السعودية", url: "https://olympic.sa/", note: "رياضة واتحادات" },
+    { name: "الاتحاد السعودي لكرة القدم", url: "https://www.saff.com.sa/", note: "إدارة رياضية" },
+    { name: "الاتحاد السعودي للرياضة للجميع", url: "https://sportsforall.com.sa/", note: "برامج ومبادرات رياضية" },
+    { name: "معهد إعداد القادة", url: "https://leadersinstitute.sa/", note: "تدريب وقيادة رياضية" },
+    { name: "نادي الهلال", url: "https://alhilal.com/", note: "إدارة رياضية وتسويق" },
+  ],
+};
+
 const organizationHomepageEntries = [
   ...Object.values(suggestedOrganizationsByRegion)
+    .flat()
+    .map((organization) => [organization.name, organization.url]),
+  ...Object.values(suggestedOrganizationsByMajorCategory)
     .flat()
     .map((organization) => [organization.name, organization.url]),
   ["علم", "https://www.elm.sa/"],
@@ -429,7 +569,10 @@ export default function TrainingFinderPage() {
   );
   const selectedSpecialtyLabel =
     selectedSpecialtyOption?.label || selectedSpecialty;
-  const selectedMajorCategories = selectedSpecialtyOption?.categories || [];
+  const selectedMajorCategories = useMemo(
+    () => selectedSpecialtyOption?.categories || [],
+    [selectedSpecialtyOption]
+  );
   const selectedMajorCategoriesText = selectedMajorCategories.join("، ");
   const suggestionRegion = resolveSuggestionRegion(city);
   const existingTargetNames = useMemo(
@@ -437,15 +580,41 @@ export default function TrainingFinderPage() {
     [targets]
   );
   const suggestedOrganizations = useMemo(() => {
-    const organizations = suggestionRegion
-      ? suggestedOrganizationsByRegion[suggestionRegion] || []
-      : Object.values(suggestedOrganizationsByRegion).flat();
+    const specialtyOrganizations = selectedMajorCategories.flatMap((category) =>
+      (suggestedOrganizationsByMajorCategory[category] || []).map(
+        (organization) => ({
+          ...organization,
+          sourceLabel: "حسب التخصص",
+        })
+      )
+    );
+    const regionOrganizations = suggestionRegion
+      ? (suggestedOrganizationsByRegion[suggestionRegion] || []).map(
+          (organization) => ({
+            ...organization,
+            sourceLabel: "حسب المدينة",
+          })
+        )
+      : [];
+    const fallbackOrganizations =
+      specialtyOrganizations.length === 0 && regionOrganizations.length === 0
+        ? Object.values(suggestedOrganizationsByRegion)
+            .flat()
+            .map((organization) => ({
+              ...organization,
+              sourceLabel: "اقتراح عام",
+            }))
+        : [];
 
-    return dedupeOrganizations(organizations).filter(
+    return dedupeOrganizations([
+      ...specialtyOrganizations,
+      ...regionOrganizations,
+      ...fallbackOrganizations,
+    ]).filter(
       (organization) =>
         !existingTargetNames.has(normalizeName(organization.name))
     );
-  }, [existingTargetNames, suggestionRegion]);
+  }, [existingTargetNames, selectedMajorCategories, suggestionRegion]);
 
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
@@ -728,31 +897,59 @@ export default function TrainingFinderPage() {
 
         {searched && !loading && !error && (
           <section style={{ display: "grid", gap: "14px" }}>
-            <h2
+            <div
               style={{
-                margin: 0,
-                color: "var(--app-text)",
-                fontSize: "20px",
-                lineHeight: 1.5,
+                display: "grid",
+                gridTemplateColumns: "auto minmax(0, 1fr)",
+                gap: "12px",
+                alignItems: "start",
+                paddingTop: "4px",
               }}
             >
-              شركات فيها تجارب سابقة في دربك
               <span
                 style={{
-                  display: "block",
-                  color: "var(--app-muted)",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                  marginTop: "4px",
+                  display: "inline-grid",
+                  placeItems: "center",
+                  width: "34px",
+                  height: "34px",
+                  borderRadius: "999px",
+                  background: "var(--app-brand)",
+                  color: "#07100e",
+                  fontSize: "16px",
+                  fontWeight: "900",
+                  boxShadow: "0 0 16px var(--app-brand-border)",
                 }}
               >
-                نتائج {selectedSpecialtyLabel}
-                {city ? ` في ${city}` : ""}
-                {selectedMajorCategoriesText
-                  ? ` - ضمن ${selectedMajorCategoriesText}`
-                  : ""}
+                1
               </span>
-            </h2>
+              <div>
+                <h2
+                  style={{
+                    margin: 0,
+                    color: "var(--app-text)",
+                    fontSize: "20px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  جهات ظهرت في تجارب دربك
+                </h2>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    color: "var(--app-muted)",
+                    fontSize: "13px",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  نتائج {selectedSpecialtyLabel}
+                  {city ? ` في ${city}` : ""}
+                  {selectedMajorCategoriesText
+                    ? ` - ضمن ${selectedMajorCategoriesText}`
+                    : ""}
+                  . هذه النتائج من تجارب شاركها الطلاب داخل دربك.
+                </p>
+              </div>
+            </div>
 
             {targets.length === 0 ? (
               <div
@@ -767,7 +964,7 @@ export default function TrainingFinderPage() {
                 }}
               >
                 ما لقينا تجارب مطابقة لهذا التخصص والمدينة حاليًا. جرّب
-                البحث بدون تحديد مدينة، أو استفد من الجهات المقترحة بالأسفل
+                البحث بدون تحديد مدينة، أو استفد من قسم الاقتراحات بالأسفل
                 كبداية للتقديم.
               </div>
             ) : (
@@ -928,39 +1125,93 @@ export default function TrainingFinderPage() {
               توفر فرصة تدريب حاليًا.
             </p>
 
+            {targets.length > 0 && suggestedOrganizations.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                  background: "linear-gradient(90deg, var(--app-brand-soft), transparent)",
+                  border: "1px solid var(--app-brand-border)",
+                  borderRadius: "14px",
+                  padding: "11px 13px",
+                  color: "var(--app-text-soft)",
+                  fontSize: "13px",
+                  lineHeight: 1.8,
+                }}
+              >
+                <strong style={{ color: "var(--app-brand)", fontSize: "14px" }}>
+                  اقتراحات إضافية تحت النتائج
+                </strong>
+                <span>
+                  إذا كانت جهات دربك كثيرة، كمل للأسفل بتلقى جهات مقترحة حسب
+                  تخصصك والمدينة المختارة.
+                </span>
+              </div>
+            )}
+
             <section
               style={{
                 display: "grid",
-                gap: "12px",
-                marginTop: "10px",
+                gap: "14px",
+                marginTop: "12px",
+                paddingTop: "18px",
+                borderTop: "1px solid var(--app-border)",
               }}
             >
-              <div>
-                <h2
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "auto minmax(0, 1fr)",
+                  gap: "12px",
+                  alignItems: "start",
+                }}
+              >
+                <span
                   style={{
-                    margin: "0 0 5px",
-                    color: "var(--app-text)",
-                    fontSize: "20px",
-                    lineHeight: 1.5,
+                    display: "inline-grid",
+                    placeItems: "center",
+                    width: "34px",
+                    height: "34px",
+                    borderRadius: "999px",
+                    background: "var(--app-input-bg)",
+                    border: "1px solid var(--app-brand-border)",
+                    color: "var(--app-brand)",
+                    fontSize: "16px",
+                    fontWeight: "900",
                   }}
                 >
-                  جهات نقترحها عليك للتقديم
-                </h2>
-                <p
-                  style={{
-                    margin: 0,
-                    color: "var(--app-muted)",
-                    fontSize: "13px",
-                    lineHeight: 1.8,
-                  }}
-                >
-                  هذه جهات نقترحها عليك تقدم فيها وليست موجودة ضمن نتائج تجارب
-                  دربك الحالية
-                  {suggestionRegion ? ` في ${suggestionRegion}` : " في المناطق المحددة"}.
-                </p>
+                  2
+                </span>
+                <div>
+                  <h2
+                    style={{
+                      margin: "0 0 5px",
+                      color: "var(--app-text)",
+                      fontSize: "20px",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    جهات مقترحة للتقديم
+                  </h2>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "var(--app-muted)",
+                      fontSize: "13px",
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    هذا القسم منفصل عن نتائج دربك: اقتراحات حسب تخصصك
+                    {suggestionRegion ? ` و${suggestionRegion}` : ""}
+                    ، ولا يعني ظهور الجهة توفر فرصة تدريب حاليًا.
+                  </p>
+                </div>
               </div>
 
-              {city && !suggestionRegion ? (
+              {suggestedOrganizations.length === 0 ? (
                 <div
                   style={{
                     background: "var(--app-surface)",
@@ -971,22 +1222,8 @@ export default function TrainingFinderPage() {
                     lineHeight: 1.8,
                   }}
                 >
-                  ما قدرنا نحدد منطقة هذه المدينة حاليًا، جرّب البحث بدون
-                  تحديد مدينة لعرض اقتراحات من كل المناطق.
-                </div>
-              ) : suggestedOrganizations.length === 0 ? (
-                <div
-                  style={{
-                    background: "var(--app-surface)",
-                    border: "1px solid var(--app-border)",
-                    borderRadius: "16px",
-                    padding: "16px",
-                    color: "var(--app-text-soft)",
-                    lineHeight: 1.8,
-                  }}
-                >
-                  كل الجهات المقترحة لهذه المنطقة موجودة بالفعل ضمن تجارب دربك
-                  الحالية.
+                  كل الجهات المقترحة حاليًا ظهرت ضمن نتائج تجارب دربك، جرّب
+                  البحث بتخصص أو مدينة أخرى.
                 </div>
               ) : (
                 <div
@@ -1010,16 +1247,40 @@ export default function TrainingFinderPage() {
                       }}
                     >
                       <div>
-                        <h3
+                        <div
                           style={{
-                            margin: "0 0 5px",
-                            color: "var(--app-brand)",
-                            fontSize: "17px",
-                            lineHeight: 1.4,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "8px",
+                            alignItems: "start",
+                            marginBottom: "5px",
                           }}
                         >
-                          {organization.name}
-                        </h3>
+                          <h3
+                            style={{
+                              margin: 0,
+                              color: "var(--app-brand)",
+                              fontSize: "17px",
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {organization.name}
+                          </h3>
+                          <span
+                            style={{
+                              flex: "0 0 auto",
+                              background: "var(--app-brand-soft)",
+                              border: "1px solid var(--app-brand-border)",
+                              color: "var(--app-text-soft)",
+                              borderRadius: "999px",
+                              padding: "4px 7px",
+                              fontSize: "11px",
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {organization.sourceLabel || "اقتراح"}
+                          </span>
+                        </div>
                         <p
                           style={{
                             margin: 0,
