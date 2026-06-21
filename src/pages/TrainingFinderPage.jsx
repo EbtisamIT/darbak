@@ -246,6 +246,32 @@ const dedupeOrganizations = (organizations = []) =>
     ).values()
   );
 
+const specializationOptions = Array.from(
+  majors
+    .reduce((optionsMap, majorGroup) => {
+      (majorGroup.subMajors || []).forEach((specialization) => {
+        const key = normalizeName(specialization);
+        const existingOption = optionsMap.get(key);
+
+        if (existingOption) {
+          if (!existingOption.categories.includes(majorGroup.name)) {
+            existingOption.categories.push(majorGroup.name);
+          }
+          return;
+        }
+
+        optionsMap.set(key, {
+          value: specialization,
+          label: specialization,
+          categories: [majorGroup.name],
+        });
+      });
+
+      return optionsMap;
+    }, new Map())
+    .values()
+).sort((a, b) => a.label.localeCompare(b.label, "ar"));
+
 const suggestedOrganizationsByRegion = {
   "منطقة الرياض": [
     { name: "stc", url: "https://www.stc.com.sa/", note: "اتصالات وتقنية" },
@@ -414,7 +440,7 @@ const resolveOrganizationHomepageUrl = (organizationName) => {
 };
 
 export default function TrainingFinderPage() {
-  const [majorCategory, setMajorCategory] = useState("");
+  const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [city, setCity] = useState("");
   const [targets, setTargets] = useState([]);
   const [searched, setSearched] = useState(false);
@@ -422,10 +448,17 @@ export default function TrainingFinderPage() {
   const [error, setError] = useState("");
   const [showAllTrainingTips, setShowAllTrainingTips] = useState(false);
 
-  const selectedMajorLabel = useMemo(
-    () => majors.find((major) => major.name === majorCategory)?.name || "",
-    [majorCategory]
+  const selectedSpecialtyOption = useMemo(
+    () =>
+      specializationOptions.find(
+        (option) => option.value === selectedSpecialty
+      ),
+    [selectedSpecialty]
   );
+  const selectedSpecialtyLabel =
+    selectedSpecialtyOption?.label || selectedSpecialty;
+  const selectedMajorCategories = selectedSpecialtyOption?.categories || [];
+  const selectedMajorCategoriesText = selectedMajorCategories.join("، ");
   const suggestionRegion = resolveSuggestionRegion(city);
   const existingTargetNames = useMemo(
     () => new Set(targets.map((target) => normalizeName(target.organizationName))),
@@ -445,8 +478,8 @@ export default function TrainingFinderPage() {
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
 
-    if (!majorCategory) {
-      setError("اختَر التخصص الرئيسي أولًا.");
+    if (!selectedSpecialty) {
+      setError("اختَر تخصصك أولًا.");
       return;
     }
 
@@ -456,7 +489,12 @@ export default function TrainingFinderPage() {
       setSearched(true);
 
       const { data } = await axios.get(`${API_BASE_URL}/api/training-targets`, {
-        params: { majorCategory, city },
+        params: {
+          major: selectedSpecialty,
+          majorCategory: selectedMajorCategories[0] || "",
+          majorCategories: selectedMajorCategories.join(","),
+          city,
+        },
       });
 
       setTargets(Array.isArray(data.data) ? data.data : []);
@@ -517,8 +555,8 @@ export default function TrainingFinderPage() {
               fontSize: "15px",
             }}
           >
-            اختَر تخصصك الرئيسي، وإذا ودك حدد المدينة، ونقترح لك جهات سبق أن
-            شارك الطلاب تجارب تدريبهم فيها.
+            اختَر تخصصك من القائمة، وإذا ودك حدد المدينة، ونقترح لك جهات سبق
+            أن شارك الطلاب تجارب تدريبهم فيها.
           </p>
         </header>
 
@@ -647,10 +685,10 @@ export default function TrainingFinderPage() {
           className="training-finder-form"
         >
           <label style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}>
-            التخصص الرئيسي
+            التخصص
             <select
-              value={majorCategory}
-              onChange={(event) => setMajorCategory(event.target.value)}
+              value={selectedSpecialty}
+              onChange={(event) => setSelectedSpecialty(event.target.value)}
               style={{
                 width: "100%",
                 padding: "12px",
@@ -661,10 +699,10 @@ export default function TrainingFinderPage() {
                 fontFamily: "inherit",
               }}
             >
-              <option value="">اختر التخصص</option>
-              {majors.map((major) => (
-                <option key={major.name} value={major.name}>
-                  {major.name}
+              <option value="">اختر تخصصك</option>
+              {specializationOptions.map((specialization) => (
+                <option key={specialization.value} value={specialization.value}>
+                  {specialization.label}
                 </option>
               ))}
             </select>
@@ -750,8 +788,11 @@ export default function TrainingFinderPage() {
                   marginTop: "4px",
                 }}
               >
-                نتائج {selectedMajorLabel}
+                نتائج {selectedSpecialtyLabel}
                 {city ? ` في ${city}` : ""}
+                {selectedMajorCategoriesText
+                  ? ` - ضمن ${selectedMajorCategoriesText}`
+                  : ""}
               </span>
             </h2>
 
@@ -767,8 +808,9 @@ export default function TrainingFinderPage() {
                   lineHeight: 1.8,
                 }}
               >
-                ما لقينا جهات مطابقة في التجارب الحالية. جرّب مدينة أخرى أو
-                ابحث بدون تحديد مدينة.
+                ما لقينا تجارب مطابقة لهذا التخصص والمدينة حاليًا. جرّب
+                البحث بدون تحديد مدينة، أو استفد من الجهات المقترحة بالأسفل
+                كبداية للتقديم.
               </div>
             ) : (
               <div

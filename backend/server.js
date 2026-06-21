@@ -150,29 +150,50 @@ app.get('/api/training-targets', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
+    const major = (req.query.major || "").trim();
     const majorCategory = (req.query.majorCategory || "").trim();
+    const majorCategories = Array.from(
+      new Set(
+        [
+          majorCategory,
+          ...(req.query.majorCategories || "")
+            .split(",")
+            .map((item) => item.trim()),
+        ].filter(Boolean)
+      )
+    );
     const city = (req.query.city || "").trim();
 
-    if (!majorCategory) {
-      return res.status(400).json({ error: "majorCategory is required" });
+    if (!major && majorCategories.length === 0) {
+      return res.status(400).json({ error: "major or majorCategory is required" });
     }
 
     const filter = {
       $or: [{ status: "approved" }, { status: { $exists: false } }],
-      majorCategory,
     };
+
+    const majorFilters = [];
+    if (major) majorFilters.push({ major });
+    if (majorCategories.length > 0) {
+      majorFilters.push({ majorCategory: { $in: majorCategories } });
+    }
+
+    if (majorFilters.length > 0) {
+      filter.$and = [{ $or: majorFilters }];
+    }
 
     if (city) {
       filter.city = city;
     }
 
     const experiences = await Experience.find(filter)
-      .select("organizationName city major howApplied")
+      .select("organizationName city major majorCategory howApplied")
       .sort({ createdAt: -1 })
       .limit(500)
       .lean();
 
     const groupedTargets = new Map();
+    const normalizedMajor = normalizeSearchText(major);
 
     experiences.forEach((exp) => {
       const organizationName = (exp.organizationName || "").trim();
@@ -187,11 +208,15 @@ app.get('/api/training-targets', async (req, res) => {
           majors: new Set(),
           methods: new Set(),
           count: 0,
+          exactMajorCount: 0,
         });
       }
 
       const target = groupedTargets.get(key);
       target.count += 1;
+      if (normalizedMajor && normalizeSearchText(exp.major) === normalizedMajor) {
+        target.exactMajorCount += 1;
+      }
 
       if (exp.city) target.cities.add(exp.city);
       const readableMajor = getReadableMajor(exp.major, exp.majorCategory);
@@ -206,8 +231,14 @@ app.get('/api/training-targets', async (req, res) => {
         majors: Array.from(target.majors),
         methods: Array.from(target.methods),
         count: target.count,
+        exactMajorCount: target.exactMajorCount,
       }))
-      .sort((a, b) => b.count - a.count || a.organizationName.localeCompare(b.organizationName, "ar"))
+      .sort(
+        (a, b) =>
+          b.exactMajorCount - a.exactMajorCount ||
+          b.count - a.count ||
+          a.organizationName.localeCompare(b.organizationName, "ar")
+      )
       .slice(0, 30);
 
     res.json({ data, total: data.length });
