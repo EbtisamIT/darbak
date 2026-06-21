@@ -556,7 +556,7 @@ export default function TrainingFinderPage() {
                 fontWeight: "900",
               }}
             >
-              دليل تفاعلي 2026
+              للطلاب المقبلين على التدريب
             </span>
             <h2
               style={{
@@ -566,7 +566,7 @@ export default function TrainingFinderPage() {
                 lineHeight: 1.35,
               }}
             >
-              حبل النجاة للتدريب التعاوني لعام 2026
+              لا تبدأ رحلة التدريب من الصفر
             </h2>
             <p
               style={{
@@ -577,13 +577,14 @@ export default function TrainingFinderPage() {
                 maxWidth: "660px",
               }}
             >
-              اختصرنا عليك مجهود الشهور: دليل تفاعلي شامل للتقديم على أكثر
-              من 700 جهة، مع متابعة طلباتك خطوة بخطوة.
+              جهزنا لك حزمة دربك للتقديم على التدريب التعاوني لعام 2026:
+              أكثر من 700 جهة، روابط وإيميلات، وطريقة سهلة تتابع فيها طلباتك
+              خطوة بخطوة.
             </p>
           </div>
 
           <a
-            href="https://darbakk.com/"
+            href="https://darbakk.com/%D8%AD%D8%B2%D9%85%D8%A9-%D8%AF%D8%B1%D8%A8%D9%83-%D9%84%D9%84%D8%AA%D9%82%D8%AF%D9%8A%D9%85-%D8%B9%D9%84%D9%89-%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8-%D8%A7%D9%84%D8%AA%D8%B9%D8%A7%D9%88%D9%86%D9%8A-%D8%AC%D9%87%D8%A7%D8%AA-%D8%A5%D9%8A%D9%85%D9%8A%D9%84%D8%A7%D8%AA-%D8%B1%D9%88%D8%A7%D8%A8%D8%B7-%D9%85%D8%AA%D8%A7%D8%A8%D8%B9%D8%A9/p2135973764"
             target="_blank"
             rel="noopener noreferrer"
             style={{ textDecoration: "none" }}
@@ -606,7 +607,7 @@ export default function TrainingFinderPage() {
                 boxShadow: "0 0 18px var(--app-brand-border)",
               }}
             >
-              احصل على دليلك التفاعلي الآن بـ 25 ريال فقط
+              ابدأ الآن بـ 25 ريال فقط
             </button>
           </a>
         </section>
