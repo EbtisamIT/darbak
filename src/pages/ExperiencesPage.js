@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
+import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import API_BASE_URL from "../config/api";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v1";
@@ -981,6 +982,14 @@ const ExperiencesPage = () => {
           padding: "15px 12px",
         }}
       >
+        <TrainingGuideBanner
+          compact
+          style={{
+            width: "min(100%, 980px)",
+            margin: "0 auto 18px",
+          }}
+        />
+
         <div className="experience-controls-sticky">
           <div
             className="mobile-majors-menu"
