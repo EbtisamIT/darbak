@@ -95,7 +95,7 @@ const cityOptions = [
 ];
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
-const SHOW_TRAINING_GUIDE_BANNER = false;
+const SHOW_TRAINING_GUIDE_BANNER = true;
 
 const normalizeName = (value = "") =>
   value
