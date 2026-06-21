@@ -95,6 +95,7 @@ const cityOptions = [
 ];
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
+const SHOW_TRAINING_GUIDE_BANNER = false;
 
 const normalizeName = (value = "") =>
   value
@@ -496,99 +497,101 @@ export default function TrainingFinderPage() {
           gap: "18px",
         }}
       >
-        <section
-          className="training-guide-banner"
-          aria-label="دليل التقديم على التدريب التعاوني لعام 2026"
-          style={{
-            position: "relative",
-            overflow: "hidden",
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) auto",
-            gap: "16px",
-            alignItems: "center",
-            background:
-              "linear-gradient(135deg, rgba(125,219,205,0.18), var(--app-surface) 52%, rgba(245,158,11,0.12))",
-            border: "1px solid var(--app-brand-border)",
-            borderRadius: "18px",
-            padding: "18px",
-            boxShadow: "0 16px 36px var(--app-shadow)",
-          }}
-        >
-          <div style={{ display: "grid", gap: "7px" }}>
-            <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
-              {["🌟 للطلاب المقبلين على التدريب", "✅ أكثر من 700 جهة"].map(
-                (badge) => (
-                  <span
-                    key={badge}
-                    style={{
-                      width: "fit-content",
-                      background: "rgba(245,158,11,0.14)",
-                      border: "1px solid rgba(245,158,11,0.28)",
-                      color: "#facc15",
-                      borderRadius: "999px",
-                      padding: "5px 10px",
-                      fontSize: "12px",
-                      fontWeight: "900",
-                    }}
-                  >
-                    {badge}
-                  </span>
-                )
-              )}
-            </div>
-            <h2
-              style={{
-                margin: 0,
-                color: "var(--app-text)",
-                fontSize: "clamp(20px, 3vw, 30px)",
-                lineHeight: 1.35,
-              }}
-            >
-              لا تبدأ رحلة التدريب من الصفر 🌟
-            </h2>
-            <p
-              style={{
-                margin: 0,
-                color: "var(--app-text-soft)",
-                fontSize: "14px",
-                lineHeight: 1.8,
-                maxWidth: "660px",
-              }}
-            >
-              جهزنا لك حزمة دربك للتقديم على التدريب التعاوني لعام 2026 ✅
-              أكثر من 700 جهة، روابط وإيميلات، وطريقة سهلة تتابع فيها طلباتك
-              خطوة بخطوة.
-            </p>
-          </div>
-
-          <a
-            href="https://darbakk.com/%D8%AD%D8%B2%D9%85%D8%A9-%D8%AF%D8%B1%D8%A8%D9%83-%D9%84%D9%84%D8%AA%D9%82%D8%AF%D9%8A%D9%85-%D8%B9%D9%84%D9%89-%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8-%D8%A7%D9%84%D8%AA%D8%B9%D8%A7%D9%88%D9%86%D9%8A-%D8%AC%D9%87%D8%A7%D8%AA-%D8%A5%D9%8A%D9%85%D9%8A%D9%84%D8%A7%D8%AA-%D8%B1%D9%88%D8%A7%D8%A8%D8%B7-%D9%85%D8%AA%D8%A7%D8%A8%D8%B9%D8%A9/p2135973764"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ textDecoration: "none" }}
+        {SHOW_TRAINING_GUIDE_BANNER && (
+          <section
+            className="training-guide-banner"
+            aria-label="دليل التقديم على التدريب التعاوني لعام 2026"
+            style={{
+              position: "relative",
+              overflow: "hidden",
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) auto",
+              gap: "16px",
+              alignItems: "center",
+              background:
+                "linear-gradient(135deg, rgba(125,219,205,0.18), var(--app-surface) 52%, rgba(245,158,11,0.12))",
+              border: "1px solid var(--app-brand-border)",
+              borderRadius: "18px",
+              padding: "18px",
+              boxShadow: "0 16px 36px var(--app-shadow)",
+            }}
           >
-            <button
-              type="button"
-              style={{
-                background: "var(--app-brand)",
-                color: "#07100e",
-                border: "none",
-                borderRadius: "14px",
-                padding: "12px 16px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                fontWeight: "900",
-                fontSize: "13px",
-                lineHeight: 1.6,
-                whiteSpace: "normal",
-                maxWidth: "230px",
-                boxShadow: "0 0 18px var(--app-brand-border)",
-              }}
+            <div style={{ display: "grid", gap: "7px" }}>
+              <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
+                {["🌟 للطلاب المقبلين على التدريب", "✅ أكثر من 700 جهة"].map(
+                  (badge) => (
+                    <span
+                      key={badge}
+                      style={{
+                        width: "fit-content",
+                        background: "rgba(245,158,11,0.14)",
+                        border: "1px solid rgba(245,158,11,0.28)",
+                        color: "#facc15",
+                        borderRadius: "999px",
+                        padding: "5px 10px",
+                        fontSize: "12px",
+                        fontWeight: "900",
+                      }}
+                    >
+                      {badge}
+                    </span>
+                  )
+                )}
+              </div>
+              <h2
+                style={{
+                  margin: 0,
+                  color: "var(--app-text)",
+                  fontSize: "clamp(20px, 3vw, 30px)",
+                  lineHeight: 1.35,
+                }}
+              >
+                لا تبدأ رحلة التدريب من الصفر 🌟
+              </h2>
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--app-text-soft)",
+                  fontSize: "14px",
+                  lineHeight: 1.8,
+                  maxWidth: "660px",
+                }}
+              >
+                جهزنا لك حزمة دربك للتقديم على التدريب التعاوني لعام 2026 ✅
+                أكثر من 700 جهة، روابط وإيميلات، وطريقة سهلة تتابع فيها طلباتك
+                خطوة بخطوة.
+              </p>
+            </div>
+
+            <a
+              href="https://darbakk.com/%D8%AD%D8%B2%D9%85%D8%A9-%D8%AF%D8%B1%D8%A8%D9%83-%D9%84%D9%84%D8%AA%D9%82%D8%AF%D9%8A%D9%85-%D8%B9%D9%84%D9%89-%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8-%D8%A7%D9%84%D8%AA%D8%B9%D8%A7%D9%88%D9%86%D9%8A-%D8%AC%D9%87%D8%A7%D8%AA-%D8%A5%D9%8A%D9%85%D9%8A%D9%84%D8%A7%D8%AA-%D8%B1%D9%88%D8%A7%D8%A8%D8%B7-%D9%85%D8%AA%D8%A7%D8%A8%D8%B9%D8%A9/p2135973764"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ textDecoration: "none" }}
             >
-              ابدأ الآن بـ 25 ريال فقط ✅
-            </button>
-          </a>
-        </section>
+              <button
+                type="button"
+                style={{
+                  background: "var(--app-brand)",
+                  color: "#07100e",
+                  border: "none",
+                  borderRadius: "14px",
+                  padding: "12px 16px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: "900",
+                  fontSize: "13px",
+                  lineHeight: 1.6,
+                  whiteSpace: "normal",
+                  maxWidth: "230px",
+                  boxShadow: "0 0 18px var(--app-brand-border)",
+                }}
+              >
+                ابدأ الآن بـ 25 ريال فقط ✅
+              </button>
+            </a>
+          </section>
+        )}
 
         <header style={{ textAlign: "center" }}>
           <p
