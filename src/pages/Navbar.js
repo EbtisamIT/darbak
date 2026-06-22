@@ -149,12 +149,12 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   return (
     <header
       style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 1800,
+        position: isMobile ? "static" : "sticky",
+        top: isMobile ? "auto" : 0,
+        zIndex: isMobile ? "auto" : 1800,
         width: "100%",
         background: "var(--app-surface)",
-        boxShadow: "0 10px 24px rgba(0,0,0,0.12)",
+        boxShadow: isMobile ? "none" : "0 10px 24px rgba(0,0,0,0.12)",
       }}
     >
       <nav
