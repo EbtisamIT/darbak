@@ -219,6 +219,69 @@ const dedupeOrganizations = (organizations = []) =>
     ).values()
   );
 
+const getOrganizationDomain = (url = "") => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
+const getOrganizationLogoUrl = (url = "") => {
+  const domain = getOrganizationDomain(url);
+  if (!domain) return "";
+  return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+};
+
+const getOrganizationInitial = (name = "") => {
+  const firstLetter = name.trim().replace(/[^\u0600-\u06FFA-Za-z0-9]/g, "")[0];
+  return firstLetter || "د";
+};
+
+const OrganizationLogo = ({ name, url }) => {
+  const [hasImageError, setHasImageError] = useState(false);
+  const logoUrl = getOrganizationLogoUrl(url);
+  const initial = getOrganizationInitial(name);
+
+  return (
+    <span
+      className="suggested-organization-logo"
+      aria-hidden="true"
+      style={{
+        width: "42px",
+        height: "42px",
+        borderRadius: "14px",
+        display: "inline-grid",
+        placeItems: "center",
+        flex: "0 0 auto",
+        background: "var(--app-brand-soft)",
+        border: "1px solid var(--app-brand-border)",
+        color: "var(--app-brand)",
+        fontSize: "18px",
+        fontWeight: "900",
+        overflow: "hidden",
+      }}
+    >
+      {logoUrl && !hasImageError ? (
+        <img
+          src={logoUrl}
+          alt=""
+          loading="lazy"
+          onError={() => setHasImageError(true)}
+          style={{
+            width: "24px",
+            height: "24px",
+            objectFit: "contain",
+            borderRadius: "6px",
+          }}
+        />
+      ) : (
+        initial
+      )}
+    </span>
+  );
+};
+
 const specializationOptions = Array.from(
   majors
     .reduce((optionsMap, majorGroup) => {
@@ -1282,50 +1345,108 @@ export default function TrainingFinderPage() {
                         gap: "10px",
                       }}
                     >
-                      <div>
-                        <div
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "auto minmax(0, 1fr)",
+                          gap: "10px",
+                          alignItems: "start",
+                        }}
+                      >
+                        <OrganizationLogo
+                          name={organization.name}
+                          url={organization.url}
+                        />
+                        <div>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: "8px",
+                              alignItems: "start",
+                              marginBottom: "5px",
+                            }}
+                          >
+                            <h3
+                              style={{
+                                margin: 0,
+                                color: "var(--app-brand)",
+                                fontSize: "17px",
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              {organization.name}
+                            </h3>
+                            <span
+                              style={{
+                                flex: "0 0 auto",
+                                background: "var(--app-brand-soft)",
+                                border: "1px solid var(--app-brand-border)",
+                                color: "var(--app-text-soft)",
+                                borderRadius: "999px",
+                                padding: "4px 7px",
+                                fontSize: "11px",
+                                lineHeight: 1.3,
+                              }}
+                            >
+                              {organization.sourceLabel || "اقتراح"}
+                            </span>
+                          </div>
+                          <p
+                            style={{
+                              margin: 0,
+                              color: "var(--app-text-soft)",
+                              fontSize: "12px",
+                              lineHeight: 1.7,
+                            }}
+                          >
+                            {organization.note}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: "7px",
+                          background: "var(--app-card)",
+                          border: "1px solid var(--app-border)",
+                          borderRadius: "12px",
+                          padding: "10px",
+                        }}
+                      >
+                        <p
                           style={{
                             display: "flex",
                             justifyContent: "space-between",
-                            gap: "8px",
-                            alignItems: "start",
-                            marginBottom: "5px",
+                            gap: "10px",
+                            margin: 0,
+                            color: "var(--app-text-soft)",
+                            fontSize: "12px",
+                            lineHeight: 1.6,
                           }}
                         >
-                          <h3
+                          <span style={{ color: "var(--app-muted)" }}>مناسب لـ</span>
+                          <strong
                             style={{
-                              margin: 0,
                               color: "var(--app-brand)",
-                              fontSize: "17px",
-                              lineHeight: 1.4,
+                              fontWeight: "800",
+                              textAlign: "left",
                             }}
                           >
-                            {organization.name}
-                          </h3>
-                          <span
-                            style={{
-                              flex: "0 0 auto",
-                              background: "var(--app-brand-soft)",
-                              border: "1px solid var(--app-brand-border)",
-                              color: "var(--app-text-soft)",
-                              borderRadius: "999px",
-                              padding: "4px 7px",
-                              fontSize: "11px",
-                              lineHeight: 1.3,
-                            }}
-                          >
-                            {organization.sourceLabel || "اقتراح"}
-                          </span>
-                        </div>
+                            {selectedSpecialtyLabel}
+                          </strong>
+                        </p>
                         <p
                           style={{
                             margin: 0,
                             color: "var(--app-text-soft)",
                             fontSize: "12px",
-                            lineHeight: 1.7,
+                            lineHeight: 1.75,
                           }}
                         >
-                          {organization.note}
+                          ابحث في الموقع الرسمي عن التدريب، الوظائف، أو برامج
+                          الخريجين، وتابع لينكدإن للجهة إذا توفر.
                         </p>
                       </div>
                       <a
