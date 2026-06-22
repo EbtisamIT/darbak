@@ -897,203 +897,200 @@ export default function TrainingFinderPage() {
 
         {searched && !loading && !error && (
           <section style={{ display: "grid", gap: "14px" }}>
-            <div
+            <section
               style={{
                 display: "grid",
-                gridTemplateColumns: "auto minmax(0, 1fr)",
-                gap: "12px",
-                alignItems: "start",
-                paddingTop: "4px",
+                gap: "14px",
+                order: targets.length === 0 ? 2 : 1,
+                paddingTop: targets.length === 0 ? "16px" : 0,
+                borderTop:
+                  targets.length === 0 ? "1px solid var(--app-border)" : "none",
               }}
             >
-              <span
+              <div
                 style={{
-                  display: "inline-grid",
-                  placeItems: "center",
-                  width: "34px",
-                  height: "34px",
-                  borderRadius: "999px",
-                  background: "var(--app-brand)",
-                  color: "#07100e",
-                  fontSize: "16px",
-                  fontWeight: "900",
-                  boxShadow: "0 0 16px var(--app-brand-border)",
+                  display: "grid",
+                  gridTemplateColumns: "auto minmax(0, 1fr)",
+                  gap: "12px",
+                  alignItems: "start",
+                  paddingTop: "4px",
                 }}
               >
-                1
-              </span>
-              <div>
-                <h2
+                <span
                   style={{
-                    margin: 0,
-                    color: "var(--app-text)",
-                    fontSize: "20px",
-                    lineHeight: 1.5,
+                    display: "inline-grid",
+                    placeItems: "center",
+                    width: "34px",
+                    height: "34px",
+                    borderRadius: "999px",
+                    background:
+                      targets.length === 0
+                        ? "var(--app-input-bg)"
+                        : "var(--app-brand)",
+                    border:
+                      targets.length === 0
+                        ? "1px solid var(--app-brand-border)"
+                        : "none",
+                    color: targets.length === 0 ? "var(--app-brand)" : "#07100e",
+                    fontSize: "16px",
+                    fontWeight: "900",
+                    boxShadow:
+                      targets.length === 0
+                        ? "none"
+                        : "0 0 16px var(--app-brand-border)",
                   }}
                 >
-                  جهات ظهرت في تجارب دربك
-                </h2>
-                <p
+                  {targets.length === 0 ? "2" : "1"}
+                </span>
+                <div>
+                  <h2
+                    style={{
+                      margin: 0,
+                      color: "var(--app-text)",
+                      fontSize: "20px",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    جهات ظهرت في تجارب دربك
+                  </h2>
+                  <p
+                    style={{
+                      margin: "4px 0 0",
+                      color: "var(--app-muted)",
+                      fontSize: "13px",
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    نتائج {selectedSpecialtyLabel}
+                    {city ? ` في ${city}` : ""}
+                    {selectedMajorCategoriesText
+                      ? ` - ضمن ${selectedMajorCategoriesText}`
+                      : ""}
+                    . هذه النتائج من تجارب شاركها الطلاب داخل دربك.
+                  </p>
+                </div>
+              </div>
+
+              {targets.length === 0 ? (
+                <div
                   style={{
-                    margin: "4px 0 0",
-                    color: "var(--app-muted)",
-                    fontSize: "13px",
+                    background: "var(--app-surface)",
+                    border: "1px solid var(--app-border)",
+                    borderRadius: "16px",
+                    padding: "18px",
+                    textAlign: "center",
+                    color: "var(--app-text-soft)",
                     lineHeight: 1.8,
                   }}
                 >
-                  نتائج {selectedSpecialtyLabel}
-                  {city ? ` في ${city}` : ""}
-                  {selectedMajorCategoriesText
-                    ? ` - ضمن ${selectedMajorCategoriesText}`
-                    : ""}
-                  . هذه النتائج من تجارب شاركها الطلاب داخل دربك.
-                </p>
-              </div>
-            </div>
+                  ما فيه تجارب كافية من دربك لهذا التخصص أو المدينة حتى الآن.
+                  عرضنا لك الاقتراحات بالأعلى كبداية للتقديم، وإذا وصلت تجارب
+                  مطابقة لاحقًا بتظهر هنا تلقائيًا.
+                </div>
+              ) : (
+                <div
+                  className="training-targets-grid"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: "12px",
+                  }}
+                >
+                  {targets.map((target) => {
+                    const organizationHomepageUrl = resolveOrganizationHomepageUrl(
+                      target.organizationName
+                    );
 
-            {targets.length === 0 ? (
-              <div
-                style={{
-                  background: "var(--app-surface)",
-                  border: "1px solid var(--app-border)",
-                  borderRadius: "16px",
-                  padding: "18px",
-                  textAlign: "center",
-                  color: "var(--app-text-soft)",
-                  lineHeight: 1.8,
-                }}
-              >
-                ما لقينا تجارب مطابقة لهذا التخصص والمدينة حاليًا. جرّب
-                البحث بدون تحديد مدينة، أو استفد من قسم الاقتراحات بالأسفل
-                كبداية للتقديم.
-              </div>
-            ) : (
-              <div
-                className="training-targets-grid"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: "12px",
-                }}
-              >
-                {targets.map((target) => {
-                  const organizationHomepageUrl = resolveOrganizationHomepageUrl(
-                    target.organizationName
-                  );
-
-                  return (
-                    <article
-                      key={target.organizationName}
-                      style={{
-                        background: "var(--app-surface)",
-                        border: "1px solid var(--app-border)",
-                        borderRadius: "16px",
-                        padding: "16px",
-                        display: "grid",
-                        gap: "12px",
-                        boxShadow: "0 10px 24px var(--app-shadow)",
-                      }}
-                    >
-                      <div>
-                        <h3
-                          style={{
-                            margin: "0 0 6px",
-                            color: "var(--app-brand)",
-                            fontSize: "24px",
-                            lineHeight: 1.3,
-                          }}
-                        >
-                          {target.organizationName}
-                        </h3>
-                        <p
-                          style={{
-                            margin: 0,
-                            color: "var(--app-text-soft)",
-                            fontSize: "13px",
-                          }}
-                        >
-                          {target.cities?.join("، ") || "مدينة غير محددة"}
-                        </p>
-                      </div>
-
-                      <div
+                    return (
+                      <article
+                        key={target.organizationName}
                         style={{
-                          background: "var(--app-card)",
+                          background: "var(--app-surface)",
                           border: "1px solid var(--app-border)",
-                          borderRadius: "12px",
-                          padding: "11px",
+                          borderRadius: "16px",
+                          padding: "16px",
+                          display: "grid",
+                          gap: "12px",
+                          boxShadow: "0 10px 24px var(--app-shadow)",
                         }}
                       >
-                        <p style={{ margin: "0 0 7px", color: "var(--app-brand)", fontWeight: "800", fontSize: "13px" }}>
-                          سبق أن تدرب فيها طلاب من:
-                        </p>
-                        <p style={{ margin: 0, color: "var(--app-text-soft)", fontSize: "13px", lineHeight: 1.7 }}>
-                          {target.majors?.length ? target.majors.join("، ") : "تخصصات غير محددة"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p style={{ margin: "0 0 8px", color: "var(--app-brand)", fontWeight: "800", fontSize: "13px" }}>
-                          طرق الحصول على الفرصة المذكورة:
-                        </p>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "7px" }}>
-                          {(target.methods?.length ? target.methods : ["غير محدد"]).map((method) => (
-                            <span
-                              key={method}
-                              style={{
-                                background: "var(--app-brand-soft)",
-                                border: "1px solid var(--app-brand-border)",
-                                color: "var(--app-text-soft)",
-                                borderRadius: "999px",
-                                padding: "6px 9px",
-                                fontSize: "12px",
-                              }}
-                            >
-                              {method}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                        <Link
-                          to={{
-                            pathname: "/experiences",
-                            search: `?company=${encodeURIComponent(
-                              target.organizationName
-                            )}`,
-                          }}
-                          style={{ textDecoration: "none" }}
-                        >
-                          <button
-                            type="button"
+                        <div>
+                          <h3
                             style={{
-                              background: "var(--app-brand)",
-                              color: "#07100e",
-                              border: "none",
-                              borderRadius: "10px",
-                              padding: "9px 12px",
-                              fontFamily: "inherit",
-                              fontWeight: "800",
-                              cursor: "pointer",
+                              margin: "0 0 6px",
+                              color: "var(--app-brand)",
+                              fontSize: "24px",
+                              lineHeight: 1.3,
                             }}
                           >
-                            قراءة التجارب
-                          </button>
-                        </Link>
-                        {organizationHomepageUrl && (
-                          <a
-                            href={organizationHomepageUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            {target.organizationName}
+                          </h3>
+                          <p
+                            style={{
+                              margin: 0,
+                              color: "var(--app-text-soft)",
+                              fontSize: "13px",
+                            }}
+                          >
+                            {target.cities?.join("، ") || "مدينة غير محددة"}
+                          </p>
+                        </div>
+
+                        <div
+                          style={{
+                            background: "var(--app-card)",
+                            border: "1px solid var(--app-border)",
+                            borderRadius: "12px",
+                            padding: "11px",
+                          }}
+                        >
+                          <p style={{ margin: "0 0 7px", color: "var(--app-brand)", fontWeight: "800", fontSize: "13px" }}>
+                            سبق أن تدرب فيها طلاب من:
+                          </p>
+                          <p style={{ margin: 0, color: "var(--app-text-soft)", fontSize: "13px", lineHeight: 1.7 }}>
+                            {target.majors?.length ? target.majors.join("، ") : "تخصصات غير محددة"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p style={{ margin: "0 0 8px", color: "var(--app-brand)", fontWeight: "800", fontSize: "13px" }}>
+                            طرق الحصول على الفرصة المذكورة:
+                          </p>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "7px" }}>
+                            {(target.methods?.length ? target.methods : ["غير محدد"]).map((method) => (
+                              <span
+                                key={method}
+                                style={{
+                                  background: "var(--app-brand-soft)",
+                                  border: "1px solid var(--app-brand-border)",
+                                  color: "var(--app-text-soft)",
+                                  borderRadius: "999px",
+                                  padding: "6px 9px",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                {method}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <Link
+                            to={{
+                              pathname: "/experiences",
+                              search: `?company=${encodeURIComponent(
+                                target.organizationName
+                              )}`,
+                            }}
                             style={{ textDecoration: "none" }}
                           >
                             <button
                               type="button"
                               style={{
-                                background: "var(--app-input-bg)",
-                                color: "var(--app-brand)",
-                                border: "1px solid var(--app-brand-border)",
+                                background: "var(--app-brand)",
+                                color: "#07100e",
+                                border: "none",
                                 borderRadius: "10px",
                                 padding: "9px 12px",
                                 fontFamily: "inherit",
@@ -1101,64 +1098,93 @@ export default function TrainingFinderPage() {
                                 cursor: "pointer",
                               }}
                             >
-                              زيارة صفحة الجهة
+                              قراءة التجارب
                             </button>
-                          </a>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
+                          </Link>
+                          {organizationHomepageUrl && (
+                            <a
+                              href={organizationHomepageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ textDecoration: "none" }}
+                            >
+                              <button
+                                type="button"
+                                style={{
+                                  background: "var(--app-input-bg)",
+                                  color: "var(--app-brand)",
+                                  border: "1px solid var(--app-brand-border)",
+                                  borderRadius: "10px",
+                                  padding: "9px 12px",
+                                  fontFamily: "inherit",
+                                  fontWeight: "800",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                زيارة صفحة الجهة
+                              </button>
+                            </a>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
 
-            <p
-              style={{
-                margin: "6px 0 0",
-                color: "var(--app-muted)",
-                fontSize: "13px",
-                lineHeight: 1.8,
-                textAlign: "center",
-              }}
-            >
-              الجهات المعروضة مبنية على تجارب طلاب سابقة، ولا يعني ظهور الجهة
-              توفر فرصة تدريب حاليًا.
-            </p>
+              {targets.length > 0 && (
+                <p
+                  style={{
+                    margin: "6px 0 0",
+                    color: "var(--app-muted)",
+                    fontSize: "13px",
+                    lineHeight: 1.8,
+                    textAlign: "center",
+                  }}
+                >
+                  الجهات المعروضة مبنية على تجارب طلاب سابقة، ولا يعني ظهور
+                  الجهة توفر فرصة تدريب حاليًا.
+                </p>
+              )}
 
-            {targets.length > 0 && suggestedOrganizations.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: "12px",
-                  flexWrap: "wrap",
-                  background: "linear-gradient(90deg, var(--app-brand-soft), transparent)",
-                  border: "1px solid var(--app-brand-border)",
-                  borderRadius: "14px",
-                  padding: "11px 13px",
-                  color: "var(--app-text-soft)",
-                  fontSize: "13px",
-                  lineHeight: 1.8,
-                }}
-              >
-                <strong style={{ color: "var(--app-brand)", fontSize: "14px" }}>
-                  اقتراحات إضافية تحت النتائج
-                </strong>
-                <span>
-                  إذا كانت جهات دربك كثيرة، كمل للأسفل بتلقى جهات مقترحة حسب
-                  تخصصك والمدينة المختارة.
-                </span>
-              </div>
-            )}
+              {targets.length > 0 && suggestedOrganizations.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                    background:
+                      "linear-gradient(90deg, var(--app-brand-soft), transparent)",
+                    border: "1px solid var(--app-brand-border)",
+                    borderRadius: "14px",
+                    padding: "11px 13px",
+                    color: "var(--app-text-soft)",
+                    fontSize: "13px",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  <strong style={{ color: "var(--app-brand)", fontSize: "14px" }}>
+                    اقتراحات إضافية تحت النتائج
+                  </strong>
+                  <span>
+                    إذا كانت جهات دربك كثيرة، كمل للأسفل بتلقى جهات مقترحة حسب
+                    تخصصك والمدينة المختارة.
+                  </span>
+                </div>
+              )}
+            </section>
 
             <section
               style={{
                 display: "grid",
                 gap: "14px",
-                marginTop: "12px",
-                paddingTop: "18px",
-                borderTop: "1px solid var(--app-border)",
+                order: targets.length === 0 ? 1 : 2,
+                marginTop: targets.length === 0 ? 0 : "12px",
+                paddingTop: targets.length === 0 ? "4px" : "18px",
+                borderTop:
+                  targets.length === 0 ? "none" : "1px solid var(--app-border)",
               }}
             >
               <div
@@ -1176,14 +1202,24 @@ export default function TrainingFinderPage() {
                     width: "34px",
                     height: "34px",
                     borderRadius: "999px",
-                    background: "var(--app-input-bg)",
-                    border: "1px solid var(--app-brand-border)",
-                    color: "var(--app-brand)",
+                    background:
+                      targets.length === 0
+                        ? "var(--app-brand)"
+                        : "var(--app-input-bg)",
+                    border:
+                      targets.length === 0
+                        ? "none"
+                        : "1px solid var(--app-brand-border)",
+                    color: targets.length === 0 ? "#07100e" : "var(--app-brand)",
                     fontSize: "16px",
                     fontWeight: "900",
+                    boxShadow:
+                      targets.length === 0
+                        ? "0 0 16px var(--app-brand-border)"
+                        : "none",
                   }}
                 >
-                  2
+                  {targets.length === 0 ? "1" : "2"}
                 </span>
                 <div>
                   <h2
