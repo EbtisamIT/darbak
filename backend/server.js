@@ -265,6 +265,7 @@ app.post('/api/experiences', async (req, res) => {
       req.body.trainingYear,
       req.body.wasHired,
       req.body.hadReward,
+      req.body.rewardAmount,
       req.body.trainingEnvironment,
       req.body.benefitedFromTraining,
       req.body.wouldRecommend,
@@ -287,8 +288,12 @@ app.post('/api/experiences', async (req, res) => {
       });
     }
 
+    const rewardAmount =
+      typeof req.body.rewardAmount === "string" ? req.body.rewardAmount.trim() : "";
+
     const newExp = new Experience({
       ...req.body,
+      rewardAmount: req.body.hadReward === "yes" ? rewardAmount : "",
       status: "pending",
     });
     await newExp.save();
@@ -501,6 +506,7 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
       "trainingYear",
       "wasHired",
       "hadReward",
+      "rewardAmount",
       "trainingEnvironment",
       "benefitedFromTraining",
       "wouldRecommend",
@@ -518,6 +524,17 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
         updates[field] = req.body[field];
       }
     });
+
+    if (typeof updates.rewardAmount === "string") {
+      updates.rewardAmount = updates.rewardAmount.trim();
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(updates, "hadReward") &&
+      updates.hadReward !== "yes"
+    ) {
+      updates.rewardAmount = "";
+    }
 
     if (
       Object.prototype.hasOwnProperty.call(updates, "majorCategory") &&

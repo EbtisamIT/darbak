@@ -57,6 +57,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const [trainingYear, setTrainingYear] = useState(savedDraft?.trainingYear || "");
   const [wasHired, setWasHired] = useState(getYesNoDraftValue(savedDraft?.wasHired));
   const [hadReward, setHadReward] = useState(getYesNoDraftValue(savedDraft?.hadReward));
+  const [rewardAmount, setRewardAmount] = useState(savedDraft?.rewardAmount || "");
   const [trainingEnvironment, setTrainingEnvironment] = useState(savedDraft?.trainingEnvironment || "");
   const [benefitedFromTraining, setBenefitedFromTraining] = useState(
     getYesNoDraftValue(savedDraft?.benefitedFromTraining)
@@ -81,6 +82,12 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const hasClearMajor = finalMajor.length > 0 && !isUnclearMajorText(finalMajor);
   const selectedMajorCategory = majors.find((item) => item.name === majorCategory);
   const subMajorOptions = selectedMajorCategory?.subMajors || [];
+
+  useEffect(() => {
+    if (hadReward !== "yes" && rewardAmount) {
+      setRewardAmount("");
+    }
+  }, [hadReward, rewardAmount]);
 
   const howAppliedOptions = [
     "موقع الجهة الرسمي",
@@ -206,6 +213,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
   const quickOptionalFields = [
     {
+      id: "hadReward",
       label: "هل كانت التجربة بمكافأة؟",
       value: hadReward,
       setter: setHadReward,
@@ -215,6 +223,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       ],
     },
     {
+      id: "wasHired",
       label: "هل وصلك عرض توظيف بعد التدريب؟",
       value: wasHired,
       setter: setWasHired,
@@ -224,6 +233,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       ],
     },
     {
+      id: "trainingEnvironment",
       label: "بيئة التدريب",
       value: trainingEnvironment,
       setter: setTrainingEnvironment,
@@ -234,6 +244,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       ],
     },
     {
+      id: "trainingMode",
       label: "نوع التدريب",
       value: trainingMode,
       setter: setTrainingMode,
@@ -243,6 +254,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       ],
     },
     {
+      id: "benefitedFromTraining",
       label: "هل استفدت من التدريب؟",
       value: benefitedFromTraining,
       setter: setBenefitedFromTraining,
@@ -252,6 +264,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       ],
     },
     {
+      id: "wouldRecommend",
       label: "هل تنصح بالتدريب فيها؟",
       value: wouldRecommend,
       setter: setWouldRecommend,
@@ -283,6 +296,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           trainingYear.trim() ||
           wasHired.trim() ||
           hadReward.trim() ||
+          rewardAmount.trim() ||
           trainingEnvironment.trim() ||
           benefitedFromTraining.trim() ||
           wouldRecommend.trim() ||
@@ -304,6 +318,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       trainingYear,
       wasHired,
       hadReward,
+      rewardAmount,
       trainingEnvironment,
       benefitedFromTraining,
       wouldRecommend,
@@ -336,6 +351,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       trainingYear,
       wasHired,
       hadReward,
+      rewardAmount,
       trainingEnvironment,
       benefitedFromTraining,
       wouldRecommend,
@@ -367,6 +383,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     trainingYear,
     wasHired,
     hadReward,
+    rewardAmount,
     trainingEnvironment,
     benefitedFromTraining,
     wouldRecommend,
@@ -431,6 +448,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       trainingYear,
       wasHired,
       hadReward,
+      rewardAmount: hadReward === "yes" ? rewardAmount.trim() : "",
       trainingEnvironment,
       benefitedFromTraining,
       wouldRecommend,
@@ -1055,6 +1073,28 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                         </button>
                       ))}
                     </div>
+
+                    {field.id === "hadReward" && field.value === "yes" && (
+                        <input
+                          type="text"
+                          inputMode="text"
+                          value={rewardAmount}
+                          onChange={(e) => setRewardAmount(e.target.value)}
+                          placeholder="قيمة المكافأة إن وجدت، مثل: 3000 ريال"
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            marginTop: 8,
+                            padding: "8px 9px",
+                            borderRadius: 9,
+                            background: "var(--app-surface)",
+                            color: "var(--app-text)",
+                            border: "1px solid var(--app-border-soft)",
+                            fontFamily: "inherit",
+                            fontSize: 12,
+                          }}
+                        />
+                      )}
                   </div>
                 ))}
               </div>

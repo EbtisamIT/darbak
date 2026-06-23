@@ -31,6 +31,10 @@ const experienceSchema = new mongoose.Schema(
       enum: ["yes", "no", "not_sure", ""],
       default: "",
     },
+    rewardAmount: {
+      type: String,
+      default: "",
+    },
     trainingEnvironment: {
       type: String,
       enum: ["mixed", "women", "men", ""],

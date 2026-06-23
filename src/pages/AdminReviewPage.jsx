@@ -23,6 +23,7 @@ const editableFields = [
   "trainingYear",
   "wasHired",
   "hadReward",
+  "rewardAmount",
   "trainingEnvironment",
   "benefitedFromTraining",
   "wouldRecommend",
@@ -105,6 +106,22 @@ const adminQuickSelectFields = [
 const getAdminOptionLabel = (fieldName, value) => {
   const field = adminQuickSelectFields.find((item) => item.field === fieldName);
   return field?.options.find(([optionValue]) => optionValue === (value || ""))?.[1] || "غير محدد";
+};
+
+const formatRewardAmount = (value = "") =>
+  value
+    .toString()
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\bSAR\b/gi, "ريال")
+    .replace(/\bSR\b/gi, "ريال")
+    .replace(/\bAED\b/gi, "درهم");
+
+const getAdminRewardLabel = (exp = {}) => {
+  const baseLabel = getAdminOptionLabel("hadReward", exp.hadReward);
+  const amount = formatRewardAmount(exp.rewardAmount);
+
+  return exp.hadReward === "yes" && amount ? `${baseLabel} - ${amount}` : baseLabel;
 };
 
 const formatAdminDateTime = (value) => {
@@ -649,7 +666,10 @@ export default function AdminReviewPage() {
                       lineHeight: 1.4,
                     }}
                   >
-                    {label}: {getAdminOptionLabel(field, exp[field])}
+                    {label}:{" "}
+                    {field === "hadReward"
+                      ? getAdminRewardLabel(exp)
+                      : getAdminOptionLabel(field, exp[field])}
                   </span>
                 ))}
               </div>
@@ -671,6 +691,7 @@ export default function AdminReviewPage() {
                       ["howApplied", "طريقة التقديم"],
                       ["duration", "مدة التدريب"],
                       ["trainingYear", "سنة التدريب"],
+                      ["rewardAmount", "قيمة المكافأة"],
                     ].map(([field, label]) => (
                       <label key={field} style={{ color: "#cbd5e1", fontSize: "13px" }}>
                         {label}

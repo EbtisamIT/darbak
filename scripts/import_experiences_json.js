@@ -27,6 +27,10 @@ const normalizeRecord = (item) => ({
   hadReward: ["yes", "no", "not_sure", ""].includes(item.hadReward)
     ? item.hadReward
     : "no",
+  rewardAmount:
+    item.hadReward === "yes" && typeof item.rewardAmount === "string"
+      ? item.rewardAmount.trim()
+      : "",
   trainingEnvironment: ["mixed", "women", "men", ""].includes(
     item.trainingEnvironment
   )

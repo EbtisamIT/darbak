@@ -744,6 +744,29 @@ const ExperiencesPage = () => {
     not_sure: "غير واضح",
   };
 
+  const formatRewardAmount = (value = "") => {
+    const text = value.toString().trim();
+    if (!text) return "";
+
+    return text
+      .replace(/\s+/g, " ")
+      .replace(/\bSAR\b/gi, "ريال")
+      .replace(/\bSR\b/gi, "ريال")
+      .replace(/\bAED\b/gi, "درهم");
+  };
+
+  const getRewardDisplayValue = (exp = {}) => {
+    if (exp.hadReward === "yes") {
+      return formatRewardAmount(exp.rewardAmount) || "يوجد";
+    }
+
+    return (
+      rewardAnswerLabels[exp.hadReward] ||
+      optionalAnswerLabels[exp.hadReward] ||
+      "غير مؤكد"
+    );
+  };
+
   const jobOfferAnswerLabels = {
     yes: "نعم، وصلني عرض",
     no: "لا، ما وصلني عرض",
@@ -761,7 +784,7 @@ const ExperiencesPage = () => {
     remote: "عن بعد",
   };
 
-  const getOutcomeBadge = (type, value) => {
+  const getOutcomeBadge = (type, value, rewardAmount = "") => {
     const isReward = type === "reward";
     const answerValue = value || "not_sure";
     const typeConfig = isReward
@@ -786,13 +809,17 @@ const ExperiencesPage = () => {
       not_sure: "غير مؤكد",
     };
 
+    if (isReward && answerValue === "yes") {
+      configs.yes = formatRewardAmount(rewardAmount) || configs.yes;
+    }
+
     return configs[answerValue]
       ? { ...typeConfig, value: configs[answerValue] }
       : { ...typeConfig, value: configs.not_sure };
   };
 
-  const OutcomeBadge = ({ type, value }) => {
-    const badge = getOutcomeBadge(type, value);
+  const OutcomeBadge = ({ type, value, rewardAmount }) => {
+    const badge = getOutcomeBadge(type, value, rewardAmount);
     if (!badge) return null;
 
     return (
@@ -816,6 +843,7 @@ const ExperiencesPage = () => {
           lineHeight: 1.2,
           whiteSpace: "normal",
           overflow: "hidden",
+          overflowWrap: "anywhere",
         }}
       >
         <span
@@ -829,7 +857,16 @@ const ExperiencesPage = () => {
           <span aria-hidden="true">{badge.icon}</span>
           <span>{badge.label}:</span>
         </span>
-        <span style={{ minWidth: 0, textAlign: "left" }}>{badge.value}</span>
+        <span
+          style={{
+            minWidth: 0,
+            flex: "1 1 auto",
+            textAlign: "left",
+            overflowWrap: "anywhere",
+          }}
+        >
+          {badge.value}
+        </span>
       </div>
     );
   };
@@ -908,11 +945,7 @@ const ExperiencesPage = () => {
             <InfoBox
               icon="🎁"
               label="مكافأة التدريب؟"
-              value={
-                rewardAnswerLabels[exp.hadReward] ||
-                optionalAnswerLabels[exp.hadReward] ||
-                "غير مؤكد"
-              }
+              value={getRewardDisplayValue(exp)}
             />
             <InfoBox
               icon="👥"
@@ -1722,7 +1755,11 @@ const ExperiencesPage = () => {
                         marginBottom: "4px",
                       }}
                     >
-                      <OutcomeBadge type="reward" value={exp.hadReward} />
+                      <OutcomeBadge
+                        type="reward"
+                        value={exp.hadReward}
+                        rewardAmount={exp.rewardAmount}
+                      />
                       <OutcomeBadge type="hired" value={exp.wasHired} />
                     </div>
 
