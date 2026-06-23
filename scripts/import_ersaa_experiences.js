@@ -17,6 +17,7 @@ const REVIEWED_AT = new Date().toISOString();
 const args = process.argv.slice(2);
 const shouldImport = args.includes("--import");
 const shouldSyncDerived = args.includes("--sync-derived");
+const shouldSyncDescriptions = args.includes("--sync-descriptions");
 const csvArgIndex = args.indexOf("--csv");
 const csvPath =
   csvArgIndex >= 0 && args[csvArgIndex + 1]
@@ -120,6 +121,68 @@ const parseCsv = (content) => {
 
 const requiredText = (value, fallback = "غير مذكور") =>
   cleanText(value) || fallback;
+
+const polishDescription = (value) => {
+  const original = requiredText(value);
+  let text = original;
+
+  const spellingFixes = {
+    "اإلجتماعي": "الاجتماعي",
+    "االجتماعي": "الاجتماعي",
+    "اإليميل": "الإيميل",
+    "األيام": "الأيام",
+    "األكاديمية": "الأكاديمية",
+    "األقسام": "الأقسام",
+    "االستفادة": "الاستفادة",
+    "االستفاده": "الاستفادة",
+    "االستخدام": "الاستخدام",
+    "االلتزام": "الالتزام",
+    "االلتحاق": "الالتحاق",
+    "االختبار": "الاختبار",
+    "االعتماد": "الاعتماد",
+    "اال": "الا",
+    "إال": "إلا",
+    "اختالط": "اختلاط",
+    "عالقه": "علاقة",
+    "علاقه": "علاقة",
+    "اتعلم": "أتعلم",
+    "اتدرب": "أتدرب",
+    "اقسام": "أقسام",
+    "اداره": "إدارة",
+    "اروح": "أروح",
+    "اسوي": "أسوي",
+    "اسأل": "أسأل",
+    "ممتازه": "ممتازة",
+    "ممتعه": "ممتعة",
+    "جيده": "جيدة",
+    "ج ًدا": "جدًا",
+    "ج ًد ا": "جدًا",
+    "جًد": "جد",
+    "جدا": "جدًا",
+    "كثيًرا": "كثيرًا",
+    "مايقصرون": "ما يقصرون",
+    "ماكان": "ما كان",
+    "مافي": "ما في",
+    "ماعندي": "ما عندي",
+    "ف كان": "فكان",
+  };
+
+  Object.entries(spellingFixes).forEach(([oldValue, newValue]) => {
+    text = text.replaceAll(oldValue, newValue);
+  });
+
+  text = text
+    .replace(/^كانت\s+تجربتي\s+(?:جيد(?:ة)?(?:\s+جدًا)?|ممتاز(?:ة)?(?:\s+جدًا)?|تدريب\s+جدًا\s+ممتاز|لم\s+أ?ستفد\s+كثيرًا?\s+من\s+التدريب)\s*[,،.]?\s*/u, "")
+    .replace(/^تجربتي\s+كانت\s+(?:جيد(?:ة)?(?:\s+جدًا)?|ممتاز(?:ة)?(?:\s+جدًا)?)\s*[,،.]?\s*/u, "")
+    .replace(/\s*\.\s*(?=(?:الأيام|عرضت|وقد|وكان|كما))/gu, " ")
+    .replace(/\s+اي\s+/g, " أي ")
+    .replace(/\s+([،.])/g, "$1")
+    .replace(/([،.])(?=\S)/g, "$1 ")
+    .replace(/\s+/g, " ")
+    .trim(" .،\n\t");
+
+  return text || original;
+};
 
 const containsAny = (text, phrases) =>
   phrases.some((phrase) => text.includes(normalizeArabic(phrase)));
@@ -362,7 +425,8 @@ const buildRecord = (row) => {
   const organizationName = requiredText(row.company);
   const city = requiredText(row.city);
   const major = requiredText(row.major, "غير محدد");
-  const description = requiredText(row.description_rewritten);
+  const legacyDescription = requiredText(row.description_rewritten);
+  const description = polishDescription(legacyDescription);
   const starRating = inferStars(row.rating, description);
 
   return {
@@ -386,6 +450,7 @@ const buildRecord = (row) => {
     majorCategory: detectMajorCategory(major),
     major,
     reviewedAt: REVIEWED_AT,
+    _legacyDescription: legacyDescription,
   };
 };
 
@@ -449,15 +514,23 @@ async function main() {
   console.log("Benefit distribution:", benefitSummary);
   console.log("Recommend distribution:", recommendSummary);
   console.log("Major categories:", categorySummary);
+  const descriptionChanges = records.filter(
+    (record) => record.description !== record._legacyDescription
+  );
+  console.log(`Description changes: ${descriptionChanges.length}`);
+  descriptionChanges.slice(0, 3).forEach((record, index) => {
+    console.log(`Sample ${index + 1} before: ${record._legacyDescription}`);
+    console.log(`Sample ${index + 1} after: ${record.description}`);
+  });
 
   if (validationErrors.length > 0) {
     console.error(validationErrors.join("\n"));
     throw new Error("Validation failed before import");
   }
 
-  if (!shouldImport && !shouldSyncDerived) {
+  if (!shouldImport && !shouldSyncDerived && !shouldSyncDescriptions) {
     console.log(
-      "Dry run only. Add --import to insert or --sync-derived to update derived fields."
+      "Dry run only. Add --import, --sync-derived, or --sync-descriptions to update MongoDB."
     );
     return;
   }
@@ -472,6 +545,7 @@ async function main() {
   let inserted = 0;
   let skipped = 0;
   let updatedDerived = 0;
+  let updatedDescriptions = 0;
   let missingForSync = 0;
 
   for (const record of records) {
@@ -479,22 +553,40 @@ async function main() {
       organizationName: record.organizationName,
       city: record.city,
       major: record.major,
-      description: record.description,
+      description: { $in: [record.description, record._legacyDescription] },
     }).lean();
 
     if (existing) {
+      const setUpdate = {};
+
+      if (shouldSyncDescriptions && existing.description !== record.description) {
+        setUpdate.description = record.description;
+      }
+
       if (shouldSyncDerived) {
         const derivedUpdate = {
           benefitedFromTraining: record.benefitedFromTraining,
           wouldRecommend: record.wouldRecommend,
         };
 
-        const needsUpdate = Object.entries(derivedUpdate).some(
-          ([field, value]) => existing[field] !== value
-        );
+        Object.entries(derivedUpdate).forEach(([field, value]) => {
+          if (existing[field] !== value) {
+            setUpdate[field] = value;
+          }
+        });
+      }
 
-        if (needsUpdate) {
-          await Experience.updateOne({ _id: existing._id }, { $set: derivedUpdate });
+      if (Object.keys(setUpdate).length > 0) {
+        await Experience.updateOne({ _id: existing._id }, { $set: setUpdate });
+
+        if (Object.prototype.hasOwnProperty.call(setUpdate, "description")) {
+          updatedDescriptions += 1;
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(setUpdate, "benefitedFromTraining") ||
+          Object.prototype.hasOwnProperty.call(setUpdate, "wouldRecommend")
+        ) {
           updatedDerived += 1;
         }
       }
@@ -515,6 +607,7 @@ async function main() {
   console.log(`Inserted: ${inserted}`);
   console.log(`Skipped duplicates: ${skipped}`);
   console.log(`Updated derived fields: ${updatedDerived}`);
+  console.log(`Updated descriptions: ${updatedDescriptions}`);
   if (missingForSync > 0) {
     console.log(`Missing records during sync: ${missingForSync}`);
   }
