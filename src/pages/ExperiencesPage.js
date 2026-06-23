@@ -1262,49 +1262,61 @@ const ExperiencesPage = () => {
               <option value="rating">الأعلى تقييمًا</option>
               <option value="relevance">الأكثر صلة</option>
             </select>
+          </div>
 
-            <select
-              value={rewardFilter}
-              onChange={(e) => setRewardFilter(e.target.value)}
-              aria-label="فلترة حسب المكافأة"
-              style={{
-                background: "var(--app-surface-2)",
-                color: "var(--app-text)",
-                border: "1px solid var(--app-brand-border)",
-                borderRadius: "12px",
-                padding: "10px 12px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                fontSize: "13px",
-                outline: "none",
-              }}
-            >
-              <option value="">كل المكافآت</option>
-              <option value="yes">فيه مكافأة</option>
-              <option value="no">بدون مكافأة</option>
-            </select>
+          <div className="experience-filter-tabs">
+            <div className="experience-filter-group">
+              <span className="experience-filter-label">المكافأة</span>
+              <div className="experience-filter-options">
+                {[
+                  { value: "", label: "الكل" },
+                  { value: "yes", label: "يوجد" },
+                  { value: "no", label: "لا يوجد" },
+                ].map((option) => {
+                  const active = rewardFilter === option.value;
+                  return (
+                    <button
+                      key={`reward-${option.value || "all"}`}
+                      type="button"
+                      aria-pressed={active}
+                      className={`experience-filter-tab reward-tab${
+                        active ? " is-active" : ""
+                      }`}
+                      onClick={() => setRewardFilter(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-            <select
-              value={environmentFilter}
-              onChange={(e) => setEnvironmentFilter(e.target.value)}
-              aria-label="فلترة حسب بيئة التدريب"
-              style={{
-                background: "var(--app-surface-2)",
-                color: "var(--app-text)",
-                border: "1px solid var(--app-brand-border)",
-                borderRadius: "12px",
-                padding: "10px 12px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                fontSize: "13px",
-                outline: "none",
-              }}
-            >
-              <option value="">كل البيئات</option>
-              <option value="women">نساء</option>
-              <option value="men">رجال</option>
-              <option value="mixed">مختلطة</option>
-            </select>
+            <div className="experience-filter-group">
+              <span className="experience-filter-label">بيئة التدريب</span>
+              <div className="experience-filter-options">
+                {[
+                  { value: "", label: "الكل" },
+                  { value: "women", label: "نساء" },
+                  { value: "men", label: "رجال" },
+                  { value: "mixed", label: "مختلطة" },
+                ].map((option) => {
+                  const active = environmentFilter === option.value;
+                  return (
+                    <button
+                      key={`environment-${option.value || "all"}`}
+                      type="button"
+                      aria-pressed={active}
+                      className={`experience-filter-tab environment-tab${
+                        active ? " is-active" : ""
+                      }`}
+                      onClick={() => setEnvironmentFilter(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {(selectedMajors.length > 0 ||
@@ -1907,6 +1919,76 @@ const ExperiencesPage = () => {
           padding: 8px 12px 4px;
         }
 
+        .experience-filter-tabs {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          flex-wrap: wrap;
+          max-width: 980px;
+          margin: -10px auto 20px;
+        }
+
+        .experience-filter-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: color-mix(in srgb, var(--app-surface-2) 82%, transparent);
+          border: 1px solid var(--app-border-soft);
+          border-radius: 16px;
+          padding: 6px;
+        }
+
+        .experience-filter-label {
+          color: var(--app-text-soft);
+          font-size: 12px;
+          font-weight: 800;
+          padding: 0 6px;
+          white-space: nowrap;
+        }
+
+        .experience-filter-options {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .experience-filter-tab {
+          min-width: 62px;
+          border: 1px solid var(--app-border);
+          background: var(--app-input-bg);
+          color: var(--app-text);
+          border-radius: 999px;
+          padding: 8px 12px;
+          cursor: pointer;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 800;
+          line-height: 1.2;
+          transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease,
+            box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .experience-filter-tab:hover {
+          transform: translateY(-1px);
+          border-color: var(--app-brand-border);
+        }
+
+        .experience-filter-tab.is-active {
+          color: #071315;
+          border-color: transparent;
+        }
+
+        .experience-filter-tab.reward-tab.is-active {
+          background: #f6c453;
+          box-shadow: 0 10px 22px rgba(246,196,83,0.18);
+        }
+
+        .experience-filter-tab.environment-tab.is-active {
+          background: var(--app-brand);
+          box-shadow: 0 10px 22px rgba(125,219,205,0.2);
+        }
+
         .experience-modal::-webkit-scrollbar {
           width: 8px;
         }
@@ -1982,6 +2064,38 @@ const ExperiencesPage = () => {
           .experiences-search-bar button {
             flex: 1;
             min-height: 40px;
+          }
+
+          .experience-filter-tabs {
+            justify-content: flex-start;
+            gap: 8px;
+            margin: -6px 0 16px;
+            overflow-x: auto;
+            flex-wrap: nowrap;
+            padding-bottom: 4px;
+            -webkit-overflow-scrolling: touch;
+          }
+
+          .experience-filter-tabs::-webkit-scrollbar {
+            display: none;
+          }
+
+          .experience-filter-group {
+            flex: 0 0 auto;
+            gap: 6px;
+            border-radius: 14px;
+            padding: 5px;
+          }
+
+          .experience-filter-label {
+            font-size: 11px;
+            padding: 0 4px;
+          }
+
+          .experience-filter-tab {
+            min-width: 54px;
+            padding: 7px 10px;
+            font-size: 11px;
           }
 
           .active-filter-chips {
