@@ -1613,7 +1613,11 @@ const ExperiencesPage = () => {
               borderRadius: "22px",
               padding: "26px",
               width: "92%",
-              maxWidth: "620px",
+              maxWidth: "760px",
+              maxHeight: "calc(100vh - 48px)",
+              overflowY: "auto",
+              boxSizing: "border-box",
+              scrollbarGutter: "stable",
               border: "1px solid var(--app-border)",
               boxShadow: "0 20px 50px var(--app-shadow)",
               textAlign: "center",
@@ -1790,6 +1794,26 @@ const ExperiencesPage = () => {
           border-bottom: 1px solid var(--app-border-soft);
           margin: -15px -12px 18px;
           padding: 8px 12px 4px;
+        }
+
+        .experience-modal::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .experience-modal::-webkit-scrollbar-track {
+          background: var(--app-input-bg);
+          border-radius: 999px;
+        }
+
+        .experience-modal::-webkit-scrollbar-thumb {
+          background: var(--app-brand-border);
+          border-radius: 999px;
+        }
+
+        @media (min-width: 901px) {
+          .experience-modal {
+            text-align: right !important;
+          }
         }
 
         @media (max-width: 900px) {
