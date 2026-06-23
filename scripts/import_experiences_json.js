@@ -11,6 +11,7 @@ const Experience = require("../backend/models/Experience");
 const inputPath =
   process.argv[2] || "/tmp/darbak_computer_college_pending_experiences.json";
 const shouldImport = process.argv.includes("--import");
+const shouldSyncLocation = process.argv.includes("--sync-location");
 
 const allowedStatuses = new Set(["pending", "approved", "rejected"]);
 
@@ -95,8 +96,10 @@ async function main() {
     throw new Error("Validation failed before import");
   }
 
-  if (!shouldImport) {
-    console.log("Dry run only. Add --import to insert into MongoDB.");
+  if (!shouldImport && !shouldSyncLocation) {
+    console.log(
+      "Dry run only. Add --import to insert or --sync-location to update pending city/title."
+    );
     return;
   }
 
@@ -109,17 +112,50 @@ async function main() {
 
   let inserted = 0;
   let skipped = 0;
+  let updatedLocation = 0;
+  let missingForSync = 0;
 
   for (const record of records) {
-    const existing = await Experience.findOne({
-      organizationName: record.organizationName,
-      city: record.city,
-      major: record.major,
-      description: record.description,
-    }).lean();
+    const existing = await Experience.findOne(
+      shouldSyncLocation
+        ? {
+            organizationName: record.organizationName,
+            major: record.major,
+            description: record.description,
+            status: "pending",
+          }
+        : {
+            organizationName: record.organizationName,
+            city: record.city,
+            major: record.major,
+            description: record.description,
+          }
+    ).lean();
 
     if (existing) {
+      if (shouldSyncLocation) {
+        const locationUpdate = {};
+
+        if (existing.city !== record.city) {
+          locationUpdate.city = record.city;
+        }
+
+        if (existing.title !== record.title) {
+          locationUpdate.title = record.title;
+        }
+
+        if (Object.keys(locationUpdate).length > 0) {
+          await Experience.updateOne({ _id: existing._id }, { $set: locationUpdate });
+          updatedLocation += 1;
+        }
+      }
+
       skipped += 1;
+      continue;
+    }
+
+    if (!shouldImport) {
+      missingForSync += 1;
       continue;
     }
 
@@ -129,6 +165,10 @@ async function main() {
 
   console.log(`Inserted: ${inserted}`);
   console.log(`Skipped duplicates: ${skipped}`);
+  console.log(`Updated location: ${updatedLocation}`);
+  if (missingForSync > 0) {
+    console.log(`Missing records during sync: ${missingForSync}`);
+  }
 
   await mongoose.disconnect();
 }

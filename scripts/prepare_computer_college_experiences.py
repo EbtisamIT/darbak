@@ -11,7 +11,7 @@ import pandas as pd
 
 DEFAULT_INPUT = Path("/Users/ebtisamali/Downloads/تجارب التدريب - كليه الحاسب.xlsx")
 DEFAULT_OUTPUT = Path("/tmp/darbak_computer_college_pending_experiences.json")
-DEFAULT_CITY = "غير مذكور"
+DEFAULT_CITY = "الرياض"
 DEFAULT_MAJOR_CATEGORY = "الحاسب والتقنية"
 DEFAULT_MAJOR = "علوم الحاسب"
 DEFAULT_HOW_APPLIED = "غير مذكور"
