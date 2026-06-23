@@ -15,6 +15,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
 
   const location = useLocation();
   const isMobile = window.innerWidth < 768;
+  const shouldStickNavbar = !isMobile && location.pathname !== "/experiences";
 
   useEffect(() => {
     const openAddExperienceModal = () => setShowModal(true);
@@ -149,12 +150,12 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   return (
     <header
       style={{
-        position: isMobile ? "static" : "sticky",
-        top: isMobile ? "auto" : 0,
-        zIndex: isMobile ? "auto" : 1800,
+        position: shouldStickNavbar ? "sticky" : "static",
+        top: shouldStickNavbar ? 0 : "auto",
+        zIndex: shouldStickNavbar ? 1800 : "auto",
         width: "100%",
         background: "var(--app-surface)",
-        boxShadow: isMobile ? "none" : "0 10px 24px rgba(0,0,0,0.12)",
+        boxShadow: shouldStickNavbar ? "0 10px 24px rgba(0,0,0,0.12)" : "none",
       }}
     >
       <nav
