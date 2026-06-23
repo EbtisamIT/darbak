@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import API_BASE_URL from "../config/api";
 
 const homeFont = "'Aniq', 'Cairo', sans-serif";
@@ -308,14 +307,6 @@ const HomePage = () => {
         ))}
       </div>
 
-      <TrainingGuideBanner
-        compact
-        style={{
-          width: "min(100%, 720px)",
-          marginTop: "22px",
-        }}
-      />
-
       <style>{`
         @media (max-width: 768px) {
           .home-page {
@@ -387,11 +378,6 @@ const HomePage = () => {
             font-size: 11px !important;
           }
 
-          .home-page .training-guide-banner {
-            width: min(100%, 340px) !important;
-            margin-top: 18px !important;
-            text-align: right !important;
-          }
         }
 
         @media (max-width: 390px) {
