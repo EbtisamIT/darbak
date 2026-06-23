@@ -314,6 +314,8 @@ app.get('/api/experiences', async (req, res) => {
     const majors = req.query.majors
       ? req.query.majors.split(",").map((major) => major.trim()).filter(Boolean)
       : [];
+    const cityFilter =
+      typeof req.query.city === "string" ? req.query.city.trim() : "";
     const searchTerms = req.query.terms
       ? req.query.terms.split("|").map(normalizeSearchText).filter(Boolean)
       : [];
@@ -338,6 +340,10 @@ app.get('/api/experiences', async (req, res) => {
           { majorCategory: { $in: majors } },
         ],
       });
+    }
+
+    if (cityFilter) {
+      andFilters.push({ city: cityFilter });
     }
 
     if (rewardFilter) {
@@ -367,10 +373,8 @@ app.get('/api/experiences', async (req, res) => {
         const searchableValues = [
           exp.organizationName,
           exp.companyName,
-          exp.city,
           exp.majorCategory,
           exp.major,
-          exp.title,
         ]
           .filter(Boolean)
           .map(normalizeSearchText);

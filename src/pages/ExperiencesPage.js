@@ -6,6 +6,25 @@ import API_BASE_URL from "../config/api";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v1";
 const INITIAL_VISIBLE_COUNT = 36;
+const MAIN_CITY_FILTERS = [
+  "الرياض",
+  "جدة",
+  "مكة المكرمة",
+  "المدينة المنورة",
+  "الدمام",
+  "الخبر",
+  "الظهران",
+  "الأحساء",
+  "الجبيل",
+  "الطائف",
+  "أبها",
+  "خميس مشيط",
+  "جازان",
+  "تبوك",
+  "حائل",
+  "بريدة",
+  "نجران",
+];
 
 const getCompanySearchFromUrl = (search = "") => {
   try {
@@ -345,6 +364,7 @@ const ExperiencesPage = () => {
   const [sortOption, setSortOption] = useState(() =>
     getInitialCompanySearch() ? "relevance" : "latest"
   );
+  const [selectedCity, setSelectedCity] = useState("");
   const [rewardFilter, setRewardFilter] = useState("");
   const [environmentFilter, setEnvironmentFilter] = useState("");
   const [fetchError, setFetchError] = useState("");
@@ -420,10 +440,8 @@ const ExperiencesPage = () => {
     const searchableValues = [
       exp.organizationName,
       exp.companyName,
-      exp.city,
       exp.majorCategory,
       exp.major,
-      exp.title,
     ]
       .filter(Boolean)
       .map(normalizeSearchText);
@@ -467,6 +485,7 @@ const ExperiencesPage = () => {
             selectedMajors.length === 0 ||
             selectedMajorTerms.includes(exp.major) ||
             selectedMajorTerms.includes(exp.majorCategory);
+          const matchesCity = !selectedCity || exp.city === selectedCity;
 
           const searchableNames = [
             exp.organizationName,
@@ -490,6 +509,7 @@ const ExperiencesPage = () => {
 
           return (
             matchesMajor &&
+            matchesCity &&
             matchesSearch &&
             matchesReward &&
             matchesEnvironment
@@ -511,6 +531,7 @@ const ExperiencesPage = () => {
       experiences,
       selectedMajors,
       selectedMajorTerms,
+      selectedCity,
       normalizedCompanySearch,
       searchTerms,
       rewardFilter,
@@ -540,6 +561,7 @@ const ExperiencesPage = () => {
             limit: INITIAL_VISIBLE_COUNT,
             sort: sortOption,
             majors: selectedMajorTerms.join(","),
+            city: selectedCity,
             terms: searchTerms.join("|"),
             hadReward: rewardFilter,
             trainingEnvironment: environmentFilter,
@@ -571,7 +593,14 @@ const ExperiencesPage = () => {
         setLoadingMore(false);
       }
     },
-    [searchTerms, selectedMajorTerms, sortOption, rewardFilter, environmentFilter]
+    [
+      searchTerms,
+      selectedMajorTerms,
+      selectedCity,
+      sortOption,
+      rewardFilter,
+      environmentFilter,
+    ]
   );
 
   useEffect(() => {
@@ -635,6 +664,7 @@ const ExperiencesPage = () => {
   const clearAllFilters = () => {
     setSelectedMajors([]);
     clearCompanySearch();
+    setSelectedCity("");
     setRewardFilter("");
     setEnvironmentFilter("");
     setSortOption("latest");
@@ -1205,8 +1235,8 @@ const ExperiencesPage = () => {
               <input
                 value={companySearch}
                 onChange={(e) => setCompanySearch(e.target.value)}
-                placeholder="ابحث باسم الشركة، الجهة، المدينة، أو التخصص"
-                aria-label="ابحث باسم الشركة، الجهة، المدينة، أو التخصص"
+                placeholder="ابحث باسم الشركة، الجهة، أو التخصص"
+                aria-label="ابحث باسم الشركة، الجهة، أو التخصص"
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -1243,6 +1273,30 @@ const ExperiencesPage = () => {
             )}
 
             <select
+              value={selectedCity}
+              onChange={(e) => setSelectedCity(e.target.value)}
+              aria-label="فلترة حسب المدينة"
+              style={{
+                background: "var(--app-surface-2)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-brand-border)",
+                borderRadius: "12px",
+                padding: "10px 12px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: "13px",
+                outline: "none",
+              }}
+            >
+              <option value="">كل المدن</option>
+              {MAIN_CITY_FILTERS.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
+
+            <select
               value={sortOption}
               onChange={(e) => setSortOption(e.target.value)}
               aria-label="ترتيب التجارب"
@@ -1265,62 +1319,50 @@ const ExperiencesPage = () => {
           </div>
 
           <div className="experience-filter-tabs">
-            <div className="experience-filter-group">
-              <span className="experience-filter-label">المكافأة</span>
-              <div className="experience-filter-options">
-                {[
-                  { value: "", label: "الكل" },
-                  { value: "yes", label: "يوجد" },
-                  { value: "no", label: "لا يوجد" },
-                ].map((option) => {
-                  const active = rewardFilter === option.value;
-                  return (
-                    <button
-                      key={`reward-${option.value || "all"}`}
-                      type="button"
-                      aria-pressed={active}
-                      className={`experience-filter-tab reward-tab${
-                        active ? " is-active" : ""
-                      }`}
-                      onClick={() => setRewardFilter(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <button
+              type="button"
+              aria-pressed={rewardFilter === "yes"}
+              className={`experience-filter-tab reward-tab${
+                rewardFilter === "yes" ? " is-active" : ""
+              }`}
+              onClick={() =>
+                setRewardFilter((current) => (current === "yes" ? "" : "yes"))
+              }
+            >
+              <span aria-hidden="true">💰</span>
+              مكافأة
+            </button>
 
-            <div className="experience-filter-group">
-              <span className="experience-filter-label">بيئة التدريب</span>
-              <div className="experience-filter-options">
-                {[
-                  { value: "", label: "الكل" },
-                  { value: "women", label: "نساء" },
-                  { value: "men", label: "رجال" },
-                  { value: "mixed", label: "مختلطة" },
-                ].map((option) => {
-                  const active = environmentFilter === option.value;
-                  return (
-                    <button
-                      key={`environment-${option.value || "all"}`}
-                      type="button"
-                      aria-pressed={active}
-                      className={`experience-filter-tab environment-tab${
-                        active ? " is-active" : ""
-                      }`}
-                      onClick={() => setEnvironmentFilter(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {[
+              { value: "women", label: "نسائية", icon: "♀" },
+              { value: "men", label: "رجالية", icon: "♂" },
+              { value: "mixed", label: "مختلطة", icon: "◐" },
+            ].map((option) => {
+              const active = environmentFilter === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={active}
+                  className={`experience-filter-tab environment-tab ${option.value}-tab${
+                    active ? " is-active" : ""
+                  }`}
+                  onClick={() =>
+                    setEnvironmentFilter((current) =>
+                      current === option.value ? "" : option.value
+                    )
+                  }
+                >
+                  <span aria-hidden="true">{option.icon}</span>
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
 
           {(selectedMajors.length > 0 ||
             companySearch ||
+            selectedCity ||
             rewardFilter ||
             environmentFilter ||
             sortOption !== "latest") && (
@@ -1373,6 +1415,25 @@ const ExperiencesPage = () => {
                   }}
                 >
                   البحث: {companySearch} ✕
+                </button>
+              )}
+
+              {selectedCity && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCity("")}
+                  style={{
+                    background: "rgba(125,219,205,0.1)",
+                    border: "1px solid rgba(125,219,205,0.28)",
+                    color: "#dffaff",
+                    borderRadius: "999px",
+                    padding: "7px 10px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: "12px",
+                  }}
+                >
+                  المدينة: {selectedCity} ✕
                 </button>
               )}
 
@@ -1923,43 +1984,31 @@ const ExperiencesPage = () => {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 10px;
-          flex-wrap: wrap;
+          gap: 8px;
+          flex-wrap: nowrap;
           max-width: 980px;
           margin: -10px auto 20px;
+          overflow-x: auto;
+          padding: 2px 2px 5px;
+          -webkit-overflow-scrolling: touch;
         }
 
-        .experience-filter-group {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: color-mix(in srgb, var(--app-surface-2) 82%, transparent);
-          border: 1px solid var(--app-border-soft);
-          border-radius: 16px;
-          padding: 6px;
-        }
-
-        .experience-filter-label {
-          color: var(--app-text-soft);
-          font-size: 12px;
-          font-weight: 800;
-          padding: 0 6px;
-          white-space: nowrap;
-        }
-
-        .experience-filter-options {
-          display: flex;
-          align-items: center;
-          gap: 5px;
+        .experience-filter-tabs::-webkit-scrollbar {
+          display: none;
         }
 
         .experience-filter-tab {
-          min-width: 62px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          flex: 0 0 auto;
+          min-width: 92px;
           border: 1px solid var(--app-border);
-          background: var(--app-input-bg);
+          background: color-mix(in srgb, var(--app-surface-2) 92%, transparent);
           color: var(--app-text);
           border-radius: 999px;
-          padding: 8px 12px;
+          padding: 9px 13px;
           cursor: pointer;
           font-family: inherit;
           font-size: 12px;
@@ -1967,6 +2016,18 @@ const ExperiencesPage = () => {
           line-height: 1.2;
           transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease,
             box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .experience-filter-tab span {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.08);
+          font-size: 12px;
+          line-height: 1;
         }
 
         .experience-filter-tab:hover {
@@ -1984,7 +2045,17 @@ const ExperiencesPage = () => {
           box-shadow: 0 10px 22px rgba(246,196,83,0.18);
         }
 
-        .experience-filter-tab.environment-tab.is-active {
+        .experience-filter-tab.women-tab.is-active {
+          background: #f8b4cf;
+          box-shadow: 0 10px 22px rgba(248,180,207,0.16);
+        }
+
+        .experience-filter-tab.men-tab.is-active {
+          background: #8ec5ff;
+          box-shadow: 0 10px 22px rgba(142,197,255,0.16);
+        }
+
+        .experience-filter-tab.mixed-tab.is-active {
           background: var(--app-brand);
           box-shadow: 0 10px 22px rgba(125,219,205,0.2);
         }
@@ -2080,20 +2151,8 @@ const ExperiencesPage = () => {
             display: none;
           }
 
-          .experience-filter-group {
-            flex: 0 0 auto;
-            gap: 6px;
-            border-radius: 14px;
-            padding: 5px;
-          }
-
-          .experience-filter-label {
-            font-size: 11px;
-            padding: 0 4px;
-          }
-
           .experience-filter-tab {
-            min-width: 54px;
+            min-width: 76px;
             padding: 7px 10px;
             font-size: 11px;
           }
