@@ -11,13 +11,14 @@ const Experience = require("../backend/models/Experience");
 const DEFAULT_CSV_PATH =
   "/Users/ebtisamali/Downloads/Darbak_Ersaa_Experiences_Rewritten.csv";
 const DEFAULT_TRAINING_YEAR = "2023";
-const DEFAULT_DURATION = "غير مذكور";
+const DEFAULT_DURATION = "3 إلى 6 أشهر";
 const REVIEWED_AT = new Date().toISOString();
 
 const args = process.argv.slice(2);
 const shouldImport = args.includes("--import");
 const shouldSyncDerived = args.includes("--sync-derived");
 const shouldSyncDescriptions = args.includes("--sync-descriptions");
+const shouldSyncDefaults = args.includes("--sync-defaults");
 const csvArgIndex = args.indexOf("--csv");
 const csvPath =
   csvArgIndex >= 0 && args[csvArgIndex + 1]
@@ -313,11 +314,11 @@ const inferStars = (ratingText, description) => {
 
 const yesNoNotSure = (value, { volunteerMeansNo = false } = {}) => {
   const text = normalizeArabic(cleanText(value));
-  if (!text || text === "-" || text === "nan" || text === "none") return "not_sure";
+  if (!text || text === "-" || text === "nan" || text === "none") return "no";
   if (text.includes("نعم") || text === "yes" || text === "1") return "yes";
   if (text.includes("لا") || text === "no" || text === "0") return "no";
   if (volunteerMeansNo && text.includes("تطوع")) return "no";
-  return "not_sure";
+  return "no";
 };
 
 const normalizeEnvironment = (trainingType, gender) => {
@@ -508,11 +509,21 @@ async function main() {
     summary[record.wouldRecommend] = (summary[record.wouldRecommend] || 0) + 1;
     return summary;
   }, {});
+  const rewardSummary = records.reduce((summary, record) => {
+    summary[record.hadReward] = (summary[record.hadReward] || 0) + 1;
+    return summary;
+  }, {});
+  const jobOfferSummary = records.reduce((summary, record) => {
+    summary[record.wasHired] = (summary[record.wasHired] || 0) + 1;
+    return summary;
+  }, {});
 
   console.log(`Prepared records: ${records.length}`);
   console.log("Rating distribution:", ratingSummary);
   console.log("Benefit distribution:", benefitSummary);
   console.log("Recommend distribution:", recommendSummary);
+  console.log("Reward distribution:", rewardSummary);
+  console.log("Job offer distribution:", jobOfferSummary);
   console.log("Major categories:", categorySummary);
   const descriptionChanges = records.filter(
     (record) => record.description !== record._legacyDescription
@@ -528,9 +539,14 @@ async function main() {
     throw new Error("Validation failed before import");
   }
 
-  if (!shouldImport && !shouldSyncDerived && !shouldSyncDescriptions) {
+  if (
+    !shouldImport &&
+    !shouldSyncDerived &&
+    !shouldSyncDescriptions &&
+    !shouldSyncDefaults
+  ) {
     console.log(
-      "Dry run only. Add --import, --sync-derived, or --sync-descriptions to update MongoDB."
+      "Dry run only. Add --import, --sync-derived, --sync-descriptions, or --sync-defaults to update MongoDB."
     );
     return;
   }
@@ -546,6 +562,7 @@ async function main() {
   let skipped = 0;
   let updatedDerived = 0;
   let updatedDescriptions = 0;
+  let updatedDefaults = 0;
   let missingForSync = 0;
 
   for (const record of records) {
@@ -576,6 +593,20 @@ async function main() {
         });
       }
 
+      if (shouldSyncDefaults) {
+        const defaultUpdate = {
+          duration: record.duration,
+          hadReward: record.hadReward,
+          wasHired: record.wasHired,
+        };
+
+        Object.entries(defaultUpdate).forEach(([field, value]) => {
+          if (existing[field] !== value) {
+            setUpdate[field] = value;
+          }
+        });
+      }
+
       if (Object.keys(setUpdate).length > 0) {
         await Experience.updateOne({ _id: existing._id }, { $set: setUpdate });
 
@@ -588,6 +619,14 @@ async function main() {
           Object.prototype.hasOwnProperty.call(setUpdate, "wouldRecommend")
         ) {
           updatedDerived += 1;
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(setUpdate, "duration") ||
+          Object.prototype.hasOwnProperty.call(setUpdate, "hadReward") ||
+          Object.prototype.hasOwnProperty.call(setUpdate, "wasHired")
+        ) {
+          updatedDefaults += 1;
         }
       }
 
@@ -608,6 +647,7 @@ async function main() {
   console.log(`Skipped duplicates: ${skipped}`);
   console.log(`Updated derived fields: ${updatedDerived}`);
   console.log(`Updated descriptions: ${updatedDescriptions}`);
+  console.log(`Updated defaults: ${updatedDefaults}`);
   if (missingForSync > 0) {
     console.log(`Missing records during sync: ${missingForSync}`);
   }
