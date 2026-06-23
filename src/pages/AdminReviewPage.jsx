@@ -23,10 +23,89 @@ const editableFields = [
   "trainingYear",
   "wasHired",
   "hadReward",
+  "trainingEnvironment",
+  "benefitedFromTraining",
+  "wouldRecommend",
+  "trainingMode",
   "starRating",
   "description",
   "rejectionReason",
 ];
+
+const adminSelectStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  marginTop: "5px",
+  background: "#111318",
+  color: "#fff",
+  border: "1px solid rgba(125,219,205,0.25)",
+  borderRadius: "9px",
+  padding: "9px",
+  fontFamily: "inherit",
+};
+
+const adminQuickSelectFields = [
+  {
+    field: "hadReward",
+    label: "المكافأة",
+    options: [
+      ["", "غير مؤكد"],
+      ["yes", "يوجد"],
+      ["no", "لا يوجد"],
+    ],
+  },
+  {
+    field: "wasHired",
+    label: "عرض التوظيف",
+    options: [
+      ["", "غير مؤكد"],
+      ["yes", "يوجد"],
+      ["no", "لا يوجد"],
+    ],
+  },
+  {
+    field: "trainingEnvironment",
+    label: "بيئة التدريب",
+    options: [
+      ["", "غير محدد"],
+      ["mixed", "مختلطة"],
+      ["women", "نساء"],
+      ["men", "رجال"],
+    ],
+  },
+  {
+    field: "trainingMode",
+    label: "نوع التدريب",
+    options: [
+      ["", "غير محدد"],
+      ["onsite", "حضوري"],
+      ["remote", "عن بعد"],
+    ],
+  },
+  {
+    field: "benefitedFromTraining",
+    label: "استفاد من التدريب؟",
+    options: [
+      ["", "غير محدد"],
+      ["yes", "نعم"],
+      ["no", "لا"],
+    ],
+  },
+  {
+    field: "wouldRecommend",
+    label: "ينصح بالتدريب؟",
+    options: [
+      ["", "غير محدد"],
+      ["yes", "نعم"],
+      ["no", "لا"],
+    ],
+  },
+];
+
+const getAdminOptionLabel = (fieldName, value) => {
+  const field = adminQuickSelectFields.find((item) => item.field === fieldName);
+  return field?.options.find(([optionValue]) => optionValue === (value || ""))?.[1] || "غير محدد";
+};
 
 const formatAdminDateTime = (value) => {
   if (!value) return "غير محدد";
@@ -542,6 +621,39 @@ export default function AdminReviewPage() {
                 </div>
               </div>
 
+              <div
+                style={{
+                  display: "flex",
+                  gap: "7px",
+                  flexWrap: "wrap",
+                  margin: "0 0 12px",
+                }}
+              >
+                {[
+                  ["hadReward", "مكافأة"],
+                  ["wasHired", "عرض"],
+                  ["trainingEnvironment", "البيئة"],
+                  ["trainingMode", "النوع"],
+                  ["benefitedFromTraining", "استفاد؟"],
+                  ["wouldRecommend", "ينصح؟"],
+                ].map(([field, label]) => (
+                  <span
+                    key={field}
+                    style={{
+                      background: "rgba(125,219,205,0.08)",
+                      border: "1px solid rgba(125,219,205,0.18)",
+                      borderRadius: "999px",
+                      color: "#d1fae5",
+                      padding: "6px 9px",
+                      fontSize: "12px",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {label}: {getAdminOptionLabel(field, exp[field])}
+                  </span>
+                ))}
+              </div>
+
               {editingId === exp._id ? (
                 <div
                   style={{
@@ -587,17 +699,7 @@ export default function AdminReviewPage() {
                       <select
                         value={editForm.starRating || ""}
                         onChange={(e) => updateEditField("starRating", e.target.value)}
-                        style={{
-                          width: "100%",
-                          boxSizing: "border-box",
-                          marginTop: "5px",
-                          background: "#111318",
-                          color: "#fff",
-                          border: "1px solid rgba(125,219,205,0.25)",
-                          borderRadius: "9px",
-                          padding: "9px",
-                          fontFamily: "inherit",
-                        }}
+                        style={adminSelectStyle}
                       >
                         {[1, 2, 3, 4, 5].map((rating) => (
                           <option key={rating} value={rating}>
@@ -607,53 +709,27 @@ export default function AdminReviewPage() {
                       </select>
                     </label>
 
-                    <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
-                      المكافأة
-                      <select
-                        value={editForm.hadReward || ""}
-                        onChange={(e) => updateEditField("hadReward", e.target.value)}
-                        style={{
-                          width: "100%",
-                          boxSizing: "border-box",
-                          marginTop: "5px",
-                          background: "#111318",
-                          color: "#fff",
-                          border: "1px solid rgba(125,219,205,0.25)",
-                          borderRadius: "9px",
-                          padding: "9px",
-                          fontFamily: "inherit",
-                        }}
+                    {adminQuickSelectFields.map((field) => (
+                      <label
+                        key={field.field}
+                        style={{ color: "#cbd5e1", fontSize: "13px" }}
                       >
-                        <option value="">غير مؤكد</option>
-                        <option value="yes">يوجد</option>
-                        <option value="no">لا يوجد</option>
-                        <option value="not_sure">غير مؤكد</option>
-                      </select>
-                    </label>
-
-                    <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
-                      عرض التوظيف
-                      <select
-                        value={editForm.wasHired || ""}
-                        onChange={(e) => updateEditField("wasHired", e.target.value)}
-                        style={{
-                          width: "100%",
-                          boxSizing: "border-box",
-                          marginTop: "5px",
-                          background: "#111318",
-                          color: "#fff",
-                          border: "1px solid rgba(125,219,205,0.25)",
-                          borderRadius: "9px",
-                          padding: "9px",
-                          fontFamily: "inherit",
-                        }}
-                      >
-                        <option value="">غير مؤكد</option>
-                        <option value="yes">يوجد</option>
-                        <option value="no">لا يوجد</option>
-                        <option value="not_sure">غير مؤكد</option>
-                      </select>
-                    </label>
+                        {field.label}
+                        <select
+                          value={editForm[field.field] || ""}
+                          onChange={(e) =>
+                            updateEditField(field.field, e.target.value)
+                          }
+                          style={adminSelectStyle}
+                        >
+                          {field.options.map(([value, label]) => (
+                            <option key={`${field.field}-${value}`} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
                   </div>
 
                   <label style={{ color: "#cbd5e1", fontSize: "13px" }}>

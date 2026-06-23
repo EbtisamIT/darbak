@@ -34,6 +34,9 @@ const isUnclearMajorText = (value = "") => {
   return letters.length < 2;
 };
 
+const getYesNoDraftValue = (value = "") =>
+  ["yes", "no"].includes(value) ? value : "";
+
 export default function AddExperienceModal({ onClose, onSaved }) {
   const savedDraft = useMemo(() => getSavedDraft(), []);
   const [step, setStep] = useState(savedDraft?.step || 0);
@@ -52,8 +55,16 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const [major, setMajor] = useState(savedDraft?.major || "");
   const [customMajor, setCustomMajor] = useState(savedDraft?.customMajor || "");
   const [trainingYear, setTrainingYear] = useState(savedDraft?.trainingYear || "");
-  const [wasHired, setWasHired] = useState(savedDraft?.wasHired || "");
-  const [hadReward, setHadReward] = useState(savedDraft?.hadReward || "");
+  const [wasHired, setWasHired] = useState(getYesNoDraftValue(savedDraft?.wasHired));
+  const [hadReward, setHadReward] = useState(getYesNoDraftValue(savedDraft?.hadReward));
+  const [trainingEnvironment, setTrainingEnvironment] = useState(savedDraft?.trainingEnvironment || "");
+  const [benefitedFromTraining, setBenefitedFromTraining] = useState(
+    getYesNoDraftValue(savedDraft?.benefitedFromTraining)
+  );
+  const [wouldRecommend, setWouldRecommend] = useState(
+    getYesNoDraftValue(savedDraft?.wouldRecommend)
+  );
+  const [trainingMode, setTrainingMode] = useState(savedDraft?.trainingMode || "");
   
 
   const [loading, setLoading] = useState(false);
@@ -77,6 +88,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     "توصية من أصدقاء/معارف",
     "LinkedIn",
     "منصة توظيف / تمهير",
+    "تقديم يدوي",
     "بحث شخصي / مراسلة مباشرة",
     "أخرى",
   ];
@@ -200,7 +212,6 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       options: [
         { value: "yes", label: "نعم، بمكافأة" },
         { value: "no", label: "لا، بدون مكافأة" },
-        { value: "not_sure", label: "غير واضح" },
       ],
     },
     {
@@ -210,7 +221,43 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       options: [
         { value: "yes", label: "نعم، وصلني عرض" },
         { value: "no", label: "لا، ما وصلني عرض" },
-        { value: "not_sure", label: "غير واضح" },
+      ],
+    },
+    {
+      label: "بيئة التدريب",
+      value: trainingEnvironment,
+      setter: setTrainingEnvironment,
+      options: [
+        { value: "mixed", label: "مختلطة" },
+        { value: "women", label: "نساء" },
+        { value: "men", label: "رجال" },
+      ],
+    },
+    {
+      label: "نوع التدريب",
+      value: trainingMode,
+      setter: setTrainingMode,
+      options: [
+        { value: "onsite", label: "حضوري" },
+        { value: "remote", label: "عن بعد" },
+      ],
+    },
+    {
+      label: "هل استفدت من التدريب؟",
+      value: benefitedFromTraining,
+      setter: setBenefitedFromTraining,
+      options: [
+        { value: "yes", label: "نعم، استفدت" },
+        { value: "no", label: "لا، لم أستفد" },
+      ],
+    },
+    {
+      label: "هل تنصح بالتدريب فيها؟",
+      value: wouldRecommend,
+      setter: setWouldRecommend,
+      options: [
+        { value: "yes", label: "نعم، أنصح" },
+        { value: "no", label: "لا، لا أنصح" },
       ],
     },
   ];
@@ -236,6 +283,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           trainingYear.trim() ||
           wasHired.trim() ||
           hadReward.trim() ||
+          trainingEnvironment.trim() ||
+          benefitedFromTraining.trim() ||
+          wouldRecommend.trim() ||
+          trainingMode.trim() ||
           starRating > 0
       ),
     [
@@ -253,6 +304,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       trainingYear,
       wasHired,
       hadReward,
+      trainingEnvironment,
+      benefitedFromTraining,
+      wouldRecommend,
+      trainingMode,
       starRating,
     ]
   );
@@ -281,6 +336,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       trainingYear,
       wasHired,
       hadReward,
+      trainingEnvironment,
+      benefitedFromTraining,
+      wouldRecommend,
+      trainingMode,
       starRating,
       updatedAt: new Date().toISOString(),
     };
@@ -308,6 +367,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     trainingYear,
     wasHired,
     hadReward,
+    trainingEnvironment,
+    benefitedFromTraining,
+    wouldRecommend,
+    trainingMode,
     starRating,
   ]);
 
@@ -368,6 +431,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       trainingYear,
       wasHired,
       hadReward,
+      trainingEnvironment,
+      benefitedFromTraining,
+      wouldRecommend,
+      trainingMode,
       ratings,        // ممكن تخلينه أو تحذفينه لاحقًا
       starRating,     // ⭐ الجديد
       description,

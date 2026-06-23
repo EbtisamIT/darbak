@@ -265,6 +265,10 @@ app.post('/api/experiences', async (req, res) => {
       req.body.trainingYear,
       req.body.wasHired,
       req.body.hadReward,
+      req.body.trainingEnvironment,
+      req.body.benefitedFromTraining,
+      req.body.wouldRecommend,
+      req.body.trainingMode,
       req.body.description,
     ];
 
@@ -474,6 +478,10 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
       "trainingYear",
       "wasHired",
       "hadReward",
+      "trainingEnvironment",
+      "benefitedFromTraining",
+      "wouldRecommend",
+      "trainingMode",
       "starRating",
       "ratings",
       "description",

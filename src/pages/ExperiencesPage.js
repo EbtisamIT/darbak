@@ -693,6 +693,17 @@ const ExperiencesPage = () => {
     not_sure: "غير واضح",
   };
 
+  const trainingEnvironmentLabels = {
+    mixed: "مختلطة",
+    women: "نساء",
+    men: "رجال",
+  };
+
+  const trainingModeLabels = {
+    onsite: "حضوري",
+    remote: "عن بعد",
+  };
+
   const getOutcomeBadge = (type, value) => {
     const isReward = type === "reward";
     const answerValue = value || "not_sure";
@@ -845,6 +856,28 @@ const ExperiencesPage = () => {
                 optionalAnswerLabels[exp.hadReward] ||
                 "غير مؤكد"
               }
+            />
+            <InfoBox
+              icon="👥"
+              label="بيئة التدريب"
+              value={trainingEnvironmentLabels[exp.trainingEnvironment]}
+            />
+            <InfoBox
+              icon="💻"
+              label="نوع التدريب"
+              value={trainingModeLabels[exp.trainingMode]}
+            />
+            <InfoBox
+              icon="💡"
+              label="استفدت من التدريب؟"
+              value={
+                optionalAnswerLabels[exp.benefitedFromTraining] || "غير محدد"
+              }
+            />
+            <InfoBox
+              icon="✅"
+              label="تنصح بالتدريب؟"
+              value={optionalAnswerLabels[exp.wouldRecommend] || "غير محدد"}
             />
           </div>
         </div>

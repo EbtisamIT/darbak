@@ -31,6 +31,26 @@ const experienceSchema = new mongoose.Schema(
       enum: ["yes", "no", "not_sure", ""],
       default: "",
     },
+    trainingEnvironment: {
+      type: String,
+      enum: ["mixed", "women", "men", ""],
+      default: "",
+    },
+    benefitedFromTraining: {
+      type: String,
+      enum: ["yes", "no", ""],
+      default: "",
+    },
+    wouldRecommend: {
+      type: String,
+      enum: ["yes", "no", ""],
+      default: "",
+    },
+    trainingMode: {
+      type: String,
+      enum: ["onsite", "remote", ""],
+      default: "",
+    },
     starRating: {
       type: Number,
       required: true,
