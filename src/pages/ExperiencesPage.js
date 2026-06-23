@@ -345,6 +345,8 @@ const ExperiencesPage = () => {
   const [sortOption, setSortOption] = useState(() =>
     getInitialCompanySearch() ? "relevance" : "latest"
   );
+  const [rewardFilter, setRewardFilter] = useState("");
+  const [environmentFilter, setEnvironmentFilter] = useState("");
   const [fetchError, setFetchError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [, setTotalExperiences] = useState(() => getCachedExperiences().length);
@@ -481,8 +483,17 @@ const ExperiencesPage = () => {
             normalizedSearchableNames.some((name) =>
               searchTerms.some((term) => name.includes(term))
             );
+          const matchesReward =
+            !rewardFilter || exp.hadReward === rewardFilter;
+          const matchesEnvironment =
+            !environmentFilter || exp.trainingEnvironment === environmentFilter;
 
-          return matchesMajor && matchesSearch;
+          return (
+            matchesMajor &&
+            matchesSearch &&
+            matchesReward &&
+            matchesEnvironment
+          );
         })
         .sort((a, b) => {
           if (sortOption === "rating") {
@@ -502,6 +513,8 @@ const ExperiencesPage = () => {
       selectedMajorTerms,
       normalizedCompanySearch,
       searchTerms,
+      rewardFilter,
+      environmentFilter,
       sortOption,
       getSearchScore,
     ]
@@ -528,6 +541,8 @@ const ExperiencesPage = () => {
             sort: sortOption,
             majors: selectedMajorTerms.join(","),
             terms: searchTerms.join("|"),
+            hadReward: rewardFilter,
+            trainingEnvironment: environmentFilter,
           },
         });
 
@@ -556,7 +571,7 @@ const ExperiencesPage = () => {
         setLoadingMore(false);
       }
     },
-    [searchTerms, selectedMajorTerms, sortOption]
+    [searchTerms, selectedMajorTerms, sortOption, rewardFilter, environmentFilter]
   );
 
   useEffect(() => {
@@ -606,9 +621,22 @@ const ExperiencesPage = () => {
     relevance: "الأكثر صلة",
   };
 
+  const rewardFilterLabels = {
+    yes: "فيه مكافأة",
+    no: "بدون مكافأة",
+  };
+
+  const environmentFilterLabels = {
+    women: "بيئة نسائية",
+    men: "بيئة رجالية",
+    mixed: "بيئة مختلطة",
+  };
+
   const clearAllFilters = () => {
     setSelectedMajors([]);
     clearCompanySearch();
+    setRewardFilter("");
+    setEnvironmentFilter("");
     setSortOption("latest");
   };
 
@@ -1234,10 +1262,55 @@ const ExperiencesPage = () => {
               <option value="rating">الأعلى تقييمًا</option>
               <option value="relevance">الأكثر صلة</option>
             </select>
+
+            <select
+              value={rewardFilter}
+              onChange={(e) => setRewardFilter(e.target.value)}
+              aria-label="فلترة حسب المكافأة"
+              style={{
+                background: "var(--app-surface-2)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-brand-border)",
+                borderRadius: "12px",
+                padding: "10px 12px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: "13px",
+                outline: "none",
+              }}
+            >
+              <option value="">كل المكافآت</option>
+              <option value="yes">فيه مكافأة</option>
+              <option value="no">بدون مكافأة</option>
+            </select>
+
+            <select
+              value={environmentFilter}
+              onChange={(e) => setEnvironmentFilter(e.target.value)}
+              aria-label="فلترة حسب بيئة التدريب"
+              style={{
+                background: "var(--app-surface-2)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-brand-border)",
+                borderRadius: "12px",
+                padding: "10px 12px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: "13px",
+                outline: "none",
+              }}
+            >
+              <option value="">كل البيئات</option>
+              <option value="women">نساء</option>
+              <option value="men">رجال</option>
+              <option value="mixed">مختلطة</option>
+            </select>
           </div>
 
           {(selectedMajors.length > 0 ||
             companySearch ||
+            rewardFilter ||
+            environmentFilter ||
             sortOption !== "latest") && (
             <div
               className="active-filter-chips"
@@ -1288,6 +1361,44 @@ const ExperiencesPage = () => {
                   }}
                 >
                   البحث: {companySearch} ✕
+                </button>
+              )}
+
+              {rewardFilter && (
+                <button
+                  type="button"
+                  onClick={() => setRewardFilter("")}
+                  style={{
+                    background: "rgba(245,158,11,0.09)",
+                    border: "1px solid rgba(245,158,11,0.28)",
+                    color: "#fde68a",
+                    borderRadius: "999px",
+                    padding: "7px 10px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: "12px",
+                  }}
+                >
+                  المكافأة: {rewardFilterLabels[rewardFilter]} ✕
+                </button>
+              )}
+
+              {environmentFilter && (
+                <button
+                  type="button"
+                  onClick={() => setEnvironmentFilter("")}
+                  style={{
+                    background: "rgba(125,219,205,0.1)",
+                    border: "1px solid rgba(125,219,205,0.28)",
+                    color: "#dffaff",
+                    borderRadius: "999px",
+                    padding: "7px 10px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: "12px",
+                  }}
+                >
+                  البيئة: {environmentFilterLabels[environmentFilter]} ✕
                 </button>
               )}
 

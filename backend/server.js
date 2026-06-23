@@ -317,20 +317,39 @@ app.get('/api/experiences', async (req, res) => {
     const searchTerms = req.query.terms
       ? req.query.terms.split("|").map(normalizeSearchText).filter(Boolean)
       : [];
+    const rewardFilter = ["yes", "no"].includes(req.query.hadReward)
+      ? req.query.hadReward
+      : "";
+    const environmentFilter = ["mixed", "women", "men"].includes(
+      req.query.trainingEnvironment
+    )
+      ? req.query.trainingEnvironment
+      : "";
 
     const baseFilter = {
       $or: [{ status: "approved" }, { status: { $exists: false } }],
     };
+    const andFilters = [];
 
     if (majors.length > 0) {
-      baseFilter.$and = [
-        {
-          $or: [
-            { major: { $in: majors } },
-            { majorCategory: { $in: majors } },
-          ],
-        },
-      ];
+      andFilters.push({
+        $or: [
+          { major: { $in: majors } },
+          { majorCategory: { $in: majors } },
+        ],
+      });
+    }
+
+    if (rewardFilter) {
+      andFilters.push({ hadReward: rewardFilter });
+    }
+
+    if (environmentFilter) {
+      andFilters.push({ trainingEnvironment: environmentFilter });
+    }
+
+    if (andFilters.length > 0) {
+      baseFilter.$and = andFilters;
     }
 
     const sort =
