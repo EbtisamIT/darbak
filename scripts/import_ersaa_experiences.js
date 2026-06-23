@@ -16,6 +16,7 @@ const REVIEWED_AT = new Date().toISOString();
 
 const args = process.argv.slice(2);
 const shouldImport = args.includes("--import");
+const shouldSyncDerived = args.includes("--sync-derived");
 const csvArgIndex = args.indexOf("--csv");
 const csvPath =
   csvArgIndex >= 0 && args[csvArgIndex + 1]
@@ -120,6 +121,88 @@ const parseCsv = (content) => {
 const requiredText = (value, fallback = "غير مذكور") =>
   cleanText(value) || fallback;
 
+const containsAny = (text, phrases) =>
+  phrases.some((phrase) => text.includes(normalizeArabic(phrase)));
+
+const BENEFIT_POSITIVE_PHRASES = [
+  "استفدت",
+  "افادتني",
+  "فادتني",
+  "تعلمت",
+  "اكتسبت",
+  "مفيدة",
+  "مفيد",
+  "اضافت لي",
+  "أضافت لي",
+  "معلومات مفيدة",
+  "خبرة",
+  "تجربة ممتازة",
+  "تجربتي ممتازة",
+  "ممتاز جدا",
+  "جيد جدا",
+  "فريق العمل يساعد",
+];
+
+const BENEFIT_NEGATIVE_PHRASES = [
+  "لم استفد",
+  "ما استفدت",
+  "لم اتعلم",
+  "ما تعلمت",
+  "غير مفيد",
+  "بدون فائدة",
+  "ما كان له علاقة بالتخصص",
+  "ما كان له علاقه بالتخصص",
+  "ليس له علاقة بالتخصص",
+  "الشغل كان قليل",
+  "عشوائية كبيرة",
+  "عشوائيه كبيره",
+  "على الفاضي",
+];
+
+const RECOMMEND_POSITIVE_PHRASES = [
+  "انصح",
+  "أنصح",
+  "اوصي",
+  "أوصي",
+  "ارشح",
+  "أرشح",
+  "ممتاز",
+  "ممتازة",
+  "جيد جدا",
+  "جيد جدًا",
+  "مفيدة",
+  "مفيد",
+  "استفدت",
+  "تعلمت",
+  "اكتسبت",
+  "بيئة جيدة",
+  "فريق العمل يساعد",
+];
+
+const RECOMMEND_NEGATIVE_PHRASES = [
+  "لا انصح",
+  "لا أنصح",
+  "ما انصح",
+  "لا اوصي",
+  "لا أوصي",
+  "لا ارشح",
+  "لا أرشح",
+  "لم استفد",
+  "ما استفدت",
+  "غير مفيد",
+  "سيء",
+  "سيئ",
+  "سيئة",
+  "سيئه",
+  "عشوائية كبيرة",
+  "عشوائيه كبيره",
+  "على الفاضي",
+  "ما كان له علاقة بالتخصص",
+  "ما كان له علاقه بالتخصص",
+  "ليس له علاقة بالتخصص",
+  "بيئة غير مريحة",
+];
+
 const inferStars = (ratingText, description) => {
   const combined = normalizeArabic(`${ratingText} ${description}`);
 
@@ -216,25 +299,30 @@ const normalizeHowApplied = (value) => {
 
 const benefitedFromTraining = (rating, description) => {
   const text = normalizeArabic(description);
-  if (
-    text.includes("لم استفد") ||
-    text.includes("ما استفدت") ||
-    text.includes("لم اتعلم") ||
-    text.includes("غير مفيد")
-  ) {
+
+  if (containsAny(text, BENEFIT_NEGATIVE_PHRASES)) {
     return "no";
   }
-  if (rating >= 3) return "yes";
-  if (rating <= 2) return "no";
-  return "";
+
+  if (containsAny(text, BENEFIT_POSITIVE_PHRASES)) {
+    return "yes";
+  }
+
+  return rating >= 3 ? "yes" : "no";
 };
 
 const wouldRecommend = (rating, description) => {
   const text = normalizeArabic(description);
-  if (text.includes("لا انصح") || text.includes("لا اوصي")) return "no";
-  if (text.includes("انصح") || text.includes("اوصي") || rating >= 4) return "yes";
-  if (rating <= 2) return "no";
-  return "";
+
+  if (containsAny(text, RECOMMEND_NEGATIVE_PHRASES)) {
+    return "no";
+  }
+
+  if (containsAny(text, RECOMMEND_POSITIVE_PHRASES)) {
+    return "yes";
+  }
+
+  return rating >= 3 ? "yes" : "no";
 };
 
 const detectMajorCategory = (major) => {
@@ -313,6 +401,12 @@ const validateRecord = (record, index) => {
     errors.push(`row ${index + 1}: invalid starRating`);
   }
 
+  ["benefitedFromTraining", "wouldRecommend"].forEach((field) => {
+    if (!["yes", "no"].includes(record[field])) {
+      errors.push(`row ${index + 1}: ${field} must be yes/no`);
+    }
+  });
+
   return errors;
 };
 
@@ -340,9 +434,20 @@ async function main() {
     summary[record.majorCategory] = (summary[record.majorCategory] || 0) + 1;
     return summary;
   }, {});
+  const benefitSummary = records.reduce((summary, record) => {
+    summary[record.benefitedFromTraining] =
+      (summary[record.benefitedFromTraining] || 0) + 1;
+    return summary;
+  }, {});
+  const recommendSummary = records.reduce((summary, record) => {
+    summary[record.wouldRecommend] = (summary[record.wouldRecommend] || 0) + 1;
+    return summary;
+  }, {});
 
   console.log(`Prepared records: ${records.length}`);
   console.log("Rating distribution:", ratingSummary);
+  console.log("Benefit distribution:", benefitSummary);
+  console.log("Recommend distribution:", recommendSummary);
   console.log("Major categories:", categorySummary);
 
   if (validationErrors.length > 0) {
@@ -350,8 +455,10 @@ async function main() {
     throw new Error("Validation failed before import");
   }
 
-  if (!shouldImport) {
-    console.log("Dry run only. Add --import to insert into MongoDB.");
+  if (!shouldImport && !shouldSyncDerived) {
+    console.log(
+      "Dry run only. Add --import to insert or --sync-derived to update derived fields."
+    );
     return;
   }
 
@@ -364,6 +471,8 @@ async function main() {
 
   let inserted = 0;
   let skipped = 0;
+  let updatedDerived = 0;
+  let missingForSync = 0;
 
   for (const record of records) {
     const existing = await Experience.findOne({
@@ -374,7 +483,28 @@ async function main() {
     }).lean();
 
     if (existing) {
+      if (shouldSyncDerived) {
+        const derivedUpdate = {
+          benefitedFromTraining: record.benefitedFromTraining,
+          wouldRecommend: record.wouldRecommend,
+        };
+
+        const needsUpdate = Object.entries(derivedUpdate).some(
+          ([field, value]) => existing[field] !== value
+        );
+
+        if (needsUpdate) {
+          await Experience.updateOne({ _id: existing._id }, { $set: derivedUpdate });
+          updatedDerived += 1;
+        }
+      }
+
       skipped += 1;
+      continue;
+    }
+
+    if (!shouldImport) {
+      missingForSync += 1;
       continue;
     }
 
@@ -384,6 +514,10 @@ async function main() {
 
   console.log(`Inserted: ${inserted}`);
   console.log(`Skipped duplicates: ${skipped}`);
+  console.log(`Updated derived fields: ${updatedDerived}`);
+  if (missingForSync > 0) {
+    console.log(`Missing records during sync: ${missingForSync}`);
+  }
 
   await mongoose.disconnect();
 }
