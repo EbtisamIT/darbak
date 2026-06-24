@@ -446,6 +446,7 @@ const buildRecord = (row) => {
     ratings: [],
     description,
     title: makeTitle(organizationName, city),
+    sourceType: "public_summary",
     status: "approved",
     rejectionReason: "",
     majorCategory: detectMajorCategory(major),

@@ -784,6 +784,17 @@ const ExperiencesPage = () => {
     remote: "عن بعد",
   };
 
+  const sourceTypeLabels = {
+    public_summary: "ملخص من مصدر عام",
+    direct: "تجربة مباشرة من طالب",
+  };
+
+  const getExperienceSourceLabel = (exp = {}) =>
+    sourceTypeLabels[exp.sourceType] ||
+    (exp.howApplied === "غير مذكور"
+      ? sourceTypeLabels.public_summary
+      : sourceTypeLabels.direct);
+
   const getOutcomeBadge = (type, value, rewardAmount = "") => {
     const isReward = type === "reward";
     const answerValue = value || "not_sure";
@@ -1738,6 +1749,19 @@ const ExperiencesPage = () => {
                   </div>
 
                   <div style={{ marginTop: "10px" }}>
+                    <p
+                      className="experience-source-label"
+                      style={{
+                        margin: "0 0 5px",
+                        color: "var(--app-muted-2)",
+                        fontSize: "10px",
+                        lineHeight: 1.4,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {getExperienceSourceLabel(exp)}
+                    </p>
+
                     <div
                       className="experience-outcome-badges"
                       style={{
@@ -2245,6 +2269,15 @@ const ExperiencesPage = () => {
 
           .experience-card span {
             font-size: 10px !important;
+          }
+
+          .experience-source-label {
+            font-size: 6px !important;
+            line-height: 1.2 !important;
+            margin-bottom: 2px !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
 
           .experience-outcome-badges {

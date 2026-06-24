@@ -14,6 +14,7 @@ const shouldImport = process.argv.includes("--import");
 const shouldSyncLocation = process.argv.includes("--sync-location");
 
 const allowedStatuses = new Set(["pending", "approved", "rejected"]);
+const allowedSourceTypes = new Set(["direct", "public_summary"]);
 
 const normalizeRecord = (item) => ({
   organizationName: item.organizationName,
@@ -52,6 +53,9 @@ const normalizeRecord = (item) => ({
   ratings: Array.isArray(item.ratings) ? item.ratings : [],
   description: item.description,
   title: item.title,
+  sourceType: allowedSourceTypes.has(item.sourceType)
+    ? item.sourceType
+    : "public_summary",
   status: allowedStatuses.has(item.status) ? item.status : "pending",
   rejectionReason: item.rejectionReason || "",
   majorCategory: item.majorCategory || "الحاسب والتقنية",

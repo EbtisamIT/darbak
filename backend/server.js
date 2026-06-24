@@ -406,6 +406,7 @@ app.post('/api/experiences', async (req, res) => {
     const newExp = new Experience({
       ...req.body,
       rewardAmount: req.body.hadReward === "yes" ? rewardAmount : "",
+      sourceType: "direct",
       status: "pending",
     });
     await newExp.save();
@@ -625,6 +626,7 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
       "trainingMode",
       "starRating",
       "ratings",
+      "sourceType",
       "description",
       "rejectionReason",
     ];

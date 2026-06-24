@@ -29,6 +29,7 @@ const editableFields = [
   "wouldRecommend",
   "trainingMode",
   "starRating",
+  "sourceType",
   "description",
   "rejectionReason",
 ];
@@ -99,6 +100,14 @@ const adminQuickSelectFields = [
       ["", "غير محدد"],
       ["yes", "نعم"],
       ["no", "لا"],
+    ],
+  },
+  {
+    field: "sourceType",
+    label: "مصدر التجربة",
+    options: [
+      ["direct", "تجربة مباشرة من طالب"],
+      ["public_summary", "ملخص من مصدر عام"],
     ],
   },
 ];
@@ -653,6 +662,7 @@ export default function AdminReviewPage() {
                   ["trainingMode", "النوع"],
                   ["benefitedFromTraining", "استفاد؟"],
                   ["wouldRecommend", "ينصح؟"],
+                  ["sourceType", "المصدر"],
                 ].map(([field, label]) => (
                   <span
                     key={field}

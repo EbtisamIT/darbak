@@ -78,6 +78,12 @@ const experienceSchema = new mongoose.Schema(
     title: {
       type: String,
     },
+    sourceType: {
+      type: String,
+      enum: ["direct", "public_summary"],
+      default: "direct",
+      index: true,
+    },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],

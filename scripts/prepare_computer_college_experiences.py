@@ -278,6 +278,7 @@ def build_record(row):
         "ratings": [],
         "description": description,
         "title": make_title(organization, city),
+        "sourceType": "public_summary",
         "status": "pending",
         "rejectionReason": "",
         "majorCategory": DEFAULT_MAJOR_CATEGORY,
