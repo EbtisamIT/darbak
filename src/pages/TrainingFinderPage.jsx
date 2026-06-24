@@ -7,91 +7,27 @@ import API_BASE_URL from "../config/api";
 const cityOptions = [
   "الرياض",
   "جدة",
-  "الدمام",
   "مكة المكرمة",
   "المدينة المنورة",
+  "الدمام",
   "الخبر",
   "الظهران",
   "الأحساء",
   "الجبيل",
-  "القطيف",
-  "رأس تنورة",
-  "حفر الباطن",
   "الطائف",
-  "تبوك",
   "أبها",
   "خميس مشيط",
   "نجران",
   "جازان",
-  "الباحة",
+  "تبوك",
   "حائل",
   "بريدة",
-  "عنيزة",
-  "الرس",
+  "الباحة",
   "سكاكا",
   "عرعر",
-  "رفحاء",
-  "القريات",
   "ينبع",
-  "رابغ",
   "الخرج",
-  "الدرعية",
-  "المجمعة",
-  "الزلفي",
-  "الدوادمي",
-  "وادي الدواسر",
-  "القويعية",
-  "شقراء",
-  "عفيف",
-  "حوطة بني تميم",
-  "المذنب",
-  "البكيرية",
-  "البدائع",
-  "الأسياح",
-  "رياض الخبراء",
-  "الخفجي",
-  "بقيق",
-  "النعيرية",
-  "قرية العليا",
-  "الوجه",
-  "ضباء",
-  "أملج",
-  "تيماء",
-  "البدع",
   "العلا",
-  "خيبر",
-  "بدر",
-  "المهد",
-  "الحناكية",
-  "القنفذة",
-  "الليث",
-  "رنية",
-  "تربة",
-  "الخرمة",
-  "بحرة",
-  "بيشة",
-  "محايل عسير",
-  "النماص",
-  "تنومة",
-  "رجال ألمع",
-  "سراة عبيدة",
-  "ظهران الجنوب",
-  "شرورة",
-  "حبونا",
-  "يدمة",
-  "صبيا",
-  "أبو عريش",
-  "صامطة",
-  "بيش",
-  "الدرب",
-  "فرسان",
-  "بلجرشي",
-  "المندق",
-  "العقيق",
-  "المخواة",
-  "طريف",
-  "دومة الجندل",
-  "طبرجل",
 ];
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
@@ -198,6 +134,8 @@ const regionCities = {
   "منطقة الجوف": ["سكاكا", "القريات", "دومة الجندل", "طبرجل"],
 };
 
+const regionOptions = Object.keys(regionCities);
+
 const cityToSuggestionRegion = new Map(
   Object.entries(regionCities).flatMap(([region, cities]) =>
     cities.map((cityName) => [cityName, region])
@@ -206,6 +144,7 @@ const cityToSuggestionRegion = new Map(
 
 const resolveSuggestionRegion = (cityName) => {
   if (!cityName) return "";
+  if (regionCities[cityName]) return cityName;
   return cityToSuggestionRegion.get(cityName) || "";
 };
 
@@ -855,7 +794,7 @@ export default function TrainingFinderPage() {
               fontSize: "15px",
             }}
           >
-            اختَر تخصصك من القائمة، وإذا ودك حدد المدينة، ونقترح لك جهات سبق
+            اختَر تخصصك من القائمة، وإذا ودك حدد المدينة أو المنطقة، ونقترح لك جهات سبق
             أن شارك الطلاب تجارب تدريبهم فيها.
           </p>
         </header>
@@ -899,7 +838,7 @@ export default function TrainingFinderPage() {
           </label>
 
           <label style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}>
-            المدينة
+            المدينة أو المنطقة
             <select
               value={city}
               onChange={(event) => setCity(event.target.value)}
@@ -913,12 +852,21 @@ export default function TrainingFinderPage() {
                 fontFamily: "inherit",
               }}
             >
-              <option value="">كل المدن</option>
-              {cityOptions.map((cityName) => (
-                <option key={cityName} value={cityName}>
-                  {cityName}
-                </option>
-              ))}
+              <option value="">كل المدن والمناطق</option>
+              <optgroup label="المناطق الرئيسية">
+                {regionOptions.map((regionName) => (
+                  <option key={regionName} value={regionName}>
+                    {regionName}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="المدن الرئيسية">
+                {cityOptions.map((cityName) => (
+                  <option key={cityName} value={cityName}>
+                    {cityName}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </label>
 
