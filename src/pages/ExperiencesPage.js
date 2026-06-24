@@ -795,42 +795,56 @@ const ExperiencesPage = () => {
       ? sourceTypeLabels.public_summary
       : sourceTypeLabels.direct);
 
-  const getOutcomeBadge = (type, value, rewardAmount = "") => {
-    const isReward = type === "reward";
-    const answerValue = value || "not_sure";
-    const typeConfig = isReward
-      ? {
-          label: "مكافأة",
-          icon: "💰",
-          color: "#f59e0b",
-          background: "rgba(245,158,11,0.12)",
-          border: "rgba(245,158,11,0.3)",
-        }
-      : {
-          label: "عرض",
-          icon: "💼",
-          color: "#34d399",
-          background: "rgba(52,211,153,0.12)",
-          border: "rgba(52,211,153,0.3)",
-        };
+  const getClearRewardAmount = (value = "") => {
+    const text = formatRewardAmount(value);
+    if (!text) return "";
 
-    const configs = {
-      yes: "يوجد",
-      no: "لا يوجد",
-      not_sure: "غير مؤكد",
-    };
+    const normalizedText = text
+      .replace(/[ً-ْ]/g, "")
+      .replace(/ة/g, "ه")
+      .replace(/[أإآ]/g, "ا")
+      .toLowerCase();
+    const unclearRewardPattern =
+      /(غير واضح|غير مؤكد|لا اعلم|ما ادري|غير مذكور|يوجد|نعم|مكافاه|بمكافاه)/;
+    const amountPattern =
+      /([0-9٠-٩۰-۹]|ريال|ر\.س|﷼|\bSAR\b|\bSR\b|الف|الاف|الفين|مئه|مائه|ميه|مئتين|مائتين|ثلاثمئه|ثلاثمائه|اربعمئه|اربعمائه|خمسمئه|خمسمائه|ستمئه|ستمائه|سبعمئه|سبعمائه|ثمانمئه|ثمانمائه|تسعمئه|تسعمائه)/i;
 
-    if (isReward && answerValue === "yes") {
-      configs.yes = formatRewardAmount(rewardAmount) || configs.yes;
+    if (amountPattern.test(text) || amountPattern.test(normalizedText)) {
+      return text;
     }
 
-    return configs[answerValue]
-      ? { ...typeConfig, value: configs[answerValue] }
-      : { ...typeConfig, value: configs.not_sure };
+    return unclearRewardPattern.test(normalizedText) ? "" : "";
   };
 
-  const OutcomeBadge = ({ type, value, rewardAmount }) => {
-    const badge = getOutcomeBadge(type, value, rewardAmount);
+  const getVisibleOutcomeBadges = (exp = {}) => {
+    const badges = [];
+
+    if (exp.hadReward === "yes") {
+      badges.push({
+        key: "reward",
+        text: getClearRewardAmount(exp.rewardAmount) || "مكافأة",
+        icon: "💰",
+        color: "#f5b041",
+        background: "rgba(245,176,65,0.14)",
+        border: "rgba(245,176,65,0.34)",
+      });
+    }
+
+    if (exp.wasHired === "yes") {
+      badges.push({
+        key: "hired",
+        text: "عرض",
+        icon: "💼",
+        color: "#7ddbcd",
+        background: "rgba(125,219,205,0.14)",
+        border: "rgba(125,219,205,0.34)",
+      });
+    }
+
+    return badges;
+  };
+
+  const OutcomeBadge = ({ badge }) => {
     if (!badge) return null;
 
     return (
@@ -839,22 +853,23 @@ const ExperiencesPage = () => {
         style={{
           display: "inline-flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          gap: "4px",
-          width: "100%",
+          justifyContent: "center",
+          gap: "3px",
+          width: "fit-content",
+          maxWidth: "100%",
           minWidth: 0,
           boxSizing: "border-box",
-          padding: "6px 8px",
-          borderRadius: "8px",
+          padding: "4px 8px",
+          borderRadius: "999px",
           background: badge.background,
           border: `1px solid ${badge.border}`,
           color: badge.color,
           fontSize: "10px",
           fontWeight: "800",
           lineHeight: 1.2,
-          whiteSpace: "normal",
+          whiteSpace: "nowrap",
           overflow: "hidden",
-          overflowWrap: "anywhere",
+          textOverflow: "ellipsis",
         }}
       >
         <span
@@ -863,13 +878,19 @@ const ExperiencesPage = () => {
             alignItems: "center",
             gap: "3px",
             minWidth: 0,
-            flex: "1 1 auto",
-            overflowWrap: "anywhere",
+            maxWidth: "100%",
           }}
         >
           <span aria-hidden="true">{badge.icon}</span>
-          <span>
-            {badge.label}: {badge.value}
+          <span
+            style={{
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {badge.text}
           </span>
         </span>
       </div>
@@ -1762,24 +1783,24 @@ const ExperiencesPage = () => {
                       {getExperienceSourceLabel(exp)}
                     </p>
 
-                    <div
-                      className="experience-outcome-badges"
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr",
-                        alignItems: "stretch",
-                        gap: "5px",
-                        minHeight: "48px",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      <OutcomeBadge
-                        type="reward"
-                        value={exp.hadReward}
-                        rewardAmount={exp.rewardAmount}
-                      />
-                      <OutcomeBadge type="hired" value={exp.wasHired} />
-                    </div>
+                    {getVisibleOutcomeBadges(exp).length > 0 && (
+                      <div
+                        className="experience-outcome-badges"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "5px",
+                          minHeight: "24px",
+                          marginBottom: "5px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {getVisibleOutcomeBadges(exp).map((badge) => (
+                          <OutcomeBadge key={badge.key} badge={badge} />
+                        ))}
+                      </div>
+                    )}
 
                     <StarRating value={exp.starRating || 0} />
 
@@ -2282,16 +2303,16 @@ const ExperiencesPage = () => {
 
           .experience-outcome-badges {
             gap: 2px !important;
-            min-height: 30px !important;
+            min-height: 14px !important;
             margin-bottom: 3px !important;
           }
 
           .experience-outcome-badge {
-            padding: 2px 3px !important;
+            padding: 2px 4px !important;
             font-size: 6px !important;
             max-width: 100%;
-            border-radius: 6px !important;
-            line-height: 1.15 !important;
+            border-radius: 999px !important;
+            line-height: 1.1 !important;
           }
 
           .experience-outcome-badge span {
