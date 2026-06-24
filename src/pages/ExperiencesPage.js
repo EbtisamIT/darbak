@@ -4,7 +4,7 @@ import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
 
-const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v1";
+const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
 const MAIN_CITY_FILTERS = [
   "الرياض",
@@ -833,12 +833,12 @@ const ExperiencesPage = () => {
           width: "100%",
           minWidth: 0,
           boxSizing: "border-box",
-          padding: "5px 8px",
+          padding: "6px 8px",
           borderRadius: "8px",
           background: badge.background,
           border: `1px solid ${badge.border}`,
           color: badge.color,
-          fontSize: "9px",
+          fontSize: "10px",
           fontWeight: "800",
           lineHeight: 1.2,
           whiteSpace: "normal",
@@ -852,20 +852,14 @@ const ExperiencesPage = () => {
             alignItems: "center",
             gap: "3px",
             minWidth: 0,
-          }}
-        >
-          <span aria-hidden="true">{badge.icon}</span>
-          <span>{badge.label}:</span>
-        </span>
-        <span
-          style={{
-            minWidth: 0,
             flex: "1 1 auto",
-            textAlign: "left",
             overflowWrap: "anywhere",
           }}
         >
-          {badge.value}
+          <span aria-hidden="true">{badge.icon}</span>
+          <span>
+            {badge.label}: {badge.value}
+          </span>
         </span>
       </div>
     );
