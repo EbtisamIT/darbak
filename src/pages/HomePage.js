@@ -1,8 +1,38 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import API_BASE_URL from "../config/api";
+import {
+  suggestedOrganizationsByMajorCategory,
+  suggestedOrganizationsByRegion,
+} from "./TrainingFinderPage";
 
 const homeFont = "'Aniq', 'Cairo', sans-serif";
+
+const normalizeOrganizationName = (value = "") =>
+  value
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[أإآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ـ/g, "")
+    .replace(/[\u064B-\u065F]/g, "")
+    .replace(/\s+/g, " ");
+
+const countUniqueOrganizations = (names = []) =>
+  new Set(names.map(normalizeOrganizationName).filter(Boolean)).size;
+
+const suggestedOrganizationNames = [
+  ...Object.values(suggestedOrganizationsByRegion)
+    .flat()
+    .map((organization) => organization.name),
+  ...Object.values(suggestedOrganizationsByMajorCategory)
+    .flat()
+    .map((organization) => organization.name),
+];
 
 const MovingGreenPath = () => {
   return (
@@ -120,35 +150,50 @@ const MovingGreenPath = () => {
 
 const HomePage = () => {
   const [experiencesCount, setExperiencesCount] = useState(null);
+  const [experienceOrganizationNames, setExperienceOrganizationNames] =
+    useState([]);
 
   useEffect(() => {
-    const fetchExperiencesCount = async () => {
+    const fetchHomeStats = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/experiences?limit=1`);
+        const response = await fetch(`${API_BASE_URL}/api/home-stats`);
         const data = await response.json();
 
-        if (typeof data.total === "number") {
-          setExperiencesCount(data.total);
+        if (typeof data.experiencesCount === "number") {
+          setExperiencesCount(data.experiencesCount);
+        }
+
+        if (Array.isArray(data.organizationNames)) {
+          setExperienceOrganizationNames(data.organizationNames);
         }
       } catch (error) {
-        console.error("تعذر جلب عدد التجارب:", error);
+        console.error("تعذر جلب إحصائيات الصفحة الرئيسية:", error);
       }
     };
 
-    fetchExperiencesCount();
+    fetchHomeStats();
   }, []);
+
+  const organizationsCount = useMemo(
+    () =>
+      countUniqueOrganizations([
+        ...suggestedOrganizationNames,
+        ...experienceOrganizationNames,
+      ]),
+    [experienceOrganizationNames]
+  );
 
   const homeStats = useMemo(
     () => [
       { value: "+20", label: "مدينة رئيسية" },
-      { value: "+25", label: "تخصص رئيسي" },
+      { value: organizationsCount ? `+${organizationsCount}` : "+", label: "جهة تدريب" },
       {
         value:
           typeof experiencesCount === "number" ? `+${experiencesCount}` : "+",
         label: "تجربة مشاركة",
       },
     ],
-    [experiencesCount]
+    [experiencesCount, organizationsCount]
   );
 
   return (

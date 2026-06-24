@@ -205,6 +205,31 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', database: mongoose.connection.readyState === 1 });
 });
 
+app.get('/api/home-stats', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const approvedFilter = {
+      $or: [{ status: "approved" }, { status: { $exists: false } }],
+    };
+
+    const [experiencesCount, organizationNames] = await Promise.all([
+      Experience.countDocuments(approvedFilter),
+      Experience.distinct("organizationName", approvedFilter),
+    ]);
+
+    res.json({
+      experiencesCount,
+      organizationNames: organizationNames.filter(Boolean),
+    });
+  } catch (err) {
+    console.error("❌ Home stats error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/suggestions', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {

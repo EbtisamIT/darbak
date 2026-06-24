@@ -247,7 +247,7 @@ const specializationOptions = Array.from(
     .values()
 ).sort((a, b) => a.label.localeCompare(b.label, "ar"));
 
-const suggestedOrganizationsByRegion = {
+export const suggestedOrganizationsByRegion = {
   "منطقة الرياض": [
     { name: "stc", url: "https://www.stc.com.sa/", note: "اتصالات وتقنية" },
     { name: "شركة علم", url: "https://www.elm.sa/", note: "حلول رقمية" },
@@ -337,7 +337,7 @@ const suggestedOrganizationsByRegion = {
   ],
 };
 
-const suggestedOrganizationsByMajorCategory = {
+export const suggestedOrganizationsByMajorCategory = {
   "الطب والعلوم الصحية": [
     { name: "وزارة الصحة", url: "https://www.moh.gov.sa/", note: "صحة عامة وإدارة صحية" },
     { name: "الهيئة العامة للغذاء والدواء", url: "https://www.sfda.gov.sa/", note: "رقابة ومختبرات وصحة" },
