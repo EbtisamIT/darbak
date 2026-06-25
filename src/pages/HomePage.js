@@ -196,6 +196,10 @@ const HomePage = () => {
     [experiencesCount, organizationsCount]
   );
 
+  const openAddExperienceModal = () => {
+    window.dispatchEvent(new Event("darbak:open-add-experience"));
+  };
+
   return (
     <div
       className="home-page"
@@ -262,23 +266,44 @@ const HomePage = () => {
           flexWrap: "wrap",
         }}
       >
+        <button
+          type="button"
+          className="home-cta home-share-cta"
+          onClick={openAddExperienceModal}
+          style={{
+            backgroundColor: "var(--app-brand)",
+            color: "#07100e",
+            border: "none",
+            borderRadius: "12px",
+            padding: "15px 32px",
+            fontSize: "18px",
+            fontFamily: homeFont,
+            cursor: "pointer",
+            transition: "0.3s",
+            boxShadow: "0 0 18px var(--app-brand-border)",
+            fontWeight: "800",
+          }}
+        >
+          شارك تجربتك وساعد غيرك
+        </button>
+
         <Link to="/experiences" style={{ textDecoration: "none" }}>
           <button
-            className="home-cta"
+            className="home-cta home-read-cta"
             style={{
-              backgroundColor: "var(--app-brand)",
-              color: "#07100e",
-              border: "none",
+              backgroundColor: "transparent",
+              color: "var(--app-brand-strong)",
+              border: "1px solid var(--app-brand-border)",
               borderRadius: "10px",
-              padding: "14px 34px",
-              fontSize: "18px",
+              padding: "14px 28px",
+              fontSize: "16px",
               fontFamily: homeFont,
               cursor: "pointer",
               transition: "0.3s",
-              boxShadow: "0 0 15px var(--app-brand-border)",
+              fontWeight: "700",
             }}
           >
-            استعرض التجارب 🚀
+            قراءة التجارب
           </button>
         </Link>
 
@@ -290,8 +315,8 @@ const HomePage = () => {
               color: "var(--app-brand-strong)",
               border: "1px solid var(--app-brand-border)",
               borderRadius: "10px",
-              padding: "14px 34px",
-              fontSize: "18px",
+              padding: "14px 28px",
+              fontSize: "16px",
               fontFamily: homeFont,
               cursor: "pointer",
               transition: "0.3s",
@@ -400,8 +425,23 @@ const HomePage = () => {
             font-size: 16px !important;
           }
 
+          .home-share-cta {
+            width: min(100%, 320px) !important;
+            order: -1;
+            font-size: 17px !important;
+            padding: 14px 20px !important;
+          }
+
+          .home-read-cta,
+          .home-secondary-cta {
+            width: min(100%, 150px) !important;
+            font-size: 13px !important;
+            padding: 10px 12px !important;
+          }
+
           .home-actions {
             width: min(100%, 320px);
+            gap: 8px !important;
           }
 
           .home-stats {
