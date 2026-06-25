@@ -69,20 +69,16 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     fontWeight: location.pathname === path ? "bold" : "normal",
     transition: "0.3s",
     whiteSpace: "nowrap",
-    flex: isMobile ? "0 0 auto" : "initial",
-    padding: isMobile ? "7px 10px" : 0,
-    borderRadius: isMobile ? "999px" : 0,
-    fontSize: isMobile ? "12px" : "inherit",
-    background:
+    flex: isMobile ? "0 1 auto" : "initial",
+    padding: isMobile ? "2px 1px 4px" : 0,
+    borderRadius: 0,
+    fontSize: isMobile ? "10.5px" : "inherit",
+    background: "transparent",
+    border: "none",
+    borderBottom:
       isMobile && location.pathname === path
-        ? "var(--app-brand-soft)"
-        : "transparent",
-    border:
-      isMobile && location.pathname === path
-        ? "1px solid var(--app-brand-border)"
-        : isMobile
-        ? "1px solid transparent"
-        : "none",
+        ? "1px solid var(--app-brand)"
+        : "1px solid transparent",
   });
 
   const actionButtonStyle = {
@@ -90,8 +86,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     color: "var(--app-brand-strong)",
     border: "1px solid var(--app-brand-border)",
     borderRadius: isMobile ? "999px" : "12px",
-    padding: isMobile ? "8px 10px" : "10px 12px",
-    fontSize: isMobile ? "12px" : "14px",
+    padding: isMobile ? "7px 8px" : "10px 12px",
+    fontSize: isMobile ? "10.5px" : "14px",
     cursor: "pointer",
     boxShadow: "0 0 10px rgba(125, 219, 205, 0.12)",
     transition: "0.3s",
@@ -99,6 +95,21 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     fontWeight: "700",
     whiteSpace: "nowrap",
     flex: isMobile ? "0 0 auto" : "initial",
+  };
+
+  const quietActionButtonStyle = {
+    background: "transparent",
+    color: "var(--app-text-soft)",
+    border: "none",
+    padding: isMobile ? "2px 1px 4px" : "0",
+    cursor: "pointer",
+    transition: "0.3s",
+    fontFamily: "inherit",
+    fontSize: isMobile ? "10.5px" : "14px",
+    fontWeight: "700",
+    whiteSpace: "nowrap",
+    flex: isMobile ? "0 1 auto" : "initial",
+    borderBottom: "1px solid transparent",
   };
 
   const toggleTheme = () => {
@@ -269,10 +280,10 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           flexDirection: isMobile ? "column" : "row",
           justifyContent: "space-between",
           alignItems: "center",
-          padding: isMobile ? "7px 10px 9px" : "14px 24px",
+          padding: isMobile ? "6px 8px 7px" : "14px 24px",
           backgroundColor: "var(--app-surface)",
           borderBottom: "1px solid var(--app-border)",
-          gap: isMobile ? "7px" : "30px",
+          gap: isMobile ? "5px" : "30px",
           overflow: "hidden",
           transition: "background-color 0.25s ease, border-color 0.25s ease",
         }}
@@ -305,12 +316,12 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           className="navbar-links-row"
           style={{
             display: "flex",
-            gap: isMobile ? "7px" : "18px",
+            gap: isMobile ? "6px" : "18px",
             alignItems: "center",
             flexWrap: isMobile ? "nowrap" : "wrap",
-            justifyContent: isMobile ? "flex-start" : "center",
+            justifyContent: isMobile ? "space-between" : "center",
             width: isMobile ? "100%" : "auto",
-            overflowX: isMobile ? "auto" : "visible",
+            overflowX: "hidden",
             overflowY: "hidden",
             paddingBottom: isMobile ? "2px" : 0,
             WebkitOverflowScrolling: "touch",
@@ -318,40 +329,40 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           }}
         >
           <Link to="/" style={linkStyle("/")}>
-            🏠 الرئيسية
+            {isMobile ? "الرئيسية" : "🏠 الرئيسية"}
           </Link>
 
           <Link to="/experiences" style={linkStyle("/experiences")}>
-            📄 التجارب
+            {isMobile ? "التجارب" : "📄 التجارب"}
           </Link>
 
           <Link to="/where-to-train" style={linkStyle("/where-to-train")}>
-            🎯 وين أتدرب؟
+            {isMobile ? "وين أتدرب" : "🎯 وين أتدرب؟"}
           </Link>
 
           <div
             style={{
               display: "flex",
-              gap: isMobile ? "7px" : "10px",
+              gap: isMobile ? "6px" : "10px",
               alignItems: "center",
               flexWrap: "nowrap",
-              justifyContent: isMobile ? "flex-start" : "center",
-              flex: isMobile ? "0 0 auto" : "initial",
+              justifyContent: "center",
+              flex: isMobile ? "0 1 auto" : "initial",
             }}
           >
             <button
               type="button"
               onClick={toggleSuggestionBox}
-              style={actionButtonStyle}
+              style={quietActionButtonStyle}
             >
-              اقتراحاتكم
+              {isMobile ? "اقتراح" : "اقتراحاتكم"}
             </button>
             <button
               type="button"
               onClick={openAddExperienceModal}
               style={actionButtonStyle}
             >
-              + أضف تجربتك
+              {isMobile ? "+ تجربة" : "+ أضف تجربتك"}
             </button>
           </div>
 
@@ -470,8 +481,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           style={{
             position: "fixed",
             right: isMobile ? "12px" : "22px",
-            bottom: isMobile ? "14px" : "24px",
-            zIndex: 2300,
+            top: isMobile ? "12px" : "18px",
+            zIndex: 2450,
             direction: "rtl",
             fontFamily: "'Cairo', sans-serif",
           }}
@@ -482,7 +493,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               style={{
                 position: "absolute",
                 right: 0,
-                bottom: "calc(100% + 10px)",
+                top: "calc(100% + 10px)",
                 width: isMobile ? "min(270px, calc(100vw - 24px))" : "250px",
                 background: "color-mix(in srgb, var(--app-surface) 96%, transparent)",
                 color: "var(--app-text)",
@@ -564,23 +575,25 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             aria-label={floatingMenuOpen ? "إغلاق القائمة" : "فتح القائمة"}
             style={{
               minWidth: isMobile ? "54px" : "62px",
-              height: isMobile ? "54px" : "58px",
-              borderRadius: "18px",
+              height: isMobile ? "42px" : "46px",
+              borderRadius: "999px",
               border: "1px solid var(--app-brand-border)",
-              background: floatingMenuOpen ? "var(--app-brand)" : "var(--app-surface)",
-              color: floatingMenuOpen ? "#071315" : "var(--app-text)",
-              boxShadow: "0 16px 38px var(--app-shadow)",
+              background: "var(--app-brand)",
+              color: "#071315",
+              boxShadow:
+                "0 14px 34px var(--app-shadow), 0 0 0 4px var(--app-brand-soft)",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: isMobile ? "0" : "8px",
-              padding: isMobile ? "0" : "0 14px",
+              gap: "7px",
+              padding: isMobile ? "0 13px" : "0 15px",
               fontFamily: "inherit",
               fontWeight: "900",
+              fontSize: isMobile ? "12px" : "13px",
             }}
           >
-            {!isMobile && <span>{floatingMenuOpen ? "إغلاق" : "القائمة"}</span>}
+            <span>{floatingMenuOpen ? "إغلاق" : "القائمة"}</span>
             <span
               aria-hidden="true"
               style={{
