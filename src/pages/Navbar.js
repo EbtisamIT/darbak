@@ -374,12 +374,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             </button>
           </div>
 
-          {showModal && (
-            <AddExperienceModal
-              onAddExperience={(exp) => console.log("تمت الإضافة:", exp)}
-              onClose={() => setShowModal(false)}
-            />
-          )}
         </div>
       </nav>
       {showSuggestionBox && (
@@ -482,6 +476,13 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         </p>
       )}
     </header>
+
+      {showModal && (
+        <AddExperienceModal
+          onAddExperience={(exp) => console.log("تمت الإضافة:", exp)}
+          onClose={() => setShowModal(false)}
+        />
+      )}
 
       {isNavbarCollapsed && !showModal && (
         <div

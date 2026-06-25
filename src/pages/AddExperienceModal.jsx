@@ -536,14 +536,17 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "var(--app-overlay)",
+        backgroundColor: "rgba(0, 0, 0, 0.72)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 9999,
+        zIndex: 12000,
         padding: 20,
         fontFamily: "'Cairo', sans-serif",
         direction: "rtl",
+        boxSizing: "border-box",
       }}
     >
       <div
@@ -554,7 +557,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           borderRadius: 14,
           background: "var(--app-surface)",
           color: "var(--app-text)",
-          boxShadow: "0 12px 40px var(--app-shadow)",
+          boxShadow: "0 28px 80px rgba(0,0,0,0.45)",
           overflow: "hidden",
           maxHeight: "calc(100dvh - 40px)",
           display: "flex",
@@ -1274,12 +1277,13 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
         @media (max-width: 640px) {
           .stepper-modal-bg {
-            align-items: flex-start !important;
-            padding: 10px !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 12px !important;
           }
 
           .stepper-modal-card {
-            max-height: calc(100dvh - 20px) !important;
+            max-height: calc(100dvh - 24px) !important;
             border-radius: 16px !important;
           }
 
