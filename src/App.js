@@ -295,7 +295,7 @@ function App() {
 
         {/* المحتوى */}
         <div style={contentContainer}>
-          <div style={contentStyle}>
+          <div className="app-content-frame" style={contentStyle}>
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/experiences" element={<ExperiencesPage />} />

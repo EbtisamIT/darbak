@@ -52,6 +52,12 @@ body {
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
+@media (max-width: 768px) {
+  .app-content-frame {
+    padding: 16px 8px !important;
+  }
+}
+
 .App-logo {
   height: 40vmin;
   pointer-events: none;

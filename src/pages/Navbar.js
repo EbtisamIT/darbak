@@ -12,10 +12,20 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const [suggestionText, setSuggestionText] = useState("");
   const [suggestionMessage, setSuggestionMessage] = useState("");
   const [sendingSuggestion, setSendingSuggestion] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 768 : false
+  );
 
   const location = useLocation();
-  const isMobile = window.innerWidth < 768;
   const shouldStickNavbar = !isMobile && location.pathname !== "/experiences";
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     const openAddExperienceModal = () => setShowModal(true);
@@ -34,20 +44,37 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     color: location.pathname === path ? "var(--app-brand)" : "var(--app-text-soft)",
     fontWeight: location.pathname === path ? "bold" : "normal",
     transition: "0.3s",
+    whiteSpace: "nowrap",
+    flex: isMobile ? "0 0 auto" : "initial",
+    padding: isMobile ? "7px 10px" : 0,
+    borderRadius: isMobile ? "999px" : 0,
+    fontSize: isMobile ? "12px" : "inherit",
+    background:
+      isMobile && location.pathname === path
+        ? "var(--app-brand-soft)"
+        : "transparent",
+    border:
+      isMobile && location.pathname === path
+        ? "1px solid var(--app-brand-border)"
+        : isMobile
+        ? "1px solid transparent"
+        : "none",
   });
 
   const actionButtonStyle = {
     backgroundColor: "var(--app-input-bg)",
     color: "var(--app-brand-strong)",
     border: "1px solid var(--app-brand-border)",
-    borderRadius: "12px",
-    padding: "10px 12px",
-    fontSize: "14px",
+    borderRadius: isMobile ? "999px" : "12px",
+    padding: isMobile ? "8px 10px" : "10px 12px",
+    fontSize: isMobile ? "12px" : "14px",
     cursor: "pointer",
     boxShadow: "0 0 10px rgba(125, 219, 205, 0.12)",
     transition: "0.3s",
     fontFamily: "inherit",
     fontWeight: "700",
+    whiteSpace: "nowrap",
+    flex: isMobile ? "0 0 auto" : "initial",
   };
 
   const toggleTheme = () => {
@@ -87,8 +114,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       aria-label={theme === "dark" ? "تفعيل الوضع الصباحي" : "تفعيل الوضع المسائي"}
       style={{
         position: "relative",
-        width: "58px",
-        height: "30px",
+        width: isMobile ? "50px" : "58px",
+        height: isMobile ? "26px" : "30px",
         backgroundColor: "var(--app-input-bg)",
         color: "var(--app-text)",
         border: "1px solid var(--app-border)",
@@ -134,9 +161,9 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         style={{
           position: "absolute",
           top: "3px",
-          right: theme === "dark" ? "31px" : "3px",
-          width: "22px",
-          height: "22px",
+          right: theme === "dark" ? (isMobile ? "27px" : "31px") : "3px",
+          width: isMobile ? "20px" : "22px",
+          height: isMobile ? "20px" : "22px",
           borderRadius: "50%",
           background: "var(--app-brand)",
           boxShadow: "0 4px 12px var(--app-brand-border)",
@@ -164,11 +191,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           flexDirection: isMobile ? "column" : "row",
           justifyContent: "space-between",
           alignItems: "center",
-          padding: "14px 24px",
+          padding: isMobile ? "7px 10px 9px" : "14px 24px",
           backgroundColor: "var(--app-surface)",
           borderBottom: "1px solid var(--app-border)",
-          gap: isMobile ? "14px" : "30px",
-          overflow: "auto",
+          gap: isMobile ? "7px" : "30px",
+          overflow: "hidden",
           transition: "background-color 0.25s ease, border-color 0.25s ease",
         }}
       >
@@ -177,7 +204,9 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             display: "flex",
             alignItems: "center",
             gap: "10px",
-            flexDirection: isMobile ? "column" : "row",
+            flexDirection: "row",
+            width: isMobile ? "100%" : "auto",
+            justifyContent: isMobile ? "space-between" : "flex-start",
           }}
         >
           <Link to="/" style={{ display: "flex", alignItems: "center" }}>
@@ -185,8 +214,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               src={logo}
               alt="شعار دربك"
               style={{
-                height: "80px",
-                width: "85px",
+                height: isMobile ? "42px" : "80px",
+                width: isMobile ? "54px" : "85px",
                 objectFit: "contain",
               }}
             />
@@ -195,12 +224,19 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         </div>
 
         <div
+          className="navbar-links-row"
           style={{
             display: "flex",
-            gap: "18px",
+            gap: isMobile ? "7px" : "18px",
             alignItems: "center",
-            flexWrap: "wrap",
-            justifyContent: "center",
+            flexWrap: isMobile ? "nowrap" : "wrap",
+            justifyContent: isMobile ? "flex-start" : "center",
+            width: isMobile ? "100%" : "auto",
+            overflowX: isMobile ? "auto" : "visible",
+            overflowY: "hidden",
+            paddingBottom: isMobile ? "2px" : 0,
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: isMobile ? "none" : "auto",
           }}
         >
           <Link to="/" style={linkStyle("/")}>
@@ -218,10 +254,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           <div
             style={{
               display: "flex",
-              gap: "10px",
+              gap: isMobile ? "7px" : "10px",
               alignItems: "center",
-              flexWrap: "wrap",
-              justifyContent: "center",
+              flexWrap: "nowrap",
+              justifyContent: isMobile ? "flex-start" : "center",
+              flex: isMobile ? "0 0 auto" : "initial",
             }}
           >
             <button
@@ -329,6 +366,13 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           {suggestionMessage}
         </p>
       )}
+      <style>{`
+        @media (max-width: 767px) {
+          .navbar-links-row::-webkit-scrollbar {
+            display: none;
+          }
+        }
+      `}</style>
     </header>
   );
 };

@@ -360,6 +360,7 @@ const ExperiencesPage = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedMajors, setSelectedMajors] = useState([]);
   const [majorsMenuOpen, setMajorsMenuOpen] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [companySearch, setCompanySearch] = useState(getInitialCompanySearch);
   const [sortOption, setSortOption] = useState(() =>
     getInitialCompanySearch() ? "relevance" : "latest"
@@ -643,6 +644,14 @@ const ExperiencesPage = () => {
 
   const selectedMajorsText =
     selectedMajors.length === 0 ? "كل التخصصات" : selectedMajors.join("، ");
+
+  const activeFiltersCount = [
+    selectedMajors.length > 0,
+    selectedCity,
+    rewardFilter,
+    environmentFilter,
+    sortOption !== "latest",
+  ].filter(Boolean).length;
 
   const sortLabels = {
     latest: "الأحدث أولًا",
@@ -1131,106 +1140,11 @@ const ExperiencesPage = () => {
           padding: "15px 12px",
         }}
       >
-        <div className="experience-controls-sticky">
-          <div
-            className="mobile-majors-menu"
-            style={{
-              display: "none",
-              marginBottom: "18px",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setMajorsMenuOpen((open) => !open)}
-              style={{
-                width: "100%",
-                background: "var(--app-surface-2)",
-                color: "var(--app-text)",
-                border: "1px solid var(--app-brand-border)",
-                borderRadius: "16px",
-                padding: "12px 14px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "12px",
-                cursor: "pointer",
-                textAlign: "right",
-              }}
-            >
-              <span
-                style={{
-                  display: "grid",
-                  gap: "3px",
-                  minWidth: 0,
-                }}
-              >
-                <span
-                  style={{
-                    color: "var(--app-brand)",
-                    fontSize: "12px",
-                    fontWeight: "bold",
-                  }}
-                >
-                  التخصصات
-                </span>
-                <span
-                  style={{
-                    color: "var(--app-text-soft)",
-                    fontSize: "13px",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {selectedMajorsText}
-                </span>
-              </span>
-              <span
-                style={{
-                  color: "var(--app-brand)",
-                  fontSize: "18px",
-                  lineHeight: 1,
-                  transform: majorsMenuOpen ? "rotate(180deg)" : "rotate(0)",
-                  transition: "0.2s ease",
-                }}
-              >
-                ▾
-              </span>
-            </button>
-
-            {majorsMenuOpen && (
-              <div
-                className="mobile-majors-list"
-                style={{
-                  marginTop: "10px",
-                  background: "var(--app-card)",
-                  border: "1px solid var(--app-border)",
-                  borderRadius: "16px",
-                  padding: "10px",
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: "8px",
-                }}
-              >
-                <MajorButton
-                  name="الكل"
-                  active={selectedMajors.length === 0}
-                  isAll
-                />
-
-                {majors.map(({ name, icon: Icon, color = "#7ddbcd" }) => (
-                  <MajorButton
-                    key={name}
-                    name={name}
-                    Icon={Icon}
-                    color={color}
-                    active={selectedMajors.includes(name)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
+        <div
+          className={`experience-controls-sticky${
+            mobileFiltersOpen ? " is-mobile-filters-open" : ""
+          }`}
+        >
           <div
             className="majors-grid"
             style={{
@@ -1332,6 +1246,7 @@ const ExperiencesPage = () => {
             )}
 
             <select
+              className="experience-city-select mobile-advanced-control"
               value={selectedCity}
               onChange={(e) => setSelectedCity(e.target.value)}
               aria-label="فلترة حسب المدينة"
@@ -1356,6 +1271,7 @@ const ExperiencesPage = () => {
             </select>
 
             <select
+              className="experience-sort-select mobile-advanced-control"
               value={sortOption}
               onChange={(e) => setSortOption(e.target.value)}
               aria-label="ترتيب التجارب"
@@ -1375,6 +1291,172 @@ const ExperiencesPage = () => {
               <option value="rating">الأعلى تقييمًا</option>
               <option value="relevance">الأكثر صلة</option>
             </select>
+          </div>
+
+          <div
+            className="mobile-filter-toggle-row"
+            style={{
+              display: "none",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen((open) => !open)}
+              aria-expanded={mobileFiltersOpen}
+              style={{
+                background: mobileFiltersOpen
+                  ? "var(--app-brand)"
+                  : "var(--app-surface-2)",
+                color: mobileFiltersOpen ? "#071315" : "var(--app-text)",
+                border: "1px solid var(--app-brand-border)",
+                borderRadius: "999px",
+                padding: "8px 12px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: "12px",
+                fontWeight: "800",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <span aria-hidden="true">☰</span>
+              فلاتر
+              {activeFiltersCount > 0 && (
+                <span
+                  style={{
+                    minWidth: "18px",
+                    height: "18px",
+                    borderRadius: "999px",
+                    display: "inline-grid",
+                    placeItems: "center",
+                    background: mobileFiltersOpen
+                      ? "rgba(7,19,21,0.14)"
+                      : "var(--app-brand-soft)",
+                    color: mobileFiltersOpen ? "#071315" : "var(--app-brand)",
+                    fontSize: "11px",
+                  }}
+                >
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                color: "var(--app-text-soft)",
+                fontSize: "11px",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                textAlign: "right",
+              }}
+            >
+              {selectedMajors.length > 0 || selectedCity || rewardFilter || environmentFilter
+                ? selectedMajorsText
+                : "خصص النتائج حسب التخصص، المدينة، المكافأة أو البيئة"}
+            </span>
+          </div>
+
+          <div
+            className="mobile-majors-menu"
+            style={{
+              display: "none",
+              marginBottom: "18px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setMajorsMenuOpen((open) => !open)}
+              style={{
+                width: "100%",
+                background: "var(--app-surface-2)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-brand-border)",
+                borderRadius: "16px",
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
+                cursor: "pointer",
+                textAlign: "right",
+              }}
+            >
+              <span
+                style={{
+                  display: "grid",
+                  gap: "3px",
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    color: "var(--app-brand)",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  التخصصات
+                </span>
+                <span
+                  style={{
+                    color: "var(--app-text-soft)",
+                    fontSize: "13px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {selectedMajorsText}
+                </span>
+              </span>
+              <span
+                style={{
+                  color: "var(--app-brand)",
+                  fontSize: "18px",
+                  lineHeight: 1,
+                  transform: majorsMenuOpen ? "rotate(180deg)" : "rotate(0)",
+                  transition: "0.2s ease",
+                }}
+              >
+                ▾
+              </span>
+            </button>
+
+            {majorsMenuOpen && (
+              <div
+                className="mobile-majors-list"
+                style={{
+                  marginTop: "10px",
+                  background: "var(--app-card)",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "16px",
+                  padding: "10px",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gap: "8px",
+                }}
+              >
+                <MajorButton
+                  name="الكل"
+                  active={selectedMajors.length === 0}
+                  isAll
+                />
+
+                {majors.map(({ name, icon: Icon, color = "#7ddbcd" }) => (
+                  <MajorButton
+                    key={name}
+                    name={name}
+                    Icon={Icon}
+                    color={color}
+                    active={selectedMajors.includes(name)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="experience-filter-tabs">
@@ -2158,20 +2240,46 @@ const ExperiencesPage = () => {
 
         @media (max-width: 900px) {
           .experiences-shell {
-            margin-top: 72px !important;
-            padding: 12px 10px 24px !important;
+            margin-top: 18px !important;
+            padding: 10px 10px 24px !important;
           }
 
           .experience-controls-sticky {
-            margin: -12px -10px 14px;
-            padding: 10px 10px 2px;
+            margin: -10px -10px 12px;
+            padding: 8px 10px 7px;
+            border-radius: 0 0 18px 18px;
+            box-shadow: 0 10px 26px rgba(0,0,0,0.16);
           }
 
           .majors-grid {
             display: none !important;
           }
 
+          .mobile-filter-toggle-row {
+            display: flex !important;
+            align-items: center;
+            gap: 8px;
+            max-width: 980px;
+            margin: -2px auto 7px;
+          }
+
           .mobile-majors-menu {
+            display: none !important;
+            margin-bottom: 8px !important;
+          }
+
+          .experience-controls-sticky.is-mobile-filters-open .mobile-majors-menu {
+            display: block !important;
+          }
+
+          .experience-controls-sticky:not(.is-mobile-filters-open) .experience-filter-tabs,
+          .experience-controls-sticky:not(.is-mobile-filters-open) .experience-city-select,
+          .experience-controls-sticky:not(.is-mobile-filters-open) .experience-sort-select {
+            display: none !important;
+          }
+
+          .experience-controls-sticky.is-mobile-filters-open .experience-city-select,
+          .experience-controls-sticky.is-mobile-filters-open .experience-sort-select {
             display: block !important;
           }
 
@@ -2192,7 +2300,7 @@ const ExperiencesPage = () => {
           .experiences-search-bar {
             align-items: stretch !important;
             gap: 8px !important;
-            margin-bottom: 16px !important;
+            margin-bottom: 8px !important;
             flex-wrap: wrap;
           }
 
@@ -2210,13 +2318,15 @@ const ExperiencesPage = () => {
           .experiences-search-bar select,
           .experiences-search-bar button {
             flex: 1;
-            min-height: 40px;
+            min-height: 38px;
+            border-radius: 12px !important;
+            font-size: 12px !important;
           }
 
           .experience-filter-tabs {
             justify-content: flex-start;
             gap: 8px;
-            margin: -6px 0 16px;
+            margin: 0 0 12px;
             overflow-x: auto;
             flex-wrap: nowrap;
             padding-bottom: 4px;
