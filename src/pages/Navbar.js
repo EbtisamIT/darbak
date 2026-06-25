@@ -15,9 +15,17 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 768 : false
   );
+  const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
+  const [floatingMenuOpen, setFloatingMenuOpen] = useState(false);
 
   const location = useLocation();
   const shouldStickNavbar = !isMobile && location.pathname !== "/experiences";
+  const shouldHideHeader =
+    shouldStickNavbar &&
+    isNavbarCollapsed &&
+    !showModal &&
+    !showSuggestionBox &&
+    !suggestionMessage;
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -26,6 +34,22 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const collapsed = window.scrollY > (isMobile ? 130 : 180);
+      setIsNavbarCollapsed(collapsed);
+      if (!collapsed) setFloatingMenuOpen(false);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [isMobile]);
+
+  useEffect(() => {
+    setFloatingMenuOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     const openAddExperienceModal = () => setShowModal(true);
@@ -79,6 +103,54 @@ const Navbar = ({ theme = "dark", setTheme }) => {
 
   const toggleTheme = () => {
     if (setTheme) setTheme(theme === "dark" ? "light" : "dark");
+  };
+
+  const toggleSuggestionBox = () => {
+    setShowSuggestionBox((prev) => !prev);
+    setSuggestionMessage("");
+    setFloatingMenuOpen(false);
+  };
+
+  const openAddExperienceModal = () => {
+    setShowModal(true);
+    setFloatingMenuOpen(false);
+  };
+
+  const floatingLinkStyle = (path) => ({
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px",
+    textDecoration: "none",
+    color: location.pathname === path ? "var(--app-brand)" : "var(--app-text)",
+    background:
+      location.pathname === path ? "var(--app-brand-soft)" : "transparent",
+    border: "1px solid",
+    borderColor:
+      location.pathname === path ? "var(--app-brand-border)" : "var(--app-border)",
+    borderRadius: "14px",
+    padding: "10px 12px",
+    fontSize: "13px",
+    fontWeight: "800",
+    whiteSpace: "nowrap",
+  });
+
+  const floatingActionStyle = {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px",
+    background: "var(--app-input-bg)",
+    color: "var(--app-text)",
+    border: "1px solid var(--app-border)",
+    borderRadius: "14px",
+    padding: "10px 12px",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    fontSize: "13px",
+    fontWeight: "800",
+    textAlign: "right",
   };
 
   const submitSuggestion = async (event) => {
@@ -175,7 +247,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   );
 
   return (
-    <header
+    <>
+      <header
       style={{
         position: shouldStickNavbar ? "sticky" : "static",
         top: shouldStickNavbar ? 0 : "auto",
@@ -183,6 +256,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         width: "100%",
         background: "var(--app-surface)",
         boxShadow: shouldStickNavbar ? "0 10px 24px rgba(0,0,0,0.12)" : "none",
+        transform: shouldHideHeader ? "translateY(-110%)" : "translateY(0)",
+        opacity: shouldHideHeader ? 0 : 1,
+        pointerEvents: shouldHideHeader ? "none" : "auto",
+        transition:
+          "transform 0.22s ease, opacity 0.22s ease, background-color 0.25s ease",
       }}
     >
       <nav
@@ -263,17 +341,14 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           >
             <button
               type="button"
-              onClick={() => {
-                setShowSuggestionBox((prev) => !prev);
-                setSuggestionMessage("");
-              }}
+              onClick={toggleSuggestionBox}
               style={actionButtonStyle}
             >
               اقتراحاتكم
             </button>
             <button
               type="button"
-              onClick={() => setShowModal(true)}
+              onClick={openAddExperienceModal}
               style={actionButtonStyle}
             >
               + أضف تجربتك
@@ -291,11 +366,21 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       {showSuggestionBox && (
         <div
           style={{
-            width: "100%",
+            width: isNavbarCollapsed ? "min(560px, calc(100vw - 24px))" : "100%",
             background: "var(--app-surface)",
+            border: isNavbarCollapsed ? "1px solid var(--app-border)" : "none",
             borderBottom: "1px solid var(--app-border)",
+            borderRadius: isNavbarCollapsed ? "18px" : 0,
             padding: "12px 16px",
             boxSizing: "border-box",
+            position: isNavbarCollapsed ? "fixed" : "static",
+            top: isNavbarCollapsed ? (isMobile ? "12px" : "18px") : "auto",
+            left: isNavbarCollapsed ? "50%" : "auto",
+            transform: isNavbarCollapsed ? "translateX(-50%)" : "none",
+            zIndex: isNavbarCollapsed ? 2600 : "auto",
+            boxShadow: isNavbarCollapsed
+              ? "0 18px 50px var(--app-shadow)"
+              : "none",
           }}
         >
           <form
@@ -353,27 +438,187 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       {suggestionMessage && (
         <p
           style={{
-            margin: "8px auto 0",
-            padding: "0 16px",
+            margin: isNavbarCollapsed ? 0 : "8px auto 0",
+            padding: isNavbarCollapsed ? "9px 14px" : "0 16px",
             textAlign: "center",
             fontSize: "12px",
             color: suggestionMessage.includes("وصلنا")
               ? "var(--app-brand-strong)"
               : "#fecdd3",
             fontFamily: "'Cairo', sans-serif",
+            position: isNavbarCollapsed ? "fixed" : "static",
+            top: isNavbarCollapsed ? (isMobile ? "12px" : "18px") : "auto",
+            left: isNavbarCollapsed ? "50%" : "auto",
+            transform: isNavbarCollapsed ? "translateX(-50%)" : "none",
+            zIndex: isNavbarCollapsed ? 2650 : "auto",
+            width: isNavbarCollapsed ? "min(520px, calc(100vw - 24px))" : "auto",
+            boxSizing: "border-box",
+            background: isNavbarCollapsed ? "var(--app-surface)" : "transparent",
+            border: isNavbarCollapsed ? "1px solid var(--app-border)" : "none",
+            borderRadius: isNavbarCollapsed ? "999px" : 0,
+            boxShadow: isNavbarCollapsed ? "0 16px 42px var(--app-shadow)" : "none",
           }}
         >
           {suggestionMessage}
         </p>
       )}
+    </header>
+
+      {isNavbarCollapsed && !showModal && (
+        <div
+          className="floating-nav-shell"
+          style={{
+            position: "fixed",
+            right: isMobile ? "12px" : "22px",
+            bottom: isMobile ? "14px" : "24px",
+            zIndex: 2300,
+            direction: "rtl",
+            fontFamily: "'Cairo', sans-serif",
+          }}
+        >
+          {floatingMenuOpen && (
+            <div
+              className="floating-nav-panel"
+              style={{
+                position: "absolute",
+                right: 0,
+                bottom: "calc(100% + 10px)",
+                width: isMobile ? "min(270px, calc(100vw - 24px))" : "250px",
+                background: "color-mix(in srgb, var(--app-surface) 96%, transparent)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-border)",
+                borderRadius: "20px",
+                boxShadow: "0 22px 58px var(--app-shadow)",
+                backdropFilter: "blur(14px)",
+                padding: "10px",
+                display: "grid",
+                gap: "8px",
+              }}
+            >
+              <Link to="/" style={floatingLinkStyle("/")}>
+                <span>الرئيسية</span>
+                <span aria-hidden="true">🏠</span>
+              </Link>
+              <Link to="/experiences" style={floatingLinkStyle("/experiences")}>
+                <span>التجارب</span>
+                <span aria-hidden="true">📄</span>
+              </Link>
+              <Link
+                to="/where-to-train"
+                style={floatingLinkStyle("/where-to-train")}
+              >
+                <span>وين أتدرب؟</span>
+                <span aria-hidden="true">🎯</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={toggleSuggestionBox}
+                style={floatingActionStyle}
+              >
+                <span>اقتراحاتكم</span>
+                <span aria-hidden="true">✦</span>
+              </button>
+              <button
+                type="button"
+                onClick={openAddExperienceModal}
+                style={{
+                  ...floatingActionStyle,
+                  background: "var(--app-brand)",
+                  color: "#071315",
+                  borderColor: "transparent",
+                  boxShadow: "0 10px 24px var(--app-brand-border)",
+                }}
+              >
+                <span>أضف تجربتك</span>
+                <span aria-hidden="true">+</span>
+              </button>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "10px",
+                  padding: "2px 2px 0",
+                }}
+              >
+                <span
+                  style={{
+                    color: "var(--app-text-soft)",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                  }}
+                >
+                  المظهر
+                </span>
+                {themeToggleButton}
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setFloatingMenuOpen((open) => !open)}
+            aria-expanded={floatingMenuOpen}
+            aria-label={floatingMenuOpen ? "إغلاق القائمة" : "فتح القائمة"}
+            style={{
+              minWidth: isMobile ? "54px" : "62px",
+              height: isMobile ? "54px" : "58px",
+              borderRadius: "18px",
+              border: "1px solid var(--app-brand-border)",
+              background: floatingMenuOpen ? "var(--app-brand)" : "var(--app-surface)",
+              color: floatingMenuOpen ? "#071315" : "var(--app-text)",
+              boxShadow: "0 16px 38px var(--app-shadow)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: isMobile ? "0" : "8px",
+              padding: isMobile ? "0" : "0 14px",
+              fontFamily: "inherit",
+              fontWeight: "900",
+            }}
+          >
+            {!isMobile && <span>{floatingMenuOpen ? "إغلاق" : "القائمة"}</span>}
+            <span
+              aria-hidden="true"
+              style={{
+                fontSize: "20px",
+                lineHeight: 1,
+              }}
+            >
+              {floatingMenuOpen ? "×" : "☰"}
+            </span>
+          </button>
+        </div>
+      )}
+
       <style>{`
         @media (max-width: 767px) {
           .navbar-links-row::-webkit-scrollbar {
             display: none;
           }
         }
+
+        @media (prefers-reduced-motion: no-preference) {
+          .floating-nav-panel {
+            animation: floatingMenuIn 0.18s ease both;
+          }
+        }
+
+        @keyframes floatingMenuIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
       `}</style>
-    </header>
+    </>
   );
 };
 
