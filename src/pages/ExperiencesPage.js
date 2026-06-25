@@ -1246,7 +1246,7 @@ const ExperiencesPage = () => {
             )}
 
             <select
-              className="experience-city-select mobile-advanced-control"
+              className="desktop-advanced-control"
               value={selectedCity}
               onChange={(e) => setSelectedCity(e.target.value)}
               aria-label="فلترة حسب المدينة"
@@ -1271,7 +1271,7 @@ const ExperiencesPage = () => {
             </select>
 
             <select
-              className="experience-sort-select mobile-advanced-control"
+              className="desktop-advanced-control"
               value={sortOption}
               onChange={(e) => setSortOption(e.target.value)}
               aria-label="ترتيب التجارب"
@@ -1320,8 +1320,8 @@ const ExperiencesPage = () => {
                 gap: "6px",
               }}
             >
-              <span aria-hidden="true">☰</span>
-              فلاتر
+              <span aria-hidden="true">⚙</span>
+              تصفية النتائج
               {activeFiltersCount > 0 && (
                 <span
                   style={{
@@ -1347,7 +1347,7 @@ const ExperiencesPage = () => {
                 flex: 1,
                 minWidth: 0,
                 color: "var(--app-text-soft)",
-                fontSize: "11px",
+                fontSize: "11.5px",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -1356,8 +1356,40 @@ const ExperiencesPage = () => {
             >
               {selectedMajors.length > 0 || selectedCity || rewardFilter || environmentFilter
                 ? selectedMajorsText
-                : "خصص النتائج حسب التخصص، المدينة، المكافأة أو البيئة"}
+                : "تخصص، مدينة، مكافأة، بيئة"}
             </span>
+          </div>
+
+          <div className="mobile-filter-panel-intro">
+            <div>
+              <strong>خيارات التصفية</strong>
+              <span>تخصصات، مدن، ومؤشرات مختصرة</span>
+            </div>
+          </div>
+
+          <div className="mobile-advanced-filters">
+            <select
+              value={selectedCity}
+              onChange={(e) => setSelectedCity(e.target.value)}
+              aria-label="فلترة حسب المدينة"
+            >
+              <option value="">كل المدن</option>
+              {MAIN_CITY_FILTERS.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value)}
+              aria-label="ترتيب التجارب"
+            >
+              <option value="latest">الأحدث أولًا</option>
+              <option value="rating">الأعلى تقييمًا</option>
+              <option value="relevance">الأكثر صلة</option>
+            </select>
           </div>
 
           <div
@@ -1457,6 +1489,11 @@ const ExperiencesPage = () => {
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="quick-filter-heading">
+            <span>فلاتر سريعة</span>
+            <small>المكافأة وبيئة التدريب</small>
           </div>
 
           <div className="experience-filter-tabs">
@@ -2138,6 +2175,32 @@ const ExperiencesPage = () => {
           padding: 8px 12px 4px;
         }
 
+        .mobile-filter-panel-intro,
+        .mobile-advanced-filters {
+          display: none;
+        }
+
+        .quick-filter-heading {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          max-width: 980px;
+          margin: -6px auto 9px;
+          color: var(--app-text);
+        }
+
+        .quick-filter-heading span {
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .quick-filter-heading small {
+          color: var(--app-text-soft);
+          font-size: 11px;
+          font-weight: 700;
+        }
+
         .experience-filter-tabs {
           display: flex;
           align-items: center;
@@ -2145,7 +2208,7 @@ const ExperiencesPage = () => {
           gap: 8px;
           flex-wrap: nowrap;
           max-width: 980px;
-          margin: -10px auto 20px;
+          margin: 0 auto 20px;
           overflow-x: auto;
           padding: 2px 2px 5px;
           -webkit-overflow-scrolling: touch;
@@ -2246,9 +2309,10 @@ const ExperiencesPage = () => {
 
           .experience-controls-sticky {
             margin: -10px -10px 12px;
-            padding: 8px 10px 7px;
-            border-radius: 0 0 18px 18px;
-            box-shadow: 0 10px 26px rgba(0,0,0,0.16);
+            padding: 8px 10px 9px;
+            border-radius: 0 0 20px 20px;
+            border-bottom: 1px solid var(--app-border);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.18);
           }
 
           .majors-grid {
@@ -2260,7 +2324,73 @@ const ExperiencesPage = () => {
             align-items: center;
             gap: 8px;
             max-width: 980px;
-            margin: -2px auto 7px;
+            margin: 0 auto 8px;
+            padding: 7px;
+            border: 1px solid var(--app-border);
+            border-radius: 16px;
+            background: color-mix(in srgb, var(--app-surface-2) 92%, transparent);
+            box-sizing: border-box;
+          }
+
+          .desktop-advanced-control {
+            display: none !important;
+          }
+
+          .experience-controls-sticky:not(.is-mobile-filters-open) .experience-filter-tabs,
+          .experience-controls-sticky:not(.is-mobile-filters-open) .quick-filter-heading,
+          .experience-controls-sticky:not(.is-mobile-filters-open) .mobile-filter-panel-intro,
+          .experience-controls-sticky:not(.is-mobile-filters-open) .mobile-advanced-filters {
+            display: none !important;
+          }
+
+          .experience-controls-sticky.is-mobile-filters-open .mobile-filter-panel-intro {
+            display: flex !important;
+            align-items: center;
+            justify-content: space-between;
+            margin: 0 auto 8px;
+            max-width: 980px;
+            padding: 9px 11px;
+            border: 1px solid var(--app-brand-border);
+            border-radius: 16px;
+            background: var(--app-brand-soft);
+            box-sizing: border-box;
+          }
+
+          .mobile-filter-panel-intro strong {
+            display: block;
+            color: var(--app-brand);
+            font-size: 12px;
+            font-weight: 900;
+            margin-bottom: 2px;
+          }
+
+          .mobile-filter-panel-intro span {
+            color: var(--app-text-soft);
+            font-size: 11px;
+            font-weight: 700;
+          }
+
+          .experience-controls-sticky.is-mobile-filters-open .mobile-advanced-filters {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            margin: 0 auto 8px;
+            max-width: 980px;
+          }
+
+          .mobile-advanced-filters select {
+            min-width: 0;
+            width: 100%;
+            min-height: 38px;
+            background: var(--app-surface-2);
+            color: var(--app-text);
+            border: 1px solid var(--app-brand-border);
+            border-radius: 12px;
+            padding: 8px 9px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            outline: none;
           }
 
           .mobile-majors-menu {
@@ -2269,17 +2399,6 @@ const ExperiencesPage = () => {
           }
 
           .experience-controls-sticky.is-mobile-filters-open .mobile-majors-menu {
-            display: block !important;
-          }
-
-          .experience-controls-sticky:not(.is-mobile-filters-open) .experience-filter-tabs,
-          .experience-controls-sticky:not(.is-mobile-filters-open) .experience-city-select,
-          .experience-controls-sticky:not(.is-mobile-filters-open) .experience-sort-select {
-            display: none !important;
-          }
-
-          .experience-controls-sticky.is-mobile-filters-open .experience-city-select,
-          .experience-controls-sticky.is-mobile-filters-open .experience-sort-select {
             display: block !important;
           }
 
@@ -2331,6 +2450,19 @@ const ExperiencesPage = () => {
             flex-wrap: nowrap;
             padding-bottom: 4px;
             -webkit-overflow-scrolling: touch;
+          }
+
+          .quick-filter-heading {
+            margin: 0 0 8px;
+            padding: 0 2px;
+          }
+
+          .quick-filter-heading span {
+            font-size: 12px;
+          }
+
+          .quick-filter-heading small {
+            font-size: 10px;
           }
 
           .experience-filter-tabs::-webkit-scrollbar {

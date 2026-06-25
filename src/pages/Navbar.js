@@ -19,7 +19,15 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const [floatingMenuOpen, setFloatingMenuOpen] = useState(false);
 
   const location = useLocation();
+  const isExperiencesPage = location.pathname === "/experiences";
   const shouldStickNavbar = !isMobile && location.pathname !== "/experiences";
+  const floatingNavTop = isExperiencesPage
+    ? isMobile
+      ? "142px"
+      : "112px"
+    : isMobile
+    ? "72px"
+    : "84px";
   const shouldHideHeader =
     shouldStickNavbar &&
     isNavbarCollapsed &&
@@ -481,7 +489,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           style={{
             position: "fixed",
             right: isMobile ? "12px" : "22px",
-            top: isMobile ? "12px" : "18px",
+            top: floatingNavTop,
             zIndex: 2450,
             direction: "rtl",
             fontFamily: "'Cairo', sans-serif",
@@ -504,6 +512,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 padding: "10px",
                 display: "grid",
                 gap: "8px",
+                maxHeight: `calc(100vh - ${floatingNavTop} - 24px)`,
+                overflowY: "auto",
               }}
             >
               <Link to="/" style={floatingLinkStyle("/")}>
@@ -581,7 +591,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               background: "var(--app-brand)",
               color: "#071315",
               boxShadow:
-                "0 14px 34px var(--app-shadow), 0 0 0 4px var(--app-brand-soft)",
+                "0 16px 36px var(--app-shadow), 0 0 0 4px var(--app-brand-soft)",
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
