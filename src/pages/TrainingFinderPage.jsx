@@ -148,6 +148,12 @@ const resolveSuggestionRegion = (cityName) => {
   return cityToSuggestionRegion.get(cityName) || "";
 };
 
+const getSelectedCityScope = (cityName) => {
+  if (!cityName) return [];
+  if (regionCities[cityName]) return regionCities[cityName];
+  return [cityName];
+};
+
 const dedupeOrganizations = (organizations = []) =>
   Array.from(
     new Map(
@@ -577,10 +583,25 @@ export default function TrainingFinderPage() {
   );
   const selectedMajorCategoriesText = selectedMajorCategories.join("، ");
   const suggestionRegion = resolveSuggestionRegion(city);
-  const existingTargetNames = useMemo(
-    () => new Set(targets.map((target) => normalizeName(target.organizationName))),
-    [targets]
+  const selectedCityScope = useMemo(() => getSelectedCityScope(city), [city]);
+  const visibleTargets = useMemo(() => {
+    if (selectedCityScope.length === 0) return targets;
+
+    const allowedCities = new Set(selectedCityScope.map(normalizeName));
+    return targets.filter((target) =>
+      (target.cities || []).some((targetCity) =>
+        allowedCities.has(normalizeName(targetCity))
+      )
+    );
+  }, [selectedCityScope, targets]);
+  const visibleTargetNames = useMemo(
+    () =>
+      new Set(
+        visibleTargets.map((target) => normalizeName(target.organizationName))
+      ),
+    [visibleTargets]
   );
+  const hasTrainingTargets = visibleTargets.length > 0;
   const suggestedOrganizations = useMemo(() => {
     const specialtyOrganizations = selectedMajorCategories.flatMap((category) =>
       (suggestedOrganizationsByMajorCategory[category] || []).map(
@@ -598,6 +619,13 @@ export default function TrainingFinderPage() {
           })
         )
       : [];
+    if (city) {
+      return dedupeOrganizations(regionOrganizations).filter(
+        (organization) =>
+          !visibleTargetNames.has(normalizeName(organization.name))
+      );
+    }
+
     const fallbackOrganizations =
       specialtyOrganizations.length === 0 && regionOrganizations.length === 0
         ? Object.values(suggestedOrganizationsByRegion)
@@ -614,9 +642,9 @@ export default function TrainingFinderPage() {
       ...fallbackOrganizations,
     ]).filter(
       (organization) =>
-        !existingTargetNames.has(normalizeName(organization.name))
+        !visibleTargetNames.has(normalizeName(organization.name))
     );
-  }, [existingTargetNames, selectedMajorCategories, suggestionRegion]);
+  }, [city, selectedMajorCategories, suggestionRegion, visibleTargetNames]);
 
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
@@ -912,10 +940,10 @@ export default function TrainingFinderPage() {
               style={{
                 display: "grid",
                 gap: "14px",
-                order: targets.length === 0 ? 2 : 1,
-                paddingTop: targets.length === 0 ? "16px" : 0,
+                order: !hasTrainingTargets ? 2 : 1,
+                paddingTop: !hasTrainingTargets ? "16px" : 0,
                 borderTop:
-                  targets.length === 0 ? "1px solid var(--app-border)" : "none",
+                  !hasTrainingTargets ? "1px solid var(--app-border)" : "none",
               }}
             >
               <div
@@ -935,23 +963,23 @@ export default function TrainingFinderPage() {
                     height: "34px",
                     borderRadius: "999px",
                     background:
-                      targets.length === 0
+                      !hasTrainingTargets
                         ? "var(--app-input-bg)"
                         : "var(--app-brand)",
                     border:
-                      targets.length === 0
+                      !hasTrainingTargets
                         ? "1px solid var(--app-brand-border)"
                         : "none",
-                    color: targets.length === 0 ? "var(--app-brand)" : "#07100e",
+                    color: !hasTrainingTargets ? "var(--app-brand)" : "#07100e",
                     fontSize: "16px",
                     fontWeight: "900",
                     boxShadow:
-                      targets.length === 0
+                      !hasTrainingTargets
                         ? "none"
                         : "0 0 16px var(--app-brand-border)",
                   }}
                 >
-                  {targets.length === 0 ? "2" : "1"}
+                  {!hasTrainingTargets ? "2" : "1"}
                 </span>
                 <div>
                   <h2
@@ -977,12 +1005,13 @@ export default function TrainingFinderPage() {
                     {selectedMajorCategoriesText
                       ? ` - ضمن ${selectedMajorCategoriesText}`
                       : ""}
-                    . هذه النتائج من تجارب شاركها الطلاب داخل دربك.
+                    . هذه النتائج من تجارب شاركها الطلاب داخل دربك
+                    {city ? " ومطابقة للمدينة أو المنطقة المحددة." : "."}
                   </p>
                 </div>
               </div>
 
-              {targets.length === 0 ? (
+              {!hasTrainingTargets ? (
                 <div
                   style={{
                     background: "var(--app-surface)",
@@ -1007,13 +1036,14 @@ export default function TrainingFinderPage() {
                     gap: "12px",
                   }}
                 >
-                  {targets.map((target) => {
+                  {visibleTargets.map((target) => {
                     const organizationHomepageUrl = resolveOrganizationHomepageUrl(
                       target.organizationName
                     );
 
                     return (
                       <article
+                        className="training-target-card"
                         key={target.organizationName}
                         style={{
                           background: "var(--app-surface)",
@@ -1027,6 +1057,7 @@ export default function TrainingFinderPage() {
                       >
                         <div>
                           <h3
+                            className="training-target-title"
                             style={{
                               margin: "0 0 6px",
                               color: "var(--app-brand)",
@@ -1048,6 +1079,7 @@ export default function TrainingFinderPage() {
                         </div>
 
                         <div
+                          className="training-target-detail"
                           style={{
                             background: "var(--app-card)",
                             border: "1px solid var(--app-border)",
@@ -1086,7 +1118,10 @@ export default function TrainingFinderPage() {
                           </div>
                         </div>
 
-                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <div
+                          className="training-target-actions"
+                          style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
+                        >
                           <Link
                             to={{
                               pathname: "/experiences",
@@ -1143,7 +1178,7 @@ export default function TrainingFinderPage() {
                 </div>
               )}
 
-              {targets.length > 0 && (
+              {hasTrainingTargets && (
                 <p
                   style={{
                     margin: "6px 0 0",
@@ -1158,7 +1193,7 @@ export default function TrainingFinderPage() {
                 </p>
               )}
 
-              {targets.length > 0 && suggestedOrganizations.length > 0 && (
+              {hasTrainingTargets && suggestedOrganizations.length > 0 && (
                 <div
                   style={{
                     display: "flex",
@@ -1191,11 +1226,11 @@ export default function TrainingFinderPage() {
               style={{
                 display: "grid",
                 gap: "14px",
-                order: targets.length === 0 ? 1 : 2,
-                marginTop: targets.length === 0 ? 0 : "12px",
-                paddingTop: targets.length === 0 ? "4px" : "18px",
+                order: !hasTrainingTargets ? 1 : 2,
+                marginTop: !hasTrainingTargets ? 0 : "12px",
+                paddingTop: !hasTrainingTargets ? "4px" : "18px",
                 borderTop:
-                  targets.length === 0 ? "none" : "1px solid var(--app-border)",
+                  !hasTrainingTargets ? "none" : "1px solid var(--app-border)",
               }}
             >
               <div
@@ -1214,23 +1249,23 @@ export default function TrainingFinderPage() {
                     height: "34px",
                     borderRadius: "999px",
                     background:
-                      targets.length === 0
+                      !hasTrainingTargets
                         ? "var(--app-brand)"
                         : "var(--app-input-bg)",
                     border:
-                      targets.length === 0
+                      !hasTrainingTargets
                         ? "none"
                         : "1px solid var(--app-brand-border)",
-                    color: targets.length === 0 ? "#07100e" : "var(--app-brand)",
+                    color: !hasTrainingTargets ? "#07100e" : "var(--app-brand)",
                     fontSize: "16px",
                     fontWeight: "900",
                     boxShadow:
-                      targets.length === 0
+                      !hasTrainingTargets
                         ? "0 0 16px var(--app-brand-border)"
                         : "none",
                   }}
                 >
-                  {targets.length === 0 ? "1" : "2"}
+                  {!hasTrainingTargets ? "1" : "2"}
                 </span>
                 <div>
                   <h2
@@ -1283,6 +1318,7 @@ export default function TrainingFinderPage() {
                 >
                   {suggestedOrganizations.map((organization) => (
                     <article
+                      className="suggested-target-card"
                       key={`${organization.name}-${organization.url}`}
                       style={{
                         background: "var(--app-surface)",
@@ -1452,9 +1488,65 @@ export default function TrainingFinderPage() {
           }
 
           .training-targets-grid {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 8px !important;
           }
 
+          .suggested-targets-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 8px !important;
+          }
+
+          .training-target-card,
+          .suggested-target-card {
+            padding: 10px !important;
+            border-radius: 13px !important;
+            gap: 8px !important;
+            box-shadow: 0 8px 18px var(--app-shadow) !important;
+          }
+
+          .training-target-title {
+            font-size: 15px !important;
+            line-height: 1.45 !important;
+            margin-bottom: 4px !important;
+          }
+
+          .training-target-card p,
+          .suggested-target-card p {
+            font-size: 11.5px !important;
+            line-height: 1.65 !important;
+          }
+
+          .training-target-detail {
+            padding: 8px !important;
+            border-radius: 10px !important;
+          }
+
+          .training-target-actions {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            gap: 6px !important;
+          }
+
+          .training-target-actions a,
+          .training-target-actions button {
+            width: 100% !important;
+          }
+
+          .suggested-organization-logo {
+            width: 34px !important;
+            height: 34px !important;
+            border-radius: 11px !important;
+          }
+
+          .suggested-organization-logo img {
+            width: 20px !important;
+            height: 20px !important;
+          }
+        }
+
+        @media (max-width: 340px) {
+          .training-targets-grid,
           .suggested-targets-grid {
             grid-template-columns: 1fr !important;
           }
