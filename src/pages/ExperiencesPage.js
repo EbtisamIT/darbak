@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
+import TrainingGuideBanner from "../components/TrainingGuideBanner";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
@@ -1140,6 +1141,16 @@ const ExperiencesPage = () => {
           padding: "15px 12px",
         }}
       >
+        <TrainingGuideBanner
+          compact
+          ariaLabel="إعلان ملف رحلة المتدرب"
+          badges={["🌟 ملف يساعدك تختصر الطريق", "✅ من التقديم إلى التقرير"]}
+          title="رحلة المتدرب: شاملة من التقديم إلى كتابة التقرير"
+          description="إذا كنت في مرحلة البحث عن تدريب أو بدأت تجربتك، هذا الملف يرتب لك الطريق خطوة بخطوة: كيف تقدم، تتابع طلباتك، تستعد، وتكتب تقريرك بثقة."
+          buttonText="استكشف الملف الآن"
+          style={{ margin: "0 auto 18px", maxWidth: "980px" }}
+        />
+
         <div
           className={`experience-controls-sticky${
             mobileFiltersOpen ? " is-mobile-filters-open" : ""

@@ -3,11 +3,19 @@ import React from "react";
 const guideUrl =
   "https://darbakk.com/%D8%AD%D8%B2%D9%85%D8%A9-%D8%AF%D8%B1%D8%A8%D9%83-%D9%84%D9%84%D8%AA%D9%82%D8%AF%D9%8A%D9%85-%D8%B9%D9%84%D9%89-%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8-%D8%A7%D9%84%D8%AA%D8%B9%D8%A7%D9%88%D9%86%D9%8A-%D8%AC%D9%87%D8%A7%D8%AA-%D8%A5%D9%8A%D9%85%D9%8A%D9%84%D8%A7%D8%AA-%D8%B1%D9%88%D8%A7%D8%A8%D8%B7-%D9%85%D8%AA%D8%A7%D8%A8%D8%B9%D8%A9/p2135973764";
 
-export default function TrainingGuideBanner({ compact = false, style = {} }) {
+export default function TrainingGuideBanner({
+  compact = false,
+  style = {},
+  ariaLabel = "دليل التقديم على التدريب التعاوني لعام 2026",
+  badges = ["🌟 للطلاب المقبلين على التدريب", "✅ أكثر من 700 جهة"],
+  title = "لا تبدأ رحلة التدريب من الصفر 🌟",
+  description = "جهزنا لك حزمة دربك للتقديم على التدريب التعاوني لعام 2026 ✅ أكثر من 700 جهة، روابط وإيميلات، وطريقة سهلة تتابع فيها طلباتك خطوة بخطوة.",
+  buttonText = "ابدأ الآن بـ 25 ريال فقط ✅",
+}) {
   return (
     <section
       className={`training-guide-banner${compact ? " training-guide-banner--compact" : ""}`}
-      aria-label="دليل التقديم على التدريب التعاوني لعام 2026"
+      aria-label={ariaLabel}
       style={{
         position: "relative",
         overflow: "hidden",
@@ -29,25 +37,23 @@ export default function TrainingGuideBanner({ compact = false, style = {} }) {
     >
       <div style={{ display: "grid", gap: "7px" }}>
         <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
-          {["🌟 للطلاب المقبلين على التدريب", "✅ أكثر من 700 جهة"].map(
-            (badge) => (
-              <span
-                key={badge}
-                style={{
-                  width: "fit-content",
-                  background: "rgba(245,158,11,0.14)",
-                  border: "1px solid rgba(245,158,11,0.28)",
-                  color: "#facc15",
-                  borderRadius: "999px",
-                  padding: "5px 10px",
-                  fontSize: "12px",
-                  fontWeight: "900",
-                }}
-              >
-                {badge}
-              </span>
-            )
-          )}
+          {badges.map((badge) => (
+            <span
+              key={badge}
+              style={{
+                width: "fit-content",
+                background: "rgba(245,158,11,0.14)",
+                border: "1px solid rgba(245,158,11,0.28)",
+                color: "#facc15",
+                borderRadius: "999px",
+                padding: "5px 10px",
+                fontSize: "12px",
+                fontWeight: "900",
+              }}
+            >
+              {badge}
+            </span>
+          ))}
         </div>
         <h2
           style={{
@@ -57,7 +63,7 @@ export default function TrainingGuideBanner({ compact = false, style = {} }) {
             lineHeight: 1.35,
           }}
         >
-          لا تبدأ رحلة التدريب من الصفر 🌟
+          {title}
         </h2>
         <p
           style={{
@@ -68,8 +74,7 @@ export default function TrainingGuideBanner({ compact = false, style = {} }) {
             maxWidth: compact ? "none" : "660px",
           }}
         >
-          جهزنا لك حزمة دربك للتقديم على التدريب التعاوني لعام 2026 ✅ أكثر من
-          700 جهة، روابط وإيميلات، وطريقة سهلة تتابع فيها طلباتك خطوة بخطوة.
+          {description}
         </p>
       </div>
 
@@ -98,7 +103,7 @@ export default function TrainingGuideBanner({ compact = false, style = {} }) {
             boxShadow: "0 0 18px var(--app-brand-border)",
           }}
         >
-          ابدأ الآن بـ 25 ريال فقط ✅
+          {buttonText}
         </button>
       </a>
 
