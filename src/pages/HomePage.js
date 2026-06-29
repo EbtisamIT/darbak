@@ -274,17 +274,25 @@ const HomePage = () => {
             backgroundColor: "var(--app-brand)",
             color: "#07100e",
             border: "none",
-            borderRadius: "12px",
-            padding: "15px 32px",
-            fontSize: "18px",
+            borderRadius: "10px",
+            padding: "14px 24px",
+            fontSize: "16px",
             fontFamily: homeFont,
             cursor: "pointer",
             transition: "0.3s",
-            boxShadow: "0 0 18px var(--app-brand-border)",
+            boxShadow: "0 0 14px var(--app-brand-border)",
             fontWeight: "800",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "7px",
+            whiteSpace: "nowrap",
           }}
         >
-          شارك تجربتك وساعد غيرك
+          <span aria-hidden="true" style={{ fontSize: "18px", lineHeight: 1 }}>
+            +
+          </span>
+          شارك تجربتك
         </button>
 
         <Link to="/experiences" style={{ textDecoration: "none" }}>
@@ -426,21 +434,21 @@ const HomePage = () => {
           }
 
           .home-share-cta {
-            width: min(100%, 320px) !important;
+            width: min(100%, 158px) !important;
             order: -1;
-            font-size: 17px !important;
-            padding: 14px 20px !important;
+            font-size: 13px !important;
+            padding: 10px 12px !important;
           }
 
           .home-read-cta,
           .home-secondary-cta {
-            width: min(100%, 150px) !important;
+            width: min(100%, 142px) !important;
             font-size: 13px !important;
             padding: 10px 12px !important;
           }
 
           .home-actions {
-            width: min(100%, 320px);
+            width: min(100%, 330px);
             gap: 8px !important;
           }
 
