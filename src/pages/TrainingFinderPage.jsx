@@ -34,6 +34,53 @@ const cityOptions = [
 const pageFont = "'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_GUIDE_BANNER = true;
 
+const trainingPrepSteps = [
+  {
+    title: "ابدأ بالجهات الأقرب",
+    text: "راجع جهات دربك أولًا لأنها مبنية على تجارب طلاب حقيقية.",
+  },
+  {
+    title: "وسّع بحثك بهدوء",
+    text: "استخدم الاقتراحات كنقطة بداية، ثم تحقق من الموقع الرسمي ولينكدإن.",
+  },
+  {
+    title: "جهّز ملفك",
+    text: "خلّ السيرة، خطاب التدريب، وبريد مختصر جاهزة قبل مراسلة الجهات.",
+  },
+  {
+    title: "تابع طلباتك",
+    text: "سجّل كل جهة قدمت عليها وطريقة التقديم عشان ما تضيع الفرص.",
+  },
+];
+
+const trainingFinderFaqItems = [
+  {
+    question: "هل ظهور الجهة يعني توفر تدريب حاليًا؟",
+    answer:
+      "لا، ظهور الجهة يعني أن طلابًا سبق وشاركوا تجربة تدريب فيها أو أنها جهة مناسبة كبداية بحث. التوفر الحالي يعتمد على إعلان الجهة أو تواصلها الرسمي.",
+  },
+  {
+    question: "إذا ما ظهرت تجارب لتخصصي، هل يعني ما له جهات؟",
+    answer:
+      "أبدًا. قاعدة دربك تتوسع مع مشاركات الطلاب، وقد تكون الفرص موجودة لكن ما وصلتنا تجارب كافية عنها بعد.",
+  },
+  {
+    question: "أبدأ بالتقديم من الموقع أو الإيميل؟",
+    answer:
+      "ابدأ بالموقع الرسمي إذا كان فيه برنامج تدريب واضح، وإذا ما لقيت رابطًا مباشرًا جرّب الإيميل المهني أو تواصل لينكدإن باختصار واحترام.",
+  },
+  {
+    question: "ليش بعض النتائج اقتراحات وليست من تجارب دربك؟",
+    answer:
+      "نضيف الاقتراحات عشان تعطيك نقطة بداية أوسع، لكنها منفصلة عن تجارب دربك ولا تعني توفر فرصة حالية.",
+  },
+  {
+    question: "كيف أساعد طلاب تخصصي؟",
+    answer:
+      "إذا تدربت في جهة، مشاركة تجربتك تضيف مسارًا جديدًا لطلاب بعدك وتخلي نتائج الصفحة أذكى وأقرب للواقع.",
+  },
+];
+
 const normalizeName = (value = "") =>
   value
     .toString()
@@ -568,6 +615,7 @@ export default function TrainingFinderPage() {
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [faqExpanded, setFaqExpanded] = useState(false);
 
   const selectedSpecialtyOption = useMemo(
     () =>
@@ -603,6 +651,26 @@ export default function TrainingFinderPage() {
     [visibleTargets]
   );
   const hasTrainingTargets = visibleTargets.length > 0;
+  const totalVisibleExperienceCount = useMemo(
+    () =>
+      visibleTargets.reduce(
+        (total, target) => total + (Number(target.count) || 0),
+        0
+      ),
+    [visibleTargets]
+  );
+  const visibleMethodLabels = useMemo(() => {
+    const methods = new Set();
+    visibleTargets.forEach((target) => {
+      (target.methods || []).forEach((method) => {
+        if (method) methods.add(method);
+      });
+    });
+    return Array.from(methods).slice(0, 3);
+  }, [visibleTargets]);
+  const visibleFaqItems = faqExpanded
+    ? trainingFinderFaqItems
+    : trainingFinderFaqItems.slice(0, 3);
   const suggestedOrganizations = useMemo(() => {
     const specialtyOrganizations = selectedMajorCategories.flatMap((category) =>
       (suggestedOrganizationsByMajorCategory[category] || []).map(
@@ -834,6 +902,67 @@ export default function TrainingFinderPage() {
           </button>
         </form>
 
+        <section
+          aria-label="خطوات تساعدك قبل التقديم"
+          className="training-prep-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: "10px",
+          }}
+        >
+          {trainingPrepSteps.map((step, index) => (
+            <article
+              key={step.title}
+              style={{
+                background: "var(--app-surface)",
+                border: "1px solid var(--app-border)",
+                borderRadius: "14px",
+                padding: "12px",
+                textAlign: "right",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-grid",
+                  placeItems: "center",
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "999px",
+                  background: "var(--app-brand-soft)",
+                  border: "1px solid var(--app-brand-border)",
+                  color: "var(--app-brand)",
+                  fontSize: "12px",
+                  fontWeight: "900",
+                  marginBottom: "8px",
+                }}
+              >
+                {index + 1}
+              </span>
+              <h3
+                style={{
+                  margin: "0 0 6px",
+                  color: "var(--app-text)",
+                  fontSize: "14px",
+                  lineHeight: 1.5,
+                }}
+              >
+                {step.title}
+              </h3>
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--app-text-soft)",
+                  fontSize: "12px",
+                  lineHeight: 1.75,
+                }}
+              >
+                {step.text}
+              </p>
+            </article>
+          ))}
+        </section>
+
         {error && (
           <p
             style={{
@@ -852,6 +981,51 @@ export default function TrainingFinderPage() {
 
         {searched && !loading && !error && (
           <section style={{ display: "grid", gap: "14px" }}>
+            <section
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--app-brand-soft), var(--app-surface))",
+                border: "1px solid var(--app-brand-border)",
+                borderRadius: "16px",
+                padding: "14px",
+                display: "grid",
+                gap: "8px",
+                textAlign: "right",
+              }}
+            >
+              <strong
+                style={{
+                  color: "var(--app-brand)",
+                  fontSize: "15px",
+                  lineHeight: 1.6,
+                }}
+              >
+                {hasTrainingTargets
+                  ? `ملخص بحثك: ${visibleTargets.length} جهة من تجارب دربك`
+                  : "ملخص بحثك: جهات مقترحة كبداية مناسبة"}
+              </strong>
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--app-text-soft)",
+                  fontSize: "13px",
+                  lineHeight: 1.8,
+                }}
+              >
+                {hasTrainingTargets
+                  ? `ظهرت نتائج لتخصص ${selectedSpecialtyLabel}${
+                      city ? ` في ${city}` : ""
+                    } مبنية على ${totalVisibleExperienceCount} تجربة مشاركة. ${
+                      visibleMethodLabels.length
+                        ? `طرق التقديم المذكورة تشمل: ${visibleMethodLabels.join(
+                            "، "
+                          )}.`
+                        : "اقرأ التجارب لمعرفة تفاصيل التقديم."
+                    }`
+                  : `لسه ما ظهرت تجارب مطابقة لهذا الاختيار داخل دربك، وهذا لا يقلل من تخصصك أو فرصه. نعرض لك اقتراحات تساعدك تبدأ البحث، ومع مشاركات الطلاب القادمة بتصير النتائج أدق.`}
+              </p>
+            </section>
+
             <section
               style={{
                 display: "grid",
@@ -939,9 +1113,10 @@ export default function TrainingFinderPage() {
                     lineHeight: 1.8,
                   }}
                 >
-                  ما فيه تجارب كافية من دربك لهذا التخصص أو المدينة حتى الآن.
-                  عرضنا لك الاقتراحات بالأعلى كبداية للتقديم، وإذا وصلت تجارب
-                  مطابقة لاحقًا بتظهر هنا تلقائيًا.
+                  قاعدة دربك ما زالت تكبر بتجارب الطلاب، وقد لا تكون وصلت لنا
+                  تجربة مطابقة لهذا الاختيار بعد. الاقتراحات بالأعلى تساعدك
+                  تبدأ من جهات قريبة من تخصصك أو مدينتك، وأي تجربة جديدة
+                  يشاركها الطلاب بتظهر هنا تلقائيًا.
                 </div>
               ) : (
                 <div
@@ -971,7 +1146,15 @@ export default function TrainingFinderPage() {
                           boxShadow: "0 10px 24px var(--app-shadow)",
                         }}
                       >
-                        <div>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
                           <h3
                             className="training-target-title"
                             style={{
@@ -992,6 +1175,22 @@ export default function TrainingFinderPage() {
                           >
                             {target.cities?.join("، ") || "مدينة غير محددة"}
                           </p>
+                          </div>
+                          <span
+                            style={{
+                              flex: "0 0 auto",
+                              background: "var(--app-brand-soft)",
+                              border: "1px solid var(--app-brand-border)",
+                              color: "var(--app-brand)",
+                              borderRadius: "999px",
+                              padding: "5px 8px",
+                              fontSize: "11px",
+                              fontWeight: "900",
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {target.count || 1} تجربة
+                          </span>
                         </div>
 
                         <div
@@ -1379,6 +1578,98 @@ export default function TrainingFinderPage() {
             </section>
           </section>
         )}
+
+        <section
+          aria-label="أسئلة شائعة عن وين أتدرب"
+          style={{
+            background: "var(--app-surface)",
+            border: "1px solid var(--app-border)",
+            borderRadius: "16px",
+            padding: "16px",
+            display: "grid",
+            gap: "12px",
+            textAlign: "right",
+          }}
+        >
+          <div>
+            <h2
+              style={{
+                margin: "0 0 6px",
+                color: "var(--app-text)",
+                fontSize: "20px",
+                lineHeight: 1.5,
+              }}
+            >
+              أسئلة شائعة
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--app-muted)",
+                fontSize: "13px",
+                lineHeight: 1.8,
+              }}
+            >
+              إجابات مختصرة تساعدك تستخدم الصفحة بدون ما تربط ظهور الجهة بتوفر
+              فرصة تدريب حاليًا.
+            </p>
+          </div>
+
+          <div style={{ display: "grid", gap: "8px" }}>
+            {visibleFaqItems.map((item) => (
+              <details
+                key={item.question}
+                style={{
+                  background: "var(--app-card)",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "12px",
+                  padding: "10px 12px",
+                  color: "var(--app-text-soft)",
+                }}
+              >
+                <summary
+                  style={{
+                    cursor: "pointer",
+                    color: "var(--app-brand)",
+                    fontWeight: "900",
+                    fontSize: "13px",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {item.question}
+                </summary>
+                <p
+                  style={{
+                    margin: "8px 0 0",
+                    color: "var(--app-text-soft)",
+                    fontSize: "13px",
+                    lineHeight: 1.85,
+                  }}
+                >
+                  {item.answer}
+                </p>
+              </details>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setFaqExpanded((expanded) => !expanded)}
+            style={{
+              justifySelf: "center",
+              background: "var(--app-input-bg)",
+              color: "var(--app-brand)",
+              border: "1px solid var(--app-brand-border)",
+              borderRadius: "999px",
+              padding: "8px 14px",
+              fontFamily: "inherit",
+              fontWeight: "900",
+              cursor: "pointer",
+            }}
+          >
+            {faqExpanded ? "عرض أقل" : "اقرأ المزيد"}
+          </button>
+        </section>
       </section>
 
       <style>{`
@@ -1401,6 +1692,10 @@ export default function TrainingFinderPage() {
 
           .training-finder-form {
             grid-template-columns: 1fr !important;
+          }
+
+          .training-prep-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
           }
 
           .training-targets-grid {
@@ -1462,6 +1757,7 @@ export default function TrainingFinderPage() {
         }
 
         @media (max-width: 340px) {
+          .training-prep-grid,
           .training-targets-grid,
           .suggested-targets-grid {
             grid-template-columns: 1fr !important;
