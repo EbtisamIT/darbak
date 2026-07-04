@@ -34,25 +34,6 @@ const cityOptions = [
 const pageFont = "'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_GUIDE_BANNER = true;
 
-const trainingPrepSteps = [
-  {
-    title: "ابدأ بالجهات الأقرب",
-    text: "راجع جهات دربك أولًا لأنها مبنية على تجارب طلاب حقيقية.",
-  },
-  {
-    title: "وسّع بحثك بهدوء",
-    text: "استخدم الاقتراحات كنقطة بداية، ثم تحقق من الموقع الرسمي ولينكدإن.",
-  },
-  {
-    title: "جهّز ملفك",
-    text: "خلّ السيرة، خطاب التدريب، وبريد مختصر جاهزة قبل مراسلة الجهات.",
-  },
-  {
-    title: "تابع طلباتك",
-    text: "سجّل كل جهة قدمت عليها وطريقة التقديم عشان ما تضيع الفرص.",
-  },
-];
-
 const trainingFinderFaqItems = [
   {
     question: "هل ظهور الجهة يعني توفر تدريب حاليًا؟",
@@ -247,11 +228,17 @@ const OrganizationLogo = ({ name, url }) => {
         display: "inline-grid",
         placeItems: "center",
         flex: "0 0 auto",
+        minWidth: "42px",
+        maxWidth: "42px",
+        minHeight: "42px",
+        maxHeight: "42px",
+        aspectRatio: "1 / 1",
         background: "var(--app-brand-soft)",
         border: "1px solid var(--app-brand-border)",
         color: "var(--app-brand)",
         fontSize: "18px",
         fontWeight: "900",
+        lineHeight: 1,
         overflow: "hidden",
       }}
     >
@@ -259,11 +246,17 @@ const OrganizationLogo = ({ name, url }) => {
         <img
           src={logoUrl}
           alt=""
-          loading="lazy"
+          width="24"
+          height="24"
+          decoding="async"
+          referrerPolicy="no-referrer"
           onError={() => setHasImageError(true)}
           style={{
             width: "24px",
             height: "24px",
+            minWidth: "24px",
+            minHeight: "24px",
+            display: "block",
             objectFit: "contain",
             borderRadius: "6px",
           }}
@@ -902,67 +895,6 @@ export default function TrainingFinderPage() {
           </button>
         </form>
 
-        <section
-          aria-label="خطوات تساعدك قبل التقديم"
-          className="training-prep-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-            gap: "10px",
-          }}
-        >
-          {trainingPrepSteps.map((step, index) => (
-            <article
-              key={step.title}
-              style={{
-                background: "var(--app-surface)",
-                border: "1px solid var(--app-border)",
-                borderRadius: "14px",
-                padding: "12px",
-                textAlign: "right",
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-grid",
-                  placeItems: "center",
-                  width: "24px",
-                  height: "24px",
-                  borderRadius: "999px",
-                  background: "var(--app-brand-soft)",
-                  border: "1px solid var(--app-brand-border)",
-                  color: "var(--app-brand)",
-                  fontSize: "12px",
-                  fontWeight: "900",
-                  marginBottom: "8px",
-                }}
-              >
-                {index + 1}
-              </span>
-              <h3
-                style={{
-                  margin: "0 0 6px",
-                  color: "var(--app-text)",
-                  fontSize: "14px",
-                  lineHeight: 1.5,
-                }}
-              >
-                {step.title}
-              </h3>
-              <p
-                style={{
-                  margin: 0,
-                  color: "var(--app-text-soft)",
-                  fontSize: "12px",
-                  lineHeight: 1.75,
-                }}
-              >
-                {step.text}
-              </p>
-            </article>
-          ))}
-        </section>
-
         {error && (
           <p
             style={{
@@ -1445,9 +1377,10 @@ export default function TrainingFinderPage() {
                       }}
                     >
                       <div
+                        className="suggested-card-head"
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "auto minmax(0, 1fr)",
+                          gridTemplateColumns: "42px minmax(0, 1fr)",
                           gap: "10px",
                           alignItems: "start",
                         }}
@@ -1458,6 +1391,7 @@ export default function TrainingFinderPage() {
                         />
                         <div>
                           <div
+                            className="suggested-card-title-row"
                             style={{
                               display: "flex",
                               justifyContent: "space-between",
@@ -1477,6 +1411,7 @@ export default function TrainingFinderPage() {
                               {organization.name}
                             </h3>
                             <span
+                              className="suggested-organization-source"
                               style={{
                                 flex: "0 0 auto",
                                 background: "var(--app-brand-soft)",
@@ -1694,10 +1629,6 @@ export default function TrainingFinderPage() {
             grid-template-columns: 1fr !important;
           }
 
-          .training-prep-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-
           .training-targets-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 8px !important;
@@ -1747,17 +1678,43 @@ export default function TrainingFinderPage() {
           .suggested-organization-logo {
             width: 34px !important;
             height: 34px !important;
+            min-width: 34px !important;
+            max-width: 34px !important;
+            min-height: 34px !important;
+            max-height: 34px !important;
             border-radius: 11px !important;
           }
 
           .suggested-organization-logo img {
             width: 20px !important;
             height: 20px !important;
+            min-width: 20px !important;
+            min-height: 20px !important;
+          }
+
+          .suggested-card-head {
+            grid-template-columns: 34px minmax(0, 1fr) !important;
+            gap: 8px !important;
+            align-items: start !important;
+          }
+
+          .suggested-card-title-row {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 5px !important;
+            margin-bottom: 4px !important;
+          }
+
+          .suggested-organization-source {
+            justify-self: start !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
           }
         }
 
         @media (max-width: 340px) {
-          .training-prep-grid,
           .training-targets-grid,
           .suggested-targets-grid {
             grid-template-columns: 1fr !important;
