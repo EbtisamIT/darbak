@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
@@ -266,6 +266,49 @@ const OrganizationLogo = ({ name, url }) => {
       )}
     </span>
   );
+};
+
+const opportunityLabels = {
+  trainingEnvironment: {
+    mixed: "مختلطة",
+    women: "نساء",
+    men: "رجال",
+    "": "غير محدد",
+  },
+  trainingMode: {
+    onsite: "حضوري",
+    remote: "عن بعد",
+    hybrid: "مختلط",
+    "": "غير محدد",
+  },
+  hasReward: {
+    yes: "مكافأة",
+    no: "بدون مكافأة",
+    "": "غير محدد",
+  },
+  applicationMethod: {
+    website: "موقع",
+    email: "إيميل",
+    linkedin: "لينكدإن",
+    manual: "يدوي",
+    other: "أخرى",
+    "": "غير محدد",
+  },
+};
+
+const getOpportunityLabel = (field, value) =>
+  opportunityLabels[field]?.[value || ""] || "غير محدد";
+
+const formatOpportunityDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleDateString("ar-SA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 };
 
 const specializationOptions = Array.from(
@@ -605,8 +648,10 @@ export default function TrainingFinderPage() {
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [city, setCity] = useState("");
   const [targets, setTargets] = useState([]);
+  const [opportunities, setOpportunities] = useState([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [error, setError] = useState("");
   const [faqExpanded, setFaqExpanded] = useState(false);
 
@@ -704,9 +749,29 @@ export default function TrainingFinderPage() {
       ...fallbackOrganizations,
     ]).filter(
       (organization) =>
-        !visibleTargetNames.has(normalizeName(organization.name))
+      !visibleTargetNames.has(normalizeName(organization.name))
     );
   }, [city, selectedMajorCategories, suggestionRegion, visibleTargetNames]);
+
+  const fetchOpportunities = async (params = {}) => {
+    try {
+      setOpportunitiesLoading(true);
+      const { data } = await axios.get(`${API_BASE_URL}/api/opportunities`, {
+        params,
+      });
+      setOpportunities(Array.isArray(data.data) ? data.data : []);
+    } catch (err) {
+      console.error(err);
+      setOpportunities([]);
+    } finally {
+      setOpportunitiesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOpportunities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
@@ -721,20 +786,34 @@ export default function TrainingFinderPage() {
       setError("");
       setSearched(true);
 
-      const { data } = await axios.get(`${API_BASE_URL}/api/training-targets`, {
-        params: {
-          major: selectedSpecialty,
-          majorCategory: selectedMajorCategories[0] || "",
-          majorCategories: selectedMajorCategories.join(","),
-          city,
-        },
-      });
+      const queryParams = {
+        major: selectedSpecialty,
+        majorCategory: selectedMajorCategories[0] || "",
+        majorCategories: selectedMajorCategories.join(","),
+        city,
+      };
+      const [targetsResponse, opportunitiesResponse] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/training-targets`, {
+          params: queryParams,
+        }),
+        axios.get(`${API_BASE_URL}/api/opportunities`, {
+          params: queryParams,
+        }),
+      ]);
 
-      setTargets(Array.isArray(data.data) ? data.data : []);
+      setTargets(
+        Array.isArray(targetsResponse.data.data) ? targetsResponse.data.data : []
+      );
+      setOpportunities(
+        Array.isArray(opportunitiesResponse.data.data)
+          ? opportunitiesResponse.data.data
+          : []
+      );
     } catch (err) {
       console.error(err);
       setError("تعذر عرض النتائج حاليًا.");
       setTargets([]);
+      setOpportunities([]);
     } finally {
       setLoading(false);
     }
@@ -909,6 +988,266 @@ export default function TrainingFinderPage() {
           >
             {error}
           </p>
+        )}
+
+        {(opportunitiesLoading || opportunities.length > 0 || searched) && (
+          <section
+            style={{
+              display: "grid",
+              gap: "12px",
+              background: "var(--app-surface)",
+              border: "1px solid var(--app-border)",
+              borderRadius: "16px",
+              padding: "14px",
+              textAlign: "right",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "12px",
+                alignItems: "start",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <p
+                  style={{
+                    margin: "0 0 5px",
+                    color: "var(--app-brand)",
+                    fontSize: "13px",
+                    fontWeight: "900",
+                  }}
+                >
+                  فرص معلنة
+                </p>
+                <h2
+                  style={{
+                    margin: 0,
+                    color: "var(--app-text)",
+                    fontSize: "22px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  فرص تدريب متاحة الآن
+                </h2>
+              </div>
+              <span
+                style={{
+                  background: "var(--app-brand-soft)",
+                  border: "1px solid var(--app-brand-border)",
+                  color: "var(--app-brand)",
+                  borderRadius: "999px",
+                  padding: "7px 11px",
+                  fontSize: "12px",
+                  fontWeight: "900",
+                }}
+              >
+                {opportunitiesLoading
+                  ? "جاري التحميل"
+                  : `${opportunities.length} فرصة`}
+              </span>
+            </div>
+
+            {opportunities.length === 0 && !opportunitiesLoading ? (
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--app-text-soft)",
+                  fontSize: "13px",
+                  lineHeight: 1.8,
+                  background: "var(--app-card)",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "12px",
+                  padding: "12px",
+                }}
+              >
+                لا توجد فرص معلنة مطابقة حاليًا، لكن هذا لا يعني عدم توفر فرص في
+                تخصصك. راجع نتائج التجارب والاقتراحات بالأسفل وتحقق من مواقع
+                الجهات.
+              </p>
+            ) : (
+              <div
+                className="opportunities-grid"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gap: "10px",
+                }}
+              >
+                {opportunities.map((opportunity) => (
+                  <article
+                    key={opportunity._id}
+                    className="opportunity-card"
+                    style={{
+                      background: "var(--app-card)",
+                      border: "1px solid var(--app-brand-border)",
+                      borderRadius: "15px",
+                      padding: "14px",
+                      display: "grid",
+                      gap: "10px",
+                      boxShadow: opportunity.featured
+                        ? "0 12px 26px var(--app-shadow)"
+                        : "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        alignItems: "start",
+                      }}
+                    >
+                      <div>
+                        <h3
+                          style={{
+                            margin: "0 0 5px",
+                            color: "var(--app-brand)",
+                            fontSize: "18px",
+                            lineHeight: 1.45,
+                          }}
+                        >
+                          {opportunity.title}
+                        </h3>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "var(--app-text-soft)",
+                            fontSize: "13px",
+                            lineHeight: 1.7,
+                          }}
+                        >
+                          {opportunity.organizationName}
+                          {opportunity.city ? ` - ${opportunity.city}` : ""}
+                        </p>
+                      </div>
+                      {opportunity.featured && (
+                        <span
+                          style={{
+                            flex: "0 0 auto",
+                            background: "rgba(250,204,21,0.12)",
+                            border: "1px solid rgba(250,204,21,0.28)",
+                            color: "#fde68a",
+                            borderRadius: "999px",
+                            padding: "5px 8px",
+                            fontSize: "11px",
+                            fontWeight: "900",
+                          }}
+                        >
+                          مميزة
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {[
+                        ["trainingEnvironment", "البيئة"],
+                        ["trainingMode", "النوع"],
+                        ["hasReward", "المكافأة"],
+                        ["applicationMethod", "التقديم"],
+                      ].map(([field, label]) => (
+                        <span
+                          key={`${opportunity._id}-${field}`}
+                          style={{
+                            background: "var(--app-brand-soft)",
+                            border: "1px solid var(--app-brand-border)",
+                            color: "var(--app-text-soft)",
+                            borderRadius: "999px",
+                            padding: "5px 8px",
+                            fontSize: "11px",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {label}: {getOpportunityLabel(field, opportunity[field])}
+                        </span>
+                      ))}
+                      {opportunity.deadline && (
+                        <span
+                          style={{
+                            background: "rgba(250,204,21,0.1)",
+                            border: "1px solid rgba(250,204,21,0.25)",
+                            color: "#fde68a",
+                            borderRadius: "999px",
+                            padding: "5px 8px",
+                            fontSize: "11px",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          ينتهي: {formatOpportunityDate(opportunity.deadline)}
+                        </span>
+                      )}
+                    </div>
+
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "var(--app-text-soft)",
+                        fontSize: "12px",
+                        lineHeight: 1.8,
+                      }}
+                    >
+                      {opportunity.note ||
+                        "تحقق من شروط الجهة وتفاصيل الإعلان قبل التقديم."}
+                    </p>
+
+                    <div
+                      style={{
+                        color: "var(--app-muted)",
+                        fontSize: "12px",
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      مناسب لـ:{" "}
+                      {(opportunity.specialties || []).join("، ") ||
+                        (opportunity.majorCategories || []).join("، ") ||
+                        "عدة تخصصات"}
+                    </div>
+
+                    {opportunity.applicationUrl && (
+                      <a
+                        href={opportunity.applicationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ textDecoration: "none" }}
+                      >
+                        <button
+                          type="button"
+                          style={{
+                            width: "100%",
+                            background: "var(--app-brand)",
+                            color: "#07100e",
+                            border: "none",
+                            borderRadius: "10px",
+                            padding: "9px 10px",
+                            fontFamily: "inherit",
+                            fontWeight: "900",
+                            cursor: "pointer",
+                          }}
+                        >
+                          التقديم الآن
+                        </button>
+                      </a>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+
+            <p
+              style={{
+                margin: 0,
+                color: "var(--app-muted)",
+                fontSize: "12px",
+                lineHeight: 1.7,
+                textAlign: "center",
+              }}
+            >
+              يتم عرض الفرص حسب المعلومات المتاحة وقت الإضافة، ويرجى التحقق من
+              الجهة قبل التقديم.
+            </p>
+          </section>
         )}
 
         {searched && !loading && !error && (
@@ -1639,6 +1978,17 @@ export default function TrainingFinderPage() {
             gap: 8px !important;
           }
 
+          .opportunities-grid {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+
+          .opportunity-card {
+            padding: 11px !important;
+            border-radius: 13px !important;
+            gap: 8px !important;
+          }
+
           .training-target-card,
           .suggested-target-card {
             padding: 10px !important;
@@ -1715,6 +2065,7 @@ export default function TrainingFinderPage() {
         }
 
         @media (max-width: 340px) {
+          .opportunities-grid,
           .training-targets-grid,
           .suggested-targets-grid {
             grid-template-columns: 1fr !important;

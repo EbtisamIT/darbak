@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
+const Opportunity = require('./models/Opportunity');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -171,6 +172,67 @@ const requireAdmin = (req, res, next) => {
   }
 
   next();
+};
+
+const normalizeArrayField = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => item.toString().trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/[,،]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const sanitizeOpportunityPayload = (body = {}) => {
+  const deadlineValue = body.deadline ? new Date(body.deadline) : undefined;
+
+  return {
+    organizationName: (body.organizationName || "").trim(),
+    title: (body.title || "").trim(),
+    city: (body.city || "").trim(),
+    majorCategories: normalizeArrayField(body.majorCategories),
+    specialties: normalizeArrayField(body.specialties),
+    trainingEnvironment: ["mixed", "women", "men", ""].includes(
+      body.trainingEnvironment
+    )
+      ? body.trainingEnvironment
+      : "",
+    trainingMode: ["onsite", "remote", "hybrid", ""].includes(body.trainingMode)
+      ? body.trainingMode
+      : "",
+    hasReward: ["yes", "no", ""].includes(body.hasReward) ? body.hasReward : "",
+    applicationMethod: [
+      "website",
+      "email",
+      "linkedin",
+      "manual",
+      "other",
+      "",
+    ].includes(body.applicationMethod)
+      ? body.applicationMethod
+      : "",
+    applicationUrl: (body.applicationUrl || "").trim(),
+    sourceUrl: (body.sourceUrl || "").trim(),
+    note: (body.note || "").trim(),
+    status: ["active", "draft", "expired"].includes(body.status)
+      ? body.status
+      : "active",
+    featured: Boolean(body.featured),
+    ...(deadlineValue && !Number.isNaN(deadlineValue.getTime())
+      ? { deadline: deadlineValue }
+      : { deadline: undefined }),
+  };
+};
+
+const getCityFilterValues = (city = "") => {
+  if (!city) return [];
+  return regionCities[city] ? [city, ...regionCities[city]] : [city];
 };
 
 // ===== Middlewares =====
@@ -356,6 +418,73 @@ app.get('/api/training-targets', async (req, res) => {
     res.json({ data, total: data.length });
   } catch (err) {
     console.error("❌ Training targets error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/opportunities', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const major = (req.query.major || "").trim();
+    const majorCategory = (req.query.majorCategory || "").trim();
+    const majorCategories = Array.from(
+      new Set(
+        [
+          majorCategory,
+          ...(req.query.majorCategories || "")
+            .split(",")
+            .map((item) => item.trim()),
+        ].filter(Boolean)
+      )
+    );
+    const city = (req.query.city || "").trim();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const andFilters = [
+      { status: "active" },
+      {
+        $or: [
+          { deadline: { $exists: false } },
+          { deadline: null },
+          { deadline: { $gte: startOfToday } },
+        ],
+      },
+    ];
+
+    if (major || majorCategories.length > 0) {
+      andFilters.push({
+        $or: [
+          ...(major ? [{ specialties: major }] : []),
+          ...(majorCategories.length > 0
+            ? [{ majorCategories: { $in: majorCategories } }]
+            : []),
+          { specialties: { $size: 0 }, majorCategories: { $size: 0 } },
+        ],
+      });
+    }
+
+    if (city) {
+      andFilters.push({
+        $or: [
+          { city: { $in: getCityFilterValues(city) } },
+          { city: "" },
+          { trainingMode: "remote" },
+        ],
+      });
+    }
+
+    const opportunities = await Opportunity.find({ $and: andFilters })
+      .sort({ featured: -1, deadline: 1, createdAt: -1 })
+      .limit(60)
+      .lean();
+
+    res.json({ data: opportunities, total: opportunities.length });
+  } catch (err) {
+    console.error("❌ Opportunities fetch error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -570,6 +699,121 @@ app.get('/api/admin/suggestions', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/opportunities', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const status = ["active", "draft", "expired"].includes(req.query.status)
+      ? req.query.status
+      : "";
+    const filter = status ? { status } : {};
+
+    const opportunities = await Opportunity.find(filter)
+      .sort({ featured: -1, createdAt: -1 })
+      .limit(150)
+      .lean();
+
+    res.json({ data: opportunities });
+  } catch (err) {
+    console.error("❌ Admin opportunities fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/opportunities', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const payload = sanitizeOpportunityPayload(req.body);
+
+    if (!payload.organizationName || !payload.title) {
+      return res.status(400).json({ error: "اسم الجهة وعنوان الفرصة مطلوبة." });
+    }
+
+    const fieldsToCheck = [
+      payload.organizationName,
+      payload.title,
+      payload.city,
+      payload.applicationUrl,
+      payload.sourceUrl,
+      payload.note,
+      ...payload.majorCategories,
+      ...payload.specialties,
+    ];
+
+    if (fieldsToCheck.some(containsBlockedTerms)) {
+      return res.status(400).json({
+        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة.",
+      });
+    }
+
+    if (!payload.deadline) delete payload.deadline;
+
+    const opportunity = await Opportunity.create(payload);
+    res.json(opportunity);
+  } catch (err) {
+    console.error("❌ Admin opportunity create error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const payload = sanitizeOpportunityPayload(req.body);
+
+    if (!payload.organizationName || !payload.title) {
+      return res.status(400).json({ error: "اسم الجهة وعنوان الفرصة مطلوبة." });
+    }
+
+    const fieldsToCheck = [
+      payload.organizationName,
+      payload.title,
+      payload.city,
+      payload.applicationUrl,
+      payload.sourceUrl,
+      payload.note,
+      ...payload.majorCategories,
+      ...payload.specialties,
+    ];
+
+    if (fieldsToCheck.some(containsBlockedTerms)) {
+      return res.status(400).json({
+        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة.",
+      });
+    }
+
+    const hasDeadline = Boolean(payload.deadline);
+    const updatePayload = { ...payload };
+    if (!hasDeadline) delete updatePayload.deadline;
+
+    const update = hasDeadline
+      ? { $set: updatePayload }
+      : { $set: updatePayload, $unset: { deadline: "" } };
+
+    const updated = await Opportunity.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true,
+    }).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Opportunity not found" });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("❌ Admin opportunity edit error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -714,6 +958,25 @@ app.delete('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
     res.json({ success: true, id: req.params.id });
   } catch (err) {
     console.error("❌ Admin delete error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const deleted = await Opportunity.findByIdAndDelete(req.params.id).lean();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Opportunity not found" });
+    }
+
+    res.json({ success: true, id: req.params.id });
+  } catch (err) {
+    console.error("❌ Admin opportunity delete error:", err);
     res.status(500).json({ error: err.message });
   }
 });
