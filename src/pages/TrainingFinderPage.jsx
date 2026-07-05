@@ -1169,35 +1169,6 @@ export default function TrainingFinderPage() {
                         )}
                       </div>
 
-                      <div className="opportunity-chip-grid">
-                        {[
-                          ["trainingEnvironment", "البيئة", "👥"],
-                          ["trainingMode", "النوع", "💻"],
-                          ["hasReward", "المكافأة", "💰"],
-                          ["applicationMethod", "التقديم", "🔗"],
-                        ].map(([field, label, icon]) => (
-                          <span
-                            className="opportunity-chip"
-                            key={`${opportunity._id}-${field}`}
-                            title={`${label}: ${getOpportunityLabel(
-                              field,
-                              opportunity[field]
-                            )}`}
-                          >
-                            <span aria-hidden="true">{icon}</span>
-                            <span>
-                              {label}: {getOpportunityLabel(field, opportunity[field])}
-                            </span>
-                          </span>
-                        ))}
-                      </div>
-
-                      {opportunity.deadline && (
-                        <span className="opportunity-deadline">
-                          ينتهي: {formatOpportunityDate(opportunity.deadline)}
-                        </span>
-                      )}
-
                       {isExpanded && (
                         <div
                           style={{
@@ -1209,6 +1180,36 @@ export default function TrainingFinderPage() {
                             padding: "10px",
                           }}
                         >
+                          <div className="opportunity-chip-grid">
+                            {[
+                              ["trainingEnvironment", "البيئة", "👥"],
+                              ["trainingMode", "النوع", "💻"],
+                              ["hasReward", "المكافأة", "💰"],
+                              ["applicationMethod", "التقديم", "🔗"],
+                            ].map(([field, label, icon]) => (
+                              <span
+                                className="opportunity-chip"
+                                key={`${opportunity._id}-${field}`}
+                                title={`${label}: ${getOpportunityLabel(
+                                  field,
+                                  opportunity[field]
+                                )}`}
+                              >
+                                <span aria-hidden="true">{icon}</span>
+                                <span>
+                                  {label}:{" "}
+                                  {getOpportunityLabel(field, opportunity[field])}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+
+                          {opportunity.deadline && (
+                            <span className="opportunity-deadline">
+                              ينتهي: {formatOpportunityDate(opportunity.deadline)}
+                            </span>
+                          )}
+
                           <p
                             style={{
                               margin: 0,
@@ -1252,7 +1253,16 @@ export default function TrainingFinderPage() {
                         </div>
                       )}
 
-                      <div className="opportunity-actions">
+                      <div
+                        className="opportunity-actions"
+                        style={{
+                          gridTemplateColumns: `repeat(${
+                            1 +
+                            (relatedTarget ? 1 : 0) +
+                            (opportunity.applicationUrl ? 1 : 0)
+                          }, minmax(0, 1fr))`,
+                        }}
+                      >
                         <button
                           type="button"
                           onClick={() =>
@@ -2015,6 +2025,10 @@ export default function TrainingFinderPage() {
       </section>
 
       <style>{`
+        .opportunity-card {
+          min-height: 148px;
+        }
+
         .opportunity-chip-grid {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2062,6 +2076,8 @@ export default function TrainingFinderPage() {
           grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
           gap: 7px;
           align-items: stretch;
+          align-self: end;
+          margin-top: auto;
         }
 
         .opportunity-actions a,
@@ -2134,6 +2150,7 @@ export default function TrainingFinderPage() {
             padding: 7px !important;
             border-radius: 10px !important;
             gap: 6px !important;
+            min-height: 132px !important;
           }
 
           .opportunity-chip-grid {
@@ -2142,8 +2159,7 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-actions {
-            grid-template-columns: 1fr !important;
-            gap: 4px !important;
+            gap: 3px !important;
           }
 
           .opportunity-card-title {
@@ -2190,9 +2206,9 @@ export default function TrainingFinderPage() {
           .opportunity-secondary-button,
           .opportunity-apply-button {
             min-height: 28px !important;
-            padding: 5px 4px !important;
+            padding: 5px 2px !important;
             border-radius: 7px !important;
-            font-size: 9px !important;
+            font-size: 8.5px !important;
             line-height: 1.2 !important;
           }
 
