@@ -33,6 +33,7 @@ const cityOptions = [
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_GUIDE_BANNER = false;
+const SHOW_TRAINING_FINDER_FAQ = false;
 
 const trainingFinderFaqItems = [
   {
@@ -655,6 +656,7 @@ export default function TrainingFinderPage() {
   const [error, setError] = useState("");
   const [faqExpanded, setFaqExpanded] = useState(false);
   const [expandedOpportunityId, setExpandedOpportunityId] = useState("");
+  const [activeResultsTab, setActiveResultsTab] = useState("opportunities");
 
   const selectedSpecialtyOption = useMemo(
     () =>
@@ -669,7 +671,6 @@ export default function TrainingFinderPage() {
     () => selectedSpecialtyOption?.categories || [],
     [selectedSpecialtyOption]
   );
-  const selectedMajorCategoriesText = selectedMajorCategories.join("، ");
   const suggestionRegion = resolveSuggestionRegion(city);
   const selectedCityScope = useMemo(() => getSelectedCityScope(city), [city]);
   const visibleTargets = useMemo(() => {
@@ -753,6 +754,20 @@ export default function TrainingFinderPage() {
       !visibleTargetNames.has(normalizeName(organization.name))
     );
   }, [city, selectedMajorCategories, suggestionRegion, visibleTargetNames]);
+  const showResultsPanel = opportunitiesLoading || opportunities.length > 0 || searched;
+  const resultTabs = [
+    { key: "opportunities", label: "فرص", count: opportunities.length },
+    ...(searched
+      ? [
+          { key: "targets", label: "تجارب دربك", count: visibleTargets.length },
+          {
+            key: "suggestions",
+            label: "اقتراحات",
+            count: suggestedOrganizations.length,
+          },
+        ]
+      : []),
+  ];
 
   const fetchOpportunities = async (params = {}) => {
     try {
@@ -802,13 +817,21 @@ export default function TrainingFinderPage() {
         }),
       ]);
 
-      setTargets(
-        Array.isArray(targetsResponse.data.data) ? targetsResponse.data.data : []
-      );
-      setOpportunities(
-        Array.isArray(opportunitiesResponse.data.data)
-          ? opportunitiesResponse.data.data
-          : []
+      const nextTargets = Array.isArray(targetsResponse.data.data)
+        ? targetsResponse.data.data
+        : [];
+      const nextOpportunities = Array.isArray(opportunitiesResponse.data.data)
+        ? opportunitiesResponse.data.data
+        : [];
+
+      setTargets(nextTargets);
+      setOpportunities(nextOpportunities);
+      setActiveResultsTab(
+        nextOpportunities.length > 0
+          ? "opportunities"
+          : nextTargets.length > 0
+          ? "targets"
+          : "suggestions"
       );
     } catch (err) {
       console.error(err);
@@ -879,8 +902,7 @@ export default function TrainingFinderPage() {
               fontSize: "15px",
             }}
           >
-            اختَر تخصصك من القائمة، وإذا ودك حدد المدينة أو المنطقة، ونقترح لك جهات سبق
-            أن شارك الطلاب تجارب تدريبهم فيها.
+            اختَر تخصصك والمدينة، وشاهد الجهات والفرص بطريقة مرتبة.
           </p>
         </header>
 
@@ -991,7 +1013,28 @@ export default function TrainingFinderPage() {
           </p>
         )}
 
-        {(opportunitiesLoading || opportunities.length > 0 || searched) && (
+        {showResultsPanel && (
+          <nav
+            className="training-results-tabs"
+            aria-label="تصنيف نتائج وين أتدرب"
+          >
+            {resultTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveResultsTab(tab.key)}
+                className={`training-results-tab${
+                  activeResultsTab === tab.key ? " is-active" : ""
+                }`}
+              >
+                <span>{tab.label}</span>
+                <strong>{opportunitiesLoading && tab.key === "opportunities" ? "..." : tab.count}</strong>
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {showResultsPanel && activeResultsTab === "opportunities" && (
           <section
             style={{
               display: "grid",
@@ -1064,9 +1107,7 @@ export default function TrainingFinderPage() {
                   padding: "12px",
                 }}
               >
-                لا توجد فرص معلنة مطابقة حاليًا، لكن هذا لا يعني عدم توفر فرص في
-                تخصصك. راجع نتائج التجارب والاقتراحات بالأسفل وتحقق من مواقع
-                الجهات.
+                لا توجد فرص معلنة مطابقة حاليًا.
               </p>
             ) : (
               <div
@@ -1331,22 +1372,21 @@ export default function TrainingFinderPage() {
                 textAlign: "center",
               }}
             >
-              يتم عرض الفرص حسب المعلومات المتاحة وقت الإضافة، ويرجى التحقق من
-              الجهة قبل التقديم.
+              تحقق من الجهة قبل التقديم.
             </p>
           </section>
         )}
 
-        {searched && !loading && !error && (
+        {searched && !loading && !error && activeResultsTab !== "opportunities" && (
           <section style={{ display: "grid", gap: "14px" }}>
             <section
               style={{
+                display: "none",
                 background:
                   "linear-gradient(135deg, var(--app-brand-soft), var(--app-surface))",
                 border: "1px solid var(--app-brand-border)",
                 borderRadius: "16px",
                 padding: "14px",
-                display: "grid",
                 gap: "8px",
                 textAlign: "right",
               }}
@@ -1386,12 +1426,11 @@ export default function TrainingFinderPage() {
 
             <section
               style={{
-                display: "grid",
+                display: activeResultsTab === "targets" ? "grid" : "none",
                 gap: "14px",
-                order: !hasTrainingTargets ? 2 : 1,
-                paddingTop: !hasTrainingTargets ? "16px" : 0,
-                borderTop:
-                  !hasTrainingTargets ? "1px solid var(--app-border)" : "none",
+                order: 1,
+                paddingTop: 0,
+                borderTop: "none",
               }}
             >
               <div
@@ -1427,7 +1466,7 @@ export default function TrainingFinderPage() {
                         : "0 0 16px var(--app-brand-border)",
                   }}
                 >
-                  {!hasTrainingTargets ? "2" : "1"}
+                  {visibleTargets.length}
                 </span>
                 <div>
                   <h2
@@ -1448,13 +1487,7 @@ export default function TrainingFinderPage() {
                       lineHeight: 1.8,
                     }}
                   >
-                    نتائج {selectedSpecialtyLabel}
-                    {city ? ` في ${city}` : ""}
-                    {selectedMajorCategoriesText
-                      ? ` - ضمن ${selectedMajorCategoriesText}`
-                      : ""}
-                    . هذه النتائج من تجارب شاركها الطلاب داخل دربك
-                    {city ? " ومطابقة للمدينة أو المنطقة المحددة." : "."}
+                    جهات لها تجارب طلابية داخل دربك.
                   </p>
                 </div>
               </div>
@@ -1471,10 +1504,7 @@ export default function TrainingFinderPage() {
                     lineHeight: 1.8,
                   }}
                 >
-                  قاعدة دربك ما زالت تكبر بتجارب الطلاب، وقد لا تكون وصلت لنا
-                  تجربة مطابقة لهذا الاختيار بعد. الاقتراحات بالأعلى تساعدك
-                  تبدأ من جهات قريبة من تخصصك أو مدينتك، وأي تجربة جديدة
-                  يشاركها الطلاب بتظهر هنا تلقائيًا.
+                  لا توجد تجارب مطابقة لهذا الاختيار حتى الآن.
                 </div>
               ) : (
                 <div
@@ -1666,7 +1696,7 @@ export default function TrainingFinderPage() {
                 </p>
               )}
 
-              {hasTrainingTargets && suggestedOrganizations.length > 0 && (
+              {false && hasTrainingTargets && suggestedOrganizations.length > 0 && (
                 <div
                   style={{
                     display: "flex",
@@ -1697,13 +1727,12 @@ export default function TrainingFinderPage() {
 
             <section
               style={{
-                display: "grid",
+                display: activeResultsTab === "suggestions" ? "grid" : "none",
                 gap: "14px",
-                order: !hasTrainingTargets ? 1 : 2,
-                marginTop: !hasTrainingTargets ? 0 : "12px",
-                paddingTop: !hasTrainingTargets ? "4px" : "18px",
-                borderTop:
-                  !hasTrainingTargets ? "none" : "1px solid var(--app-border)",
+                order: 1,
+                marginTop: 0,
+                paddingTop: 0,
+                borderTop: "none",
               }}
             >
               <div
@@ -1738,7 +1767,7 @@ export default function TrainingFinderPage() {
                         : "none",
                   }}
                 >
-                  {!hasTrainingTargets ? "1" : "2"}
+                  {suggestedOrganizations.length}
                 </span>
                 <div>
                   <h2
@@ -1759,9 +1788,7 @@ export default function TrainingFinderPage() {
                       lineHeight: 1.8,
                     }}
                   >
-                    هذا القسم منفصل عن نتائج دربك: اقتراحات حسب تخصصك
-                    {suggestionRegion ? ` و${suggestionRegion}` : ""}
-                    ، ولا يعني ظهور الجهة توفر فرصة تدريب حاليًا.
+                    جهات كبداية بحث حسب تخصصك أو مدينتك.
                   </p>
                 </div>
               </div>
@@ -1940,6 +1967,7 @@ export default function TrainingFinderPage() {
           </section>
         )}
 
+        {SHOW_TRAINING_FINDER_FAQ && (
         <section
           aria-label="أسئلة شائعة عن وين أتدرب"
           style={{
@@ -2031,9 +2059,66 @@ export default function TrainingFinderPage() {
             {faqExpanded ? "عرض أقل" : "اقرأ المزيد"}
           </button>
         </section>
+        )}
       </section>
 
       <style>{`
+        .training-results-tabs {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          overflow-x: auto;
+          scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+          padding: 2px;
+        }
+
+        .training-results-tabs::-webkit-scrollbar {
+          display: none;
+        }
+
+        .training-results-tab {
+          flex: 0 0 auto;
+          min-width: 120px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          background: var(--app-surface);
+          color: var(--app-text-soft);
+          border: 1px solid var(--app-border);
+          border-radius: 999px;
+          padding: 9px 12px;
+          font-family: inherit;
+          font-weight: 900;
+          cursor: pointer;
+          transition: 0.18s ease;
+        }
+
+        .training-results-tab strong {
+          min-width: 26px;
+          height: 26px;
+          display: inline-grid;
+          place-items: center;
+          border-radius: 999px;
+          background: var(--app-input-bg);
+          color: var(--app-brand);
+          font-size: 12px;
+          line-height: 1;
+        }
+
+        .training-results-tab.is-active {
+          background: var(--app-brand);
+          border-color: var(--app-brand);
+          color: #07100e;
+          box-shadow: 0 0 16px var(--app-brand-border);
+        }
+
+        .training-results-tab.is-active strong {
+          background: rgba(7, 16, 14, 0.14);
+          color: #07100e;
+        }
+
         .opportunity-card {
           min-height: 162px;
         }
@@ -2138,6 +2223,23 @@ export default function TrainingFinderPage() {
 
           .training-finder-form {
             grid-template-columns: 1fr !important;
+          }
+
+          .training-results-tabs {
+            gap: 6px !important;
+            padding-bottom: 2px !important;
+          }
+
+          .training-results-tab {
+            min-width: 104px !important;
+            padding: 8px 10px !important;
+            font-size: 12px !important;
+          }
+
+          .training-results-tab strong {
+            min-width: 23px !important;
+            height: 23px !important;
+            font-size: 11px !important;
           }
 
           .training-targets-grid {
