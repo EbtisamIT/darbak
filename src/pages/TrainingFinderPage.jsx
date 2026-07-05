@@ -32,7 +32,7 @@ const cityOptions = [
 ];
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
-const SHOW_TRAINING_GUIDE_BANNER = true;
+const SHOW_TRAINING_GUIDE_BANNER = false;
 
 const trainingFinderFaqItems = [
   {
