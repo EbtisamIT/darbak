@@ -654,6 +654,7 @@ export default function TrainingFinderPage() {
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [error, setError] = useState("");
   const [faqExpanded, setFaqExpanded] = useState(false);
+  const [expandedOpportunityId, setExpandedOpportunityId] = useState("");
 
   const selectedSpecialtyOption = useMemo(
     () =>
@@ -1076,162 +1077,227 @@ export default function TrainingFinderPage() {
                   gap: "10px",
                 }}
               >
-                {opportunities.map((opportunity) => (
-                  <article
-                    key={opportunity._id}
-                    className="opportunity-card"
-                    style={{
-                      background: "var(--app-card)",
-                      border: "1px solid var(--app-brand-border)",
-                      borderRadius: "15px",
-                      padding: "14px",
-                      display: "grid",
-                      gap: "10px",
-                      boxShadow: opportunity.featured
-                        ? "0 12px 26px var(--app-shadow)"
-                        : "none",
-                    }}
-                  >
-                    <div
+                {opportunities.map((opportunity) => {
+                  const isExpanded = expandedOpportunityId === opportunity._id;
+                  const normalizedOpportunityName = normalizeName(
+                    opportunity.organizationName
+                  );
+                  const relatedTarget = visibleTargets.find((target) => {
+                    const normalizedTargetName = normalizeName(
+                      target.organizationName
+                    );
+                    return (
+                      normalizedOpportunityName &&
+                      normalizedTargetName &&
+                      (normalizedOpportunityName === normalizedTargetName ||
+                        normalizedOpportunityName.includes(
+                          normalizedTargetName
+                        ) ||
+                        normalizedTargetName.includes(normalizedOpportunityName))
+                    );
+                  });
+
+                  return (
+                    <article
+                      key={opportunity._id}
+                      className="opportunity-card"
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: "10px",
-                        alignItems: "start",
+                        background: "var(--app-card)",
+                        border: "1px solid var(--app-brand-border)",
+                        borderRadius: "14px",
+                        padding: "12px",
+                        display: "grid",
+                        gap: "9px",
+                        alignContent: "start",
+                        boxShadow: opportunity.featured
+                          ? "0 10px 20px var(--app-shadow)"
+                          : "none",
                       }}
                     >
-                      <div>
-                        <h3
-                          style={{
-                            margin: "0 0 5px",
-                            color: "var(--app-brand)",
-                            fontSize: "18px",
-                            lineHeight: 1.45,
-                          }}
-                        >
-                          {opportunity.title}
-                        </h3>
-                        <p
-                          style={{
-                            margin: 0,
-                            color: "var(--app-text-soft)",
-                            fontSize: "13px",
-                            lineHeight: 1.7,
-                          }}
-                        >
-                          {opportunity.organizationName}
-                          {opportunity.city ? ` - ${opportunity.city}` : ""}
-                        </p>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          alignItems: "start",
+                          minWidth: 0,
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <h3
+                            style={{
+                              margin: "0 0 4px",
+                              color: "var(--app-brand)",
+                              fontSize: "17px",
+                              lineHeight: 1.45,
+                              overflowWrap: "anywhere",
+                            }}
+                          >
+                            {opportunity.title}
+                          </h3>
+                          <p
+                            style={{
+                              margin: 0,
+                              color: "var(--app-text-soft)",
+                              fontSize: "12.5px",
+                              lineHeight: 1.6,
+                              overflowWrap: "anywhere",
+                            }}
+                          >
+                            {opportunity.organizationName}
+                            {opportunity.city ? ` - ${opportunity.city}` : ""}
+                          </p>
+                        </div>
+                        {opportunity.featured && (
+                          <span
+                            style={{
+                              flex: "0 0 auto",
+                              background: "rgba(250,204,21,0.12)",
+                              border: "1px solid rgba(250,204,21,0.28)",
+                              color: "#fde68a",
+                              borderRadius: "999px",
+                              padding: "5px 8px",
+                              fontSize: "11px",
+                              fontWeight: "900",
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            مميزة
+                          </span>
+                        )}
                       </div>
-                      {opportunity.featured && (
-                        <span
-                          style={{
-                            flex: "0 0 auto",
-                            background: "rgba(250,204,21,0.12)",
-                            border: "1px solid rgba(250,204,21,0.28)",
-                            color: "#fde68a",
-                            borderRadius: "999px",
-                            padding: "5px 8px",
-                            fontSize: "11px",
-                            fontWeight: "900",
-                          }}
-                        >
-                          مميزة
-                        </span>
-                      )}
-                    </div>
 
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                      {[
-                        ["trainingEnvironment", "البيئة"],
-                        ["trainingMode", "النوع"],
-                        ["hasReward", "المكافأة"],
-                        ["applicationMethod", "التقديم"],
-                      ].map(([field, label]) => (
-                        <span
-                          key={`${opportunity._id}-${field}`}
-                          style={{
-                            background: "var(--app-brand-soft)",
-                            border: "1px solid var(--app-brand-border)",
-                            color: "var(--app-text-soft)",
-                            borderRadius: "999px",
-                            padding: "5px 8px",
-                            fontSize: "11px",
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {label}: {getOpportunityLabel(field, opportunity[field])}
-                        </span>
-                      ))}
+                      <div className="opportunity-chip-grid">
+                        {[
+                          ["trainingEnvironment", "البيئة", "👥"],
+                          ["trainingMode", "النوع", "💻"],
+                          ["hasReward", "المكافأة", "💰"],
+                          ["applicationMethod", "التقديم", "🔗"],
+                        ].map(([field, label, icon]) => (
+                          <span
+                            className="opportunity-chip"
+                            key={`${opportunity._id}-${field}`}
+                            title={`${label}: ${getOpportunityLabel(
+                              field,
+                              opportunity[field]
+                            )}`}
+                          >
+                            <span aria-hidden="true">{icon}</span>
+                            <span>
+                              {label}: {getOpportunityLabel(field, opportunity[field])}
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+
                       {opportunity.deadline && (
-                        <span
-                          style={{
-                            background: "rgba(250,204,21,0.1)",
-                            border: "1px solid rgba(250,204,21,0.25)",
-                            color: "#fde68a",
-                            borderRadius: "999px",
-                            padding: "5px 8px",
-                            fontSize: "11px",
-                            lineHeight: 1.4,
-                          }}
-                        >
+                        <span className="opportunity-deadline">
                           ينتهي: {formatOpportunityDate(opportunity.deadline)}
                         </span>
                       )}
-                    </div>
 
-                    <p
-                      style={{
-                        margin: 0,
-                        color: "var(--app-text-soft)",
-                        fontSize: "12px",
-                        lineHeight: 1.8,
-                      }}
-                    >
-                      {opportunity.note ||
-                        "تحقق من شروط الجهة وتفاصيل الإعلان قبل التقديم."}
-                    </p>
-
-                    <div
-                      style={{
-                        color: "var(--app-muted)",
-                        fontSize: "12px",
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      مناسب لـ:{" "}
-                      {(opportunity.specialties || []).join("، ") ||
-                        (opportunity.majorCategories || []).join("، ") ||
-                        "عدة تخصصات"}
-                    </div>
-
-                    {opportunity.applicationUrl && (
-                      <a
-                        href={opportunity.applicationUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ textDecoration: "none" }}
-                      >
-                        <button
-                          type="button"
+                      {isExpanded && (
+                        <div
                           style={{
-                            width: "100%",
-                            background: "var(--app-brand)",
-                            color: "#07100e",
-                            border: "none",
-                            borderRadius: "10px",
-                            padding: "9px 10px",
-                            fontFamily: "inherit",
-                            fontWeight: "900",
-                            cursor: "pointer",
+                            display: "grid",
+                            gap: "8px",
+                            background: "var(--app-input-bg)",
+                            border: "1px solid var(--app-border)",
+                            borderRadius: "12px",
+                            padding: "10px",
                           }}
                         >
-                          التقديم الآن
+                          <p
+                            style={{
+                              margin: 0,
+                              color: "var(--app-text-soft)",
+                              fontSize: "12px",
+                              lineHeight: 1.8,
+                            }}
+                          >
+                            {opportunity.note ||
+                              "تحقق من شروط الجهة وتفاصيل الإعلان قبل التقديم."}
+                          </p>
+
+                          <div
+                            style={{
+                              color: "var(--app-muted)",
+                              fontSize: "12px",
+                              lineHeight: 1.7,
+                            }}
+                          >
+                            مناسب لـ:{" "}
+                            {(opportunity.specialties || []).join("، ") ||
+                              (opportunity.majorCategories || []).join("، ") ||
+                              "عدة تخصصات"}
+                          </div>
+
+                          {opportunity.sourceUrl && (
+                            <a
+                              href={opportunity.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                color: "var(--app-brand)",
+                                fontSize: "12px",
+                                textDecoration: "none",
+                                fontWeight: "800",
+                              }}
+                            >
+                              عرض مصدر الفرصة
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="opportunity-actions">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedOpportunityId((currentId) =>
+                              currentId === opportunity._id ? "" : opportunity._id
+                            )
+                          }
+                          className="opportunity-secondary-button"
+                        >
+                          {isExpanded ? "إخفاء التفاصيل" : "عرض التفاصيل"}
                         </button>
-                      </a>
-                    )}
-                  </article>
-                ))}
+
+                        {relatedTarget && (
+                          <Link
+                            to={{
+                              pathname: "/experiences",
+                              search: `?company=${encodeURIComponent(
+                                relatedTarget.organizationName
+                              )}`,
+                            }}
+                            className="opportunity-secondary-button"
+                            style={{
+                              textDecoration: "none",
+                              display: "inline-grid",
+                              placeItems: "center",
+                            }}
+                          >
+                            قراءة التجارب
+                          </Link>
+                        )}
+
+                        {opportunity.applicationUrl && (
+                          <a
+                            href={opportunity.applicationUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ textDecoration: "none" }}
+                          >
+                            <button type="button" className="opportunity-apply-button">
+                              التقديم الآن
+                            </button>
+                          </a>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             )}
 
@@ -1947,6 +2013,85 @@ export default function TrainingFinderPage() {
       </section>
 
       <style>{`
+        .opportunity-chip-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 6px;
+        }
+
+        .opportunity-chip {
+          min-height: 32px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          background: var(--app-brand-soft);
+          border: 1px solid var(--app-brand-border);
+          color: var(--app-text-soft);
+          border-radius: 999px;
+          padding: 5px 7px;
+          font-size: 11px;
+          line-height: 1.35;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .opportunity-chip span:last-child {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .opportunity-deadline {
+          justify-self: start;
+          background: rgba(250,204,21,0.1);
+          border: 1px solid rgba(250,204,21,0.25);
+          color: #fde68a;
+          border-radius: 999px;
+          padding: 5px 9px;
+          font-size: 11px;
+          line-height: 1.4;
+        }
+
+        .opportunity-actions {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+          gap: 7px;
+          align-items: stretch;
+        }
+
+        .opportunity-actions a,
+        .opportunity-actions button {
+          min-height: 40px;
+        }
+
+        .opportunity-secondary-button,
+        .opportunity-apply-button {
+          width: 100%;
+          border-radius: 10px;
+          padding: 9px 10px;
+          font-family: inherit;
+          font-weight: 900;
+          cursor: pointer;
+          font-size: 12px;
+          line-height: 1.35;
+          text-align: center;
+        }
+
+        .opportunity-secondary-button {
+          background: var(--app-input-bg);
+          color: var(--app-brand);
+          border: 1px solid var(--app-brand-border);
+        }
+
+        .opportunity-apply-button {
+          background: var(--app-brand);
+          color: #07100e;
+          border: none;
+        }
+
         @media (max-width: 760px) {
           .training-guide-banner {
             grid-template-columns: 1fr !important;
@@ -1987,6 +2132,14 @@ export default function TrainingFinderPage() {
             padding: 11px !important;
             border-radius: 13px !important;
             gap: 8px !important;
+          }
+
+          .opportunity-chip-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+
+          .opportunity-actions {
+            grid-template-columns: 1fr !important;
           }
 
           .training-target-card,
