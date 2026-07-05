@@ -1096,6 +1096,10 @@ export default function TrainingFinderPage() {
                         normalizedTargetName.includes(normalizedOpportunityName))
                     );
                   });
+                  const opportunityLogoUrl =
+                    opportunity.applicationUrl ||
+                    opportunity.sourceUrl ||
+                    resolveOrganizationHomepageUrl(opportunity.organizationName);
 
                   return (
                     <article
@@ -1115,17 +1119,22 @@ export default function TrainingFinderPage() {
                       }}
                     >
                       <div
+                        className="opportunity-card-head"
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
+                          display: "grid",
+                          gridTemplateColumns: "42px minmax(0, 1fr) auto",
                           gap: "10px",
                           alignItems: "start",
                           minWidth: 0,
                         }}
                       >
+                        <OrganizationLogo
+                          name={opportunity.organizationName}
+                          url={opportunityLogoUrl}
+                        />
                         <div style={{ minWidth: 0 }}>
                           <h3
-                            className="opportunity-card-title"
+                            className="opportunity-organization-name"
                             style={{
                               margin: "0 0 4px",
                               color: "var(--app-brand)",
@@ -1134,10 +1143,10 @@ export default function TrainingFinderPage() {
                               overflowWrap: "anywhere",
                             }}
                           >
-                            {opportunity.title}
+                            {opportunity.organizationName}
                           </h3>
                           <p
-                            className="opportunity-card-meta"
+                            className="opportunity-card-title"
                             style={{
                               margin: 0,
                               color: "var(--app-text-soft)",
@@ -1146,7 +1155,7 @@ export default function TrainingFinderPage() {
                               overflowWrap: "anywhere",
                             }}
                           >
-                            {opportunity.organizationName}
+                            {opportunity.title}
                             {opportunity.city ? ` - ${opportunity.city}` : ""}
                           </p>
                         </div>
@@ -1272,7 +1281,7 @@ export default function TrainingFinderPage() {
                           }
                           className="opportunity-secondary-button"
                         >
-                          {isExpanded ? "إخفاء" : "تفاصيل"}
+                          {isExpanded ? "إخفاء" : "التفاصيل"}
                         </button>
 
                         {relatedTarget && (
@@ -1302,7 +1311,7 @@ export default function TrainingFinderPage() {
                             style={{ textDecoration: "none" }}
                           >
                             <button type="button" className="opportunity-apply-button">
-                              تقديم
+                              تقديم الآن
                             </button>
                           </a>
                         )}
@@ -2026,7 +2035,7 @@ export default function TrainingFinderPage() {
 
       <style>{`
         .opportunity-card {
-          min-height: 148px;
+          min-height: 162px;
         }
 
         .opportunity-chip-grid {
@@ -2142,15 +2151,31 @@ export default function TrainingFinderPage() {
           }
 
           .opportunities-grid {
-            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-            gap: 6px !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 8px !important;
           }
 
           .opportunity-card {
-            padding: 7px !important;
-            border-radius: 10px !important;
-            gap: 6px !important;
-            min-height: 132px !important;
+            padding: 10px !important;
+            border-radius: 13px !important;
+            gap: 8px !important;
+            min-height: 168px !important;
+          }
+
+          .opportunity-card-head {
+            grid-template-columns: 34px minmax(0, 1fr) !important;
+            gap: 8px !important;
+          }
+
+          .opportunity-organization-name {
+            min-height: 34px !important;
+            margin-bottom: 3px !important;
+            font-size: 13.5px !important;
+            line-height: 1.35 !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
           }
 
           .opportunity-chip-grid {
@@ -2163,20 +2188,10 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-card-title {
-            min-height: 30px !important;
+            min-height: 34px !important;
             margin-bottom: 2px !important;
-            font-size: 10.5px !important;
-            line-height: 1.35 !important;
-            display: -webkit-box !important;
-            -webkit-line-clamp: 2 !important;
-            -webkit-box-orient: vertical !important;
-            overflow: hidden !important;
-          }
-
-          .opportunity-card-meta {
-            min-height: 26px !important;
-            font-size: 9px !important;
-            line-height: 1.35 !important;
+            font-size: 11px !important;
+            line-height: 1.45 !important;
             display: -webkit-box !important;
             -webkit-line-clamp: 2 !important;
             -webkit-box-orient: vertical !important;
@@ -2205,16 +2220,16 @@ export default function TrainingFinderPage() {
 
           .opportunity-secondary-button,
           .opportunity-apply-button {
-            min-height: 28px !important;
-            padding: 5px 2px !important;
-            border-radius: 7px !important;
-            font-size: 8.5px !important;
-            line-height: 1.2 !important;
+            min-height: 32px !important;
+            padding: 6px 4px !important;
+            border-radius: 8px !important;
+            font-size: 10px !important;
+            line-height: 1.25 !important;
           }
 
           .opportunity-actions a,
           .opportunity-actions button {
-            min-height: 28px !important;
+            min-height: 32px !important;
           }
 
           .training-target-card,
