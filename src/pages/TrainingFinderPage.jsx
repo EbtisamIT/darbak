@@ -1125,10 +1125,10 @@ export default function TrainingFinderPage() {
               </p>
             ) : (
               <div
-                className="opportunities-grid"
+                className="finder-card-grid opportunities-grid"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
                   gap: "10px",
                 }}
               >
@@ -1162,25 +1162,21 @@ export default function TrainingFinderPage() {
                   return (
                     <article
                       key={opportunity._id}
-                      className="opportunity-card"
+                      className="finder-result-card suggested-target-card opportunity-card"
                       style={{
-                        background: "var(--app-card)",
-                        border: "1px solid var(--app-brand-border)",
-                        borderRadius: "14px",
-                        padding: "12px",
+                        background: "var(--app-surface)",
+                        border: "1px solid var(--app-border)",
+                        borderRadius: "15px",
+                        padding: "14px",
                         display: "grid",
-                        gap: "9px",
-                        alignContent: "start",
-                        boxShadow: opportunity.featured
-                          ? "0 10px 20px var(--app-shadow)"
-                          : "none",
+                        gap: "10px",
                       }}
                     >
                       <div
-                        className="opportunity-card-head"
+                        className="suggested-card-head opportunity-card-head"
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "42px minmax(0, 1fr) auto",
+                          gridTemplateColumns: "42px minmax(0, 1fr)",
                           gap: "10px",
                           alignItems: "start",
                           minWidth: 0,
@@ -1191,18 +1187,41 @@ export default function TrainingFinderPage() {
                           url={opportunityLogoUrl}
                         />
                         <div style={{ minWidth: 0 }}>
-                          <h3
-                            className="opportunity-organization-name"
+                          <div
+                            className="suggested-card-title-row"
                             style={{
-                              margin: "0 0 4px",
-                              color: "var(--app-brand)",
-                              fontSize: "17px",
-                              lineHeight: 1.45,
-                              overflowWrap: "anywhere",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: "8px",
+                              alignItems: "start",
+                              marginBottom: "5px",
                             }}
                           >
-                            {opportunity.organizationName}
-                          </h3>
+                            <h3
+                              className="opportunity-organization-name"
+                              style={{
+                                margin: 0,
+                                color: "var(--app-brand)",
+                                fontSize: "17px",
+                                lineHeight: 1.4,
+                                overflowWrap: "anywhere",
+                              }}
+                            >
+                              {opportunity.organizationName}
+                            </h3>
+                            <div className="opportunity-card-badges">
+                              <span
+                                className={`opportunity-status ${applicationState.tone}`}
+                              >
+                                {applicationState.label}
+                              </span>
+                              {opportunity.featured && (
+                                <span className="opportunity-featured-badge">
+                                  مميزة
+                                </span>
+                              )}
+                            </div>
+                          </div>
                           <p
                             className="opportunity-card-title"
                             style={{
@@ -1217,26 +1236,54 @@ export default function TrainingFinderPage() {
                             {opportunity.city ? ` - ${opportunity.city}` : ""}
                           </p>
                         </div>
-                        <div className="opportunity-card-badges">
-                          <span
-                            className={`opportunity-status ${applicationState.tone}`}
+                      </div>
+
+                      <div className="finder-card-info">
+                        <p
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            margin: 0,
+                            color: "var(--app-text-soft)",
+                            fontSize: "12px",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          <span style={{ color: "var(--app-muted)" }}>مناسب لـ</span>
+                          <strong
+                            style={{
+                              color: "var(--app-brand)",
+                              fontWeight: "800",
+                              textAlign: "left",
+                            }}
                           >
-                            {applicationState.label}
-                          </span>
-                          {opportunity.featured && (
-                            <span className="opportunity-featured-badge">
-                              مميزة
-                            </span>
-                          )}
-                        </div>
+                            {(opportunity.specialties || []).slice(0, 2).join("، ") ||
+                              (opportunity.majorCategories || []).slice(0, 2).join("، ") ||
+                              "جميع التخصصات"}
+                          </strong>
+                        </p>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "var(--app-text-soft)",
+                            fontSize: "12px",
+                            lineHeight: 1.75,
+                          }}
+                        >
+                          {opportunity.deadline
+                            ? `ينتهي: ${formatOpportunityDate(opportunity.deadline)}`
+                            : "تحقق من شروط الجهة قبل التقديم."}
+                        </p>
                       </div>
 
                       {isExpanded && (
                         <div
+                          className="finder-card-info"
                           style={{
                             display: "grid",
                             gap: "8px",
-                            background: "var(--app-input-bg)",
+                            background: "var(--app-card)",
                             border: "1px solid var(--app-border)",
                             borderRadius: "12px",
                             padding: "10px",
@@ -1284,19 +1331,6 @@ export default function TrainingFinderPage() {
                               "تحقق من شروط الجهة وتفاصيل الإعلان قبل التقديم."}
                           </p>
 
-                          <div
-                            style={{
-                              color: "var(--app-muted)",
-                              fontSize: "12px",
-                              lineHeight: 1.7,
-                            }}
-                          >
-                            مناسب لـ:{" "}
-                            {(opportunity.specialties || []).join("، ") ||
-                              (opportunity.majorCategories || []).join("، ") ||
-                              "عدة تخصصات"}
-                          </div>
-
                           {opportunity.sourceUrl && (
                             <a
                               href={opportunity.sourceUrl}
@@ -1316,7 +1350,7 @@ export default function TrainingFinderPage() {
                       )}
 
                       <div
-                        className="opportunity-actions"
+                        className="finder-card-actions opportunity-actions"
                         style={{
                           gridTemplateColumns: `repeat(${
                             1 +
@@ -1520,11 +1554,11 @@ export default function TrainingFinderPage() {
                 </div>
               ) : (
                 <div
-                  className="training-targets-grid"
+                  className="finder-card-grid training-targets-grid"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: "12px",
+                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                    gap: "10px",
                   }}
                 >
                   {visibleTargets.map((target) => {
@@ -1534,38 +1568,57 @@ export default function TrainingFinderPage() {
 
                     return (
                       <article
-                        className="training-target-card"
+                        className="finder-result-card suggested-target-card training-target-card"
                         key={target.organizationName}
                         style={{
                           background: "var(--app-surface)",
                           border: "1px solid var(--app-border)",
-                          borderRadius: "16px",
-                          padding: "16px",
+                          borderRadius: "15px",
+                          padding: "14px",
                           display: "grid",
-                          gap: "12px",
-                          boxShadow: "0 10px 24px var(--app-shadow)",
+                          gap: "10px",
                         }}
                       >
                         <div
+                          className="suggested-card-head"
                           style={{
-                            display: "flex",
-                            justifyContent: "space-between",
+                            display: "grid",
+                            gridTemplateColumns: "42px minmax(0, 1fr)",
                             gap: "10px",
-                            alignItems: "flex-start",
+                            alignItems: "start",
                           }}
                         >
+                          <OrganizationLogo
+                            name={target.organizationName}
+                            url={organizationHomepageUrl}
+                          />
                           <div style={{ minWidth: 0 }}>
-                          <h3
-                            className="training-target-title"
+                          <div
+                            className="suggested-card-title-row"
                             style={{
-                              margin: "0 0 6px",
-                              color: "var(--app-brand)",
-                              fontSize: "24px",
-                              lineHeight: 1.3,
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: "8px",
+                              alignItems: "start",
+                              marginBottom: "5px",
                             }}
                           >
-                            {target.organizationName}
-                          </h3>
+                            <h3
+                              className="training-target-title"
+                              style={{
+                                margin: 0,
+                                color: "var(--app-brand)",
+                                fontSize: "17px",
+                                lineHeight: 1.4,
+                                overflowWrap: "anywhere",
+                              }}
+                            >
+                              {target.organizationName}
+                            </h3>
+                            <span className="suggested-organization-source">
+                              {target.count || 1} تجربة
+                            </span>
+                          </div>
                           <p
                             style={{
                               margin: 0,
@@ -1576,25 +1629,10 @@ export default function TrainingFinderPage() {
                             {target.cities?.join("، ") || "مدينة غير محددة"}
                           </p>
                           </div>
-                          <span
-                            style={{
-                              flex: "0 0 auto",
-                              background: "var(--app-brand-soft)",
-                              border: "1px solid var(--app-brand-border)",
-                              color: "var(--app-brand)",
-                              borderRadius: "999px",
-                              padding: "5px 8px",
-                              fontSize: "11px",
-                              fontWeight: "900",
-                              lineHeight: 1.3,
-                            }}
-                          >
-                            {target.count || 1} تجربة
-                          </span>
                         </div>
 
                         <div
-                          className="training-target-detail"
+                          className="finder-card-info training-target-detail"
                           style={{
                             background: "var(--app-card)",
                             border: "1px solid var(--app-border)",
@@ -1608,9 +1646,6 @@ export default function TrainingFinderPage() {
                           <p style={{ margin: 0, color: "var(--app-text-soft)", fontSize: "13px", lineHeight: 1.7 }}>
                             {target.majors?.length ? target.majors.join("، ") : "تخصصات غير محددة"}
                           </p>
-                        </div>
-
-                        <div>
                           <p style={{ margin: "0 0 8px", color: "var(--app-brand)", fontWeight: "800", fontSize: "13px" }}>
                             طرق الحصول على الفرصة المذكورة:
                           </p>
@@ -1634,8 +1669,14 @@ export default function TrainingFinderPage() {
                         </div>
 
                         <div
-                          className="training-target-actions"
-                          style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
+                          className="finder-card-actions training-target-actions"
+                          style={{
+                            display: "grid",
+                            gap: "7px",
+                            gridTemplateColumns: organizationHomepageUrl
+                              ? "repeat(2, minmax(0, 1fr))"
+                              : "1fr",
+                          }}
                         >
                           <Link
                             to={{
@@ -1648,15 +1689,9 @@ export default function TrainingFinderPage() {
                           >
                             <button
                               type="button"
+                              className="opportunity-apply-button"
                               style={{
-                                background: "var(--app-brand)",
-                                color: "#07100e",
-                                border: "none",
-                                borderRadius: "10px",
-                                padding: "9px 12px",
-                                fontFamily: "inherit",
-                                fontWeight: "800",
-                                cursor: "pointer",
+                                width: "100%",
                               }}
                             >
                               قراءة التجارب
@@ -1671,15 +1706,9 @@ export default function TrainingFinderPage() {
                             >
                               <button
                                 type="button"
+                                className="opportunity-secondary-button"
                                 style={{
-                                  background: "var(--app-input-bg)",
-                                  color: "var(--app-brand)",
-                                  border: "1px solid var(--app-brand-border)",
-                                  borderRadius: "10px",
-                                  padding: "9px 12px",
-                                  fontFamily: "inherit",
-                                  fontWeight: "800",
-                                  cursor: "pointer",
+                                  width: "100%",
                                 }}
                               >
                                 زيارة صفحة الجهة
@@ -1821,7 +1850,7 @@ export default function TrainingFinderPage() {
                 </div>
               ) : (
                 <div
-                  className="suggested-targets-grid"
+                  className="finder-card-grid suggested-targets-grid"
                   style={{
                     display: "grid",
                     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
@@ -1830,7 +1859,7 @@ export default function TrainingFinderPage() {
                 >
                   {suggestedOrganizations.map((organization) => (
                     <article
-                      className="suggested-target-card"
+                      className="finder-result-card suggested-target-card"
                       key={`${organization.name}-${organization.url}`}
                       style={{
                         background: "var(--app-surface)",
@@ -1905,6 +1934,7 @@ export default function TrainingFinderPage() {
                       </div>
 
                       <div
+                        className="finder-card-info"
                         style={{
                           display: "grid",
                           gap: "7px",
@@ -1948,29 +1978,21 @@ export default function TrainingFinderPage() {
                           الخريجين، وتابع لينكدإن للجهة إذا توفر.
                         </p>
                       </div>
-                      <a
-                        href={organization.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ textDecoration: "none" }}
-                      >
-                        <button
-                          type="button"
-                          style={{
-                            width: "100%",
-                            background: "var(--app-input-bg)",
-                            color: "var(--app-brand)",
-                            border: "1px solid var(--app-brand-border)",
-                            borderRadius: "10px",
-                            padding: "9px 10px",
-                            fontFamily: "inherit",
-                            fontWeight: "800",
-                            cursor: "pointer",
-                          }}
+                      <div className="finder-card-actions">
+                        <a
+                          href={organization.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ textDecoration: "none" }}
                         >
-                          زيارة صفحة الجهة
-                        </button>
-                      </a>
+                          <button
+                            type="button"
+                            className="opportunity-secondary-button"
+                          >
+                            زيارة صفحة الجهة
+                          </button>
+                        </a>
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -2131,15 +2153,63 @@ export default function TrainingFinderPage() {
           color: #07100e;
         }
 
+        .finder-card-grid {
+          align-items: stretch;
+        }
+
+        .finder-result-card {
+          min-height: 250px;
+          align-content: start;
+          box-shadow: none;
+        }
+
+        .finder-card-info {
+          display: grid;
+          gap: 7px;
+          background: var(--app-card);
+          border: 1px solid var(--app-border);
+          border-radius: 12px;
+          padding: 10px;
+        }
+
+        .finder-card-actions {
+          display: grid;
+          gap: 7px;
+          align-self: end;
+          margin-top: auto;
+        }
+
+        .finder-card-actions a {
+          display: block;
+          min-width: 0;
+        }
+
+        .finder-card-actions button {
+          width: 100%;
+        }
+
+        .suggested-organization-source {
+          flex: 0 0 auto;
+          background: var(--app-brand-soft);
+          border: 1px solid var(--app-brand-border);
+          color: var(--app-text-soft);
+          border-radius: 999px;
+          padding: 4px 7px;
+          font-size: 11px;
+          line-height: 1.3;
+          white-space: nowrap;
+        }
+
         .opportunity-card {
-          min-height: 162px;
+          min-height: 250px;
         }
 
         .opportunity-card-badges {
-          display: grid;
+          display: flex;
+          flex-wrap: wrap;
           gap: 5px;
-          justify-items: end;
-          align-content: start;
+          justify-content: flex-end;
+          align-items: center;
         }
 
         .opportunity-status,
@@ -2304,11 +2374,12 @@ export default function TrainingFinderPage() {
             gap: 8px !important;
           }
 
+          .finder-result-card,
           .opportunity-card {
             padding: 10px !important;
             border-radius: 13px !important;
             gap: 8px !important;
-            min-height: 168px !important;
+            min-height: 220px !important;
           }
 
           .opportunity-card-head {
@@ -2399,7 +2470,8 @@ export default function TrainingFinderPage() {
             padding: 10px !important;
             border-radius: 13px !important;
             gap: 8px !important;
-            box-shadow: 0 8px 18px var(--app-shadow) !important;
+            min-height: 220px !important;
+            box-shadow: none !important;
           }
 
           .training-target-title {
