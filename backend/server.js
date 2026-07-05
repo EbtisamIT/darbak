@@ -12,6 +12,13 @@ const PORT = process.env.PORT || 3001;
 const DEFAULT_EXPERIENCES_LIMIT = 36;
 const MAX_EXPERIENCES_LIMIT = 60;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const GENERAL_SPECIALTY_MARKERS = [
+  "__all_specialties__",
+  "جميع التخصصات",
+  "كل التخصصات",
+  "عام",
+  "all",
+];
 const BLOCKED_TERMS = [
   "غبي",
   "غباء",
@@ -189,15 +196,33 @@ const normalizeArrayField = (value) => {
   return [];
 };
 
+const isGeneralSpecialtyValue = (value = "") =>
+  GENERAL_SPECIALTY_MARKERS.some(
+    (marker) => normalizeSearchText(marker) === normalizeSearchText(value)
+  );
+
+const isClosedByDeadline = (deadline) => {
+  if (!deadline) return false;
+  const deadlineDate = new Date(deadline);
+  if (Number.isNaN(deadlineDate.getTime())) return false;
+  deadlineDate.setHours(23, 59, 59, 999);
+  return deadlineDate < new Date();
+};
+
 const sanitizeOpportunityPayload = (body = {}) => {
   const deadlineValue = body.deadline ? new Date(body.deadline) : undefined;
+  const normalizedMajorCategories = normalizeArrayField(body.majorCategories);
+  const normalizedSpecialties = normalizeArrayField(body.specialties);
+  const appliesToAllSpecialties =
+    normalizedSpecialties.some(isGeneralSpecialtyValue) ||
+    normalizedMajorCategories.some(isGeneralSpecialtyValue);
 
   return {
     organizationName: (body.organizationName || "").trim(),
     title: (body.title || "").trim(),
     city: (body.city || "").trim(),
-    majorCategories: normalizeArrayField(body.majorCategories),
-    specialties: normalizeArrayField(body.specialties),
+    majorCategories: appliesToAllSpecialties ? [] : normalizedMajorCategories,
+    specialties: appliesToAllSpecialties ? [] : normalizedSpecialties,
     trainingEnvironment: ["mixed", "women", "men", ""].includes(
       body.trainingEnvironment
     )
@@ -441,19 +466,8 @@ app.get('/api/opportunities', async (req, res) => {
       )
     );
     const city = (req.query.city || "").trim();
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
 
-    const andFilters = [
-      { status: "active" },
-      {
-        $or: [
-          { deadline: { $exists: false } },
-          { deadline: null },
-          { deadline: { $gte: startOfToday } },
-        ],
-      },
-    ];
+    const andFilters = [{ status: "active" }];
 
     if (major || majorCategories.length > 0) {
       andFilters.push({
@@ -462,6 +476,8 @@ app.get('/api/opportunities', async (req, res) => {
           ...(majorCategories.length > 0
             ? [{ majorCategories: { $in: majorCategories } }]
             : []),
+          { specialties: { $in: GENERAL_SPECIALTY_MARKERS } },
+          { majorCategories: { $in: GENERAL_SPECIALTY_MARKERS } },
           { specialties: { $size: 0 }, majorCategories: { $size: 0 } },
         ],
       });
@@ -478,11 +494,29 @@ app.get('/api/opportunities', async (req, res) => {
     }
 
     const opportunities = await Opportunity.find({ $and: andFilters })
-      .sort({ featured: -1, deadline: 1, createdAt: -1 })
-      .limit(60)
+      .sort({ featured: -1, createdAt: -1 })
+      .limit(100)
       .lean();
 
-    res.json({ data: opportunities, total: opportunities.length });
+    const sortedOpportunities = opportunities
+      .sort((a, b) => {
+        const closedDiff =
+          Number(isClosedByDeadline(a.deadline)) -
+          Number(isClosedByDeadline(b.deadline));
+        if (closedDiff !== 0) return closedDiff;
+
+        const featuredDiff = Number(b.featured) - Number(a.featured);
+        if (featuredDiff !== 0) return featuredDiff;
+
+        const aDeadline = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+        const bDeadline = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+        if (aDeadline !== bDeadline) return aDeadline - bDeadline;
+
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      })
+      .slice(0, 60);
+
+    res.json({ data: sortedOpportunities, total: sortedOpportunities.length });
   } catch (err) {
     console.error("❌ Opportunities fetch error:", err);
     res.status(500).json({ error: err.message });

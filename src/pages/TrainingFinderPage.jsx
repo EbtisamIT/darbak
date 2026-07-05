@@ -312,6 +312,20 @@ const formatOpportunityDate = (value) => {
   });
 };
 
+const getOpportunityApplicationState = (deadline) => {
+  if (!deadline) return { label: "مفتوح", tone: "open" };
+
+  const deadlineDate = new Date(deadline);
+  if (Number.isNaN(deadlineDate.getTime())) {
+    return { label: "مفتوح", tone: "open" };
+  }
+
+  deadlineDate.setHours(23, 59, 59, 999);
+  return deadlineDate < new Date()
+    ? { label: "مغلق", tone: "closed" }
+    : { label: "مفتوح", tone: "open" };
+};
+
 const specializationOptions = Array.from(
   majors
     .reduce((optionsMap, majorGroup) => {
@@ -1120,6 +1134,9 @@ export default function TrainingFinderPage() {
               >
                 {opportunities.map((opportunity) => {
                   const isExpanded = expandedOpportunityId === opportunity._id;
+                  const applicationState = getOpportunityApplicationState(
+                    opportunity.deadline
+                  );
                   const normalizedOpportunityName = normalizeName(
                     opportunity.organizationName
                   );
@@ -1200,23 +1217,18 @@ export default function TrainingFinderPage() {
                             {opportunity.city ? ` - ${opportunity.city}` : ""}
                           </p>
                         </div>
-                        {opportunity.featured && (
+                        <div className="opportunity-card-badges">
                           <span
-                            style={{
-                              flex: "0 0 auto",
-                              background: "rgba(250,204,21,0.12)",
-                              border: "1px solid rgba(250,204,21,0.28)",
-                              color: "#fde68a",
-                              borderRadius: "999px",
-                              padding: "5px 8px",
-                              fontSize: "11px",
-                              fontWeight: "900",
-                              lineHeight: 1.2,
-                            }}
+                            className={`opportunity-status ${applicationState.tone}`}
                           >
-                            مميزة
+                            {applicationState.label}
                           </span>
-                        )}
+                          {opportunity.featured && (
+                            <span className="opportunity-featured-badge">
+                              مميزة
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {isExpanded && (
@@ -2123,6 +2135,41 @@ export default function TrainingFinderPage() {
           min-height: 162px;
         }
 
+        .opportunity-card-badges {
+          display: grid;
+          gap: 5px;
+          justify-items: end;
+          align-content: start;
+        }
+
+        .opportunity-status,
+        .opportunity-featured-badge {
+          border-radius: 999px;
+          padding: 5px 8px;
+          font-size: 11px;
+          font-weight: 900;
+          line-height: 1.2;
+          white-space: nowrap;
+        }
+
+        .opportunity-status.open {
+          background: rgba(34, 197, 94, 0.13);
+          border: 1px solid rgba(34, 197, 94, 0.34);
+          color: #86efac;
+        }
+
+        .opportunity-status.closed {
+          background: rgba(248, 113, 113, 0.12);
+          border: 1px solid rgba(248, 113, 113, 0.32);
+          color: #fecaca;
+        }
+
+        .opportunity-featured-badge {
+          background: rgba(250,204,21,0.12);
+          border: 1px solid rgba(250,204,21,0.28);
+          color: #fde68a;
+        }
+
         .opportunity-chip-grid {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2267,6 +2314,19 @@ export default function TrainingFinderPage() {
           .opportunity-card-head {
             grid-template-columns: 34px minmax(0, 1fr) !important;
             gap: 8px !important;
+          }
+
+          .opportunity-card-badges {
+            grid-column: 1 / -1 !important;
+            display: flex !important;
+            justify-content: flex-start !important;
+            gap: 5px !important;
+          }
+
+          .opportunity-status,
+          .opportunity-featured-badge {
+            padding: 4px 7px !important;
+            font-size: 10px !important;
           }
 
           .opportunity-organization-name {

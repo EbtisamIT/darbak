@@ -39,8 +39,8 @@ const defaultOpportunityForm = {
   organizationName: "",
   title: "",
   city: "",
-  majorCategories: "",
-  specialties: "",
+  majorCategories: [],
+  specialties: ["__all_specialties__"],
   trainingEnvironment: "",
   trainingMode: "",
   hasReward: "",
@@ -109,6 +109,68 @@ const opportunitySelectFields = [
 ];
 
 const majorCategoryOptions = majors.map((majorGroup) => majorGroup.name);
+const ALL_SPECIALTIES_VALUE = "__all_specialties__";
+const specialtyOptions = Array.from(
+  majors
+    .reduce((optionsMap, majorGroup) => {
+      (majorGroup.subMajors || []).forEach((specialty) => {
+        if (!optionsMap.has(specialty)) {
+          optionsMap.set(specialty, {
+            name: specialty,
+            category: majorGroup.name,
+          });
+        }
+      });
+      return optionsMap;
+    }, new Map())
+    .values()
+).sort((a, b) => a.name.localeCompare(b.name, "ar"));
+
+const normalizeFormArray = (value) => {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string") {
+    return value
+      .split(/[,،]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+const getCategoriesForSpecialties = (selectedSpecialties = []) =>
+  Array.from(
+    new Set(
+      selectedSpecialties
+        .map(
+          (specialty) =>
+            specialtyOptions.find((option) => option.name === specialty)?.category
+        )
+        .filter(Boolean)
+    )
+  );
+
+const getOpportunitySpecialtiesForForm = (opportunity = {}) => {
+  const specialties = normalizeFormArray(opportunity.specialties);
+  return specialties.length > 0 ? specialties : [ALL_SPECIALTIES_VALUE];
+};
+
+const isGeneralOpportunity = (opportunity = {}) =>
+  normalizeFormArray(opportunity.specialties).length === 0 &&
+  normalizeFormArray(opportunity.majorCategories).length === 0;
+
+const getOpportunityApplicationState = (deadline) => {
+  if (!deadline) return { label: "مفتوح", tone: "open" };
+
+  const deadlineDate = new Date(deadline);
+  if (Number.isNaN(deadlineDate.getTime())) {
+    return { label: "مفتوح", tone: "open" };
+  }
+
+  deadlineDate.setHours(23, 59, 59, 999);
+  return deadlineDate < new Date()
+    ? { label: "مغلق", tone: "closed" }
+    : { label: "مفتوح", tone: "open" };
+};
 
 const adminSelectStyle = {
   width: "100%",
@@ -509,6 +571,22 @@ export default function AdminReviewPage() {
   };
 
   const updateOpportunityField = (field, value) => {
+    if (field === "specialties") {
+      const selectedSpecialties = normalizeFormArray(value);
+      const nextSpecialties = selectedSpecialties.includes(ALL_SPECIALTIES_VALUE)
+        ? [ALL_SPECIALTIES_VALUE]
+        : selectedSpecialties;
+
+      setOpportunityForm((prev) => ({
+        ...prev,
+        specialties: nextSpecialties,
+        majorCategories: nextSpecialties.includes(ALL_SPECIALTIES_VALUE)
+          ? []
+          : getCategoriesForSpecialties(nextSpecialties),
+      }));
+      return;
+    }
+
     setOpportunityForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -523,8 +601,8 @@ export default function AdminReviewPage() {
       organizationName: opportunity.organizationName || "",
       title: opportunity.title || "",
       city: opportunity.city || "",
-      majorCategories: (opportunity.majorCategories || []).join("، "),
-      specialties: (opportunity.specialties || []).join("، "),
+      majorCategories: normalizeFormArray(opportunity.majorCategories),
+      specialties: getOpportunitySpecialtiesForForm(opportunity),
       trainingEnvironment: opportunity.trainingEnvironment || "",
       trainingMode: opportunity.trainingMode || "",
       hasReward: opportunity.hasReward || "",
@@ -550,14 +628,25 @@ export default function AdminReviewPage() {
     try {
       setSavingOpportunity(true);
       setMessage("");
+      const selectedSpecialties = normalizeFormArray(opportunityForm.specialties);
+      const appliesToAllSpecialties =
+        selectedSpecialties.length === 0 ||
+        selectedSpecialties.includes(ALL_SPECIALTIES_VALUE);
+      const opportunityPayload = {
+        ...opportunityForm,
+        specialties: appliesToAllSpecialties ? [] : selectedSpecialties,
+        majorCategories: appliesToAllSpecialties
+          ? []
+          : getCategoriesForSpecialties(selectedSpecialties),
+      };
 
       const request = editingOpportunityId
         ? axios.patch(
             `${API_BASE_URL}/api/admin/opportunities/${editingOpportunityId}`,
-            opportunityForm,
+            opportunityPayload,
             { headers: authHeaders }
           )
-        : axios.post(`${API_BASE_URL}/api/admin/opportunities`, opportunityForm, {
+        : axios.post(`${API_BASE_URL}/api/admin/opportunities`, opportunityPayload, {
             headers: authHeaders,
           });
 
@@ -885,11 +974,6 @@ export default function AdminReviewPage() {
                 ["organizationName", "اسم الجهة", "مثال: STC"],
                 ["title", "عنوان الفرصة", "برنامج التدريب التعاوني"],
                 ["city", "المدينة أو المنطقة", "الرياض أو منطقة الرياض"],
-                [
-                  "specialties",
-                  "التخصصات المناسبة",
-                  "اكتبيها مفصولة بفواصل: نظم معلومات، تسويق",
-                ],
                 ["applicationUrl", "رابط التقديم", "https://..."],
                 ["sourceUrl", "رابط المصدر", "رابط إعلان رسمي إن وجد"],
               ].map(([field, label, placeholder]) => (
@@ -909,22 +993,72 @@ export default function AdminReviewPage() {
                 </label>
               ))}
 
-              <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
-                التخصصات الرئيسية
-                <input
-                  list="major-category-options"
-                  value={opportunityForm.majorCategories || ""}
+              <label
+                style={{
+                  color: "#cbd5e1",
+                  fontSize: "13px",
+                  gridColumn: "1 / -1",
+                }}
+              >
+                التخصصات المناسبة
+                <select
+                  multiple
+                  value={normalizeFormArray(opportunityForm.specialties)}
                   onChange={(e) =>
-                    updateOpportunityField("majorCategories", e.target.value)
+                    updateOpportunityField(
+                      "specialties",
+                      Array.from(e.target.selectedOptions).map(
+                        (option) => option.value
+                      )
+                    )
                   }
-                  placeholder="مثال: الحاسب والتقنية، المالية والإدارية"
-                  style={adminSelectStyle}
-                />
-                <datalist id="major-category-options">
-                  {majorCategoryOptions.map((majorName) => (
-                    <option key={majorName} value={majorName} />
+                  style={{
+                    ...adminSelectStyle,
+                    minHeight: "155px",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  <option value={ALL_SPECIALTIES_VALUE}>جميع التخصصات</option>
+                  {majorCategoryOptions.map((categoryName) => (
+                    <optgroup key={categoryName} label={categoryName}>
+                      {specialtyOptions
+                        .filter((option) => option.category === categoryName)
+                        .map((option) => (
+                          <option key={option.name} value={option.name}>
+                            {option.name}
+                          </option>
+                        ))}
+                    </optgroup>
                   ))}
-                </datalist>
+                </select>
+                <small
+                  style={{
+                    display: "block",
+                    marginTop: "6px",
+                    color: "#9ca3af",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  اختر/ي "جميع التخصصات" إذا كانت الفرصة تظهر لكل طالب، أو
+                  حدد/ي أكثر من تخصص من القائمة.
+                </small>
+                {!normalizeFormArray(opportunityForm.specialties).includes(
+                  ALL_SPECIALTIES_VALUE
+                ) && (
+                  <small
+                    style={{
+                      display: "block",
+                      marginTop: "5px",
+                      color: "#7ddbcd",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    التصنيف الرئيسي:{" "}
+                    {getCategoriesForSpecialties(
+                      normalizeFormArray(opportunityForm.specialties)
+                    ).join("، ") || "غير محدد"}
+                  </small>
+                )}
               </label>
 
               <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
@@ -1048,7 +1182,13 @@ export default function AdminReviewPage() {
               لا توجد فرص في هذا التصنيف.
             </div>
           ) : (
-            opportunities.map((opportunity) => (
+            opportunities.map((opportunity) => {
+              const applicationState = getOpportunityApplicationState(
+                opportunity.deadline
+              );
+              const generalOpportunity = isGeneralOpportunity(opportunity);
+
+              return (
               <article key={opportunity._id} style={cardStyle}>
                 <div
                   style={{
@@ -1068,6 +1208,27 @@ export default function AdminReviewPage() {
                       {opportunity.city ? ` - ${opportunity.city}` : ""}
                     </p>
                   </div>
+                  <span
+                    style={{
+                      alignSelf: "start",
+                      background:
+                        applicationState.tone === "open"
+                          ? "rgba(34,197,94,0.12)"
+                          : "rgba(248,113,113,0.12)",
+                      border:
+                        applicationState.tone === "open"
+                          ? "1px solid rgba(34,197,94,0.34)"
+                          : "1px solid rgba(248,113,113,0.34)",
+                      color:
+                        applicationState.tone === "open" ? "#86efac" : "#fecaca",
+                      borderRadius: "999px",
+                      padding: "6px 10px",
+                      fontSize: "12px",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    التقديم {applicationState.label}
+                  </span>
                   <div
                     style={{
                       color: "#9ca3af",
@@ -1151,10 +1312,15 @@ export default function AdminReviewPage() {
                 >
                   <div>
                     التخصصات الرئيسية:{" "}
-                    {(opportunity.majorCategories || []).join("، ") || "عام"}
+                    {generalOpportunity
+                      ? "جميع التخصصات"
+                      : (opportunity.majorCategories || []).join("، ") || "عام"}
                   </div>
                   <div>
-                    التخصصات: {(opportunity.specialties || []).join("، ") || "عام"}
+                    التخصصات:{" "}
+                    {generalOpportunity
+                      ? "جميع التخصصات"
+                      : (opportunity.specialties || []).join("، ") || "عام"}
                   </div>
                 </div>
 
@@ -1199,7 +1365,8 @@ export default function AdminReviewPage() {
                   </button>
                 </div>
               </article>
-            ))
+              );
+            })
           )}
         </div>
       ) : (
