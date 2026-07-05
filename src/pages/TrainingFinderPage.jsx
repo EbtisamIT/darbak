@@ -1125,6 +1125,7 @@ export default function TrainingFinderPage() {
                       >
                         <div style={{ minWidth: 0 }}>
                           <h3
+                            className="opportunity-card-title"
                             style={{
                               margin: "0 0 4px",
                               color: "var(--app-brand)",
@@ -1136,6 +1137,7 @@ export default function TrainingFinderPage() {
                             {opportunity.title}
                           </h3>
                           <p
+                            className="opportunity-card-meta"
                             style={{
                               margin: 0,
                               color: "var(--app-text-soft)",
@@ -1260,7 +1262,7 @@ export default function TrainingFinderPage() {
                           }
                           className="opportunity-secondary-button"
                         >
-                          {isExpanded ? "إخفاء التفاصيل" : "عرض التفاصيل"}
+                          {isExpanded ? "إخفاء" : "تفاصيل"}
                         </button>
 
                         {relatedTarget && (
@@ -1276,9 +1278,9 @@ export default function TrainingFinderPage() {
                               textDecoration: "none",
                               display: "inline-grid",
                               placeItems: "center",
-                            }}
-                          >
-                            قراءة التجارب
+                          }}
+                        >
+                            تجارب
                           </Link>
                         )}
 
@@ -1290,7 +1292,7 @@ export default function TrainingFinderPage() {
                             style={{ textDecoration: "none" }}
                           >
                             <button type="button" className="opportunity-apply-button">
-                              التقديم الآن
+                              تقديم
                             </button>
                           </a>
                         )}
@@ -2124,22 +2126,79 @@ export default function TrainingFinderPage() {
           }
 
           .opportunities-grid {
-            grid-template-columns: 1fr !important;
-            gap: 8px !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            gap: 6px !important;
           }
 
           .opportunity-card {
-            padding: 11px !important;
-            border-radius: 13px !important;
-            gap: 8px !important;
+            padding: 7px !important;
+            border-radius: 10px !important;
+            gap: 6px !important;
           }
 
           .opportunity-chip-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 3px !important;
           }
 
           .opportunity-actions {
             grid-template-columns: 1fr !important;
+            gap: 4px !important;
+          }
+
+          .opportunity-card-title {
+            min-height: 30px !important;
+            margin-bottom: 2px !important;
+            font-size: 10.5px !important;
+            line-height: 1.35 !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+          }
+
+          .opportunity-card-meta {
+            min-height: 26px !important;
+            font-size: 9px !important;
+            line-height: 1.35 !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+          }
+
+          .opportunity-chip {
+            min-height: 22px !important;
+            padding: 2px 3px !important;
+            gap: 0 !important;
+            font-size: 12px !important;
+          }
+
+          .opportunity-chip span:last-child {
+            display: none !important;
+          }
+
+          .opportunity-deadline {
+            max-width: 100% !important;
+            padding: 3px 5px !important;
+            font-size: 9px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+
+          .opportunity-secondary-button,
+          .opportunity-apply-button {
+            min-height: 28px !important;
+            padding: 5px 4px !important;
+            border-radius: 7px !important;
+            font-size: 9px !important;
+            line-height: 1.2 !important;
+          }
+
+          .opportunity-actions a,
+          .opportunity-actions button {
+            min-height: 28px !important;
           }
 
           .training-target-card,
@@ -2218,7 +2277,6 @@ export default function TrainingFinderPage() {
         }
 
         @media (max-width: 340px) {
-          .opportunities-grid,
           .training-targets-grid,
           .suggested-targets-grid {
             grid-template-columns: 1fr !important;
