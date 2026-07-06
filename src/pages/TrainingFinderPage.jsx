@@ -213,10 +213,14 @@ const getOrganizationInitial = (name = "") => {
   return firstLetter || "د";
 };
 
-const OrganizationLogo = ({ name, url }) => {
+const OrganizationLogo = ({ name, url, imageUrl }) => {
   const [hasImageError, setHasImageError] = useState(false);
-  const logoUrl = getOrganizationLogoUrl(url);
+  const logoUrl = imageUrl || getOrganizationLogoUrl(url);
   const initial = getOrganizationInitial(name);
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [logoUrl]);
 
   return (
     <span
@@ -1185,6 +1189,7 @@ export default function TrainingFinderPage() {
                         <OrganizationLogo
                           name={opportunity.organizationName}
                           url={opportunityLogoUrl}
+                          imageUrl={opportunity.logoUrl}
                         />
                         <div style={{ minWidth: 0 }}>
                           <div

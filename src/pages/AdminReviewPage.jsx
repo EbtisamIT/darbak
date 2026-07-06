@@ -46,6 +46,7 @@ const defaultOpportunityForm = {
   hasReward: "",
   applicationMethod: "",
   applicationUrl: "",
+  logoUrl: "",
   deadline: "",
   sourceUrl: "",
   note: "",
@@ -608,6 +609,7 @@ export default function AdminReviewPage() {
       hasReward: opportunity.hasReward || "",
       applicationMethod: opportunity.applicationMethod || "",
       applicationUrl: opportunity.applicationUrl || "",
+      logoUrl: opportunity.logoUrl || "",
       deadline: formatDateForInput(opportunity.deadline),
       sourceUrl: opportunity.sourceUrl || "",
       note: opportunity.note || "",
@@ -975,6 +977,7 @@ export default function AdminReviewPage() {
                 ["title", "عنوان الفرصة", "برنامج التدريب التعاوني"],
                 ["city", "المدينة أو المنطقة", "الرياض أو منطقة الرياض"],
                 ["applicationUrl", "رابط التقديم", "https://..."],
+                ["logoUrl", "رابط الشعار", "https://.../logo.png"],
                 ["sourceUrl", "رابط المصدر", "رابط إعلان رسمي إن وجد"],
               ].map(([field, label, placeholder]) => (
                 <label key={field} style={{ color: "#cbd5e1", fontSize: "13px" }}>

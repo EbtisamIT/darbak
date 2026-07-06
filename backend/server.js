@@ -243,6 +243,7 @@ const sanitizeOpportunityPayload = (body = {}) => {
       ? body.applicationMethod
       : "",
     applicationUrl: (body.applicationUrl || "").trim(),
+    logoUrl: (body.logoUrl || "").trim(),
     sourceUrl: (body.sourceUrl || "").trim(),
     note: (body.note || "").trim(),
     status: ["active", "draft", "expired"].includes(body.status)
@@ -773,6 +774,7 @@ app.post('/api/admin/opportunities', requireAdmin, async (req, res) => {
       payload.title,
       payload.city,
       payload.applicationUrl,
+      payload.logoUrl,
       payload.sourceUrl,
       payload.note,
       ...payload.majorCategories,
@@ -812,6 +814,7 @@ app.patch('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
       payload.title,
       payload.city,
       payload.applicationUrl,
+      payload.logoUrl,
       payload.sourceUrl,
       payload.note,
       ...payload.majorCategories,

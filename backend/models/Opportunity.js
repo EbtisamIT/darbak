@@ -50,6 +50,11 @@ const opportunitySchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    logoUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     deadline: {
       type: Date,
     },
