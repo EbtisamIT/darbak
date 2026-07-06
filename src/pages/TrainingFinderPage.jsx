@@ -1057,61 +1057,9 @@ export default function TrainingFinderPage() {
             style={{
               display: "grid",
               gap: "12px",
-              background: "var(--app-surface)",
-              border: "1px solid var(--app-border)",
-              borderRadius: "16px",
-              padding: "14px",
               textAlign: "right",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: "12px",
-                alignItems: "start",
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                <p
-                  style={{
-                    margin: "0 0 5px",
-                    color: "var(--app-brand)",
-                    fontSize: "13px",
-                    fontWeight: "900",
-                  }}
-                >
-                  فرص معلنة
-                </p>
-                <h2
-                  style={{
-                    margin: 0,
-                    color: "var(--app-text)",
-                    fontSize: "22px",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  فرص تدريب متاحة الآن
-                </h2>
-              </div>
-              <span
-                style={{
-                  background: "var(--app-brand-soft)",
-                  border: "1px solid var(--app-brand-border)",
-                  color: "var(--app-brand)",
-                  borderRadius: "999px",
-                  padding: "7px 11px",
-                  fontSize: "12px",
-                  fontWeight: "900",
-                }}
-              >
-                {opportunitiesLoading
-                  ? "جاري التحميل"
-                  : `${opportunities.length} فرصة`}
-              </span>
-            </div>
-
             {opportunities.length === 0 && !opportunitiesLoading ? (
               <p
                 style={{
@@ -1351,17 +1299,27 @@ export default function TrainingFinderPage() {
                               عرض مصدر الفرصة
                             </a>
                           )}
+
+                          {relatedTarget && (
+                            <Link
+                              to={{
+                                pathname: "/experiences",
+                                search: `?company=${encodeURIComponent(
+                                  relatedTarget.organizationName
+                                )}`,
+                              }}
+                              className="opportunity-inline-link"
+                            >
+                              عرض تجارب الجهة
+                            </Link>
+                          )}
                         </div>
                       )}
 
                       <div
                         className="finder-card-actions opportunity-actions"
                         style={{
-                          gridTemplateColumns: `repeat(${
-                            1 +
-                            (relatedTarget ? 1 : 0) +
-                            (opportunity.applicationUrl ? 1 : 0)
-                          }, minmax(0, 1fr))`,
+                          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                         }}
                       >
                         <button
@@ -1376,26 +1334,7 @@ export default function TrainingFinderPage() {
                           {isExpanded ? "إخفاء" : "التفاصيل"}
                         </button>
 
-                        {relatedTarget && (
-                          <Link
-                            to={{
-                              pathname: "/experiences",
-                              search: `?company=${encodeURIComponent(
-                                relatedTarget.organizationName
-                              )}`,
-                            }}
-                            className="opportunity-secondary-button"
-                            style={{
-                              textDecoration: "none",
-                              display: "inline-grid",
-                              placeItems: "center",
-                          }}
-                        >
-                            تجارب
-                          </Link>
-                        )}
-
-                        {opportunity.applicationUrl && (
+                        {opportunity.applicationUrl ? (
                           <a
                             href={opportunity.applicationUrl}
                             target="_blank"
@@ -1406,6 +1345,14 @@ export default function TrainingFinderPage() {
                               تقديم الآن
                             </button>
                           </a>
+                        ) : (
+                          <button
+                            type="button"
+                            className="opportunity-apply-button is-disabled"
+                            disabled
+                          >
+                            لا يوجد رابط
+                          </button>
                         )}
                       </div>
                     </article>
@@ -1413,18 +1360,6 @@ export default function TrainingFinderPage() {
                 })}
               </div>
             )}
-
-            <p
-              style={{
-                margin: 0,
-                color: "var(--app-muted)",
-                fontSize: "12px",
-                lineHeight: 1.7,
-                textAlign: "center",
-              }}
-            >
-              تحقق من الجهة قبل التقديم.
-            </p>
           </section>
         )}
 
@@ -2163,6 +2098,8 @@ export default function TrainingFinderPage() {
         }
 
         .finder-result-card {
+          display: flex !important;
+          flex-direction: column;
           min-height: 250px;
           align-content: start;
           box-shadow: none;
@@ -2207,6 +2144,14 @@ export default function TrainingFinderPage() {
 
         .opportunity-card {
           min-height: 250px;
+        }
+
+        .opportunity-card-title {
+          min-height: 40px;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
 
         .opportunity-card-badges {
@@ -2289,7 +2234,7 @@ export default function TrainingFinderPage() {
 
         .opportunity-actions {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
           gap: 7px;
           align-items: stretch;
           align-self: end;
@@ -2304,6 +2249,9 @@ export default function TrainingFinderPage() {
         .opportunity-secondary-button,
         .opportunity-apply-button {
           width: 100%;
+          min-height: 40px;
+          display: inline-grid;
+          place-items: center;
           border-radius: 10px;
           padding: 9px 10px;
           font-family: inherit;
@@ -2324,6 +2272,19 @@ export default function TrainingFinderPage() {
           background: var(--app-brand);
           color: #07100e;
           border: none;
+        }
+
+        .opportunity-apply-button.is-disabled {
+          cursor: not-allowed;
+          opacity: 0.52;
+          filter: grayscale(0.2);
+        }
+
+        .opportunity-inline-link {
+          color: var(--app-brand);
+          font-size: 12px;
+          text-decoration: none;
+          font-weight: 800;
         }
 
         @media (max-width: 760px) {
