@@ -17,6 +17,7 @@ import AdminReviewPage from "./pages/AdminReviewPage";
 import Footer from "./pages/Footer";
 
 const PLATFORM_UPDATE_NOTICE_KEY = "darbak_where_to_train_update_seen_v2";
+const ADMIN_REVIEW_PATH = "/darbak-owner-review-2026";
 
 const hasSeenPlatformUpdateNotice = () => {
   if (typeof window === "undefined") return true;
@@ -73,7 +74,7 @@ function PlatformUpdateNotice() {
   const [showNotice, setShowNotice] = useState(false);
 
   useEffect(() => {
-    const isAdminPage = location.pathname === "/darbak-owner-review-2026";
+    const isAdminPage = location.pathname === ADMIN_REVIEW_PATH;
     const isTrainingFinderPage = location.pathname === "/where-to-train";
 
     setShowNotice(
@@ -249,17 +250,9 @@ function PlatformUpdateNotice() {
   );
 }
 
-function App() {
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === "undefined") return "dark";
-    return window.localStorage.getItem("darbak_theme") || "dark";
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    window.localStorage.setItem("darbak_theme", theme);
-  }, [theme]);
-
+function AppLayout({ theme, setTheme }) {
+  const location = useLocation();
+  const isAdminPage = location.pathname === ADMIN_REVIEW_PATH;
   const appStyle = {
     minHeight: "100vh",
     backgroundColor: "var(--app-bg)",
@@ -283,39 +276,72 @@ function App() {
     padding: "40px 20px",
   };
 
-  return (
-    <Router>
-      <div style={appStyle}>
-        <Navbar theme={theme} setTheme={setTheme} />
-
-        <PageBanner />
-        <PlatformUpdateNotice />
-
-      
-
-        {/* المحتوى */}
-        <div style={contentContainer}>
-          <div className="app-content-frame" style={contentStyle}>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/experiences" element={<ExperiencesPage />} />
-              <Route path="/where-to-train" element={<TrainingFinderPage />} />
-              <Route path="/legal" element={<LegalPage />} />
-              <Route path="/terms" element={<LegalPage />} />
-              <Route path="/privacy" element={<LegalPage />} />
-              <Route path="/darbak-owner-review-2026" element={<AdminReviewPage />} />
-              <Route path="/AddExperienceModal" element={<AddExperienceModal />} />
-
-            </Routes>
-          </div>
+  if (isAdminPage) {
+    return (
+      <div
+        style={{
+          ...appStyle,
+          backgroundColor: "#0b0f14",
+          color: "#cbd5e1",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            minHeight: "100vh",
+            boxSizing: "border-box",
+            padding: "34px 16px",
+          }}
+        >
+          <Routes>
+            <Route path={ADMIN_REVIEW_PATH} element={<AdminReviewPage />} />
+          </Routes>
         </div>
+      </div>
+    );
+  }
 
-       
-         
-        <Footer />
+  return (
+    <div style={appStyle}>
+      <Navbar theme={theme} setTheme={setTheme} />
 
+      <PageBanner />
+      <PlatformUpdateNotice />
+
+      {/* المحتوى */}
+      <div style={contentContainer}>
+        <div className="app-content-frame" style={contentStyle}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/experiences" element={<ExperiencesPage />} />
+            <Route path="/where-to-train" element={<TrainingFinderPage />} />
+            <Route path="/legal" element={<LegalPage />} />
+            <Route path="/terms" element={<LegalPage />} />
+            <Route path="/privacy" element={<LegalPage />} />
+            <Route path="/AddExperienceModal" element={<AddExperienceModal />} />
+          </Routes>
+        </div>
       </div>
 
+      <Footer />
+    </div>
+  );
+}
+
+function App() {
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined") return "dark";
+    return window.localStorage.getItem("darbak_theme") || "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem("darbak_theme", theme);
+  }, [theme]);
+
+  return (
+    <Router>
+      <AppLayout theme={theme} setTheme={setTheme} />
     </Router>
   );
 }
