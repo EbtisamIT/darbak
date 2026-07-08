@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import majors from "../majors"; // قائمة التخصصات
 import API_BASE_URL from "../config/api";
+import { trackEvent } from "../utils/analytics";
 
 const EXPERIENCE_DRAFT_KEY = "darbak_add_experience_draft_v1";
 
@@ -82,6 +83,15 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const hasClearMajor = finalMajor.length > 0 && !isUnclearMajorText(finalMajor);
   const selectedMajorCategory = majors.find((item) => item.name === majorCategory);
   const subMajorOptions = selectedMajorCategory?.subMajors || [];
+
+  useEffect(() => {
+    trackEvent("add_experience_started", {
+      metadata: {
+        resumedDraft: Boolean(savedDraft),
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (hadReward !== "yes" && rewardAmount) {
@@ -470,6 +480,20 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
       setLoading(false);
       if (onSaved) onSaved(res.data);
+      trackEvent("add_experience_submitted", {
+        major: finalMajor,
+        majorCategory: finalMajorCategory,
+        city: finalCity,
+        resultsCount: 1,
+        metadata: {
+          organizationName,
+          hadReward,
+          wasHired,
+          trainingEnvironment,
+          trainingMode,
+          starRating,
+        },
+      });
       clearSavedDraft();
       setStep(totalSteps); // شاشة النجاح
     } catch (err) {

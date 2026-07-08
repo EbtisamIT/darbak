@@ -54,6 +54,43 @@ const defaultOpportunityForm = {
   featured: false,
 };
 
+const emptyAnalytics = {
+  days: 30,
+  totalEvents: 0,
+  uniqueVisitors: 0,
+  topEvents: [],
+  topMajors: [],
+  topCities: [],
+  topSearches: [],
+  topPages: [],
+  topDevices: [],
+  topDiagnosis: [],
+  topFears: [],
+  topOrganizations: [],
+  hourlyActivity: [],
+  recentEvents: [],
+};
+
+const analyticsEventLabels = {
+  page_view: "زيارة صفحة",
+  where_to_train_search: "بحث وين أتدرب",
+  experience_search: "بحث التجارب",
+  diagnosis_completed: "إكمال التشخيص",
+  add_experience_started: "بدء إضافة تجربة",
+  add_experience_submitted: "إرسال تجربة",
+  opportunity_details_clicked: "فتح تفاصيل فرصة",
+  opportunity_apply_clicked: "ضغط تقديم فرصة",
+  experience_card_opened: "فتح تجربة",
+};
+
+const diagnosisFearLabels = {
+  unknownTargets: "ما أعرف الجهات",
+  noCv: "ما عندي CV",
+  rejection: "أخاف ما أنقبل",
+  email: "ما أعرف أرسل إيميل",
+  late: "البداية متأخرة",
+};
+
 const opportunityStatusOptions = [
   ["active", "نشطة"],
   ["draft", "مسودة"],
@@ -317,6 +354,7 @@ export default function AdminReviewPage() {
   const [experiences, setExperiences] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
+  const [analytics, setAnalytics] = useState(emptyAnalytics);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -332,12 +370,16 @@ export default function AdminReviewPage() {
       ? suggestions.length
       : adminView === "opportunities"
       ? opportunities.length
+      : adminView === "analytics"
+      ? analytics.totalEvents
       : experiences.length;
   const currentItemsLabel =
     adminView === "suggestions"
       ? "اقتراح"
       : adminView === "opportunities"
       ? "فرصة"
+      : adminView === "analytics"
+      ? "حدث"
       : "تجربة";
 
   const fetchExperiences = async () => {
@@ -426,6 +468,35 @@ export default function AdminReviewPage() {
     }
   };
 
+  const fetchAnalytics = async () => {
+    if (!password) {
+      setMessage("اكتب كلمة المرور لعرض المحتوى.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      sessionStorage.setItem("darbak_admin_password", password);
+
+      const { data } = await axios.get(`${API_BASE_URL}/api/admin/analytics`, {
+        params: { days: 30 },
+        headers: authHeaders,
+      });
+
+      setAnalytics({ ...emptyAnalytics, ...data });
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.status === 401
+          ? "كلمة المرور غير صحيحة."
+          : "تعذر تحميل التحليلات."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!password) return;
 
@@ -433,6 +504,8 @@ export default function AdminReviewPage() {
       fetchSuggestions();
     } else if (adminView === "opportunities") {
       fetchOpportunities();
+    } else if (adminView === "analytics") {
+      fetchAnalytics();
     } else {
       fetchExperiences();
     }
@@ -447,6 +520,11 @@ export default function AdminReviewPage() {
 
     if (adminView === "opportunities") {
       fetchOpportunities();
+      return;
+    }
+
+    if (adminView === "analytics") {
+      fetchAnalytics();
       return;
     }
 
@@ -570,6 +648,43 @@ export default function AdminReviewPage() {
       setMessage("تعذر حذف الاقتراح.");
     }
   };
+
+  const renderAnalyticsList = (
+    title,
+    items = [],
+    labelFormatter = (value) => value
+  ) => (
+    <section style={cardStyle}>
+      <h3 style={{ color: "#7ddbcd", margin: "0 0 12px" }}>{title}</h3>
+      {items.length === 0 ? (
+        <p style={{ color: "#9ca3af", margin: 0 }}>لا توجد بيانات كافية بعد.</p>
+      ) : (
+        <div style={{ display: "grid", gap: "9px" }}>
+          {items.map((item) => (
+            <div
+              key={`${title}-${item.label}`}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "12px",
+                alignItems: "center",
+                color: "#e5e7eb",
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                paddingBottom: "8px",
+              }}
+            >
+              <span style={{ overflowWrap: "anywhere", lineHeight: 1.7 }}>
+                {labelFormatter(item.label)}
+              </span>
+              <strong style={{ color: "#7ddbcd", whiteSpace: "nowrap" }}>
+                {item.count}
+              </strong>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 
   const updateOpportunityField = (field, value) => {
     if (field === "specialties") {
@@ -816,6 +931,7 @@ export default function AdminReviewPage() {
           <option value="experiences">التجارب</option>
           <option value="suggestions">الاقتراحات</option>
           <option value="opportunities">الفرص</option>
+          <option value="analytics">التحليلات</option>
         </select>
 
         <select
@@ -825,7 +941,7 @@ export default function AdminReviewPage() {
               ? setOpportunityStatus(e.target.value)
               : setStatus(e.target.value)
           }
-          disabled={adminView === "suggestions"}
+          disabled={adminView === "suggestions" || adminView === "analytics"}
           style={{
             background: "#111318",
             border: "1px solid rgba(125,219,205,0.25)",
@@ -833,7 +949,8 @@ export default function AdminReviewPage() {
             color: "#fff",
             padding: "11px 12px",
             fontFamily: "inherit",
-            opacity: adminView === "suggestions" ? 0.45 : 1,
+            opacity:
+              adminView === "suggestions" || adminView === "analytics" ? 0.45 : 1,
           }}
         >
           {adminView === "opportunities" ? (
@@ -885,7 +1002,122 @@ export default function AdminReviewPage() {
         </p>
       )}
 
-      {adminView === "suggestions" ? (
+      {adminView === "analytics" ? (
+        <div style={{ display: "grid", gap: "12px" }}>
+          <section
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: "12px",
+            }}
+          >
+            {[
+              ["إجمالي الأحداث", analytics.totalEvents],
+              ["زوار مميزون", analytics.uniqueVisitors],
+              ["آخر مدة", `${analytics.days} يوم`],
+              [
+                "أقوى ساعة",
+                analytics.hourlyActivity.length
+                  ? `${analytics.hourlyActivity.reduce((max, item) =>
+                      item.count > max.count ? item : max
+                    ).hour}:00`
+                  : "-",
+              ],
+            ].map(([label, value]) => (
+              <div key={label} style={cardStyle}>
+                <p style={{ color: "#9ca3af", margin: "0 0 8px", fontSize: 13 }}>
+                  {label}
+                </p>
+                <strong style={{ color: "#7ddbcd", fontSize: 28 }}>
+                  {value}
+                </strong>
+              </div>
+            ))}
+          </section>
+
+          <section
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+              gap: "12px",
+            }}
+          >
+            {renderAnalyticsList(
+              "أكثر الأحداث",
+              analytics.topEvents,
+              (label) => analyticsEventLabels[label] || label
+            )}
+            {renderAnalyticsList("أكثر التخصصات بحثًا", analytics.topMajors)}
+            {renderAnalyticsList("أكثر المدن", analytics.topCities)}
+            {renderAnalyticsList("أكثر الجهات تفاعلًا", analytics.topOrganizations)}
+            {renderAnalyticsList("أكثر كلمات البحث", analytics.topSearches)}
+            {renderAnalyticsList("أكثر الصفحات", analytics.topPages)}
+            {renderAnalyticsList(
+              "الأجهزة",
+              analytics.topDevices,
+              (label) =>
+                ({ mobile: "جوال", tablet: "تابلت", desktop: "لابتوب", unknown: "غير معروف" }[
+                  label
+                ] || label)
+            )}
+            {renderAnalyticsList("نتائج التشخيص", analytics.topDiagnosis)}
+            {renderAnalyticsList(
+              "أكثر مخاوف التشخيص",
+              analytics.topFears,
+              (label) => diagnosisFearLabels[label] || label
+            )}
+          </section>
+
+          <section style={cardStyle}>
+            <h3 style={{ color: "#7ddbcd", margin: "0 0 12px" }}>
+              آخر الأحداث
+            </h3>
+            {analytics.recentEvents.length === 0 ? (
+              <p style={{ color: "#9ca3af", margin: 0 }}>
+                لا توجد أحداث مسجلة بعد.
+              </p>
+            ) : (
+              <div style={{ display: "grid", gap: "10px" }}>
+                {analytics.recentEvents.map((event) => (
+                  <article
+                    key={event._id}
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: "12px",
+                      padding: "10px",
+                      color: "#e5e7eb",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      <strong style={{ color: "#7ddbcd" }}>
+                        {analyticsEventLabels[event.eventName] || event.eventName}
+                      </strong>
+                      <span style={{ color: "#9ca3af", fontSize: 12 }}>
+                        {formatAdminDateTime(event.createdAt)}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, color: "#cbd5e1", lineHeight: 1.7 }}>
+                      {event.major ? `التخصص: ${event.major} · ` : ""}
+                      {event.city ? `المدينة: ${event.city} · ` : ""}
+                      {event.searchQuery ? `البحث: ${event.searchQuery} · ` : ""}
+                      {event.resultsCount ? `النتائج: ${event.resultsCount} · ` : ""}
+                      {event.page || ""}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      ) : adminView === "suggestions" ? (
         <div style={{ display: "grid", gap: "12px" }}>
           {suggestions.length === 0 && !loading ? (
             <div style={{ ...cardStyle, color: "#9ca3af", textAlign: "center" }}>

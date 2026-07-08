@@ -4,6 +4,7 @@ import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
+import { trackEvent } from "../utils/analytics";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
@@ -587,6 +588,22 @@ const ExperiencesPage = () => {
         setTotalExperiences(data.total ?? items.length);
         setHasMore(Boolean(data.hasMore));
         setFetchError("");
+
+        if (!append) {
+          trackEvent("experience_search", {
+            major: selectedMajors[0] || "",
+            city: selectedCity,
+            searchQuery: companySearch.trim(),
+            resultsCount: data.total ?? items.length,
+            metadata: {
+              selectedMajors,
+              rewardFilter,
+              environmentFilter,
+              sortOption,
+              searchTerms,
+            },
+          });
+        }
       } catch (err) {
         console.error(err);
         setFetchError("تعذر تحميل التجارب حاليًا. تأكدي من اتصال خدمة API.");
@@ -603,6 +620,8 @@ const ExperiencesPage = () => {
       sortOption,
       rewardFilter,
       environmentFilter,
+      selectedMajors,
+      companySearch,
     ]
   );
 
@@ -1772,6 +1791,15 @@ const ExperiencesPage = () => {
                   className="experience-card"
                   key={exp._id}
                   onClick={() => {
+                    trackEvent("experience_card_opened", {
+                      major: exp.major || exp.majorCategory || "",
+                      majorCategory: exp.majorCategory || "",
+                      city: exp.city || "",
+                      metadata: {
+                        organizationName: exp.organizationName || exp.companyName || "",
+                        starRating: exp.starRating || 0,
+                      },
+                    });
                     setSelectedExperience(exp);
                     setCurrentStep(1);
                   }}

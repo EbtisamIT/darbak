@@ -4,6 +4,7 @@ import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
+import { trackEvent } from "../utils/analytics";
 
 export const cityOptions = [
   "الرياض",
@@ -849,6 +850,17 @@ export default function TrainingFinderPage() {
 
       setTargets(nextTargets);
       setOpportunities(nextOpportunities);
+      trackEvent("where_to_train_search", {
+        major: specialtyValue,
+        majorCategory: majorCategories[0] || "",
+        city: cityValue,
+        resultsCount: nextTargets.length,
+        metadata: {
+          majorCategories,
+          opportunitiesCount: nextOpportunities.length,
+          totalResults: nextTargets.length + nextOpportunities.length,
+        },
+      });
       setActiveResultsTab(
         nextOpportunities.length > 0
           ? "opportunities"
@@ -1352,11 +1364,19 @@ export default function TrainingFinderPage() {
                       >
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
+                            trackEvent("opportunity_details_clicked", {
+                              major: selectedSpecialty,
+                              city,
+                              metadata: {
+                                opportunityTitle: opportunity.title,
+                                organizationName: opportunity.organizationName,
+                              },
+                            });
                             setExpandedOpportunityId((currentId) =>
                               currentId === opportunity._id ? "" : opportunity._id
-                            )
-                          }
+                            );
+                          }}
                           className="opportunity-secondary-button"
                         >
                           {isExpanded ? "إخفاء" : "التفاصيل"}
@@ -1367,6 +1387,17 @@ export default function TrainingFinderPage() {
                             href={opportunity.applicationUrl}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={() =>
+                              trackEvent("opportunity_apply_clicked", {
+                                major: selectedSpecialty,
+                                city,
+                                metadata: {
+                                  opportunityTitle: opportunity.title,
+                                  organizationName: opportunity.organizationName,
+                                  applicationMethod: opportunity.applicationMethod,
+                                },
+                              })
+                            }
                             style={{ textDecoration: "none" }}
                           >
                             <button type="button" className="opportunity-apply-button">

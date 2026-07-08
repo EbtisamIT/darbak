@@ -18,6 +18,7 @@ import AddExperienceModal from "./pages/AddExperienceModal";
 import LegalPage from "./pages/LegalPage";
 import AdminReviewPage from "./pages/AdminReviewPage";
 import Footer from "./pages/Footer";
+import { trackEvent } from "./utils/analytics";
 
 const PLATFORM_UPDATE_NOTICE_KEY = "darbak_training_diagnosis_quiz_seen_v1";
 const ADMIN_REVIEW_PATH = "/darbak-owner-review-2026";
@@ -263,6 +264,25 @@ function PlatformUpdateNotice() {
     if (answers.city) params.set("city", answers.city);
 
     navigate(`/where-to-train${params.toString() ? `?${params}` : ""}`);
+  };
+
+  const completeDiagnosis = () => {
+    trackEvent("diagnosis_completed", {
+      major: selectedMajorLabel,
+      city: answers.city,
+      resultsCount: diagnosis.percent,
+      metadata: {
+        diagnosisName: diagnosis.name,
+        diagnosisPercent: diagnosis.percent,
+        stage: diagnosis.stage,
+        hasCv: answers.hasCv,
+        appliedBefore: answers.appliedBefore,
+        knowsWhere: answers.knowsWhere,
+        priority: answers.priority,
+        fear: answers.fear,
+      },
+    });
+    setStep("result");
   };
 
   const shareDiagnosis = async () => {
@@ -571,7 +591,7 @@ function PlatformUpdateNotice() {
         <button
           type="button"
           disabled={!isReadyForDiagnosis}
-          onClick={() => setStep("result")}
+          onClick={completeDiagnosis}
           style={{
             background: isReadyForDiagnosis
               ? "var(--app-brand)"
@@ -813,6 +833,15 @@ function AppLayout({ theme, setTheme }) {
     maxWidth: "1200px",
     padding: "40px 20px",
   };
+
+  useEffect(() => {
+    if (isAdminPage) return;
+
+    trackEvent("page_view", {
+      page: location.pathname,
+      metadata: { search: location.search },
+    });
+  }, [isAdminPage, location.pathname, location.search]);
 
   if (isAdminPage) {
     return (

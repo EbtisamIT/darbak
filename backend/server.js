@@ -6,6 +6,7 @@ require('dotenv').config();
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
 const Opportunity = require('./models/Opportunity');
+const AnalyticsEvent = require('./models/AnalyticsEvent');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -261,6 +262,57 @@ const getCityFilterValues = (city = "") => {
   return regionCities[city] ? [city, ...regionCities[city]] : [city];
 };
 
+const sanitizeAnalyticsText = (value = "", maxLength = 160) => {
+  if (value === null || value === undefined) return "";
+
+  return value
+    .toString()
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, maxLength);
+};
+
+const sanitizeAnalyticsMetadata = (metadata = {}) => {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return {};
+  }
+
+  return Object.entries(metadata).reduce((cleaned, [key, value]) => {
+    const safeKey = sanitizeAnalyticsText(key, 50);
+    if (!safeKey) return cleaned;
+
+    if (["string", "number", "boolean"].includes(typeof value)) {
+      cleaned[safeKey] =
+        typeof value === "string" ? sanitizeAnalyticsText(value, 180) : value;
+      return cleaned;
+    }
+
+    if (Array.isArray(value)) {
+      cleaned[safeKey] = value
+        .slice(0, 12)
+        .map((item) =>
+          ["string", "number", "boolean"].includes(typeof item)
+            ? typeof item === "string"
+              ? sanitizeAnalyticsText(item, 120)
+              : item
+            : ""
+        )
+        .filter((item) => item !== "");
+    }
+
+    return cleaned;
+  }, {});
+};
+
+const getAnalyticsGroup = async (match, field, limit = 10) =>
+  AnalyticsEvent.aggregate([
+    { $match: { ...match, [field]: { $nin: [null, ""] } } },
+    { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+    { $sort: { count: -1, _id: 1 } },
+    { $limit: limit },
+    { $project: { _id: 0, label: "$_id", count: 1 } },
+  ]);
+
 // ===== Middlewares =====
 app.use(cors());
 app.use(express.json());
@@ -314,6 +366,157 @@ app.get('/api/home-stats', async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Home stats error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/analytics-events', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const eventName = sanitizeAnalyticsText(req.body.eventName, 80);
+    if (!eventName) {
+      return res.status(400).json({ error: "eventName is required" });
+    }
+
+    const event = await AnalyticsEvent.create({
+      eventName,
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: sanitizeAnalyticsText(req.body.page, 160),
+      deviceType: ["mobile", "tablet", "desktop", "unknown"].includes(
+        req.body.deviceType
+      )
+        ? req.body.deviceType
+        : "unknown",
+      major: sanitizeAnalyticsText(req.body.major, 120),
+      majorCategory: sanitizeAnalyticsText(req.body.majorCategory, 120),
+      city: sanitizeAnalyticsText(req.body.city, 80),
+      searchQuery: sanitizeAnalyticsText(req.body.searchQuery, 180),
+      resultsCount: Number.isFinite(Number(req.body.resultsCount))
+        ? Number(req.body.resultsCount)
+        : 0,
+      metadata: sanitizeAnalyticsMetadata(req.body.metadata),
+    });
+
+    res.json({ ok: true, id: event._id });
+  } catch (err) {
+    console.error("❌ Analytics event error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const requestedDays = parseInt(req.query.days, 10) || 30;
+    const days = Math.min(Math.max(requestedDays, 1), 90);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const match = { createdAt: { $gte: since } };
+
+    const [
+      totalEvents,
+      uniqueVisitors,
+      topEvents,
+      topMajors,
+      topCities,
+      topSearches,
+      topPages,
+      topDevices,
+      topDiagnosis,
+      topFears,
+      topOrganizations,
+      hourlyActivity,
+      recentEvents,
+    ] = await Promise.all([
+      AnalyticsEvent.countDocuments(match),
+      AnalyticsEvent.distinct("visitorId", match),
+      getAnalyticsGroup(match, "eventName", 12),
+      getAnalyticsGroup(match, "major", 12),
+      getAnalyticsGroup(match, "city", 12),
+      getAnalyticsGroup(match, "searchQuery", 12),
+      getAnalyticsGroup(match, "page", 12),
+      getAnalyticsGroup(match, "deviceType", 4),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...match,
+            eventName: "diagnosis_completed",
+            "metadata.diagnosisName": { $nin: [null, ""] },
+          },
+        },
+        { $group: { _id: "$metadata.diagnosisName", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...match,
+            eventName: "diagnosis_completed",
+            "metadata.fear": { $nin: [null, ""] },
+          },
+        },
+        { $group: { _id: "$metadata.fear", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...match,
+            "metadata.organizationName": { $nin: [null, ""] },
+          },
+        },
+        { $group: { _id: "$metadata.organizationName", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 12 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
+      AnalyticsEvent.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: { $hour: { date: "$createdAt", timezone: "Asia/Riyadh" } },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+        { $project: { _id: 0, hour: "$_id", count: 1 } },
+      ]),
+      AnalyticsEvent.find(match)
+        .sort({ createdAt: -1 })
+        .limit(25)
+        .select(
+          "eventName page deviceType major city searchQuery resultsCount metadata createdAt"
+        )
+        .lean(),
+    ]);
+
+    res.json({
+      days,
+      totalEvents,
+      uniqueVisitors: uniqueVisitors.filter(Boolean).length,
+      topEvents,
+      topMajors,
+      topCities,
+      topSearches,
+      topPages,
+      topDevices,
+      topDiagnosis,
+      topFears,
+      topOrganizations,
+      hourlyActivity,
+      recentEvents,
+    });
+  } catch (err) {
+    console.error("❌ Admin analytics error:", err);
     res.status(500).json({ error: err.message });
   }
 });
