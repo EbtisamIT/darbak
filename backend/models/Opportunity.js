@@ -17,6 +17,10 @@ const opportunitySchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    cities: {
+      type: [String],
+      default: [],
+    },
     majorCategories: {
       type: [String],
       default: [],

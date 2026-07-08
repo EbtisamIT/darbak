@@ -39,6 +39,7 @@ const defaultOpportunityForm = {
   organizationName: "",
   title: "",
   city: "",
+  cities: [],
   majorCategories: [],
   specialties: ["__all_specialties__"],
   trainingEnvironment: "",
@@ -53,6 +54,45 @@ const defaultOpportunityForm = {
   status: "active",
   featured: false,
 };
+
+const opportunityCityOptions = [
+  "الرياض",
+  "جدة",
+  "مكة المكرمة",
+  "المدينة المنورة",
+  "الدمام",
+  "الخبر",
+  "الظهران",
+  "الأحساء",
+  "الجبيل",
+  "الطائف",
+  "أبها",
+  "خميس مشيط",
+  "جازان",
+  "تبوك",
+  "حائل",
+  "بريدة",
+  "نجران",
+  "الباحة",
+  "سكاكا",
+  "عرعر",
+  "ينبع",
+  "الخرج",
+  "العلا",
+  "منطقة الرياض",
+  "منطقة مكة المكرمة",
+  "منطقة المدينة المنورة",
+  "المنطقة الشرقية",
+  "منطقة القصيم",
+  "منطقة عسير",
+  "منطقة تبوك",
+  "منطقة حائل",
+  "منطقة جازان",
+  "منطقة نجران",
+  "منطقة الباحة",
+  "منطقة الجوف",
+  "منطقة الحدود الشمالية",
+];
 
 const emptyAnalytics = {
   days: 30,
@@ -197,6 +237,25 @@ const getCategoriesForSpecialties = (selectedSpecialties = []) =>
         .filter(Boolean)
     )
   );
+
+const getSpecialtiesForCategories = (selectedCategories = []) => {
+  const categories = normalizeFormArray(selectedCategories);
+  if (categories.length === 0) return specialtyOptions;
+
+  return specialtyOptions.filter((option) => categories.includes(option.category));
+};
+
+const getOpportunityCitiesForForm = (opportunity = {}) => {
+  const cities = normalizeFormArray(opportunity.cities);
+  if (cities.length > 0) return cities;
+
+  return opportunity.city ? [opportunity.city] : [];
+};
+
+const getOpportunityCitiesText = (opportunity = {}) => {
+  const cities = getOpportunityCitiesForForm(opportunity);
+  return cities.length > 0 ? cities.join("، ") : "";
+};
 
 const getOpportunitySpecialtiesForForm = (opportunity = {}) => {
   const specialties = normalizeFormArray(opportunity.specialties);
@@ -699,6 +758,41 @@ export default function AdminReviewPage() {
   );
 
   const updateOpportunityField = (field, value) => {
+    if (field === "cities") {
+      const selectedCities = normalizeFormArray(value);
+      setOpportunityForm((prev) => ({
+        ...prev,
+        cities: selectedCities,
+        city: selectedCities[0] || "",
+      }));
+      return;
+    }
+
+    if (field === "majorCategories") {
+      const nextCategories = normalizeFormArray(value);
+      const allowedSpecialties = getSpecialtiesForCategories(nextCategories).map(
+        (option) => option.name
+      );
+
+      setOpportunityForm((prev) => {
+        const currentSpecialties = normalizeFormArray(prev.specialties).filter(
+          (specialty) =>
+            specialty !== ALL_SPECIALTIES_VALUE &&
+            allowedSpecialties.includes(specialty)
+        );
+
+        return {
+          ...prev,
+          majorCategories: nextCategories,
+          specialties:
+            nextCategories.length === 0 && currentSpecialties.length === 0
+              ? [ALL_SPECIALTIES_VALUE]
+              : currentSpecialties,
+        };
+      });
+      return;
+    }
+
     if (field === "specialties") {
       const selectedSpecialties = normalizeFormArray(value);
       const nextSpecialties = selectedSpecialties.includes(ALL_SPECIALTIES_VALUE)
@@ -710,7 +804,12 @@ export default function AdminReviewPage() {
         specialties: nextSpecialties,
         majorCategories: nextSpecialties.includes(ALL_SPECIALTIES_VALUE)
           ? []
-          : getCategoriesForSpecialties(nextSpecialties),
+          : Array.from(
+              new Set([
+                ...normalizeFormArray(prev.majorCategories),
+                ...getCategoriesForSpecialties(nextSpecialties),
+              ])
+            ),
       }));
       return;
     }
@@ -729,6 +828,7 @@ export default function AdminReviewPage() {
       organizationName: opportunity.organizationName || "",
       title: opportunity.title || "",
       city: opportunity.city || "",
+      cities: getOpportunityCitiesForForm(opportunity),
       majorCategories: normalizeFormArray(opportunity.majorCategories),
       specialties: getOpportunitySpecialtiesForForm(opportunity),
       trainingEnvironment: opportunity.trainingEnvironment || "",
@@ -757,16 +857,26 @@ export default function AdminReviewPage() {
     try {
       setSavingOpportunity(true);
       setMessage("");
+      const selectedCities = normalizeFormArray(opportunityForm.cities);
+      const selectedMajorCategories = normalizeFormArray(
+        opportunityForm.majorCategories
+      );
       const selectedSpecialties = normalizeFormArray(opportunityForm.specialties);
       const appliesToAllSpecialties =
-        selectedSpecialties.length === 0 ||
+        (selectedSpecialties.length === 0 && selectedMajorCategories.length === 0) ||
         selectedSpecialties.includes(ALL_SPECIALTIES_VALUE);
+      const nextMajorCategories = Array.from(
+        new Set([
+          ...selectedMajorCategories,
+          ...getCategoriesForSpecialties(selectedSpecialties),
+        ])
+      );
       const opportunityPayload = {
         ...opportunityForm,
+        cities: selectedCities,
+        city: selectedCities[0] || "",
         specialties: appliesToAllSpecialties ? [] : selectedSpecialties,
-        majorCategories: appliesToAllSpecialties
-          ? []
-          : getCategoriesForSpecialties(selectedSpecialties),
+        majorCategories: appliesToAllSpecialties ? [] : nextMajorCategories,
       };
 
       const request = editingOpportunityId
@@ -1242,7 +1352,6 @@ export default function AdminReviewPage() {
               {[
                 ["organizationName", "اسم الجهة", "مثال: STC"],
                 ["title", "عنوان الفرصة", "برنامج التدريب التعاوني"],
-                ["city", "المدينة أو المنطقة", "الرياض أو منطقة الرياض"],
                 ["applicationUrl", "رابط التقديم", "https://..."],
                 ["logoUrl", "رابط الشعار", "https://.../logo.png"],
                 ["sourceUrl", "رابط المصدر", "رابط إعلان رسمي إن وجد"],
@@ -1270,7 +1379,95 @@ export default function AdminReviewPage() {
                   gridColumn: "1 / -1",
                 }}
               >
-                التخصصات المناسبة
+                المدن أو المناطق المناسبة
+                <select
+                  multiple
+                  value={normalizeFormArray(opportunityForm.cities)}
+                  onChange={(e) =>
+                    updateOpportunityField(
+                      "cities",
+                      Array.from(e.target.selectedOptions).map(
+                        (option) => option.value
+                      )
+                    )
+                  }
+                  style={{
+                    ...adminSelectStyle,
+                    minHeight: "130px",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {opportunityCityOptions.map((cityName) => (
+                    <option key={cityName} value={cityName}>
+                      {cityName}
+                    </option>
+                  ))}
+                </select>
+                <small
+                  style={{
+                    display: "block",
+                    marginTop: "6px",
+                    color: "#9ca3af",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  اترك/ي المدن بدون تحديد إذا كانت الفرصة عامة لكل المدن، أو
+                  حددي أكثر من مدينة/منطقة.
+                </small>
+              </label>
+
+              <label
+                style={{
+                  color: "#cbd5e1",
+                  fontSize: "13px",
+                  gridColumn: "1 / -1",
+                }}
+              >
+                التخصصات الرئيسية المناسبة
+                <select
+                  multiple
+                  value={normalizeFormArray(opportunityForm.majorCategories)}
+                  onChange={(e) =>
+                    updateOpportunityField(
+                      "majorCategories",
+                      Array.from(e.target.selectedOptions).map(
+                        (option) => option.value
+                      )
+                    )
+                  }
+                  style={{
+                    ...adminSelectStyle,
+                    minHeight: "155px",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {majorCategoryOptions.map((categoryName) => (
+                    <option key={categoryName} value={categoryName}>
+                      {categoryName}
+                    </option>
+                  ))}
+                </select>
+                <small
+                  style={{
+                    display: "block",
+                    marginTop: "6px",
+                    color: "#9ca3af",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  اترك/يها فارغة إذا كانت الفرصة لكل التخصصات، أو اختاري
+                  أكثر من تخصص رئيسي.
+                </small>
+              </label>
+
+              <label
+                style={{
+                  color: "#cbd5e1",
+                  fontSize: "13px",
+                  gridColumn: "1 / -1",
+                }}
+              >
+                التخصصات الفرعية المناسبة
                 <select
                   multiple
                   value={normalizeFormArray(opportunityForm.specialties)}
@@ -1284,22 +1481,32 @@ export default function AdminReviewPage() {
                   }
                   style={{
                     ...adminSelectStyle,
-                    minHeight: "155px",
+                    minHeight: "170px",
                     lineHeight: 1.7,
                   }}
                 >
                   <option value={ALL_SPECIALTIES_VALUE}>جميع التخصصات</option>
-                  {majorCategoryOptions.map((categoryName) => (
-                    <optgroup key={categoryName} label={categoryName}>
-                      {specialtyOptions
-                        .filter((option) => option.category === categoryName)
-                        .map((option) => (
-                          <option key={option.name} value={option.name}>
-                            {option.name}
-                          </option>
-                        ))}
-                    </optgroup>
-                  ))}
+                  {majorCategoryOptions
+                    .filter((categoryName) => {
+                      const selectedCategories = normalizeFormArray(
+                        opportunityForm.majorCategories
+                      );
+                      return (
+                        selectedCategories.length === 0 ||
+                        selectedCategories.includes(categoryName)
+                      );
+                    })
+                    .map((categoryName) => (
+                      <optgroup key={categoryName} label={categoryName}>
+                        {specialtyOptions
+                          .filter((option) => option.category === categoryName)
+                          .map((option) => (
+                            <option key={option.name} value={option.name}>
+                              {option.name}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
                 </select>
                 <small
                   style={{
@@ -1309,8 +1516,8 @@ export default function AdminReviewPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  اختر/ي "جميع التخصصات" إذا كانت الفرصة تظهر لكل طالب، أو
-                  حدد/ي أكثر من تخصص من القائمة.
+                  إذا اخترت/ي تخصصات رئيسية، تظهر لك فروعها فقط هنا. اختيار
+                  "جميع التخصصات" يجعل الفرصة عامة.
                 </small>
                 {!normalizeFormArray(opportunityForm.specialties).includes(
                   ALL_SPECIALTIES_VALUE
@@ -1324,8 +1531,13 @@ export default function AdminReviewPage() {
                     }}
                   >
                     التصنيف الرئيسي:{" "}
-                    {getCategoriesForSpecialties(
-                      normalizeFormArray(opportunityForm.specialties)
+                    {Array.from(
+                      new Set([
+                        ...normalizeFormArray(opportunityForm.majorCategories),
+                        ...getCategoriesForSpecialties(
+                          normalizeFormArray(opportunityForm.specialties)
+                        ),
+                      ])
                     ).join("، ") || "غير محدد"}
                   </small>
                 )}
@@ -1475,7 +1687,9 @@ export default function AdminReviewPage() {
                     </h3>
                     <p style={{ color: "#cbd5e1", margin: 0, lineHeight: 1.7 }}>
                       {opportunity.organizationName}
-                      {opportunity.city ? ` - ${opportunity.city}` : ""}
+                      {getOpportunityCitiesText(opportunity)
+                        ? ` - ${getOpportunityCitiesText(opportunity)}`
+                        : ""}
                     </p>
                   </div>
                   <span
@@ -1580,6 +1794,9 @@ export default function AdminReviewPage() {
                     marginBottom: "12px",
                   }}
                 >
+                  <div>
+                    المدن: {getOpportunityCitiesText(opportunity) || "كل المدن"}
+                  </div>
                   <div>
                     التخصصات الرئيسية:{" "}
                     {generalOpportunity

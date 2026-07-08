@@ -212,6 +212,14 @@ const isClosedByDeadline = (deadline) => {
 
 const sanitizeOpportunityPayload = (body = {}) => {
   const deadlineValue = body.deadline ? new Date(body.deadline) : undefined;
+  const normalizedCities = normalizeArrayField(body.cities);
+  const fallbackCity = (body.city || "").trim();
+  const cities =
+    normalizedCities.length > 0
+      ? normalizedCities
+      : fallbackCity
+      ? [fallbackCity]
+      : [];
   const normalizedMajorCategories = normalizeArrayField(body.majorCategories);
   const normalizedSpecialties = normalizeArrayField(body.specialties);
   const appliesToAllSpecialties =
@@ -221,7 +229,8 @@ const sanitizeOpportunityPayload = (body = {}) => {
   return {
     organizationName: (body.organizationName || "").trim(),
     title: (body.title || "").trim(),
-    city: (body.city || "").trim(),
+    city: cities[0] || "",
+    cities,
     majorCategories: appliesToAllSpecialties ? [] : normalizedMajorCategories,
     specialties: appliesToAllSpecialties ? [] : normalizedSpecialties,
     trainingEnvironment: ["mixed", "women", "men", ""].includes(
@@ -755,10 +764,14 @@ app.get('/api/opportunities', async (req, res) => {
     }
 
     if (city) {
+      const cityValues = getCityFilterValues(city);
       andFilters.push({
         $or: [
-          { city: { $in: getCityFilterValues(city) } },
+          { city: { $in: cityValues } },
+          { cities: { $in: cityValues } },
           { city: "" },
+          { cities: { $size: 0 } },
+          { cities: { $exists: false } },
           { trainingMode: "remote" },
         ],
       });
@@ -1044,6 +1057,7 @@ app.post('/api/admin/opportunities', requireAdmin, async (req, res) => {
       payload.title,
       payload.city,
       payload.note,
+      ...payload.cities,
       ...payload.majorCategories,
       ...payload.specialties,
     ];
@@ -1081,6 +1095,7 @@ app.patch('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
       payload.title,
       payload.city,
       payload.note,
+      ...payload.cities,
       ...payload.majorCategories,
       ...payload.specialties,
     ];

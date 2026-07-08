@@ -331,6 +331,21 @@ const getOpportunityApplicationState = (deadline) => {
     : { label: "مفتوح", tone: "open" };
 };
 
+const getOpportunityCities = (opportunity = {}) => {
+  const cities = Array.isArray(opportunity.cities)
+    ? opportunity.cities.filter(Boolean)
+    : [];
+
+  return cities.length > 0 ? cities : opportunity.city ? [opportunity.city] : [];
+};
+
+const getOpportunityCityText = (opportunity = {}) => {
+  const cities = getOpportunityCities(opportunity);
+  if (cities.length === 0) return "";
+  if (cities.length <= 2) return cities.join("، ");
+  return `${cities.slice(0, 2).join("، ")} +${cities.length - 2}`;
+};
+
 export const specializationOptions = Array.from(
   majors
     .reduce((optionsMap, majorGroup) => {
@@ -1226,7 +1241,9 @@ export default function TrainingFinderPage() {
                             }}
                           >
                             {opportunity.title}
-                            {opportunity.city ? ` - ${opportunity.city}` : ""}
+                            {getOpportunityCityText(opportunity)
+                              ? ` - ${getOpportunityCityText(opportunity)}`
+                              : ""}
                           </p>
                         </div>
                       </div>
