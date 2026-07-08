@@ -69,6 +69,8 @@ const emptyAnalytics = {
   topOrganizations: [],
   hourlyActivity: [],
   recentEvents: [],
+  rawEvents: 0,
+  rangeLabel: "آخر 30 يوم",
 };
 
 const analyticsEventLabels = {
@@ -90,6 +92,15 @@ const diagnosisFearLabels = {
   email: "ما أعرف أرسل إيميل",
   late: "البداية متأخرة",
 };
+
+const analyticsRangeOptions = [
+  ["7", "آخر أسبوع"],
+  ["30", "آخر شهر"],
+  ["90", "آخر 3 شهور"],
+  ["180", "آخر 6 شهور"],
+  ["365", "آخر سنة"],
+  ["all", "كل الفترة"],
+];
 
 const opportunityStatusOptions = [
   ["active", "نشطة"],
@@ -355,6 +366,7 @@ export default function AdminReviewPage() {
   const [suggestions, setSuggestions] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
+  const [analyticsDays, setAnalyticsDays] = useState("30");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -480,7 +492,7 @@ export default function AdminReviewPage() {
       sessionStorage.setItem("darbak_admin_password", password);
 
       const { data } = await axios.get(`${API_BASE_URL}/api/admin/analytics`, {
-        params: { days: 30 },
+        params: { days: analyticsDays },
         headers: authHeaders,
       });
 
@@ -510,7 +522,7 @@ export default function AdminReviewPage() {
       fetchExperiences();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, opportunityStatus, adminView]);
+  }, [status, opportunityStatus, analyticsDays, adminView]);
 
   const refreshCurrentView = () => {
     if (adminView === "suggestions") {
@@ -934,39 +946,59 @@ export default function AdminReviewPage() {
           <option value="analytics">التحليلات</option>
         </select>
 
-        <select
-          value={adminView === "opportunities" ? opportunityStatus : status}
-          onChange={(e) =>
-            adminView === "opportunities"
-              ? setOpportunityStatus(e.target.value)
-              : setStatus(e.target.value)
-          }
-          disabled={adminView === "suggestions" || adminView === "analytics"}
-          style={{
-            background: "#111318",
-            border: "1px solid rgba(125,219,205,0.25)",
-            borderRadius: "10px",
-            color: "#fff",
-            padding: "11px 12px",
-            fontFamily: "inherit",
-            opacity:
-              adminView === "suggestions" || adminView === "analytics" ? 0.45 : 1,
-          }}
-        >
-          {adminView === "opportunities" ? (
-            opportunityStatusOptions.map(([value, label]) => (
+        {adminView === "analytics" ? (
+          <select
+            value={analyticsDays}
+            onChange={(e) => setAnalyticsDays(e.target.value)}
+            style={{
+              background: "#111318",
+              border: "1px solid rgba(125,219,205,0.25)",
+              borderRadius: "10px",
+              color: "#fff",
+              padding: "11px 12px",
+              fontFamily: "inherit",
+            }}
+          >
+            {analyticsRangeOptions.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
-            ))
-          ) : (
-            <>
-              <option value="pending">بانتظار المراجعة</option>
-              <option value="approved">المقبولة</option>
-              <option value="rejected">المرفوضة</option>
-            </>
-          )}
-        </select>
+            ))}
+          </select>
+        ) : (
+          <select
+            value={adminView === "opportunities" ? opportunityStatus : status}
+            onChange={(e) =>
+              adminView === "opportunities"
+                ? setOpportunityStatus(e.target.value)
+                : setStatus(e.target.value)
+            }
+            disabled={adminView === "suggestions"}
+            style={{
+              background: "#111318",
+              border: "1px solid rgba(125,219,205,0.25)",
+              borderRadius: "10px",
+              color: "#fff",
+              padding: "11px 12px",
+              fontFamily: "inherit",
+              opacity: adminView === "suggestions" ? 0.45 : 1,
+            }}
+          >
+            {adminView === "opportunities" ? (
+              opportunityStatusOptions.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="pending">بانتظار المراجعة</option>
+                <option value="approved">المقبولة</option>
+                <option value="rejected">المرفوضة</option>
+              </>
+            )}
+          </select>
+        )}
 
         <button
           type="button"
@@ -1012,9 +1044,12 @@ export default function AdminReviewPage() {
             }}
           >
             {[
-              ["إجمالي الأحداث", analytics.totalEvents],
+              ["الأحداث النظيفة", analytics.totalEvents],
+              ...(analytics.rawEvents > analytics.totalEvents
+                ? [["الأحداث الخام", analytics.rawEvents]]
+                : []),
               ["زوار مميزون", analytics.uniqueVisitors],
-              ["آخر مدة", `${analytics.days} يوم`],
+              ["الفترة", analytics.rangeLabel || `${analytics.days} يوم`],
               [
                 "أقوى ساعة",
                 analytics.hourlyActivity.length

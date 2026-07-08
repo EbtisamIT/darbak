@@ -313,6 +313,71 @@ const getAnalyticsGroup = async (match, field, limit = 10) =>
     { $project: { _id: 0, label: "$_id", count: 1 } },
   ]);
 
+const getAnalyticsSearches = async (match, limit = 12) =>
+  AnalyticsEvent.aggregate([
+    {
+      $match: {
+        ...match,
+        eventName: "experience_search",
+        "metadata.searchQuality": "settled",
+        searchQuery: { $nin: [null, ""] },
+      },
+    },
+    {
+      $addFields: {
+        cleanSearchQuery: {
+          $trim: {
+            input: "$searchQuery",
+          },
+        },
+      },
+    },
+    {
+      $addFields: {
+        searchLength: { $strLenCP: "$cleanSearchQuery" },
+      },
+    },
+    { $match: { searchLength: { $gte: 3 } } },
+    { $group: { _id: "$cleanSearchQuery", count: { $sum: 1 } } },
+    { $sort: { count: -1, _id: 1 } },
+    { $limit: limit },
+    { $project: { _id: 0, label: "$_id", count: 1 } },
+  ]);
+
+const getAnalyticsDateScope = (daysParam) => {
+  if (daysParam === "all") {
+    return {
+      days: null,
+      rangeLabel: "كل الفترة",
+      match: {},
+    };
+  }
+
+  const requestedDays = parseInt(daysParam, 10) || 30;
+  const days = Math.min(Math.max(requestedDays, 1), 1095);
+
+  return {
+    days,
+    rangeLabel: `آخر ${days} يوم`,
+    match: {
+      createdAt: {
+        $gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+      },
+    },
+  };
+};
+
+const getCleanAnalyticsMatch = (match) => ({
+  ...match,
+  $or: [
+    { eventName: { $ne: "experience_search" } },
+    {
+      eventName: "experience_search",
+      "metadata.searchQuality": "settled",
+    },
+  ],
+});
+
 // ===== Middlewares =====
 app.use(cors());
 app.use(express.json());
@@ -413,12 +478,11 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const requestedDays = parseInt(req.query.days, 10) || 30;
-    const days = Math.min(Math.max(requestedDays, 1), 90);
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const match = { createdAt: { $gte: since } };
+    const { days, rangeLabel, match } = getAnalyticsDateScope(req.query.days);
+    const cleanMatch = getCleanAnalyticsMatch(match);
 
     const [
+      rawEvents,
       totalEvents,
       uniqueVisitors,
       topEvents,
@@ -434,17 +498,18 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       recentEvents,
     ] = await Promise.all([
       AnalyticsEvent.countDocuments(match),
-      AnalyticsEvent.distinct("visitorId", match),
-      getAnalyticsGroup(match, "eventName", 12),
-      getAnalyticsGroup(match, "major", 12),
-      getAnalyticsGroup(match, "city", 12),
-      getAnalyticsGroup(match, "searchQuery", 12),
-      getAnalyticsGroup(match, "page", 12),
-      getAnalyticsGroup(match, "deviceType", 4),
+      AnalyticsEvent.countDocuments(cleanMatch),
+      AnalyticsEvent.distinct("visitorId", cleanMatch),
+      getAnalyticsGroup(cleanMatch, "eventName", 12),
+      getAnalyticsGroup(cleanMatch, "major", 12),
+      getAnalyticsGroup(cleanMatch, "city", 12),
+      getAnalyticsSearches(match, 12),
+      getAnalyticsGroup(cleanMatch, "page", 12),
+      getAnalyticsGroup(cleanMatch, "deviceType", 4),
       AnalyticsEvent.aggregate([
         {
           $match: {
-            ...match,
+            ...cleanMatch,
             eventName: "diagnosis_completed",
             "metadata.diagnosisName": { $nin: [null, ""] },
           },
@@ -457,7 +522,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       AnalyticsEvent.aggregate([
         {
           $match: {
-            ...match,
+            ...cleanMatch,
             eventName: "diagnosis_completed",
             "metadata.fear": { $nin: [null, ""] },
           },
@@ -470,7 +535,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       AnalyticsEvent.aggregate([
         {
           $match: {
-            ...match,
+            ...cleanMatch,
             "metadata.organizationName": { $nin: [null, ""] },
           },
         },
@@ -480,7 +545,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $project: { _id: 0, label: "$_id", count: 1 } },
       ]),
       AnalyticsEvent.aggregate([
-        { $match: match },
+        { $match: cleanMatch },
         {
           $group: {
             _id: { $hour: { date: "$createdAt", timezone: "Asia/Riyadh" } },
@@ -490,7 +555,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $sort: { _id: 1 } },
         { $project: { _id: 0, hour: "$_id", count: 1 } },
       ]),
-      AnalyticsEvent.find(match)
+      AnalyticsEvent.find(cleanMatch)
         .sort({ createdAt: -1 })
         .limit(25)
         .select(
@@ -501,6 +566,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
 
     res.json({
       days,
+      rangeLabel,
+      rawEvents,
       totalEvents,
       uniqueVisitors: uniqueVisitors.filter(Boolean).length,
       topEvents,

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
@@ -373,9 +373,13 @@ const ExperiencesPage = () => {
   const [environmentFilter, setEnvironmentFilter] = useState("");
   const [fetchError, setFetchError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [, setTotalExperiences] = useState(() => getCachedExperiences().length);
+  const [totalExperiences, setTotalExperiences] = useState(
+    () => getCachedExperiences().length
+  );
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [searchAnalyticsVersion, setSearchAnalyticsVersion] = useState(0);
+  const lastTrackedExperienceSearchRef = useRef("");
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
 
@@ -590,19 +594,7 @@ const ExperiencesPage = () => {
         setFetchError("");
 
         if (!append) {
-          trackEvent("experience_search", {
-            major: selectedMajors[0] || "",
-            city: selectedCity,
-            searchQuery: companySearch.trim(),
-            resultsCount: data.total ?? items.length,
-            metadata: {
-              selectedMajors,
-              rewardFilter,
-              environmentFilter,
-              sortOption,
-              searchTerms,
-            },
-          });
+          setSearchAnalyticsVersion((version) => version + 1);
         }
       } catch (err) {
         console.error(err);
@@ -620,14 +612,68 @@ const ExperiencesPage = () => {
       sortOption,
       rewardFilter,
       environmentFilter,
-      selectedMajors,
-      companySearch,
     ]
   );
 
   useEffect(() => {
     fetchExperiencesPage(1, { append: false });
   }, [fetchExperiencesPage]);
+
+  useEffect(() => {
+    if (searchAnalyticsVersion === 0) return;
+
+    const trimmedSearch = companySearch.trim();
+    const hasSearchQuery = normalizeSearchText(trimmedSearch).length >= 3;
+    const hasAppliedFilters =
+      selectedMajors.length > 0 ||
+      selectedCity ||
+      rewardFilter ||
+      environmentFilter;
+
+    if (!hasSearchQuery && !hasAppliedFilters) return;
+
+    const searchSignature = JSON.stringify({
+      query: hasSearchQuery ? normalizeSearchText(trimmedSearch) : "",
+      majors: selectedMajors,
+      city: selectedCity,
+      rewardFilter,
+      environmentFilter,
+      sortOption,
+    });
+
+    const timer = window.setTimeout(() => {
+      if (lastTrackedExperienceSearchRef.current === searchSignature) return;
+      lastTrackedExperienceSearchRef.current = searchSignature;
+
+      trackEvent("experience_search", {
+        major: selectedMajors[0] || "",
+        city: selectedCity,
+        searchQuery: hasSearchQuery ? trimmedSearch : "",
+        resultsCount: totalExperiences,
+        metadata: {
+          selectedMajors,
+          rewardFilter,
+          environmentFilter,
+          sortOption,
+          searchTerms,
+          searchQuality: "settled",
+          analyticsVersion: "v2",
+        },
+      });
+    }, hasSearchQuery ? 900 : 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    companySearch,
+    environmentFilter,
+    rewardFilter,
+    searchAnalyticsVersion,
+    searchTerms,
+    selectedCity,
+    selectedMajors,
+    sortOption,
+    totalExperiences,
+  ]);
 
   const loadMoreExperiences = () => {
     if (loadingMore || !hasMore) return;
