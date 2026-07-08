@@ -16,7 +16,7 @@ import LegalPage from "./pages/LegalPage";
 import AdminReviewPage from "./pages/AdminReviewPage";
 import Footer from "./pages/Footer";
 
-const PLATFORM_UPDATE_NOTICE_KEY = "darbak_where_to_train_update_seen_v2";
+const PLATFORM_UPDATE_NOTICE_KEY = "darbak_training_diagnosis_notice_seen_v1";
 const ADMIN_REVIEW_PATH = "/darbak-owner-review-2026";
 
 const hasSeenPlatformUpdateNotice = () => {
@@ -132,7 +132,7 @@ function PlatformUpdateNotice() {
         <button
           type="button"
           onClick={closeNotice}
-          aria-label="إغلاق إشعار التحديث"
+          aria-label="إغلاق بطاقة وين أتدرب"
           style={{
             position: "absolute",
             top: "12px",
@@ -176,7 +176,7 @@ function PlatformUpdateNotice() {
             fontSize: "14px",
           }}
         >
-          تحديث جديد في منصة دربك
+          محتار/ة وين تبدأ؟
         </p>
         <h2
           id="platform-update-title"
@@ -187,7 +187,7 @@ function PlatformUpdateNotice() {
             lineHeight: 1.45,
           }}
         >
-          صفحة وين أتدرب صارت جاهزة لاحتياجاتكم
+          دربك يساعدك تختار جهة تدريبك
         </h2>
         <p
           style={{
@@ -198,9 +198,8 @@ function PlatformUpdateNotice() {
             maxWidth: "390px",
           }}
         >
-          اختَر تخصصك ومدينتك، ودربك يعرض لك جهات مناسبة بناءً على تجارب
-          طلاب سابقة. تقدر بعدها تقرأ التجارب المرتبطة بكل جهة وتبدأ بحثك
-          بصورة أوضح.
+          إذا ما تعرف/ين وين تتدرب/ين، دربك يعطيك تشخيصك التدريبي + جهات
+          مناسبة لتخصصك ومدينتك.
         </p>
         <div
           style={{
@@ -226,7 +225,7 @@ function PlatformUpdateNotice() {
               boxShadow: "0 0 14px var(--app-brand-border)",
             }}
           >
-            انتقل إلى وين أتدرب
+            ابدأ التشخيص
           </button>
           <button
             type="button"
