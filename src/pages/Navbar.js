@@ -135,6 +135,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     setFloatingMenuOpen(false);
   };
 
+  const openTrainingDiagnosis = () => {
+    window.dispatchEvent(new Event("darbak:open-training-diagnosis"));
+    setFloatingMenuOpen(false);
+  };
+
   const floatingLinkStyle = (path) => ({
     display: "flex",
     alignItems: "center",
@@ -348,6 +353,14 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             {isMobile ? "وين أتدرب" : "🎯 وين أتدرب؟"}
           </Link>
 
+          <button
+            type="button"
+            onClick={openTrainingDiagnosis}
+            style={quietActionButtonStyle}
+          >
+            {isMobile ? "تشخيص" : "تشخيص التدريب"}
+          </button>
+
           <div
             style={{
               display: "flex",
@@ -532,6 +545,15 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 <span>وين أتدرب؟</span>
                 <span aria-hidden="true">🎯</span>
               </Link>
+
+              <button
+                type="button"
+                onClick={openTrainingDiagnosis}
+                style={floatingActionStyle}
+              >
+                <span>تشخيص التدريب</span>
+                <span aria-hidden="true">▣</span>
+              </button>
 
               <button
                 type="button"

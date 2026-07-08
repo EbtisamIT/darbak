@@ -27,7 +27,7 @@ const diagnosisFearOptions = [
   { value: "noCv", label: "ما عندي CV" },
   { value: "rejection", label: "أخاف ما أنقبل" },
   { value: "email", label: "ما أعرف أرسل إيميل" },
-  { value: "late", label: "متأخر/ة وما بدأت" },
+  { value: "late", label: "البداية متأخرة" },
 ];
 
 const diagnosisDefaultAnswers = {
@@ -68,7 +68,7 @@ const buildTrainingDiagnosis = (answers) => {
 
   if (answers.priority === "reward") {
     return {
-      name: "صياد/ة المكافآت",
+      name: "صياد المكافآت",
       percent,
       stage: "عين على التجربة وعين على المكافأة",
       note: "الطموح مفهوم، بس لا تخلي المكافأة تخفي جودة البيئة.",
@@ -77,28 +77,28 @@ const buildTrainingDiagnosis = (answers) => {
 
   if (answers.fear === "late") {
     return {
-      name: "طالب/ة آخر لحظة",
+      name: "طالب آخر لحظة",
       percent,
       stage: "الوقت بدأ يركض، بس باقي في مجال",
-      note: "لا تنتظر/ين القروب. ابدأ/ي بخطوة صغيرة اليوم.",
+      note: "لا تنتظر القروب. ابدأ بخطوة صغيرة اليوم.",
     };
   }
 
   if (answers.hasCv === "no" || answers.fear === "noCv") {
     return {
-      name: "جاهز/ة بس ناقصك CV",
+      name: "جاهز لكن ناقصك CV",
       percent,
       stage: "الحماس موجود، الملف يحتاج ترتيب",
-      note: "ابدأ/ي بالسيرة ثم اطلع/ي على الجهات المناسبة.",
+      note: "ابدأ بالسيرة ثم اطلع على الجهات المناسبة.",
     };
   }
 
   if (answers.appliedBefore === "yes" && answers.knowsWhere === "yes") {
     return {
-      name: "باحث/ة تدريب محترف/ة",
+      name: "باحث تدريب محترف",
       percent,
       stage: "باقي لك جهة مرتبة تبدأ منها",
-      note: "رتب/ي خياراتك حسب المدينة والتخصص وكمّل/ي تقديمك.",
+      note: "رتب خياراتك حسب المدينة والتخصص وكمّل تقديمك.",
     };
   }
 
@@ -106,22 +106,22 @@ const buildTrainingDiagnosis = (answers) => {
     return {
       name: "بانتظار رابط القروب",
       percent,
-      stage: "لا تجعل/ين القروب هو الخطة الوحيدة",
+      stage: "لا تجعل القروب هو الخطة الوحيدة",
       note: "دربك يعطيك قائمة تبدأ منها بدون دوخة البحث.",
     };
   }
 
   if (answers.fear === "unknownTargets" || answers.fear === "email") {
     return {
-      name: "جاهز/ة بس ضايع/ة",
+      name: "جاهز لكن ضايع",
       percent,
-      stage: "تعرف/ين الهدف، لكن البداية مو واضحة",
-      note: "ابدأ/ي بجهات مناسبة ثم استخدم/ي نموذج تواصل بسيط.",
+      stage: "الهدف معروف، لكن البداية مو واضحة",
+      note: "ابدأ بجهات مناسبة ثم استخدم نموذج تواصل بسيط.",
     };
   }
 
   return {
-    name: "متدرب/ة تحت الضغط",
+    name: "متدرب تحت الضغط",
     percent,
     stage: "قبل الزحمة بخطوة",
     note: "وضعك قابل للإنقاذ، بس يحتاج بداية مرتبة.",
@@ -194,6 +194,23 @@ function PlatformUpdateNotice() {
     );
   }, [location.pathname]);
 
+  useEffect(() => {
+    const openDiagnosisCard = () => {
+      setStep("intro");
+      setAnswers(diagnosisDefaultAnswers);
+      setShareStatus("");
+      setShowNotice(true);
+    };
+
+    window.addEventListener("darbak:open-training-diagnosis", openDiagnosisCard);
+    return () => {
+      window.removeEventListener(
+        "darbak:open-training-diagnosis",
+        openDiagnosisCard
+      );
+    };
+  }, []);
+
   const diagnosis = useMemo(
     () => buildTrainingDiagnosis(answers),
     [answers]
@@ -223,7 +240,7 @@ function PlatformUpdateNotice() {
 الحل المقترح: ${suggestedSolution}
 التوصية: ${diagnosis.note}
 
-ابدأ/ي من دربك: ${shareOrigin}/where-to-train`;
+ابدأ من دربك: ${shareOrigin}/where-to-train`;
 
   const closeNotice = () => {
     markPlatformUpdateNoticeSeen();
@@ -262,7 +279,7 @@ function PlatformUpdateNotice() {
       await navigator.clipboard.writeText(shareText);
       setShareStatus("تم نسخ التشخيص.");
     } catch {
-      setShareStatus("انسخ/ي التشخيص يدويًا إذا ما ظهرت المشاركة.");
+      setShareStatus("انسخ التشخيص يدويًا إذا ما ظهرت المشاركة.");
     }
   };
 
@@ -347,8 +364,8 @@ function PlatformUpdateNotice() {
           maxWidth: "410px",
         }}
       >
-        جاوب/ي على كم سؤال، ودربك يشخّص لك حالتك التدريبية ويعطيك أول خطوة
-        تبدأ/ين منها.
+        جاوب على كم سؤال، ودربك يشخّص لك حالتك التدريبية ويعطيك أول خطوة
+        تبدأ منها.
       </p>
       <div
         style={{
@@ -429,7 +446,7 @@ function PlatformUpdateNotice() {
           onChange={(event) => updateAnswer("major", event.target.value)}
           style={selectStyle}
         >
-          <option value="">اختر/ي تخصصك</option>
+          <option value="">اختر تخصصك</option>
           {specializationOptions.map((specialization) => (
             <option key={specialization.value} value={specialization.value}>
               {specialization.label}
@@ -439,7 +456,7 @@ function PlatformUpdateNotice() {
       </label>
 
       <label style={fieldLabelStyle}>
-        أي مدينة تبغى/ين تتدرب/ين فيها؟
+        أي مدينة مناسبة للتدريب؟
         <select
           value={answers.city}
           onChange={(event) => updateAnswer("city", event.target.value)}
@@ -473,18 +490,18 @@ function PlatformUpdateNotice() {
         },
         {
           field: "knowsWhere",
-          label: "تعرف/ين وين تقدم/ين؟",
+          label: "تعرف وين تقدم؟",
           options: [
             ["yes", "عندي فكرة"],
-            ["no", "ضايع/ة شوي"],
+            ["no", "ضايع شوي"],
           ],
         },
         {
           field: "priority",
-          label: "تبغى/ين مكافأة ولا الأهم التجربة؟",
+          label: "المكافأة أهم أم التجربة؟",
           options: [
             ["experience", "الأهم التجربة"],
-            ["reward", "مكافأة لو أمكن"],
+            ["reward", "المكافأة أهم شيء"],
             ["both", "الاثنين مهمين"],
           ],
         },
@@ -599,83 +616,48 @@ function PlatformUpdateNotice() {
         >
           تشخيص دربك
         </p>
-        <div style={{ display: "grid", gap: "10px", color: "var(--app-text)" }}>
-          <strong style={{ fontSize: "22px", textAlign: "center" }}>
+        <div style={{ display: "grid", gap: "13px", color: "var(--app-text)" }}>
+          <strong
+            style={{
+              fontSize: "24px",
+              lineHeight: 1.35,
+              textAlign: "center",
+              color: "var(--app-text)",
+            }}
+          >
             {diagnosis.name}
           </strong>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-              gap: "8px",
-            }}
-          >
-            {[
-              ["التخصص", selectedMajorLabel],
-              ["المدينة", selectedCityLabel],
-              ["مستوى الضياع", `${diagnosis.percent}%`],
-              ["المرحلة", diagnosis.stage],
-            ].map(([label, value]) => (
-              <div
-                key={label}
+          {[
+            ["التخصص", selectedMajorLabel],
+            ["المدينة", selectedCityLabel],
+            ["مستوى الضياع", `${diagnosis.percent}%`],
+            ["المرحلة الحالية", diagnosis.stage],
+            ["الحل المقترح", suggestedSolution],
+            ["التوصية", diagnosis.note],
+          ].map(([label, value]) => (
+            <div key={label} style={{ display: "grid", gap: "3px" }}>
+              <span
                 style={{
-                  background: "var(--app-input-bg)",
-                  border: "1px solid var(--app-border)",
-                  borderRadius: "13px",
-                  padding: "10px",
-                  minHeight: "58px",
+                  color: "var(--app-brand)",
+                  fontSize: "15px",
+                  fontWeight: "900",
+                  lineHeight: 1.4,
                 }}
               >
-                <span
-                  style={{
-                    display: "block",
-                    color: "var(--app-brand)",
-                    fontSize: "11px",
-                    fontWeight: "900",
-                    marginBottom: "4px",
-                  }}
-                >
-                  {label}
-                </span>
-                <span
-                  style={{
-                    color: "var(--app-text)",
-                    fontSize: "13px",
-                    lineHeight: 1.55,
-                    fontWeight: "800",
-                  }}
-                >
-                  {value}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div
-            style={{
-              background: "var(--app-brand-soft)",
-              border: "1px solid var(--app-brand-border)",
-              borderRadius: "14px",
-              padding: "11px",
-              color: "var(--app-text)",
-              lineHeight: 1.75,
-              fontSize: "13px",
-            }}
-          >
-            <strong style={{ color: "var(--app-brand)" }}>الحل المقترح: </strong>
-            {suggestedSolution}
-          </div>
-          <p
-            style={{
-              margin: 0,
-              color: "var(--app-text-soft)",
-              fontSize: "13px",
-              lineHeight: 1.8,
-              textAlign: "center",
-            }}
-          >
-            {diagnosis.note}
-          </p>
+                {label}
+              </span>
+              <span
+                style={{
+                  color: "var(--app-text)",
+                  fontSize: label === "مستوى الضياع" ? "22px" : "15px",
+                  lineHeight: 1.8,
+                  fontWeight: label === "مستوى الضياع" ? "900" : "700",
+                }}
+              >
+                {value}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -701,7 +683,7 @@ function PlatformUpdateNotice() {
             fontWeight: "900",
           }}
         >
-          اعرف/ي وين تتدرب/ين الآن
+          اعرف وين تتدرب الآن
         </button>
         <button
           type="button"
