@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
 
-const cityOptions = [
+export const cityOptions = [
   "الرياض",
   "جدة",
   "مكة المكرمة",
@@ -330,7 +330,7 @@ const getOpportunityApplicationState = (deadline) => {
     : { label: "مفتوح", tone: "open" };
 };
 
-const specializationOptions = Array.from(
+export const specializationOptions = Array.from(
   majors
     .reduce((optionsMap, majorGroup) => {
       (majorGroup.subMajors || []).forEach((specialization) => {
@@ -664,8 +664,15 @@ const resolveOrganizationHomepageUrl = (organizationName) => {
 };
 
 export default function TrainingFinderPage() {
-  const [selectedSpecialty, setSelectedSpecialty] = useState("");
-  const [city, setCity] = useState("");
+  const [searchParams] = useSearchParams();
+  const initialSpecialty = searchParams.get("major") || "";
+  const initialCity = searchParams.get("city") || "";
+  const [selectedSpecialty, setSelectedSpecialty] = useState(() =>
+    specializationOptions.some((option) => option.value === initialSpecialty)
+      ? initialSpecialty
+      : ""
+  );
+  const [city, setCity] = useState(initialCity);
   const [targets, setTargets] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
   const [searched, setSearched] = useState(false);
@@ -802,15 +809,12 @@ export default function TrainingFinderPage() {
     }
   };
 
-  useEffect(() => {
-    fetchOpportunities();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const getSpecialtyCategories = (specialtyValue) =>
+    specializationOptions.find((option) => option.value === specialtyValue)
+      ?.categories || [];
 
-  const fetchTrainingTargets = async (event) => {
-    event.preventDefault();
-
-    if (!selectedSpecialty) {
+  const runTrainingTargetSearch = async (specialtyValue, cityValue = "") => {
+    if (!specialtyValue) {
       setError("اختَر تخصصك أولًا.");
       return;
     }
@@ -820,11 +824,12 @@ export default function TrainingFinderPage() {
       setError("");
       setSearched(true);
 
+      const majorCategories = getSpecialtyCategories(specialtyValue);
       const queryParams = {
-        major: selectedSpecialty,
-        majorCategory: selectedMajorCategories[0] || "",
-        majorCategories: selectedMajorCategories.join(","),
-        city,
+        major: specialtyValue,
+        majorCategory: majorCategories[0] || "",
+        majorCategories: majorCategories.join(","),
+        city: cityValue,
       };
       const [targetsResponse, opportunitiesResponse] = await Promise.all([
         axios.get(`${API_BASE_URL}/api/training-targets`, {
@@ -859,6 +864,29 @@ export default function TrainingFinderPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    const majorFromUrl = searchParams.get("major") || "";
+    const cityFromUrl = searchParams.get("city") || "";
+    const hasKnownMajor = specializationOptions.some(
+      (option) => option.value === majorFromUrl
+    );
+
+    if (!hasKnownMajor) {
+      fetchOpportunities();
+      return;
+    }
+
+    setSelectedSpecialty(majorFromUrl);
+    setCity(cityFromUrl);
+    runTrainingTargetSearch(majorFromUrl, cityFromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fetchTrainingTargets = async (event) => {
+    event.preventDefault();
+    runTrainingTargetSearch(selectedSpecialty, city);
   };
 
   return (
