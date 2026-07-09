@@ -3,9 +3,21 @@ import axios from "axios";
 import API_BASE_URL from "../config/api";
 import majors from "../majors";
 
+const adminColors = {
+  brand: "#66d0c3",
+  brandStrong: "#8ee7dc",
+  text: "#d8e5e2",
+  textSoft: "#bfccc9",
+  muted: "#8e9f9b",
+  card: "rgba(255,255,255,0.035)",
+  cardBorder: "rgba(216,229,226,0.09)",
+  inputBg: "#10151a",
+  inputBorder: "rgba(102,208,195,0.22)",
+};
+
 const cardStyle = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: adminColors.card,
+  border: `1px solid ${adminColors.cardBorder}`,
   borderRadius: "14px",
   padding: "16px",
   textAlign: "right",
@@ -284,9 +296,9 @@ const adminSelectStyle = {
   width: "100%",
   boxSizing: "border-box",
   marginTop: "5px",
-  background: "#111318",
-  color: "#fff",
-  border: "1px solid rgba(125,219,205,0.25)",
+  background: adminColors.inputBg,
+  color: adminColors.text,
+  border: `1px solid ${adminColors.inputBorder}`,
   borderRadius: "9px",
   padding: "9px",
   fontFamily: "inherit",
@@ -726,9 +738,9 @@ export default function AdminReviewPage() {
     labelFormatter = (value) => value
   ) => (
     <section style={cardStyle}>
-      <h3 style={{ color: "#7ddbcd", margin: "0 0 12px" }}>{title}</h3>
+      <h3 style={{ color: adminColors.brand, margin: "0 0 12px" }}>{title}</h3>
       {items.length === 0 ? (
-        <p style={{ color: "#9ca3af", margin: 0 }}>لا توجد بيانات كافية بعد.</p>
+        <p style={{ color: adminColors.muted, margin: 0 }}>لا توجد بيانات كافية بعد.</p>
       ) : (
         <div style={{ display: "grid", gap: "9px" }}>
           {items.map((item) => (
@@ -739,7 +751,7 @@ export default function AdminReviewPage() {
                 justifyContent: "space-between",
                 gap: "12px",
                 alignItems: "center",
-                color: "#e5e7eb",
+                color: adminColors.text,
                 borderBottom: "1px solid rgba(255,255,255,0.06)",
                 paddingBottom: "8px",
               }}
@@ -747,7 +759,7 @@ export default function AdminReviewPage() {
               <span style={{ overflowWrap: "anywhere", lineHeight: 1.7 }}>
                 {labelFormatter(item.label)}
               </span>
-              <strong style={{ color: "#7ddbcd", whiteSpace: "nowrap" }}>
+              <strong style={{ color: adminColors.brand, whiteSpace: "nowrap" }}>
                 {item.count}
               </strong>
             </div>
@@ -944,10 +956,10 @@ export default function AdminReviewPage() {
       }}
     >
       <header style={{ marginBottom: "20px", textAlign: "right" }}>
-        <h1 style={{ color: "#fff", margin: 0 }}>
+        <h1 style={{ color: adminColors.text, margin: 0 }}>
           مراجعة التجارب والاقتراحات والفرص
         </h1>
-        <p style={{ color: "#9ca3af", lineHeight: 1.8 }}>
+        <p style={{ color: adminColors.muted, lineHeight: 1.8 }}>
           صفحة خاصة لاعتماد التجارب، متابعة الاقتراحات، وإدارة فرص التدريب.
         </p>
       </header>
@@ -963,7 +975,7 @@ export default function AdminReviewPage() {
         <label
           htmlFor="admin-password"
           style={{
-            color: "#cbd5e1",
+            color: adminColors.textSoft,
             fontSize: "13px",
             fontWeight: "700",
           }}
@@ -979,10 +991,10 @@ export default function AdminReviewPage() {
           style={{
             width: "100%",
             boxSizing: "border-box",
-            background: "#111318",
-            border: "1px solid rgba(125,219,205,0.35)",
+            background: adminColors.inputBg,
+            border: `1px solid ${adminColors.inputBorder}`,
             borderRadius: "10px",
-            color: "#fff",
+            color: adminColors.text,
             padding: "12px",
             fontFamily: "inherit",
           }}
@@ -1001,12 +1013,12 @@ export default function AdminReviewPage() {
         }}
       >
         <div>
-          <p style={{ color: "#9ca3af", margin: "0 0 4px", fontSize: "13px" }}>
+          <p style={{ color: adminColors.muted, margin: "0 0 4px", fontSize: "13px" }}>
             العدد الحالي
           </p>
           <strong
             style={{
-              color: "#7ddbcd",
+              color: adminColors.brand,
               fontSize: "34px",
               lineHeight: 1,
               letterSpacing: 0,
@@ -1017,7 +1029,7 @@ export default function AdminReviewPage() {
         </div>
         <p
           style={{
-            color: "#e5e7eb",
+            color: adminColors.text,
             margin: 0,
             fontSize: "14px",
             lineHeight: 1.7,
@@ -1042,10 +1054,10 @@ export default function AdminReviewPage() {
           value={adminView}
           onChange={(e) => setAdminView(e.target.value)}
           style={{
-            background: "#111318",
-            border: "1px solid rgba(125,219,205,0.25)",
+            background: adminColors.inputBg,
+            border: `1px solid ${adminColors.inputBorder}`,
             borderRadius: "10px",
-            color: "#fff",
+            color: adminColors.text,
             padding: "11px 12px",
             fontFamily: "inherit",
           }}
@@ -1061,10 +1073,10 @@ export default function AdminReviewPage() {
             value={analyticsDays}
             onChange={(e) => setAnalyticsDays(e.target.value)}
             style={{
-              background: "#111318",
-              border: "1px solid rgba(125,219,205,0.25)",
+              background: adminColors.inputBg,
+              border: `1px solid ${adminColors.inputBorder}`,
               borderRadius: "10px",
-              color: "#fff",
+              color: adminColors.text,
               padding: "11px 12px",
               fontFamily: "inherit",
             }}
@@ -1085,10 +1097,10 @@ export default function AdminReviewPage() {
             }
             disabled={adminView === "suggestions"}
             style={{
-              background: "#111318",
-              border: "1px solid rgba(125,219,205,0.25)",
+              background: adminColors.inputBg,
+              border: `1px solid ${adminColors.inputBorder}`,
               borderRadius: "10px",
-              color: "#fff",
+              color: adminColors.text,
               padding: "11px 12px",
               fontFamily: "inherit",
               opacity: adminView === "suggestions" ? 0.45 : 1,
@@ -1115,8 +1127,8 @@ export default function AdminReviewPage() {
           onClick={refreshCurrentView}
           disabled={loading}
           style={{
-            background: "#7ddbcd",
-            color: "#000",
+            background: adminColors.brand,
+            color: "#061312",
             border: "none",
             borderRadius: "10px",
             padding: "11px 16px",
@@ -1170,10 +1182,10 @@ export default function AdminReviewPage() {
               ],
             ].map(([label, value]) => (
               <div key={label} style={cardStyle}>
-                <p style={{ color: "#9ca3af", margin: "0 0 8px", fontSize: 13 }}>
+                <p style={{ color: adminColors.muted, margin: "0 0 8px", fontSize: 13 }}>
                   {label}
                 </p>
-                <strong style={{ color: "#7ddbcd", fontSize: 28 }}>
+                <strong style={{ color: adminColors.brand, fontSize: 28 }}>
                   {value}
                 </strong>
               </div>
@@ -1214,11 +1226,11 @@ export default function AdminReviewPage() {
           </section>
 
           <section style={cardStyle}>
-            <h3 style={{ color: "#7ddbcd", margin: "0 0 12px" }}>
+            <h3 style={{ color: adminColors.brand, margin: "0 0 12px" }}>
               آخر الأحداث
             </h3>
             {analytics.recentEvents.length === 0 ? (
-              <p style={{ color: "#9ca3af", margin: 0 }}>
+              <p style={{ color: adminColors.muted, margin: 0 }}>
                 لا توجد أحداث مسجلة بعد.
               </p>
             ) : (
@@ -1230,7 +1242,7 @@ export default function AdminReviewPage() {
                       border: "1px solid rgba(255,255,255,0.07)",
                       borderRadius: "12px",
                       padding: "10px",
-                      color: "#e5e7eb",
+                      color: adminColors.text,
                     }}
                   >
                     <div
@@ -1242,14 +1254,14 @@ export default function AdminReviewPage() {
                         marginBottom: "6px",
                       }}
                     >
-                      <strong style={{ color: "#7ddbcd" }}>
+                      <strong style={{ color: adminColors.brand }}>
                         {analyticsEventLabels[event.eventName] || event.eventName}
                       </strong>
-                      <span style={{ color: "#9ca3af", fontSize: 12 }}>
+                      <span style={{ color: adminColors.muted, fontSize: 12 }}>
                         {formatAdminDateTime(event.createdAt)}
                       </span>
                     </div>
-                    <p style={{ margin: 0, color: "#cbd5e1", lineHeight: 1.7 }}>
+                    <p style={{ margin: 0, color: adminColors.textSoft, lineHeight: 1.7 }}>
                       {event.major ? `التخصص: ${event.major} · ` : ""}
                       {event.city ? `المدينة: ${event.city} · ` : ""}
                       {event.searchQuery ? `البحث: ${event.searchQuery} · ` : ""}
@@ -1265,7 +1277,7 @@ export default function AdminReviewPage() {
       ) : adminView === "suggestions" ? (
         <div style={{ display: "grid", gap: "12px" }}>
           {suggestions.length === 0 && !loading ? (
-            <div style={{ ...cardStyle, color: "#9ca3af", textAlign: "center" }}>
+            <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
               لا توجد اقتراحات حاليًا.
             </div>
           ) : (
@@ -1280,17 +1292,17 @@ export default function AdminReviewPage() {
                     marginBottom: "10px",
                   }}
                 >
-                  <h3 style={{ color: "#7ddbcd", margin: 0 }}>اقتراح من زائر</h3>
+                  <h3 style={{ color: adminColors.brand, margin: 0 }}>اقتراح من زائر</h3>
                   <div
                     style={{
-                      color: "#9ca3af",
+                      color: adminColors.muted,
                       fontSize: "13px",
                       lineHeight: 1.8,
                       textAlign: "left",
                     }}
                   >
                     <div>أضيف:</div>
-                    <strong style={{ color: "#cbd5e1", fontWeight: "600" }}>
+                    <strong style={{ color: adminColors.textSoft, fontWeight: "600" }}>
                       {formatAdminDateTime(suggestion.createdAt)}
                     </strong>
                   </div>
@@ -1298,7 +1310,7 @@ export default function AdminReviewPage() {
 
                 <p
                   style={{
-                    color: "#e5e7eb",
+                    color: adminColors.text,
                     lineHeight: 1.9,
                     whiteSpace: "pre-wrap",
                     overflowWrap: "anywhere",
@@ -1340,10 +1352,10 @@ export default function AdminReviewPage() {
             }}
           >
             <div>
-              <h2 style={{ color: "#7ddbcd", margin: "0 0 6px" }}>
+              <h2 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
                 {editingOpportunityId ? "تعديل فرصة" : "إضافة فرصة تدريب"}
               </h2>
-              <p style={{ color: "#9ca3af", margin: 0, lineHeight: 1.8 }}>
+              <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.8 }}>
                 الفرص هنا تظهر للطلاب في صفحة وين أتدرب بشكل مستقل عن التجارب.
               </p>
             </div>
@@ -1356,7 +1368,7 @@ export default function AdminReviewPage() {
                 ["logoUrl", "رابط الشعار", "https://.../logo.png"],
                 ["sourceUrl", "رابط المصدر", "رابط إعلان رسمي إن وجد"],
               ].map(([field, label, placeholder]) => (
-                <label key={field} style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                <label key={field} style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                   {label}
                   <input
                     value={opportunityForm[field] || ""}
@@ -1374,7 +1386,7 @@ export default function AdminReviewPage() {
 
               <label
                 style={{
-                  color: "#cbd5e1",
+                  color: adminColors.textSoft,
                   fontSize: "13px",
                   gridColumn: "1 / -1",
                 }}
@@ -1407,7 +1419,7 @@ export default function AdminReviewPage() {
                   style={{
                     display: "block",
                     marginTop: "6px",
-                    color: "#9ca3af",
+                    color: adminColors.muted,
                     lineHeight: 1.7,
                   }}
                 >
@@ -1418,7 +1430,7 @@ export default function AdminReviewPage() {
 
               <label
                 style={{
-                  color: "#cbd5e1",
+                  color: adminColors.textSoft,
                   fontSize: "13px",
                   gridColumn: "1 / -1",
                 }}
@@ -1451,7 +1463,7 @@ export default function AdminReviewPage() {
                   style={{
                     display: "block",
                     marginTop: "6px",
-                    color: "#9ca3af",
+                    color: adminColors.muted,
                     lineHeight: 1.7,
                   }}
                 >
@@ -1462,7 +1474,7 @@ export default function AdminReviewPage() {
 
               <label
                 style={{
-                  color: "#cbd5e1",
+                  color: adminColors.textSoft,
                   fontSize: "13px",
                   gridColumn: "1 / -1",
                 }}
@@ -1512,7 +1524,7 @@ export default function AdminReviewPage() {
                   style={{
                     display: "block",
                     marginTop: "6px",
-                    color: "#9ca3af",
+                    color: adminColors.muted,
                     lineHeight: 1.7,
                   }}
                 >
@@ -1526,7 +1538,7 @@ export default function AdminReviewPage() {
                     style={{
                       display: "block",
                       marginTop: "5px",
-                      color: "#7ddbcd",
+                      color: adminColors.brand,
                       lineHeight: 1.7,
                     }}
                   >
@@ -1543,7 +1555,7 @@ export default function AdminReviewPage() {
                 )}
               </label>
 
-              <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
+              <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                 تاريخ انتهاء التقديم
                 <input
                   type="date"
@@ -1558,7 +1570,7 @@ export default function AdminReviewPage() {
               {opportunitySelectFields.map((field) => (
                 <label
                   key={field.field}
-                  style={{ color: "#cbd5e1", fontSize: "13px" }}
+                  style={{ color: adminColors.textSoft, fontSize: "13px" }}
                 >
                   {field.label}
                   <select
@@ -1578,7 +1590,7 @@ export default function AdminReviewPage() {
               ))}
             </div>
 
-            <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
+            <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
               ملاحظة للطلاب
               <textarea
                 value={opportunityForm.note || ""}
@@ -1597,7 +1609,7 @@ export default function AdminReviewPage() {
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                color: "#cbd5e1",
+                color: adminColors.textSoft,
                 fontSize: "13px",
               }}
             >
@@ -1625,7 +1637,7 @@ export default function AdminReviewPage() {
                   onClick={resetOpportunityForm}
                   style={{
                     background: "transparent",
-                    color: "#cbd5e1",
+                    color: adminColors.textSoft,
                     border: "1px solid rgba(203,213,225,0.35)",
                     borderRadius: "10px",
                     padding: "9px 14px",
@@ -1640,8 +1652,8 @@ export default function AdminReviewPage() {
                 type="submit"
                 disabled={savingOpportunity}
                 style={{
-                  background: "#7ddbcd",
-                  color: "#000",
+                  background: adminColors.brand,
+                  color: "#061312",
                   border: "none",
                   borderRadius: "10px",
                   padding: "9px 14px",
@@ -1660,7 +1672,7 @@ export default function AdminReviewPage() {
           </form>
 
           {opportunities.length === 0 && !loading ? (
-            <div style={{ ...cardStyle, color: "#9ca3af", textAlign: "center" }}>
+            <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
               لا توجد فرص في هذا التصنيف.
             </div>
           ) : (
@@ -1682,10 +1694,10 @@ export default function AdminReviewPage() {
                   }}
                 >
                   <div>
-                    <h3 style={{ color: "#7ddbcd", margin: "0 0 6px" }}>
+                    <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
                       {opportunity.title}
                     </h3>
-                    <p style={{ color: "#cbd5e1", margin: 0, lineHeight: 1.7 }}>
+                    <p style={{ color: adminColors.textSoft, margin: 0, lineHeight: 1.7 }}>
                       {opportunity.organizationName}
                       {getOpportunityCitiesText(opportunity)
                         ? ` - ${getOpportunityCitiesText(opportunity)}`
@@ -1715,14 +1727,14 @@ export default function AdminReviewPage() {
                   </span>
                   <div
                     style={{
-                      color: "#9ca3af",
+                      color: adminColors.muted,
                       fontSize: "13px",
                       lineHeight: 1.8,
                       textAlign: "left",
                     }}
                   >
                     <div>آخر تحديث:</div>
-                    <strong style={{ color: "#cbd5e1", fontWeight: "600" }}>
+                    <strong style={{ color: adminColors.textSoft, fontWeight: "600" }}>
                       {formatAdminDateTime(opportunity.updatedAt)}
                     </strong>
                   </div>
@@ -1776,7 +1788,7 @@ export default function AdminReviewPage() {
 
                 <p
                   style={{
-                    color: "#e5e7eb",
+                    color: adminColors.text,
                     lineHeight: 1.9,
                     whiteSpace: "pre-wrap",
                     overflowWrap: "anywhere",
@@ -1788,7 +1800,7 @@ export default function AdminReviewPage() {
 
                 <div
                   style={{
-                    color: "#9ca3af",
+                    color: adminColors.muted,
                     fontSize: "13px",
                     lineHeight: 1.8,
                     marginBottom: "12px",
@@ -1824,7 +1836,7 @@ export default function AdminReviewPage() {
                     onClick={() => startOpportunityEdit(opportunity)}
                     style={{
                       background: "rgba(125,219,205,0.08)",
-                      color: "#7ddbcd",
+                      color: adminColors.brand,
                       border: "1px solid rgba(125,219,205,0.35)",
                       borderRadius: "10px",
                       padding: "9px 14px",
@@ -1859,7 +1871,7 @@ export default function AdminReviewPage() {
       ) : (
         <div style={{ display: "grid", gap: "12px" }}>
           {experiences.length === 0 && !loading ? (
-            <div style={{ ...cardStyle, color: "#9ca3af", textAlign: "center" }}>
+            <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
               لا توجد تجارب في هذا التصنيف.
             </div>
           ) : (
@@ -1875,23 +1887,23 @@ export default function AdminReviewPage() {
                 }}
               >
                 <div>
-                  <h3 style={{ color: "#7ddbcd", margin: "0 0 6px" }}>
+                  <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
                     {exp.title || `تجربة في ${exp.organizationName}`}
                   </h3>
-                  <p style={{ color: "#cbd5e1", margin: 0, lineHeight: 1.7 }}>
+                  <p style={{ color: adminColors.textSoft, margin: 0, lineHeight: 1.7 }}>
                     {exp.organizationName} - {exp.city} - {getReadableMajor(exp)}
                   </p>
                 </div>
                 <div
                   style={{
-                    color: "#9ca3af",
+                    color: adminColors.muted,
                     fontSize: "13px",
                     lineHeight: 1.8,
                     textAlign: "left",
                   }}
                 >
                   <div>أضيفت:</div>
-                  <strong style={{ color: "#cbd5e1", fontWeight: "600" }}>
+                  <strong style={{ color: adminColors.textSoft, fontWeight: "600" }}>
                     {formatAdminDateTime(exp.createdAt)}
                   </strong>
                 </div>
@@ -1953,7 +1965,7 @@ export default function AdminReviewPage() {
                       ["trainingYear", "سنة التدريب"],
                       ["rewardAmount", "قيمة المكافأة"],
                     ].map(([field, label]) => (
-                      <label key={field} style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                      <label key={field} style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                         {label}
                         <input
                           value={editForm[field] || ""}
@@ -1962,9 +1974,9 @@ export default function AdminReviewPage() {
                             width: "100%",
                             boxSizing: "border-box",
                             marginTop: "5px",
-                            background: "#111318",
-                            color: "#fff",
-                            border: "1px solid rgba(125,219,205,0.25)",
+                            background: adminColors.inputBg,
+                            color: adminColors.text,
+                            border: `1px solid ${adminColors.inputBorder}`,
                             borderRadius: "9px",
                             padding: "9px",
                             fontFamily: "inherit",
@@ -1975,7 +1987,7 @@ export default function AdminReviewPage() {
                   </div>
 
                   <div className="admin-edit-grid">
-                    <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                    <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                       التقييم
                       <select
                         value={editForm.starRating || ""}
@@ -1993,7 +2005,7 @@ export default function AdminReviewPage() {
                     {adminQuickSelectFields.map((field) => (
                       <label
                         key={field.field}
-                        style={{ color: "#cbd5e1", fontSize: "13px" }}
+                        style={{ color: adminColors.textSoft, fontSize: "13px" }}
                       >
                         {field.label}
                         <select
@@ -2013,7 +2025,7 @@ export default function AdminReviewPage() {
                     ))}
                   </div>
 
-                  <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                  <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                     وصف التجربة
                     <textarea
                       value={editForm.description || ""}
@@ -2023,9 +2035,9 @@ export default function AdminReviewPage() {
                         width: "100%",
                         boxSizing: "border-box",
                         marginTop: "5px",
-                        background: "#111318",
-                        color: "#fff",
-                        border: "1px solid rgba(125,219,205,0.25)",
+                        background: adminColors.inputBg,
+                        color: adminColors.text,
+                        border: `1px solid ${adminColors.inputBorder}`,
                         borderRadius: "9px",
                         padding: "10px",
                         fontFamily: "inherit",
@@ -2034,7 +2046,7 @@ export default function AdminReviewPage() {
                     />
                   </label>
 
-                  <label style={{ color: "#cbd5e1", fontSize: "13px" }}>
+                  <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                     سبب الرفض
                     <textarea
                       value={editForm.rejectionReason || ""}
@@ -2046,9 +2058,9 @@ export default function AdminReviewPage() {
                         width: "100%",
                         boxSizing: "border-box",
                         marginTop: "5px",
-                        background: "#111318",
-                        color: "#fff",
-                        border: "1px solid rgba(125,219,205,0.25)",
+                        background: adminColors.inputBg,
+                        color: adminColors.text,
+                        border: `1px solid ${adminColors.inputBorder}`,
                         borderRadius: "9px",
                         padding: "10px",
                         fontFamily: "inherit",
@@ -2060,7 +2072,7 @@ export default function AdminReviewPage() {
               ) : (
                 <p
                   style={{
-                    color: "#e5e7eb",
+                    color: adminColors.text,
                     lineHeight: 1.9,
                     whiteSpace: "pre-wrap",
                     overflowWrap: "anywhere",
@@ -2104,8 +2116,8 @@ export default function AdminReviewPage() {
                       onClick={() => saveExperienceEdit(exp._id)}
                       disabled={savingEdit}
                       style={{
-                        background: "#7ddbcd",
-                        color: "#000",
+                        background: adminColors.brand,
+                        color: "#061312",
                         border: "none",
                         borderRadius: "10px",
                         padding: "9px 14px",
@@ -2121,7 +2133,7 @@ export default function AdminReviewPage() {
                       onClick={cancelEditing}
                       style={{
                         background: "transparent",
-                        color: "#cbd5e1",
+                        color: adminColors.textSoft,
                         border: "1px solid rgba(203,213,225,0.35)",
                         borderRadius: "10px",
                         padding: "9px 14px",
@@ -2139,8 +2151,8 @@ export default function AdminReviewPage() {
                         type="button"
                         onClick={() => updateStatus(exp._id, "approved")}
                         style={{
-                          background: "#7ddbcd",
-                          color: "#000",
+                          background: adminColors.brand,
+                          color: "#061312",
                           border: "none",
                           borderRadius: "10px",
                           padding: "9px 14px",
@@ -2157,7 +2169,7 @@ export default function AdminReviewPage() {
                       onClick={() => startEditing(exp)}
                       style={{
                         background: "rgba(125,219,205,0.08)",
-                        color: "#7ddbcd",
+                        color: adminColors.brand,
                         border: "1px solid rgba(125,219,205,0.35)",
                         borderRadius: "10px",
                         padding: "9px 14px",

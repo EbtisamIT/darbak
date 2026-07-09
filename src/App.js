@@ -849,7 +849,7 @@ function AppLayout({ theme, setTheme }) {
         style={{
           ...appStyle,
           backgroundColor: "#0b0f14",
-          color: "#cbd5e1",
+          color: "#d8e5e2",
         }}
       >
         <div
