@@ -221,6 +221,35 @@ function PageBanner() {
   );
 }
 
+function GuideAnnouncementBar() {
+  const location = useLocation();
+
+  const trackGuideBarClick = () => {
+    trackEvent("training_guide_bar_click", {
+      page: location.pathname,
+      metadata: { source: "top_announcement_bar" },
+    });
+  };
+
+  return (
+    <div className="top-guide-announcement" dir="rtl">
+      <a
+        className="top-guide-announcement__link"
+        href={guideUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={trackGuideBarClick}
+      >
+        <span className="top-guide-announcement__eyebrow">رحلة المتدرب</span>
+        <span className="top-guide-announcement__text">
+          اختصر طريق التدريب من التقديم إلى المتابعة وكتابة التقرير
+        </span>
+        <span className="top-guide-announcement__action">ابدأ بخطوة مرتبة</span>
+      </a>
+    </div>
+  );
+}
+
 function PlatformUpdateNotice() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1055,6 +1084,7 @@ function AppLayout({ theme, setTheme }) {
 
   return (
     <div style={appStyle}>
+      <GuideAnnouncementBar />
       <Navbar theme={theme} setTheme={setTheme} />
 
       <PageBanner />
