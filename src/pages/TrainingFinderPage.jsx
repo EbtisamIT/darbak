@@ -206,7 +206,7 @@ const getOrganizationDomain = (url = "") => {
 const getOrganizationLogoUrl = (url = "") => {
   const domain = getOrganizationDomain(url);
   if (!domain) return "";
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+  return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
 };
 
 const getOrganizationInitial = (name = "") => {
@@ -239,13 +239,15 @@ const OrganizationLogo = ({ name, url, imageUrl }) => {
         minHeight: "42px",
         maxHeight: "42px",
         aspectRatio: "1 / 1",
-        background: "var(--app-brand-soft)",
+        background:
+          "linear-gradient(145deg, var(--app-card), var(--app-brand-soft))",
         border: "1px solid var(--app-brand-border)",
         color: "var(--app-brand)",
-        fontSize: "18px",
+        fontSize: "19px",
         fontWeight: "900",
         lineHeight: 1,
         overflow: "hidden",
+        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
       }}
     >
       {logoUrl && !hasImageError ? (
@@ -258,13 +260,13 @@ const OrganizationLogo = ({ name, url, imageUrl }) => {
           referrerPolicy="no-referrer"
           onError={() => setHasImageError(true)}
           style={{
-            width: "24px",
-            height: "24px",
-            minWidth: "24px",
-            minHeight: "24px",
+            width: "31px",
+            height: "31px",
+            minWidth: "31px",
+            minHeight: "31px",
             display: "block",
             objectFit: "contain",
-            borderRadius: "6px",
+            borderRadius: "8px",
           }}
         />
       ) : (
@@ -2555,10 +2557,11 @@ export default function TrainingFinderPage() {
           }
 
           .suggested-organization-logo img {
-            width: 20px !important;
-            height: 20px !important;
-            min-width: 20px !important;
-            min-height: 20px !important;
+            width: 27px !important;
+            height: 27px !important;
+            min-width: 27px !important;
+            min-height: 27px !important;
+            border-radius: 7px !important;
           }
 
           .suggested-card-head {
