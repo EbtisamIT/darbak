@@ -257,6 +257,145 @@ const getSpecialtiesForCategories = (selectedCategories = []) => {
   return specialtyOptions.filter((option) => categories.includes(option.category));
 };
 
+const toggleArrayValue = (values = [], value) => {
+  const currentValues = normalizeFormArray(values);
+  return currentValues.includes(value)
+    ? currentValues.filter((item) => item !== value)
+    : [...currentValues, value];
+};
+
+function MultiChipSelector({
+  label,
+  values,
+  options,
+  onChange,
+  helpText,
+  emptyLabel = "كل الخيارات",
+  maxHeight = "190px",
+  showEmptyButton = true,
+}) {
+  const selectedValues = normalizeFormArray(values);
+  const selectedSet = new Set(selectedValues);
+
+  return (
+    <div
+      style={{
+        color: adminColors.textSoft,
+        fontSize: "13px",
+        gridColumn: "1 / -1",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "8px",
+          marginBottom: "8px",
+          flexWrap: "wrap",
+        }}
+      >
+        <span>{label}</span>
+        <span
+          style={{
+            color: adminColors.brand,
+            fontSize: "12px",
+            fontWeight: "800",
+          }}
+        >
+          {selectedValues.length > 0
+            ? `${selectedValues.length} محدد`
+            : emptyLabel}
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "7px",
+          maxHeight,
+          overflowY: "auto",
+          padding: "10px",
+          background: adminColors.inputBg,
+          border: `1px solid ${adminColors.inputBorder}`,
+          borderRadius: "12px",
+        }}
+      >
+        {showEmptyButton && (
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            style={{
+              background:
+                selectedValues.length === 0 ? adminColors.brand : "transparent",
+              color: selectedValues.length === 0 ? "#07100e" : adminColors.textSoft,
+              border: `1px solid ${
+                selectedValues.length === 0
+                  ? adminColors.brand
+                  : adminColors.inputBorder
+              }`,
+              borderRadius: "999px",
+              padding: "7px 11px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontWeight: "800",
+              fontSize: "12px",
+            }}
+          >
+            {emptyLabel}
+          </button>
+        )}
+
+        {options.map((option) => {
+          const optionValue =
+            typeof option === "string" ? option : option.value || option.name;
+          const optionLabel =
+            typeof option === "string" ? option : option.label || option.name;
+          const active = selectedSet.has(optionValue);
+
+          return (
+            <button
+              key={optionValue}
+              type="button"
+              onClick={() => onChange(toggleArrayValue(selectedValues, optionValue))}
+              style={{
+                background: active ? adminColors.brand : "rgba(255,255,255,0.035)",
+                color: active ? "#07100e" : adminColors.text,
+                border: `1px solid ${
+                  active ? adminColors.brand : adminColors.inputBorder
+                }`,
+                borderRadius: "999px",
+                padding: "7px 11px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontWeight: active ? "900" : "700",
+                fontSize: "12px",
+                lineHeight: 1.5,
+              }}
+            >
+              {optionLabel}
+            </button>
+          );
+        })}
+      </div>
+
+      {helpText && (
+        <small
+          style={{
+            display: "block",
+            marginTop: "6px",
+            color: adminColors.muted,
+            lineHeight: 1.7,
+          }}
+        >
+          {helpText}
+        </small>
+      )}
+    </div>
+  );
+}
+
 const getOpportunityCitiesForForm = (opportunity = {}) => {
   const cities = normalizeFormArray(opportunity.cities);
   if (cities.length > 0) return cities;
@@ -807,22 +946,37 @@ export default function AdminReviewPage() {
 
     if (field === "specialties") {
       const selectedSpecialties = normalizeFormArray(value);
-      const nextSpecialties = selectedSpecialties.includes(ALL_SPECIALTIES_VALUE)
-        ? [ALL_SPECIALTIES_VALUE]
-        : selectedSpecialties;
 
-      setOpportunityForm((prev) => ({
-        ...prev,
-        specialties: nextSpecialties,
-        majorCategories: nextSpecialties.includes(ALL_SPECIALTIES_VALUE)
-          ? []
-          : Array.from(
-              new Set([
-                ...normalizeFormArray(prev.majorCategories),
-                ...getCategoriesForSpecialties(nextSpecialties),
-              ])
-            ),
-      }));
+      setOpportunityForm((prev) => {
+        const previousSpecialties = normalizeFormArray(prev.specialties);
+        const hadAllSpecialties = previousSpecialties.includes(
+          ALL_SPECIALTIES_VALUE
+        );
+        const pickedAllSpecialties = selectedSpecialties.includes(
+          ALL_SPECIALTIES_VALUE
+        );
+        const nextSpecialties =
+          pickedAllSpecialties && hadAllSpecialties && selectedSpecialties.length > 1
+            ? selectedSpecialties.filter(
+                (specialty) => specialty !== ALL_SPECIALTIES_VALUE
+              )
+            : pickedAllSpecialties
+            ? [ALL_SPECIALTIES_VALUE]
+            : selectedSpecialties;
+
+        return {
+          ...prev,
+          specialties: nextSpecialties,
+          majorCategories: nextSpecialties.includes(ALL_SPECIALTIES_VALUE)
+            ? []
+            : Array.from(
+                new Set([
+                  ...normalizeFormArray(prev.majorCategories),
+                  ...getCategoriesForSpecialties(nextSpecialties),
+                ])
+              ),
+        };
+      });
       return;
     }
 
@@ -1384,153 +1538,60 @@ export default function AdminReviewPage() {
                 </label>
               ))}
 
-              <label
-                style={{
-                  color: adminColors.textSoft,
-                  fontSize: "13px",
-                  gridColumn: "1 / -1",
-                }}
-              >
-                المدن أو المناطق المناسبة
-                <select
-                  multiple
-                  value={normalizeFormArray(opportunityForm.cities)}
-                  onChange={(e) =>
-                    updateOpportunityField(
-                      "cities",
-                      Array.from(e.target.selectedOptions).map(
-                        (option) => option.value
-                      )
-                    )
-                  }
-                  style={{
-                    ...adminSelectStyle,
-                    minHeight: "130px",
-                    lineHeight: 1.7,
-                  }}
-                >
-                  {opportunityCityOptions.map((cityName) => (
-                    <option key={cityName} value={cityName}>
-                      {cityName}
-                    </option>
-                  ))}
-                </select>
-                <small
-                  style={{
-                    display: "block",
-                    marginTop: "6px",
-                    color: adminColors.muted,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  اترك/ي المدن بدون تحديد إذا كانت الفرصة عامة لكل المدن، أو
-                  حددي أكثر من مدينة/منطقة.
-                </small>
-              </label>
+              <MultiChipSelector
+                label="المدن أو المناطق المناسبة"
+                values={opportunityForm.cities}
+                options={opportunityCityOptions}
+                onChange={(nextCities) =>
+                  updateOpportunityField("cities", nextCities)
+                }
+                emptyLabel="كل المدن"
+                maxHeight="150px"
+                helpText="اترك/يها على كل المدن إذا كانت الفرصة عامة، أو اضغطي أكثر من مدينة/منطقة لإضافتها."
+              />
 
-              <label
-                style={{
-                  color: adminColors.textSoft,
-                  fontSize: "13px",
-                  gridColumn: "1 / -1",
-                }}
-              >
-                التخصصات الرئيسية المناسبة
-                <select
-                  multiple
-                  value={normalizeFormArray(opportunityForm.majorCategories)}
-                  onChange={(e) =>
-                    updateOpportunityField(
-                      "majorCategories",
-                      Array.from(e.target.selectedOptions).map(
-                        (option) => option.value
-                      )
-                    )
-                  }
-                  style={{
-                    ...adminSelectStyle,
-                    minHeight: "155px",
-                    lineHeight: 1.7,
-                  }}
-                >
-                  {majorCategoryOptions.map((categoryName) => (
-                    <option key={categoryName} value={categoryName}>
-                      {categoryName}
-                    </option>
-                  ))}
-                </select>
-                <small
-                  style={{
-                    display: "block",
-                    marginTop: "6px",
-                    color: adminColors.muted,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  اترك/يها فارغة إذا كانت الفرصة لكل التخصصات، أو اختاري
-                  أكثر من تخصص رئيسي.
-                </small>
-              </label>
+              <MultiChipSelector
+                label="التخصصات الرئيسية المناسبة"
+                values={opportunityForm.majorCategories}
+                options={majorCategoryOptions}
+                onChange={(nextCategories) =>
+                  updateOpportunityField("majorCategories", nextCategories)
+                }
+                emptyLabel="كل التخصصات"
+                maxHeight="165px"
+                helpText="اختاري أكثر من تخصص رئيسي بالضغط على الشرائح. تركها فارغة يعني أن الفرصة عامة أو حسب التخصصات الفرعية المختارة."
+              />
 
-              <label
+              <div
                 style={{
                   color: adminColors.textSoft,
                   fontSize: "13px",
                   gridColumn: "1 / -1",
                 }}
               >
-                التخصصات الفرعية المناسبة
-                <select
-                  multiple
-                  value={normalizeFormArray(opportunityForm.specialties)}
-                  onChange={(e) =>
-                    updateOpportunityField(
-                      "specialties",
-                      Array.from(e.target.selectedOptions).map(
-                        (option) => option.value
-                      )
-                    )
+                <MultiChipSelector
+                  label="التخصصات الفرعية المناسبة"
+                  values={opportunityForm.specialties}
+                  options={[
+                    {
+                      value: ALL_SPECIALTIES_VALUE,
+                      label: "جميع التخصصات",
+                    },
+                    ...getSpecialtiesForCategories(
+                      normalizeFormArray(opportunityForm.majorCategories)
+                    ).map((option) => ({
+                      value: option.name,
+                      label: option.name,
+                    })),
+                  ]}
+                  onChange={(nextSpecialties) =>
+                    updateOpportunityField("specialties", nextSpecialties)
                   }
-                  style={{
-                    ...adminSelectStyle,
-                    minHeight: "170px",
-                    lineHeight: 1.7,
-                  }}
-                >
-                  <option value={ALL_SPECIALTIES_VALUE}>جميع التخصصات</option>
-                  {majorCategoryOptions
-                    .filter((categoryName) => {
-                      const selectedCategories = normalizeFormArray(
-                        opportunityForm.majorCategories
-                      );
-                      return (
-                        selectedCategories.length === 0 ||
-                        selectedCategories.includes(categoryName)
-                      );
-                    })
-                    .map((categoryName) => (
-                      <optgroup key={categoryName} label={categoryName}>
-                        {specialtyOptions
-                          .filter((option) => option.category === categoryName)
-                          .map((option) => (
-                            <option key={option.name} value={option.name}>
-                              {option.name}
-                            </option>
-                          ))}
-                      </optgroup>
-                    ))}
-                </select>
-                <small
-                  style={{
-                    display: "block",
-                    marginTop: "6px",
-                    color: adminColors.muted,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  إذا اخترت/ي تخصصات رئيسية، تظهر لك فروعها فقط هنا. اختيار
-                  "جميع التخصصات" يجعل الفرصة عامة.
-                </small>
+                  emptyLabel="كل التخصصات الفرعية"
+                  maxHeight="190px"
+                  showEmptyButton={false}
+                  helpText="إذا اخترت/ي تخصصات رئيسية، تظهر لك فروعها فقط هنا. اختيار جميع التخصصات يجعل الفرصة عامة."
+                />
                 {!normalizeFormArray(opportunityForm.specialties).includes(
                   ALL_SPECIALTIES_VALUE
                 ) && (
@@ -1553,7 +1614,7 @@ export default function AdminReviewPage() {
                     ).join("، ") || "غير محدد"}
                   </small>
                 )}
-              </label>
+              </div>
 
               <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                 تاريخ انتهاء التقديم
