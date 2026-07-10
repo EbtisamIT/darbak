@@ -134,41 +134,41 @@ const buildGuideRecommendation = (answers) => {
   if (answers.fear === "unknownTargets") {
     return {
       title: "ابدأ بقائمة جهات بدل البحث من الصفر",
-      text: "ملف رحلة المتدرب يرتب لك الجهات وروابط التقديم والمتابعة عشان تبدأ بخطوة واضحة.",
+      text: "رتب أول قائمة تقديم لك بروابط وجهات واضحة بدل التنقل بين مصادر كثيرة.",
     };
   }
 
   if (answers.fear === "email") {
     return {
-      title: "خل التواصل أسهل من أول رسالة",
-      text: "إذا كان الإيميل هو العائق، الملف يساعدك بخطوات تقديم ومتابعة وصياغة تواصل مرتبة.",
+      title: "خل أول تواصل أسهل",
+      text: "ابدأ بصياغة مرتبة وخطة متابعة واضحة بدل التردد قبل إرسال أول رسالة.",
     };
   }
 
   if (answers.fear === "late") {
     return {
       title: "اختصر وقت البحث وابدأ مباشرة",
-      text: "لما الوقت يضغط، تحتاج خطة مختصرة: جهات، روابط، متابعة، وخطوات واضحة للتقديم.",
+      text: "لما الوقت يضغط، الأفضل تمشي على خطوات قصيرة: جهات، روابط، متابعة، ثم تقرير.",
     };
   }
 
   if (answers.hasCv === "no" || answers.fear === "noCv") {
     return {
       title: "رتب ملفك ثم ابدأ التقديم بثقة",
-      text: "رحلة المتدرب تساعدك تفهم خطوات الاستعداد والتقديم والمتابعة بدون تشتت.",
+      text: "ابدأ من ترتيب الاستعداد، ثم انتقل للتقديم والمتابعة بدون تشتت.",
     };
   }
 
   if (answers.priority === "reward") {
     return {
       title: "دور على فرصة مناسبة بدون ما تضيع الجودة",
-      text: "الملف يعطيك طريقة بحث ومتابعة تساعدك توازن بين المكافأة، البيئة، وجودة التجربة.",
+      text: "وازن بين المكافأة، البيئة، وجودة التجربة بخطة بحث ومتابعة أوضح.",
     };
   }
 
   return {
     title: "حوّل التشخيص إلى خطة تقديم",
-    text: "خذ نتيجة التشخيص وابدأ بخطة عملية من البحث عن الجهات إلى التقديم والمتابعة وكتابة التقرير.",
+    text: "خذ نتيجة التشخيص وحولها لخطوات عملية من البحث إلى التقديم والمتابعة.",
   };
 };
 
@@ -629,81 +629,6 @@ function PlatformUpdateNotice() {
 
       <div
         style={{
-          display: "grid",
-          gap: "10px",
-          border: "1px solid var(--app-brand-border)",
-          borderRadius: "16px",
-          padding: "14px",
-          background:
-            "linear-gradient(135deg, rgba(125,219,205,0.13), rgba(245,158,11,0.08))",
-          textAlign: "right",
-        }}
-      >
-        <span
-          style={{
-            color: "var(--app-brand)",
-            fontSize: "14px",
-            fontWeight: "900",
-          }}
-        >
-          خطوتك الجاهزة الآن
-        </span>
-        <strong
-          style={{
-            color: "var(--app-text)",
-            fontSize: "18px",
-            lineHeight: 1.55,
-          }}
-        >
-          {guideRecommendation.title}
-        </strong>
-        <p
-          style={{
-            margin: 0,
-            color: "var(--app-text-soft)",
-            fontSize: "14px",
-            lineHeight: 1.8,
-          }}
-        >
-          {guideRecommendation.text} ملف{" "}
-          <span style={{ color: "var(--app-text)", fontWeight: "900" }}>
-            رحلة المتدرب
-          </span>{" "}
-          يجمع لك الطريق من التقديم إلى كتابة التقرير.
-        </p>
-        <a
-          href={guideUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={trackGuideClick}
-          style={{
-            width: "fit-content",
-            maxWidth: "100%",
-            textDecoration: "none",
-          }}
-        >
-          <button
-            type="button"
-            style={{
-              background: "transparent",
-              color: "var(--app-brand)",
-              border: "1px solid var(--app-brand-border)",
-              borderRadius: "12px",
-              padding: "10px 14px",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontWeight: "900",
-              fontSize: "13px",
-              lineHeight: 1.6,
-            }}
-          >
-            افتح ملف رحلة المتدرب
-          </button>
-        </a>
-      </div>
-
-      <div
-        style={{
           display: "flex",
           justifyContent: "space-between",
           gap: "10px",
@@ -822,6 +747,127 @@ function PlatformUpdateNotice() {
 
       <div
         style={{
+          display: "grid",
+          gap: "12px",
+          border: "1px solid var(--app-border)",
+          borderRadius: "18px",
+          padding: "15px",
+          background: "var(--app-surface)",
+          textAlign: "right",
+        }}
+      >
+        <div style={{ display: "grid", gap: "4px" }}>
+          <span
+            style={{
+              color: "var(--app-brand)",
+              fontSize: "14px",
+              fontWeight: "900",
+            }}
+          >
+            الخطوة التالية
+          </span>
+          <strong
+            style={{
+              color: "var(--app-text)",
+              fontSize: "18px",
+              lineHeight: 1.55,
+            }}
+          >
+            {guideRecommendation.title}
+          </strong>
+          <p
+            style={{
+              margin: 0,
+              color: "var(--app-text-soft)",
+              fontSize: "14px",
+              lineHeight: 1.8,
+            }}
+          >
+            {guideRecommendation.text}
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+            gap: "9px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={openTrainingFinder}
+            style={{
+              display: "grid",
+              gap: "4px",
+              background: "var(--app-brand)",
+              color: "#07100e",
+              border: "none",
+              borderRadius: "14px",
+              padding: "12px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              textAlign: "right",
+            }}
+          >
+            <strong style={{ fontSize: "14px", lineHeight: 1.5 }}>
+              اعرض جهات تناسبك
+            </strong>
+            <span style={{ fontSize: "12px", lineHeight: 1.6, fontWeight: "700" }}>
+              حسب تخصصك والمدينة المختارة
+            </span>
+          </button>
+
+          <a
+            href={guideUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={trackGuideClick}
+            style={{ textDecoration: "none", minWidth: 0 }}
+          >
+            <button
+              type="button"
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "grid",
+                gap: "4px",
+                background: "var(--app-card)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-brand-border)",
+                borderRadius: "14px",
+                padding: "12px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                textAlign: "right",
+              }}
+            >
+              <strong
+                style={{
+                  color: "var(--app-brand)",
+                  fontSize: "14px",
+                  lineHeight: 1.5,
+                }}
+              >
+                رتّب خطة التقديم والمتابعة
+              </strong>
+              <span
+                style={{
+                  color: "var(--app-text-soft)",
+                  fontSize: "12px",
+                  lineHeight: 1.6,
+                  fontWeight: "700",
+                }}
+              >
+                رحلة المتدرب من التقديم إلى التقرير
+              </span>
+            </button>
+          </a>
+        </div>
+      </div>
+
+      <div
+        style={{
           display: "flex",
           gap: "9px",
           justifyContent: "center",
@@ -830,19 +876,19 @@ function PlatformUpdateNotice() {
       >
         <button
           type="button"
-          onClick={openTrainingFinder}
+          onClick={() => setStep("questions")}
           style={{
-            background: "var(--app-brand)",
-            color: "#07100e",
-            border: "none",
+            background: "transparent",
+            color: "var(--app-text-soft)",
+            border: "1px solid var(--app-border)",
             borderRadius: "12px",
-            padding: "10px 15px",
+            padding: "10px 14px",
             cursor: "pointer",
             fontFamily: "inherit",
-            fontWeight: "900",
+            fontWeight: "800",
           }}
         >
-          اعرف وين تتدرب الآن
+          تعديل الإجابات
         </button>
         <button
           type="button"
