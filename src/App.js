@@ -18,6 +18,7 @@ import AddExperienceModal from "./pages/AddExperienceModal";
 import LegalPage from "./pages/LegalPage";
 import AdminReviewPage from "./pages/AdminReviewPage";
 import Footer from "./pages/Footer";
+import { guideUrl } from "./components/TrainingGuideBanner";
 import { trackEvent } from "./utils/analytics";
 
 const PLATFORM_UPDATE_NOTICE_KEY = "darbak_training_diagnosis_quiz_seen_v1";
@@ -129,6 +130,48 @@ const buildTrainingDiagnosis = (answers) => {
   };
 };
 
+const buildGuideRecommendation = (answers) => {
+  if (answers.fear === "unknownTargets") {
+    return {
+      title: "ابدأ بقائمة جهات بدل البحث من الصفر",
+      text: "ملف رحلة المتدرب يرتب لك الجهات وروابط التقديم والمتابعة عشان تبدأ بخطوة واضحة.",
+    };
+  }
+
+  if (answers.fear === "email") {
+    return {
+      title: "خل التواصل أسهل من أول رسالة",
+      text: "إذا كان الإيميل هو العائق، الملف يساعدك بخطوات تقديم ومتابعة وصياغة تواصل مرتبة.",
+    };
+  }
+
+  if (answers.fear === "late") {
+    return {
+      title: "اختصر وقت البحث وابدأ مباشرة",
+      text: "لما الوقت يضغط، تحتاج خطة مختصرة: جهات، روابط، متابعة، وخطوات واضحة للتقديم.",
+    };
+  }
+
+  if (answers.hasCv === "no" || answers.fear === "noCv") {
+    return {
+      title: "رتب ملفك ثم ابدأ التقديم بثقة",
+      text: "رحلة المتدرب تساعدك تفهم خطوات الاستعداد والتقديم والمتابعة بدون تشتت.",
+    };
+  }
+
+  if (answers.priority === "reward") {
+    return {
+      title: "دور على فرصة مناسبة بدون ما تضيع الجودة",
+      text: "الملف يعطيك طريقة بحث ومتابعة تساعدك توازن بين المكافأة، البيئة، وجودة التجربة.",
+    };
+  }
+
+  return {
+    title: "حوّل التشخيص إلى خطة تقديم",
+    text: "خذ نتيجة التشخيص وابدأ بخطة عملية من البحث عن الجهات إلى التقديم والمتابعة وكتابة التقرير.",
+  };
+};
+
 const hasSeenPlatformUpdateNotice = () => {
   if (typeof window === "undefined") return true;
 
@@ -230,6 +273,7 @@ function PlatformUpdateNotice() {
   const targetCount = answers.city ? 12 : 15;
   const experienceCount = answers.appliedBefore === "yes" ? 6 : 4;
   const suggestedSolution = `${targetCount} جهة مناسبة + ${experienceCount} تجارب سابقة + نموذج إيميل تقديم`;
+  const guideRecommendation = buildGuideRecommendation(answers);
   const shareOrigin =
     typeof window !== "undefined" ? window.location.origin : "https://darbak.onrender.com";
   const shareText = `تشخيص دربك
@@ -264,6 +308,26 @@ function PlatformUpdateNotice() {
     if (answers.city) params.set("city", answers.city);
 
     navigate(`/where-to-train${params.toString() ? `?${params}` : ""}`);
+  };
+
+  const trackGuideClick = () => {
+    trackEvent("diagnosis_store_click", {
+      major: selectedMajorLabel,
+      city: answers.city,
+      resultsCount: diagnosis.percent,
+      metadata: {
+        diagnosisName: diagnosis.name,
+        diagnosisPercent: diagnosis.percent,
+        stage: diagnosis.stage,
+        hasCv: answers.hasCv,
+        appliedBefore: answers.appliedBefore,
+        knowsWhere: answers.knowsWhere,
+        priority: answers.priority,
+        fear: answers.fear,
+        guideTitle: guideRecommendation.title,
+      },
+    });
+    markPlatformUpdateNoticeSeen();
   };
 
   const completeDiagnosis = () => {
@@ -561,6 +625,81 @@ function PlatformUpdateNotice() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gap: "10px",
+          border: "1px solid var(--app-brand-border)",
+          borderRadius: "16px",
+          padding: "14px",
+          background:
+            "linear-gradient(135deg, rgba(125,219,205,0.13), rgba(245,158,11,0.08))",
+          textAlign: "right",
+        }}
+      >
+        <span
+          style={{
+            color: "var(--app-brand)",
+            fontSize: "14px",
+            fontWeight: "900",
+          }}
+        >
+          خطوتك الجاهزة الآن
+        </span>
+        <strong
+          style={{
+            color: "var(--app-text)",
+            fontSize: "18px",
+            lineHeight: 1.55,
+          }}
+        >
+          {guideRecommendation.title}
+        </strong>
+        <p
+          style={{
+            margin: 0,
+            color: "var(--app-text-soft)",
+            fontSize: "14px",
+            lineHeight: 1.8,
+          }}
+        >
+          {guideRecommendation.text} ملف{" "}
+          <span style={{ color: "var(--app-text)", fontWeight: "900" }}>
+            رحلة المتدرب
+          </span>{" "}
+          يجمع لك الطريق من التقديم إلى كتابة التقرير.
+        </p>
+        <a
+          href={guideUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={trackGuideClick}
+          style={{
+            width: "fit-content",
+            maxWidth: "100%",
+            textDecoration: "none",
+          }}
+        >
+          <button
+            type="button"
+            style={{
+              background: "transparent",
+              color: "var(--app-brand)",
+              border: "1px solid var(--app-brand-border)",
+              borderRadius: "12px",
+              padding: "10px 14px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontWeight: "900",
+              fontSize: "13px",
+              lineHeight: 1.6,
+            }}
+          >
+            افتح ملف رحلة المتدرب
+          </button>
+        </a>
       </div>
 
       <div
