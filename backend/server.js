@@ -1,18 +1,30 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require("cors");
+const crypto = require("crypto");
 require('dotenv').config();
 
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
 const Opportunity = require('./models/Opportunity');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
+const Subscription = require('./models/Subscription');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const DEFAULT_EXPERIENCES_LIMIT = 36;
 const MAX_EXPERIENCES_LIMIT = 60;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const SUBSCRIPTION_PRICE_SAR = Number(process.env.SUBSCRIPTION_PRICE_SAR || 5);
+const SUBSCRIPTION_DURATION_DAYS = Number(
+  process.env.SUBSCRIPTION_DURATION_DAYS || 30
+);
+const SUBSCRIPTION_CHECKOUT_URL = process.env.SUBSCRIPTION_CHECKOUT_URL || "";
+const SUBSCRIPTION_SECRET =
+  process.env.SUBSCRIPTION_SECRET ||
+  ADMIN_PASSWORD ||
+  process.env.MONGO_URI ||
+  "darbak-subscription-local-secret";
 const GENERAL_SPECIALTY_MARKERS = [
   "__all_specialties__",
   "جميع التخصصات",
@@ -70,6 +82,26 @@ const containsBlockedTerms = (value = "") => {
   return BLOCKED_TERMS.some((term) =>
     normalizedValue.includes(normalizeSearchText(term))
   );
+};
+
+const normalizeEmail = (value = "") => value.toString().trim().toLowerCase();
+
+const isValidEmail = (value = "") =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
+
+const normalizeAccessCode = (value = "") =>
+  value.toString().trim().replace(/\s+/g, "");
+
+const hashAccessCode = (email = "", accessCode = "") =>
+  crypto
+    .createHmac("sha256", SUBSCRIPTION_SECRET)
+    .update(`${normalizeEmail(email)}:${normalizeAccessCode(accessCode)}`)
+    .digest("hex");
+
+const addSubscriptionDays = (days = SUBSCRIPTION_DURATION_DAYS) => {
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + Number(days || 30));
+  return expiresAt;
 };
 
 const isUnclearMajorText = (value = "") => {
@@ -481,6 +513,123 @@ app.post('/api/analytics-events', async (req, res) => {
     res.json({ ok: true, id: event._id });
   } catch (err) {
     console.error("❌ Analytics event error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/subscriptions/verify', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const email = normalizeEmail(req.body.email);
+    const accessCode = normalizeAccessCode(req.body.accessCode);
+
+    if (!isValidEmail(email) || accessCode.length < 4) {
+      return res.status(400).json({
+        error: "اكتب البريد والرمز بشكل صحيح.",
+      });
+    }
+
+    const subscription = await Subscription.findOne({
+      email,
+      accessCodeHash: hashAccessCode(email, accessCode),
+      status: "active",
+      expiresAt: { $gt: new Date() },
+    }).lean();
+
+    if (!subscription) {
+      return res.status(404).json({
+        error: "ما لقينا اشتراك نشط بهذا البريد والرمز.",
+      });
+    }
+
+    res.json({
+      active: true,
+      email: subscription.email,
+      expiresAt: subscription.expiresAt,
+    });
+  } catch (err) {
+    console.error("❌ Subscription verify error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/subscriptions/start-checkout', async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({ error: "اكتب بريد صحيح قبل الدفع." });
+    }
+
+    if (!SUBSCRIPTION_CHECKOUT_URL) {
+      return res.status(501).json({
+        error:
+          "رابط الدفع غير مفعّل بعد. أضيفي SUBSCRIPTION_CHECKOUT_URL في Render بعد إنشاء رابط الدفع من ميسر أو تاب.",
+      });
+    }
+
+    let checkoutUrl = SUBSCRIPTION_CHECKOUT_URL;
+
+    try {
+      const url = new URL(SUBSCRIPTION_CHECKOUT_URL);
+      if (email) url.searchParams.set("email", email);
+      url.searchParams.set("amount", String(SUBSCRIPTION_PRICE_SAR));
+      url.searchParams.set("duration", String(SUBSCRIPTION_DURATION_DAYS));
+      checkoutUrl = url.toString();
+    } catch {
+      // Keep custom provider links as-is if they are not parseable URLs.
+    }
+
+    res.json({
+      checkoutUrl,
+      priceSar: SUBSCRIPTION_PRICE_SAR,
+      durationDays: SUBSCRIPTION_DURATION_DAYS,
+    });
+  } catch (err) {
+    console.error("❌ Subscription checkout error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const email = normalizeEmail(req.body.email);
+    const accessCode = normalizeAccessCode(req.body.accessCode);
+    const days = Number(req.body.days || SUBSCRIPTION_DURATION_DAYS);
+
+    if (!isValidEmail(email) || accessCode.length < 4) {
+      return res.status(400).json({
+        error: "اكتب بريد ورمز واضح لا يقل عن 4 خانات.",
+      });
+    }
+
+    const subscription = await Subscription.findOneAndUpdate(
+      { email, accessCodeHash: hashAccessCode(email, accessCode) },
+      {
+        email,
+        accessCodeHash: hashAccessCode(email, accessCode),
+        status: "active",
+        expiresAt: addSubscriptionDays(days),
+        provider: req.body.provider || "manual",
+        providerPaymentId: req.body.providerPaymentId || "",
+      },
+      { new: true, upsert: true, runValidators: true }
+    ).lean();
+
+    res.json({
+      email: subscription.email,
+      status: subscription.status,
+      expiresAt: subscription.expiresAt,
+    });
+  } catch (err) {
+    console.error("❌ Admin subscription create error:", err);
     res.status(500).json({ error: err.message });
   }
 });

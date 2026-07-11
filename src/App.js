@@ -19,6 +19,7 @@ import LegalPage from "./pages/LegalPage";
 import AdminReviewPage from "./pages/AdminReviewPage";
 import Footer from "./pages/Footer";
 import { guideUrl } from "./components/TrainingGuideBanner";
+import PremiumAccessGate from "./components/PremiumAccessGate";
 import { trackEvent } from "./utils/analytics";
 
 const PLATFORM_UPDATE_NOTICE_KEY = "darbak_training_diagnosis_quiz_seen_v1";
@@ -1089,6 +1090,7 @@ function AppLayout({ theme, setTheme }) {
 
       <PageBanner />
       <PlatformUpdateNotice />
+      <PremiumAccessGate />
 
       {/* المحتوى */}
       <div style={contentContainer}>

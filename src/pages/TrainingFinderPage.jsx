@@ -5,6 +5,7 @@ import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
+import { requestPremiumAccess } from "../utils/premiumAccess";
 
 export const cityOptions = [
   "الرياض",
@@ -1020,6 +1021,53 @@ export default function TrainingFinderPage() {
     }
   };
 
+  const openOpportunityDetails = (opportunity) => {
+    requestPremiumAccess(
+      {
+        feature: "opportunity_details",
+        title: opportunity.title || opportunity.organizationName || "",
+        source: "where_to_train",
+      },
+      () => {
+        trackEvent("opportunity_details_clicked", {
+          major: selectedSpecialty,
+          city,
+          metadata: {
+            opportunityTitle: opportunity.title,
+            organizationName: opportunity.organizationName,
+          },
+        });
+        setExpandedOpportunityId((currentId) =>
+          currentId === opportunity._id ? "" : opportunity._id
+        );
+      }
+    );
+  };
+
+  const openOpportunityApplication = (opportunity) => {
+    if (!opportunity.applicationUrl) return;
+
+    requestPremiumAccess(
+      {
+        feature: "opportunity_apply",
+        title: opportunity.title || opportunity.organizationName || "",
+        source: "where_to_train",
+      },
+      () => {
+        trackEvent("opportunity_apply_clicked", {
+          major: selectedSpecialty,
+          city,
+          metadata: {
+            opportunityTitle: opportunity.title,
+            organizationName: opportunity.organizationName,
+            applicationMethod: opportunity.applicationMethod,
+          },
+        });
+        window.location.assign(opportunity.applicationUrl);
+      }
+    );
+  };
+
   return (
     <main
       style={{
@@ -1538,46 +1586,20 @@ export default function TrainingFinderPage() {
                       >
                         <button
                           type="button"
-                          onClick={() => {
-                            trackEvent("opportunity_details_clicked", {
-                              major: selectedSpecialty,
-                              city,
-                              metadata: {
-                                opportunityTitle: opportunity.title,
-                                organizationName: opportunity.organizationName,
-                              },
-                            });
-                            setExpandedOpportunityId((currentId) =>
-                              currentId === opportunity._id ? "" : opportunity._id
-                            );
-                          }}
+                          onClick={() => openOpportunityDetails(opportunity)}
                           className="opportunity-secondary-button"
                         >
                           {isExpanded ? "إخفاء" : "التفاصيل"}
                         </button>
 
                         {opportunity.applicationUrl ? (
-                          <a
-                            href={opportunity.applicationUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={() =>
-                              trackEvent("opportunity_apply_clicked", {
-                                major: selectedSpecialty,
-                                city,
-                                metadata: {
-                                  opportunityTitle: opportunity.title,
-                                  organizationName: opportunity.organizationName,
-                                  applicationMethod: opportunity.applicationMethod,
-                                },
-                              })
-                            }
-                            style={{ textDecoration: "none" }}
+                          <button
+                            type="button"
+                            className="opportunity-apply-button"
+                            onClick={() => openOpportunityApplication(opportunity)}
                           >
-                            <button type="button" className="opportunity-apply-button">
-                              تقديم الآن
-                            </button>
-                          </a>
+                            تقديم الآن
+                          </button>
                         ) : (
                           <button
                             type="button"

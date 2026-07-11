@@ -106,6 +106,194 @@ body {
   color: #07100e;
 }
 
+.premium-access-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: var(--app-overlay);
+  backdrop-filter: blur(10px);
+  box-sizing: border-box;
+}
+
+.premium-access-card {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at top left, var(--app-brand-soft), transparent 38%),
+    var(--app-surface);
+  border: 1px solid var(--app-brand-border);
+  border-radius: 24px;
+  box-shadow: 0 24px 70px var(--app-shadow);
+  color: var(--app-text);
+  text-align: center;
+  padding: 26px 22px 22px;
+  font-family: "Aniq", "Cairo", sans-serif;
+}
+
+.premium-access-close {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+  color: var(--app-text-soft);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.premium-access-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: var(--app-brand-soft);
+  border: 1px solid var(--app-brand-border);
+  color: var(--app-brand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.premium-access-card h2 {
+  margin: 12px 0 8px;
+  color: var(--app-text);
+  font-size: 28px;
+  line-height: 1.35;
+}
+
+.premium-access-lead {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.premium-access-price {
+  width: min(230px, 100%);
+  margin: 18px auto 12px;
+  display: grid;
+  gap: 2px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--app-card);
+  border: 1px solid var(--app-border);
+}
+
+.premium-access-price strong {
+  color: var(--app-brand);
+  font-size: 34px;
+  line-height: 1.1;
+}
+
+.premium-access-price span {
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.premium-access-payments {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 0 0 13px;
+}
+
+.premium-access-payments span {
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+  color: var(--app-text-soft);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.premium-access-pay-button,
+.premium-access-form button {
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  background: var(--app-brand);
+  color: #07100e;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.premium-access-pay-button:disabled,
+.premium-access-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.premium-access-security {
+  margin: 10px 0 0;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.premium-access-form {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--app-border);
+  display: grid;
+  gap: 10px;
+}
+
+.premium-access-form p {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 12.5px;
+  line-height: 1.8;
+}
+
+.premium-access-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 8px;
+}
+
+.premium-access-fields input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  background: var(--app-input-bg);
+  color: var(--app-text);
+  padding: 11px 12px;
+  font-family: inherit;
+}
+
+.premium-access-fields input::placeholder {
+  color: var(--app-muted);
+}
+
+.premium-access-message {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--app-brand-soft);
+  border: 1px solid var(--app-brand-border);
+  color: var(--app-text-soft);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
 @media (max-width: 768px) {
   .app-content-frame {
     padding: 16px 8px !important;
@@ -134,6 +322,24 @@ body {
   .top-guide-announcement__action {
     padding: 3px 7px;
     font-size: 10.5px;
+  }
+
+  .premium-access-overlay {
+    padding: 12px;
+    align-items: end;
+  }
+
+  .premium-access-card {
+    border-radius: 22px;
+    padding: 24px 16px 18px;
+  }
+
+  .premium-access-card h2 {
+    font-size: 24px;
+  }
+
+  .premium-access-fields {
+    grid-template-columns: 1fr;
   }
 }
 

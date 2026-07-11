@@ -139,6 +139,9 @@ const analyticsEventLabels = {
   opportunity_submission_started: "بدء إرسال فرصة",
   opportunity_submitted: "إرسال فرصة للمراجعة",
   experience_card_opened: "فتح تجربة",
+  premium_gate_opened: "ظهور نافذة الاشتراك",
+  premium_checkout_started: "بدء الدفع",
+  premium_access_verified: "تفعيل اشتراك",
 };
 
 const diagnosisFearLabels = {

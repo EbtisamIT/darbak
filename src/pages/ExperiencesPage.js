@@ -5,6 +5,7 @@ import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
+import { requestPremiumAccess } from "../utils/premiumAccess";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
@@ -984,6 +985,30 @@ const ExperiencesPage = () => {
     />
   );
 
+  const openExperienceDetails = (exp) => {
+    trackEvent("experience_card_opened", {
+      major: exp.major || exp.majorCategory || "",
+      majorCategory: exp.majorCategory || "",
+      city: exp.city || "",
+      metadata: {
+        organizationName: exp.organizationName || exp.companyName || "",
+        starRating: exp.starRating || 0,
+      },
+    });
+
+    requestPremiumAccess(
+      {
+        feature: "experience_details",
+        title: exp.title || exp.organizationName || "",
+        source: "experiences_page",
+      },
+      () => {
+        setSelectedExperience(exp);
+        setCurrentStep(1);
+      }
+    );
+  };
+
   const renderStepContent = () => {
     const exp = selectedExperience;
     if (!exp) return null;
@@ -1836,19 +1861,7 @@ const ExperiencesPage = () => {
                 <div
                   className="experience-card"
                   key={exp._id}
-                  onClick={() => {
-                    trackEvent("experience_card_opened", {
-                      major: exp.major || exp.majorCategory || "",
-                      majorCategory: exp.majorCategory || "",
-                      city: exp.city || "",
-                      metadata: {
-                        organizationName: exp.organizationName || exp.companyName || "",
-                        starRating: exp.starRating || 0,
-                      },
-                    });
-                    setSelectedExperience(exp);
-                    setCurrentStep(1);
-                  }}
+                  onClick={() => openExperienceDetails(exp)}
                   style={{
                     background:
                       "linear-gradient(180deg, var(--app-surface-2) 0%, var(--app-card) 100%)",
