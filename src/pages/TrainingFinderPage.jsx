@@ -36,6 +36,19 @@ const pageFont = "'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_GUIDE_BANNER = false;
 const SHOW_TRAINING_FINDER_FAQ = false;
 
+const emptyOpportunityRequest = {
+  organizationName: "",
+  title: "",
+  city: "",
+  specialty: "",
+  applicationUrl: "",
+  sourceUrl: "",
+  deadline: "",
+  applicationMethod: "",
+  note: "",
+  submitterContact: "",
+};
+
 const trainingFinderFaqItems = [
   {
     question: "هل ظهور الجهة يعني توفر تدريب حاليًا؟",
@@ -700,6 +713,13 @@ export default function TrainingFinderPage() {
   const [faqExpanded, setFaqExpanded] = useState(false);
   const [expandedOpportunityId, setExpandedOpportunityId] = useState("");
   const [activeResultsTab, setActiveResultsTab] = useState("opportunities");
+  const [showOpportunityRequestModal, setShowOpportunityRequestModal] =
+    useState(false);
+  const [opportunityRequest, setOpportunityRequest] = useState(
+    emptyOpportunityRequest
+  );
+  const [savingOpportunityRequest, setSavingOpportunityRequest] = useState(false);
+  const [opportunityRequestMessage, setOpportunityRequestMessage] = useState("");
 
   const selectedSpecialtyOption = useMemo(
     () =>
@@ -918,6 +938,88 @@ export default function TrainingFinderPage() {
     runTrainingTargetSearch(selectedSpecialty, city);
   };
 
+  const openOpportunityRequestModal = () => {
+    setOpportunityRequest({
+      ...emptyOpportunityRequest,
+      city,
+      specialty: selectedSpecialty,
+    });
+    setOpportunityRequestMessage("");
+    setShowOpportunityRequestModal(true);
+    trackEvent("opportunity_submission_started", {
+      major: selectedSpecialtyLabel,
+      city,
+      metadata: { source: "where_to_train" },
+    });
+  };
+
+  const updateOpportunityRequestField = (field, value) => {
+    setOpportunityRequest((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setOpportunityRequestMessage("");
+  };
+
+  const submitOpportunityRequest = async (event) => {
+    event.preventDefault();
+
+    if (
+      !opportunityRequest.organizationName.trim() ||
+      !opportunityRequest.title.trim()
+    ) {
+      setOpportunityRequestMessage("اسم الجهة وعنوان الفرصة مطلوبة.");
+      return;
+    }
+
+    const selectedRequestSpecialty = specializationOptions.find(
+      (option) => option.value === opportunityRequest.specialty
+    );
+
+    try {
+      setSavingOpportunityRequest(true);
+      setOpportunityRequestMessage("");
+      await axios.post(`${API_BASE_URL}/api/opportunities`, {
+        organizationName: opportunityRequest.organizationName,
+        title: opportunityRequest.title,
+        city: opportunityRequest.city,
+        cities: opportunityRequest.city ? [opportunityRequest.city] : [],
+        specialties: opportunityRequest.specialty
+          ? [opportunityRequest.specialty]
+          : [],
+        majorCategories: selectedRequestSpecialty?.categories || [],
+        applicationUrl: opportunityRequest.applicationUrl,
+        sourceUrl: opportunityRequest.sourceUrl,
+        deadline: opportunityRequest.deadline,
+        applicationMethod: opportunityRequest.applicationMethod,
+        note: opportunityRequest.note,
+        submitterContact: opportunityRequest.submitterContact,
+      });
+
+      trackEvent("opportunity_submitted", {
+        major: opportunityRequest.specialty,
+        city: opportunityRequest.city,
+        metadata: {
+          organizationName: opportunityRequest.organizationName,
+          hasApplicationUrl: Boolean(opportunityRequest.applicationUrl),
+          hasSourceUrl: Boolean(opportunityRequest.sourceUrl),
+        },
+      });
+
+      setOpportunityRequest(emptyOpportunityRequest);
+      setOpportunityRequestMessage(
+        "تم إرسال الفرصة للمراجعة. شكرًا لأنك تساعد طلاب بعدك."
+      );
+    } catch (err) {
+      console.error(err);
+      setOpportunityRequestMessage(
+        err.response?.data?.error || "تعذر إرسال الفرصة حاليًا."
+      );
+    } finally {
+      setSavingOpportunityRequest(false);
+    }
+  };
+
   return (
     <main
       style={{
@@ -1071,6 +1173,59 @@ export default function TrainingFinderPage() {
             {loading ? "جاري البحث..." : "اعرض الجهات"}
           </button>
         </form>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+            background: "var(--app-card)",
+            border: "1px solid var(--app-border)",
+            borderRadius: "14px",
+            padding: "12px 14px",
+            textAlign: "right",
+          }}
+        >
+          <div style={{ display: "grid", gap: "3px", minWidth: 0 }}>
+            <strong
+              style={{
+                color: "var(--app-text)",
+                fontSize: "15px",
+                lineHeight: 1.5,
+              }}
+            >
+              تعرف فرصة تدريب؟ أرسلها لدربك
+            </strong>
+            <span
+              style={{
+                color: "var(--app-text-soft)",
+                fontSize: "12.5px",
+                lineHeight: 1.7,
+              }}
+            >
+              تظهر للطلاب بعد مراجعتها والتأكد من تفاصيلها.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={openOpportunityRequestModal}
+            style={{
+              background: "var(--app-brand)",
+              color: "#07100e",
+              border: "none",
+              borderRadius: "12px",
+              padding: "10px 14px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontWeight: "900",
+              whiteSpace: "nowrap",
+            }}
+          >
+            + أضف فرصة
+          </button>
+        </div>
 
         {error && (
           <p
@@ -2114,7 +2269,414 @@ export default function TrainingFinderPage() {
         )}
       </section>
 
+      {showOpportunityRequestModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="إضافة فرصة تدريب"
+          onClick={() => setShowOpportunityRequestModal(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 3200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+            background: "var(--app-overlay)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <form
+            onSubmit={submitOpportunityRequest}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(620px, 100%)",
+              maxHeight: "88vh",
+              overflowY: "auto",
+              display: "grid",
+              gap: "12px",
+              background: "var(--app-surface)",
+              border: "1px solid var(--app-border)",
+              borderRadius: "20px",
+              padding: "18px",
+              boxShadow: "0 24px 70px var(--app-shadow)",
+              textAlign: "right",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "12px",
+                alignItems: "start",
+              }}
+            >
+              <div>
+                <p
+                  style={{
+                    margin: "0 0 6px",
+                    color: "var(--app-brand)",
+                    fontWeight: "900",
+                    fontSize: "13px",
+                  }}
+                >
+                  فرصة للمراجعة
+                </p>
+                <h2
+                  style={{
+                    margin: 0,
+                    color: "var(--app-text)",
+                    fontSize: "22px",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  أرسل فرصة تدريب للطلاب
+                </h2>
+                <p
+                  style={{
+                    margin: "7px 0 0",
+                    color: "var(--app-text-soft)",
+                    fontSize: "13px",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  نحفظها كطلب مراجعة، وبعد اعتمادها تظهر في صفحة وين أتدرب.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOpportunityRequestModal(false)}
+                aria-label="إغلاق"
+                style={{
+                  width: "34px",
+                  height: "34px",
+                  borderRadius: "50%",
+                  border: "1px solid var(--app-border)",
+                  background: "var(--app-card)",
+                  color: "var(--app-text)",
+                  cursor: "pointer",
+                  fontSize: "20px",
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="opportunity-request-grid">
+              {[
+                ["organizationName", "اسم الجهة", "مثال: STC"],
+                ["title", "عنوان الفرصة", "مثال: برنامج التدريب التعاوني"],
+                ["applicationUrl", "رابط التقديم", "https://..."],
+                ["sourceUrl", "رابط الإعلان أو المصدر", "اختياري"],
+              ].map(([field, label, placeholder]) => (
+                <label
+                  key={field}
+                  style={{
+                    display: "grid",
+                    gap: "6px",
+                    color: "var(--app-text-soft)",
+                    fontSize: "13px",
+                    fontWeight: "800",
+                  }}
+                >
+                  {label}
+                  <input
+                    required={field === "organizationName" || field === "title"}
+                    value={opportunityRequest[field] || ""}
+                    onChange={(event) =>
+                      updateOpportunityRequestField(field, event.target.value)
+                    }
+                    placeholder={placeholder}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "11px 12px",
+                      borderRadius: "12px",
+                      border: "1px solid var(--app-border)",
+                      background: "var(--app-input-bg)",
+                      color: "var(--app-text)",
+                      fontFamily: "inherit",
+                    }}
+                  />
+                </label>
+              ))}
+
+              <label
+                style={{
+                  display: "grid",
+                  gap: "6px",
+                  color: "var(--app-text-soft)",
+                  fontSize: "13px",
+                  fontWeight: "800",
+                }}
+              >
+                المدينة أو المنطقة
+                <select
+                  value={opportunityRequest.city}
+                  onChange={(event) =>
+                    updateOpportunityRequestField("city", event.target.value)
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "11px 12px",
+                    borderRadius: "12px",
+                    border: "1px solid var(--app-border)",
+                    background: "var(--app-input-bg)",
+                    color: "var(--app-text)",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <option value="">كل المدن أو غير محدد</option>
+                  {[...regionOptions, ...cityOptions].map((cityName) => (
+                    <option key={cityName} value={cityName}>
+                      {cityName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label
+                style={{
+                  display: "grid",
+                  gap: "6px",
+                  color: "var(--app-text-soft)",
+                  fontSize: "13px",
+                  fontWeight: "800",
+                }}
+              >
+                التخصص المناسب
+                <select
+                  value={opportunityRequest.specialty}
+                  onChange={(event) =>
+                    updateOpportunityRequestField("specialty", event.target.value)
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "11px 12px",
+                    borderRadius: "12px",
+                    border: "1px solid var(--app-border)",
+                    background: "var(--app-input-bg)",
+                    color: "var(--app-text)",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <option value="">كل التخصصات أو غير محدد</option>
+                  {specializationOptions.map((specialization) => (
+                    <option key={specialization.value} value={specialization.value}>
+                      {specialization.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label
+                style={{
+                  display: "grid",
+                  gap: "6px",
+                  color: "var(--app-text-soft)",
+                  fontSize: "13px",
+                  fontWeight: "800",
+                }}
+              >
+                طريقة التقديم
+                <select
+                  value={opportunityRequest.applicationMethod}
+                  onChange={(event) =>
+                    updateOpportunityRequestField(
+                      "applicationMethod",
+                      event.target.value
+                    )
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "11px 12px",
+                    borderRadius: "12px",
+                    border: "1px solid var(--app-border)",
+                    background: "var(--app-input-bg)",
+                    color: "var(--app-text)",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <option value="">غير محدد</option>
+                  <option value="website">موقع</option>
+                  <option value="email">إيميل</option>
+                  <option value="linkedin">لينكدإن</option>
+                  <option value="manual">يدوي</option>
+                  <option value="other">أخرى</option>
+                </select>
+              </label>
+
+              <label
+                style={{
+                  display: "grid",
+                  gap: "6px",
+                  color: "var(--app-text-soft)",
+                  fontSize: "13px",
+                  fontWeight: "800",
+                }}
+              >
+                تاريخ انتهاء التقديم
+                <input
+                  type="date"
+                  value={opportunityRequest.deadline}
+                  onChange={(event) =>
+                    updateOpportunityRequestField("deadline", event.target.value)
+                  }
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "11px 12px",
+                    borderRadius: "12px",
+                    border: "1px solid var(--app-border)",
+                    background: "var(--app-input-bg)",
+                    color: "var(--app-text)",
+                    fontFamily: "inherit",
+                  }}
+                />
+              </label>
+
+              <label
+                style={{
+                  display: "grid",
+                  gap: "6px",
+                  color: "var(--app-text-soft)",
+                  fontSize: "13px",
+                  fontWeight: "800",
+                }}
+              >
+                وسيلة تواصل اختيارية
+                <input
+                  value={opportunityRequest.submitterContact}
+                  onChange={(event) =>
+                    updateOpportunityRequestField(
+                      "submitterContact",
+                      event.target.value
+                    )
+                  }
+                  placeholder="إيميل أو حساب للتواصل عند الحاجة"
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "11px 12px",
+                    borderRadius: "12px",
+                    border: "1px solid var(--app-border)",
+                    background: "var(--app-input-bg)",
+                    color: "var(--app-text)",
+                    fontFamily: "inherit",
+                  }}
+                />
+              </label>
+            </div>
+
+            <label
+              style={{
+                display: "grid",
+                gap: "6px",
+                color: "var(--app-text-soft)",
+                fontSize: "13px",
+                fontWeight: "800",
+              }}
+            >
+              ملاحظة قصيرة
+              <textarea
+                rows={3}
+                value={opportunityRequest.note}
+                onChange={(event) =>
+                  updateOpportunityRequestField("note", event.target.value)
+                }
+                placeholder="مثال: الإعلان موجه لطلاب التدريب التعاوني، يرجى التأكد من الشروط قبل التقديم."
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "11px 12px",
+                  borderRadius: "12px",
+                  border: "1px solid var(--app-border)",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
+                  fontFamily: "inherit",
+                  lineHeight: 1.8,
+                  resize: "vertical",
+                }}
+              />
+            </label>
+
+            {opportunityRequestMessage && (
+              <p
+                style={{
+                  margin: 0,
+                  color: opportunityRequestMessage.includes("تم إرسال")
+                    ? "var(--app-brand)"
+                    : "#fecaca",
+                  background: opportunityRequestMessage.includes("تم إرسال")
+                    ? "var(--app-brand-soft)"
+                    : "rgba(248,113,113,0.1)",
+                  border: opportunityRequestMessage.includes("تم إرسال")
+                    ? "1px solid var(--app-brand-border)"
+                    : "1px solid rgba(248,113,113,0.22)",
+                  borderRadius: "12px",
+                  padding: "10px 12px",
+                  fontSize: "13px",
+                  lineHeight: 1.7,
+                }}
+              >
+                {opportunityRequestMessage}
+              </p>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowOpportunityRequestModal(false)}
+                style={{
+                  background: "transparent",
+                  color: "var(--app-text-soft)",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "12px",
+                  padding: "10px 14px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: "800",
+                }}
+              >
+                إغلاق
+              </button>
+              <button
+                type="submit"
+                disabled={savingOpportunityRequest}
+                style={{
+                  background: "var(--app-brand)",
+                  color: "#07100e",
+                  border: "none",
+                  borderRadius: "12px",
+                  padding: "10px 16px",
+                  cursor: savingOpportunityRequest ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: "900",
+                }}
+              >
+                {savingOpportunityRequest ? "جاري الإرسال..." : "إرسال للمراجعة"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <style>{`
+        .opportunity-request-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
         .training-results-tabs {
           display: flex;
           gap: 8px;
@@ -2383,6 +2945,10 @@ export default function TrainingFinderPage() {
           }
 
           .training-finder-form {
+            grid-template-columns: 1fr !important;
+          }
+
+          .opportunity-request-grid {
             grid-template-columns: 1fr !important;
           }
 

@@ -64,6 +64,8 @@ const defaultOpportunityForm = {
   sourceUrl: "",
   note: "",
   status: "active",
+  sourceType: "admin",
+  submitterContact: "",
   featured: false,
 };
 
@@ -134,6 +136,8 @@ const analyticsEventLabels = {
   add_experience_submitted: "إرسال تجربة",
   opportunity_details_clicked: "فتح تفاصيل فرصة",
   opportunity_apply_clicked: "ضغط تقديم فرصة",
+  opportunity_submission_started: "بدء إرسال فرصة",
+  opportunity_submitted: "إرسال فرصة للمراجعة",
   experience_card_opened: "فتح تجربة",
 };
 
@@ -156,7 +160,7 @@ const analyticsRangeOptions = [
 
 const opportunityStatusOptions = [
   ["active", "نشطة"],
-  ["draft", "مسودة"],
+  ["draft", "بانتظار المراجعة"],
   ["expired", "منتهية"],
 ];
 
@@ -1007,6 +1011,8 @@ export default function AdminReviewPage() {
       sourceUrl: opportunity.sourceUrl || "",
       note: opportunity.note || "",
       status: opportunity.status || "active",
+      sourceType: opportunity.sourceType || "admin",
+      submitterContact: opportunity.submitterContact || "",
       featured: Boolean(opportunity.featured),
     });
     setMessage("");
@@ -1521,6 +1527,7 @@ export default function AdminReviewPage() {
                 ["applicationUrl", "رابط التقديم", "https://..."],
                 ["logoUrl", "رابط الشعار", "https://.../logo.png"],
                 ["sourceUrl", "رابط المصدر", "رابط إعلان رسمي إن وجد"],
+                ["submitterContact", "تواصل المرسل", "اختياري"],
               ].map(([field, label, placeholder]) => (
                 <label key={field} style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                   {label}
@@ -1786,6 +1793,31 @@ export default function AdminReviewPage() {
                   >
                     التقديم {applicationState.label}
                   </span>
+                  <span
+                    style={{
+                      alignSelf: "start",
+                      background:
+                        opportunity.sourceType === "visitor"
+                          ? "rgba(250,204,21,0.1)"
+                          : "rgba(125,219,205,0.08)",
+                      border:
+                        opportunity.sourceType === "visitor"
+                          ? "1px solid rgba(250,204,21,0.28)"
+                          : "1px solid rgba(125,219,205,0.18)",
+                      color:
+                        opportunity.sourceType === "visitor"
+                          ? "#fde68a"
+                          : adminColors.brand,
+                      borderRadius: "999px",
+                      padding: "6px 10px",
+                      fontSize: "12px",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {opportunity.sourceType === "visitor"
+                      ? "من زائر"
+                      : "إضافة إدارية"}
+                  </span>
                   <div
                     style={{
                       color: adminColors.muted,
@@ -1858,6 +1890,23 @@ export default function AdminReviewPage() {
                 >
                   {opportunity.note || "لا توجد ملاحظة."}
                 </p>
+
+                {opportunity.submitterContact && (
+                  <p
+                    style={{
+                      color: adminColors.textSoft,
+                      background: "rgba(255,255,255,0.035)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: "10px",
+                      padding: "8px 10px",
+                      margin: "0 0 12px",
+                      fontSize: "13px",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    تواصل المرسل: {opportunity.submitterContact}
+                  </p>
+                )}
 
                 <div
                   style={{

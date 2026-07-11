@@ -259,6 +259,10 @@ const sanitizeOpportunityPayload = (body = {}) => {
     status: ["active", "draft", "expired"].includes(body.status)
       ? body.status
       : "active",
+    sourceType: ["admin", "visitor"].includes(body.sourceType)
+      ? body.sourceType
+      : "admin",
+    submitterContact: (body.submitterContact || "").trim(),
     featured: Boolean(body.featured),
     ...(deadlineValue && !Number.isNaN(deadlineValue.getTime())
       ? { deadline: deadlineValue }
@@ -807,6 +811,58 @@ app.get('/api/opportunities', async (req, res) => {
   }
 });
 
+app.post('/api/opportunities', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const payload = sanitizeOpportunityPayload({
+      ...req.body,
+      status: "draft",
+      sourceType: "visitor",
+      featured: false,
+    });
+
+    if (!payload.organizationName || !payload.title) {
+      return res.status(400).json({ error: "اسم الجهة وعنوان الفرصة مطلوبة." });
+    }
+
+    const fieldsToCheck = [
+      payload.organizationName,
+      payload.title,
+      payload.city,
+      payload.note,
+      payload.applicationUrl,
+      payload.sourceUrl,
+      payload.submitterContact,
+      ...payload.cities,
+      ...payload.majorCategories,
+      ...payload.specialties,
+    ];
+
+    if (fieldsToCheck.some(containsBlockedTerms)) {
+      return res.status(400).json({
+        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة.",
+      });
+    }
+
+    if (!payload.deadline) delete payload.deadline;
+
+    const opportunity = await Opportunity.create({
+      ...payload,
+      status: "draft",
+      sourceType: "visitor",
+      featured: false,
+    });
+
+    res.json({ message: "تم إرسال الفرصة للمراجعة.", data: opportunity });
+  } catch (err) {
+    console.error("❌ Public opportunity create error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // إنشاء تجربة
 app.post('/api/experiences', async (req, res) => {
   try {
@@ -1057,6 +1113,7 @@ app.post('/api/admin/opportunities', requireAdmin, async (req, res) => {
       payload.title,
       payload.city,
       payload.note,
+      payload.submitterContact,
       ...payload.cities,
       ...payload.majorCategories,
       ...payload.specialties,
@@ -1095,6 +1152,7 @@ app.patch('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
       payload.title,
       payload.city,
       payload.note,
+      payload.submitterContact,
       ...payload.cities,
       ...payload.majorCategories,
       ...payload.specialties,

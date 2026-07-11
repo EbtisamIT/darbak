@@ -78,6 +78,17 @@ const opportunitySchema = new mongoose.Schema(
       default: "active",
       index: true,
     },
+    sourceType: {
+      type: String,
+      enum: ["admin", "visitor"],
+      default: "admin",
+      index: true,
+    },
+    submitterContact: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     featured: {
       type: Boolean,
       default: false,
