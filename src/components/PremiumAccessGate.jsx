@@ -12,6 +12,8 @@ const initialForm = {
   accessCode: "",
 };
 
+const PENDING_SUBSCRIPTION_KEY = "darbak_pending_subscription_v1";
+
 const featureCopy = {
   experience_details: "تفاصيل التجربة الكاملة",
   opportunity_details: "تفاصيل فرصة التدريب",
@@ -47,6 +49,36 @@ export default function PremiumAccessGate() {
       window.removeEventListener(PREMIUM_ACCESS_EVENT, handlePremiumRequest);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("subscription") !== "success") return;
+
+    try {
+      const pending = JSON.parse(
+        window.localStorage.getItem(PENDING_SUBSCRIPTION_KEY) || "{}"
+      );
+      setForm({
+        email: pending.email || "",
+        accessCode: pending.accessCode || "",
+      });
+    } catch {
+      // Ignore malformed pending checkout data.
+    }
+
+    setFeature("experience_details");
+    setMessage("تم الرجوع من صفحة الدفع. اضغط تفعيل اشتراكي لإكمال الوصول.");
+    setIsOpen(true);
+
+    params.delete("subscription");
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${
+      nextSearch ? `?${nextSearch}` : ""
+    }${window.location.hash || ""}`;
+    window.history.replaceState({}, "", nextUrl);
+  }, []);
+
   const closeGate = () => {
     setIsOpen(false);
     setMessage("");
@@ -61,6 +93,11 @@ export default function PremiumAccessGate() {
 
   const grantAccess = (subscription) => {
     savePremiumPass(subscription);
+    try {
+      window.localStorage.removeItem(PENDING_SUBSCRIPTION_KEY);
+    } catch {
+      // Ignore storage cleanup errors.
+    }
     setIsOpen(false);
     setMessage("");
     trackEvent("premium_access_verified", {
@@ -103,15 +140,37 @@ export default function PremiumAccessGate() {
       setMessage("");
       const { data } = await axios.post(
         `${API_BASE_URL}/api/subscriptions/start-checkout`,
-        { email: form.email }
+        {
+          email: form.email,
+          accessCode: form.accessCode,
+          returnUrl: window.location.href,
+        }
       );
+
+      if (data.active) {
+        grantAccess(data);
+        return;
+      }
 
       trackEvent("premium_checkout_started", {
         metadata: { feature, hasEmail: Boolean(form.email.trim()) },
       });
 
+      try {
+        window.localStorage.setItem(
+          PENDING_SUBSCRIPTION_KEY,
+          JSON.stringify({
+            email: form.email,
+            accessCode: form.accessCode,
+            startedAt: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // The user can still enter the same email and code manually.
+      }
+
       window.open(data.checkoutUrl, "_blank", "noopener,noreferrer");
-      setMessage("بعد الدفع ارجع هنا واكتب البريد والرمز لتفعيل الوصول.");
+      setMessage("بعد الدفع ارجع هنا واضغط تفعيل اشتراكي بنفس البريد والرمز.");
     } catch (err) {
       setMessage(
         err.response?.data?.error ||
@@ -164,6 +223,28 @@ export default function PremiumAccessGate() {
           <span>دفع آمن</span>
         </div>
 
+        <div className="premium-access-form">
+          <p>
+            اكتب بريدك ورمز بسيط قبل الدفع، عشان نحفظ اشتراكك 30 يوم وتقدر
+            تدخل من أي جهاز.
+          </p>
+          <div className="premium-access-fields">
+            <input
+              type="email"
+              value={form.email}
+              onChange={(event) => updateField("email", event.target.value)}
+              placeholder="البريد الإلكتروني"
+            />
+            <input
+              value={form.accessCode}
+              onChange={(event) =>
+                updateField("accessCode", event.target.value)
+              }
+              placeholder="رمز تختاره"
+            />
+          </div>
+        </div>
+
         <button
           type="button"
           className="premium-access-pay-button"
@@ -179,24 +260,8 @@ export default function PremiumAccessGate() {
 
         <form className="premium-access-form" onSubmit={verifySubscription}>
           <p>
-            لضمان اشتراكك 30 يوم والوصول له من أي جهاز، اكتب البريد والرمز
-            بعد الدفع.
+            دفعت؟ اضغط التفعيل بنفس البريد والرمز، ويفتح لك الوصول مباشرة.
           </p>
-          <div className="premium-access-fields">
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) => updateField("email", event.target.value)}
-              placeholder="البريد الإلكتروني"
-            />
-            <input
-              value={form.accessCode}
-              onChange={(event) =>
-                updateField("accessCode", event.target.value)
-              }
-              placeholder="الرمز"
-            />
-          </div>
           <button type="submit" disabled={isVerifying}>
             {isVerifying ? "جاري التحقق..." : "تفعيل اشتراكي"}
           </button>

@@ -20,6 +20,14 @@ const SUBSCRIPTION_DURATION_DAYS = Number(
   process.env.SUBSCRIPTION_DURATION_DAYS || 30
 );
 const SUBSCRIPTION_CHECKOUT_URL = process.env.SUBSCRIPTION_CHECKOUT_URL || "";
+const MOYASAR_SECRET_KEY = process.env.MOYASAR_SECRET_KEY || "";
+const MOYASAR_API_BASE_URL =
+  process.env.MOYASAR_API_BASE_URL || "https://api.moyasar.com/v1";
+const FRONTEND_URL =
+  process.env.FRONTEND_URL ||
+  process.env.PUBLIC_FRONTEND_URL ||
+  "https://darbak.onrender.com";
+const API_PUBLIC_URL = process.env.API_PUBLIC_URL || "";
 const SUBSCRIPTION_SECRET =
   process.env.SUBSCRIPTION_SECRET ||
   ADMIN_PASSWORD ||
@@ -103,6 +111,100 @@ const addSubscriptionDays = (days = SUBSCRIPTION_DURATION_DAYS) => {
   expiresAt.setDate(expiresAt.getDate() + Number(days || 30));
   return expiresAt;
 };
+
+const getPublicApiUrl = (req) => {
+  if (API_PUBLIC_URL) return API_PUBLIC_URL.replace(/\/$/, "");
+  const protocol = req.get("x-forwarded-proto") || req.protocol || "https";
+  return `${protocol}://${req.get("host")}`;
+};
+
+const getFrontendUrl = () => FRONTEND_URL.replace(/\/$/, "");
+
+const getSafeSubscriptionReturnUrl = (returnUrl = "") => {
+  const fallback = new URL(getFrontendUrl());
+  fallback.searchParams.set("subscription", "success");
+
+  try {
+    const url = new URL(returnUrl);
+    const allowedOrigin = new URL(getFrontendUrl()).origin;
+    const isLocalOrigin =
+      ["localhost", "127.0.0.1"].includes(url.hostname) &&
+      process.env.NODE_ENV !== "production";
+
+    if (url.origin !== allowedOrigin && !isLocalOrigin) {
+      return fallback.toString();
+    }
+
+    url.searchParams.set("subscription", "success");
+    return url.toString();
+  } catch {
+    return fallback.toString();
+  }
+};
+
+const getMoyasarAuthHeader = () =>
+  `Basic ${Buffer.from(`${MOYASAR_SECRET_KEY}:`).toString("base64")}`;
+
+const callMoyasar = async (path, options = {}) => {
+  if (!MOYASAR_SECRET_KEY) {
+    const error = new Error("MOYASAR_SECRET_KEY is not configured");
+    error.statusCode = 501;
+    throw error;
+  }
+
+  const response = await fetch(`${MOYASAR_API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      Authorization: getMoyasarAuthHeader(),
+      ...(options.headers || {}),
+    },
+  });
+
+  const text = await response.text();
+  let data = {};
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!response.ok) {
+    const error = new Error(
+      data.message || data.error || "Moyasar request failed"
+    );
+    error.statusCode = response.status;
+    error.details = data;
+    throw error;
+  }
+
+  return data;
+};
+
+const createMoyasarInvoice = async ({
+  amountHalalas,
+  description,
+  callbackUrl,
+  successUrl,
+}) => {
+  const body = new URLSearchParams();
+  body.set("amount", String(amountHalalas));
+  body.set("currency", "SAR");
+  body.set("description", description);
+  body.set("callback_url", callbackUrl);
+  body.set("success_url", successUrl);
+
+  return callMoyasar("/invoices", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+};
+
+const getMoyasarInvoice = async (invoiceId) =>
+  callMoyasar(`/invoices/${encodeURIComponent(invoiceId)}`);
 
 const isUnclearMajorText = (value = "") => {
   const text = value.toString().trim();
@@ -426,6 +528,7 @@ const getCleanAnalyticsMatch = (match) => ({
 // ===== Middlewares =====
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ===== MongoDB Connection =====
 mongoose.connect(process.env.MONGO_URI)
@@ -540,6 +643,39 @@ app.post('/api/subscriptions/verify', async (req, res) => {
     }).lean();
 
     if (!subscription) {
+      const pendingSubscription = await Subscription.findOne({
+        email,
+        accessCodeHash: hashAccessCode(email, accessCode),
+        status: "pending",
+        provider: "moyasar",
+        providerPaymentId: { $ne: "" },
+      }).lean();
+
+      if (pendingSubscription) {
+        const invoice = await getMoyasarInvoice(pendingSubscription.providerPaymentId);
+
+        if (invoice.status === "paid") {
+          const activated = await Subscription.findByIdAndUpdate(
+            pendingSubscription._id,
+            {
+              status: "active",
+              expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
+            },
+            { new: true }
+          ).lean();
+
+          return res.json({
+            active: true,
+            email: activated.email,
+            expiresAt: activated.expiresAt,
+          });
+        }
+
+        return res.status(402).json({
+          error: "الدفع ما تأكد حتى الآن. إذا دفعت، انتظر لحظات ثم جرّب التفعيل.",
+        });
+      }
+
       return res.status(404).json({
         error: "ما لقينا اشتراك نشط بهذا البريد والرمز.",
       });
@@ -558,39 +694,167 @@ app.post('/api/subscriptions/verify', async (req, res) => {
 
 app.post('/api/subscriptions/start-checkout', async (req, res) => {
   try {
-    const email = normalizeEmail(req.body.email);
-
-    if (email && !isValidEmail(email)) {
-      return res.status(400).json({ error: "اكتب بريد صحيح قبل الدفع." });
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
     }
 
-    if (!SUBSCRIPTION_CHECKOUT_URL) {
-      return res.status(501).json({
-        error:
-          "رابط الدفع غير مفعّل بعد. أضيفي SUBSCRIPTION_CHECKOUT_URL في Render بعد إنشاء رابط الدفع من ميسر أو تاب.",
+    const email = normalizeEmail(req.body.email);
+    const accessCode = normalizeAccessCode(req.body.accessCode);
+
+    if (!isValidEmail(email) || accessCode.length < 4) {
+      return res.status(400).json({
+        error: "اكتب بريد صحيح ورمز لا يقل عن 4 خانات قبل الدفع.",
       });
     }
 
-    let checkoutUrl = SUBSCRIPTION_CHECKOUT_URL;
+    const accessCodeHash = hashAccessCode(email, accessCode);
+    const activeSubscription = await Subscription.findOne({
+      email,
+      accessCodeHash,
+      status: "active",
+      expiresAt: { $gt: new Date() },
+    }).lean();
 
-    try {
-      const url = new URL(SUBSCRIPTION_CHECKOUT_URL);
-      if (email) url.searchParams.set("email", email);
-      url.searchParams.set("amount", String(SUBSCRIPTION_PRICE_SAR));
-      url.searchParams.set("duration", String(SUBSCRIPTION_DURATION_DAYS));
-      checkoutUrl = url.toString();
-    } catch {
-      // Keep custom provider links as-is if they are not parseable URLs.
+    if (activeSubscription) {
+      return res.json({
+        active: true,
+        email: activeSubscription.email,
+        expiresAt: activeSubscription.expiresAt,
+      });
     }
 
-    res.json({
-      checkoutUrl,
-      priceSar: SUBSCRIPTION_PRICE_SAR,
-      durationDays: SUBSCRIPTION_DURATION_DAYS,
+    const successUrl = getSafeSubscriptionReturnUrl(req.body.returnUrl);
+
+    const amountHalalas = Math.round(SUBSCRIPTION_PRICE_SAR * 100);
+
+    if (MOYASAR_SECRET_KEY) {
+      const invoice = await createMoyasarInvoice({
+        amountHalalas,
+        description: `اشتراك دربك ${SUBSCRIPTION_DURATION_DAYS} يوم`,
+        callbackUrl: `${getPublicApiUrl(
+          req
+        )}/api/subscriptions/moyasar/callback`,
+        successUrl,
+      });
+
+      await Subscription.findOneAndUpdate(
+        { email, accessCodeHash },
+        {
+          email,
+          accessCodeHash,
+          status: "pending",
+          expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
+          provider: "moyasar",
+          providerPaymentId: invoice.id || "",
+        },
+        { new: true, upsert: true, runValidators: true }
+      );
+
+      return res.json({
+        checkoutUrl: invoice.url,
+        provider: "moyasar",
+        invoiceId: invoice.id,
+        priceSar: SUBSCRIPTION_PRICE_SAR,
+        durationDays: SUBSCRIPTION_DURATION_DAYS,
+      });
+    }
+
+    if (SUBSCRIPTION_CHECKOUT_URL) {
+      let checkoutUrl = SUBSCRIPTION_CHECKOUT_URL;
+
+      try {
+        const url = new URL(SUBSCRIPTION_CHECKOUT_URL);
+        url.searchParams.set("email", email);
+        url.searchParams.set("amount", String(SUBSCRIPTION_PRICE_SAR));
+        url.searchParams.set("duration", String(SUBSCRIPTION_DURATION_DAYS));
+        checkoutUrl = url.toString();
+      } catch {
+        // Keep custom provider links as-is if they are not parseable URLs.
+      }
+
+      await Subscription.findOneAndUpdate(
+        { email, accessCodeHash },
+        {
+          email,
+          accessCodeHash,
+          status: "pending",
+          expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
+          provider: "manual",
+          providerPaymentId: "",
+        },
+        { new: true, upsert: true, runValidators: true }
+      );
+
+      return res.json({
+        checkoutUrl,
+        provider: "manual",
+        priceSar: SUBSCRIPTION_PRICE_SAR,
+        durationDays: SUBSCRIPTION_DURATION_DAYS,
+      });
+    }
+
+    return res.status(501).json({
+      error:
+        "مفتاح ميسر التجريبي غير مفعّل بعد. أضيفي MOYASAR_SECRET_KEY في Render للباكند.",
     });
   } catch (err) {
     console.error("❌ Subscription checkout error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(err.statusCode || 500).json({
+      error:
+        err.statusCode === 501
+          ? err.message
+          : "تعذر إنشاء رابط الدفع التجريبي حاليًا.",
+      details: err.details,
+    });
+  }
+});
+
+app.post('/api/subscriptions/moyasar/callback', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const invoiceId = req.body.id || req.body.invoice_id || req.query.id;
+
+    if (!invoiceId) {
+      return res.status(400).json({ error: "Missing invoice id" });
+    }
+
+    const invoice = await getMoyasarInvoice(invoiceId);
+    const status = invoice.status || req.body.status;
+
+    if (status !== "paid") {
+      if (["expired", "failed", "canceled", "cancelled"].includes(status)) {
+        await Subscription.findOneAndUpdate(
+          { provider: "moyasar", providerPaymentId: invoiceId },
+          { status: "cancelled" }
+        );
+      }
+
+      return res.json({ ok: true, ignored: true, status });
+    }
+
+    const subscription = await Subscription.findOneAndUpdate(
+      { provider: "moyasar", providerPaymentId: invoiceId },
+      {
+        status: "active",
+        expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
+      },
+      { new: true }
+    ).lean();
+
+    if (!subscription) {
+      return res.status(404).json({ error: "Subscription not found" });
+    }
+
+    res.json({ ok: true, active: true });
+  } catch (err) {
+    console.error("❌ Moyasar callback error:", err);
+    res.status(err.statusCode || 500).json({
+      error: "تعذر تأكيد الدفع من ميسر.",
+      details: err.details,
+    });
   }
 });
 
