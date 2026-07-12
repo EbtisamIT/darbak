@@ -218,8 +218,13 @@ export default function PremiumAccessGate() {
         // The user can still enter the same contact and code manually.
       }
 
-      window.open(data.checkoutUrl, "_blank", "noopener,noreferrer");
-      setMessage("بعد الدفع ارجع هنا واضغط تفعيل اشتراكي بنفس البريد أو الجوال والرمز.");
+      if (!data.checkoutUrl) {
+        setMessage("تعذر فتح رابط الدفع. جرّب مرة ثانية بعد لحظات.");
+        return;
+      }
+
+      setMessage("بنقلك الآن لصفحة الدفع الآمنة...");
+      window.location.assign(data.checkoutUrl);
     } catch (err) {
       setMessage(
         err.response?.data?.error ||
