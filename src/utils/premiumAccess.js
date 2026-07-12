@@ -1,9 +1,34 @@
 export const PREMIUM_ACCESS_EVENT = "darbak:request-premium-access";
 
 const PREMIUM_PASS_KEY = "darbak_premium_pass_v1";
+const PREMIUM_PREVIEW_KEY = "darbak_premium_gate_preview_v1";
+
+const getPremiumPreviewFlag = () => {
+  if (typeof window === "undefined") return false;
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const previewParam = params.get("premium_test");
+
+    if (previewParam === "1") {
+      window.localStorage.setItem(PREMIUM_PREVIEW_KEY, "true");
+      return true;
+    }
+
+    if (previewParam === "0") {
+      window.localStorage.removeItem(PREMIUM_PREVIEW_KEY);
+      return false;
+    }
+
+    return window.localStorage.getItem(PREMIUM_PREVIEW_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
 
 export const isPremiumGateEnabled = () =>
-  process.env.REACT_APP_PREMIUM_GATE_ENABLED === "true";
+  process.env.REACT_APP_PREMIUM_GATE_ENABLED === "true" ||
+  getPremiumPreviewFlag();
 
 export const getStoredPremiumPass = () => {
   if (typeof window === "undefined") return null;
