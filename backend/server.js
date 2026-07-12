@@ -92,18 +92,51 @@ const containsBlockedTerms = (value = "") => {
   );
 };
 
+const normalizeArabicDigits = (value = "") =>
+  value
+    .toString()
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+
 const normalizeEmail = (value = "") => value.toString().trim().toLowerCase();
 
 const isValidEmail = (value = "") =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 
-const normalizeAccessCode = (value = "") =>
-  value.toString().trim().replace(/\s+/g, "");
+const normalizeSaudiMobile = (value = "") => {
+  const digits = normalizeArabicDigits(value).replace(/[^\d+]/g, "");
+  const number = digits.startsWith("+") ? digits : digits.replace(/^\+?/, "");
 
-const hashAccessCode = (email = "", accessCode = "") =>
+  if (/^\+9665\d{8}$/.test(digits)) return digits;
+  if (/^9665\d{8}$/.test(number)) return `+${number}`;
+  if (/^05\d{8}$/.test(number)) return `+966${number.slice(1)}`;
+  if (/^5\d{8}$/.test(number)) return `+966${number}`;
+
+  return "";
+};
+
+const normalizeSubscriberContact = (value = "") => {
+  if (isValidEmail(value)) return normalizeEmail(value);
+  return normalizeSaudiMobile(value) || normalizeArabicDigits(value).trim();
+};
+
+const isValidSubscriberContact = (value = "") =>
+  isValidEmail(value) || Boolean(normalizeSaudiMobile(value));
+
+const normalizeAccessCode = (value = "") =>
+  normalizeArabicDigits(value).trim().replace(/\s+/g, "");
+
+const isValidAccessCode = (value = "") => {
+  const accessCode = normalizeAccessCode(value);
+  return /^[A-Za-z0-9]{4,12}$/.test(accessCode) && !/^(.)\1+$/.test(accessCode);
+};
+
+const hashAccessCode = (contact = "", accessCode = "") =>
   crypto
     .createHmac("sha256", SUBSCRIPTION_SECRET)
-    .update(`${normalizeEmail(email)}:${normalizeAccessCode(accessCode)}`)
+    .update(
+      `${normalizeSubscriberContact(contact)}:${normalizeAccessCode(accessCode)}`
+    )
     .digest("hex");
 
 const addSubscriptionDays = (days = SUBSCRIPTION_DURATION_DAYS) => {
@@ -668,26 +701,29 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const email = normalizeEmail(req.body.email);
+    const contact = normalizeSubscriberContact(req.body.email || req.body.contact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
 
-    if (!isValidEmail(email) || accessCode.length < 4) {
+    if (
+      !isValidSubscriberContact(req.body.email || req.body.contact) ||
+      !isValidAccessCode(accessCode)
+    ) {
       return res.status(400).json({
-        error: "اكتب البريد والرمز بشكل صحيح.",
+        error: "اكتب بريد أو رقم جوال صحيح، ورمز دخول من 4 إلى 12 رقم أو حرف.",
       });
     }
 
     const subscription = await Subscription.findOne({
-      email,
-      accessCodeHash: hashAccessCode(email, accessCode),
+      email: contact,
+      accessCodeHash: hashAccessCode(contact, accessCode),
       status: "active",
       expiresAt: { $gt: new Date() },
     }).lean();
 
     if (!subscription) {
       const pendingSubscription = await Subscription.findOne({
-        email,
-        accessCodeHash: hashAccessCode(email, accessCode),
+        email: contact,
+        accessCodeHash: hashAccessCode(contact, accessCode),
         status: "pending",
         provider: "moyasar",
         providerPaymentId: { $ne: "" },
@@ -740,18 +776,21 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const email = normalizeEmail(req.body.email);
+    const contact = normalizeSubscriberContact(req.body.email || req.body.contact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
 
-    if (!isValidEmail(email) || accessCode.length < 4) {
+    if (
+      !isValidSubscriberContact(req.body.email || req.body.contact) ||
+      !isValidAccessCode(accessCode)
+    ) {
       return res.status(400).json({
-        error: "اكتب بريد صحيح ورمز لا يقل عن 4 خانات قبل الدفع.",
+        error: "اكتب بريد أو رقم جوال صحيح، ورمز دخول من 4 إلى 12 رقم أو حرف قبل الدفع.",
       });
     }
 
-    const accessCodeHash = hashAccessCode(email, accessCode);
+    const accessCodeHash = hashAccessCode(contact, accessCode);
     const activeSubscription = await Subscription.findOne({
-      email,
+      email: contact,
       accessCodeHash,
       status: "active",
       expiresAt: { $gt: new Date() },
@@ -777,9 +816,9 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       });
 
       await Subscription.findOneAndUpdate(
-        { email, accessCodeHash },
+        { email: contact, accessCodeHash },
         {
-          email,
+          email: contact,
           accessCodeHash,
           status: "pending",
           expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
@@ -803,7 +842,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
 
       try {
         const url = new URL(SUBSCRIPTION_CHECKOUT_URL);
-        url.searchParams.set("email", email);
+        url.searchParams.set("email", contact);
         url.searchParams.set("amount", String(SUBSCRIPTION_PRICE_SAR));
         url.searchParams.set("duration", String(SUBSCRIPTION_DURATION_DAYS));
         checkoutUrl = url.toString();
@@ -812,9 +851,9 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       }
 
       await Subscription.findOneAndUpdate(
-        { email, accessCodeHash },
+        { email: contact, accessCodeHash },
         {
-          email,
+          email: contact,
           accessCodeHash,
           status: "pending",
           expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
@@ -908,21 +947,25 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const email = normalizeEmail(req.body.email);
+    const contact = normalizeSubscriberContact(req.body.email || req.body.contact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
     const days = Number(req.body.days || SUBSCRIPTION_DURATION_DAYS);
 
-    if (!isValidEmail(email) || accessCode.length < 4) {
+    if (
+      !isValidSubscriberContact(req.body.email || req.body.contact) ||
+      !isValidAccessCode(accessCode)
+    ) {
       return res.status(400).json({
-        error: "اكتب بريد ورمز واضح لا يقل عن 4 خانات.",
+        error: "اكتب بريد أو رقم جوال صحيح، ورمز دخول من 4 إلى 12 رقم أو حرف.",
       });
     }
 
+    const accessCodeHash = hashAccessCode(contact, accessCode);
     const subscription = await Subscription.findOneAndUpdate(
-      { email, accessCodeHash: hashAccessCode(email, accessCode) },
+      { email: contact, accessCodeHash },
       {
-        email,
-        accessCodeHash: hashAccessCode(email, accessCode),
+        email: contact,
+        accessCodeHash,
         status: "active",
         expiresAt: addSubscriptionDays(days),
         provider: req.body.provider || "manual",

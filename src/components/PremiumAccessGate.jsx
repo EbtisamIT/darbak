@@ -8,7 +8,7 @@ import {
 import { trackEvent } from "../utils/analytics";
 
 const initialForm = {
-  email: "",
+  contact: "",
   accessCode: "",
 };
 
@@ -18,6 +18,40 @@ const featureCopy = {
   experience_details: "تفاصيل التجربة الكاملة",
   opportunity_details: "تفاصيل فرصة التدريب",
   opportunity_apply: "رابط التقديم المباشر",
+};
+
+const premiumBenefits = [
+  "تجارب ونصائح المتدربين السابقين",
+  "روابط تقديم مباشرة للجهات والفرص",
+  "وصول 30 يوم من أي جهاز بنفس البيانات",
+];
+
+const normalizeArabicDigits = (value = "") =>
+  value
+    .toString()
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+
+const normalizeAccessCode = (value = "") =>
+  normalizeArabicDigits(value).trim().replace(/\s+/g, "");
+
+const isValidContact = (value = "") => {
+  const trimmed = normalizeArabicDigits(value).trim();
+  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed.toLowerCase());
+  const digits = trimmed.replace(/[^\d+]/g, "");
+  const number = digits.startsWith("+") ? digits : digits.replace(/^\+?/, "");
+  const isSaudiMobile =
+    /^\+9665\d{8}$/.test(digits) ||
+    /^9665\d{8}$/.test(number) ||
+    /^05\d{8}$/.test(number) ||
+    /^5\d{8}$/.test(number);
+
+  return isEmail || isSaudiMobile;
+};
+
+const isValidAccessCode = (value = "") => {
+  const accessCode = normalizeAccessCode(value);
+  return /^[A-Za-z0-9]{4,12}$/.test(accessCode) && !/^(.)\1+$/.test(accessCode);
 };
 
 export default function PremiumAccessGate() {
@@ -60,7 +94,7 @@ export default function PremiumAccessGate() {
         window.localStorage.getItem(PENDING_SUBSCRIPTION_KEY) || "{}"
       );
       setForm({
-        email: pending.email || "",
+        contact: pending.contact || pending.email || "",
         accessCode: pending.accessCode || "",
       });
     } catch {
@@ -112,8 +146,13 @@ export default function PremiumAccessGate() {
   const verifySubscription = async (event) => {
     event.preventDefault();
 
-    if (!form.email.trim() || !form.accessCode.trim()) {
-      setMessage("اكتب البريد والرمز عشان نتحقق من اشتراكك.");
+    if (!isValidContact(form.contact)) {
+      setMessage("اكتب بريد إلكتروني صحيح أو رقم جوال سعودي قبل التحقق.");
+      return;
+    }
+
+    if (!isValidAccessCode(form.accessCode)) {
+      setMessage("اكتب رمز دخول بسيط من 4 إلى 12 رقم أو حرف إنجليزي.");
       return;
     }
 
@@ -121,8 +160,8 @@ export default function PremiumAccessGate() {
       setIsVerifying(true);
       setMessage("");
       const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
-        email: form.email,
-        accessCode: form.accessCode,
+        email: form.contact,
+        accessCode: normalizeAccessCode(form.accessCode),
       });
       grantAccess(data);
     } catch (err) {
@@ -135,14 +174,24 @@ export default function PremiumAccessGate() {
   };
 
   const startCheckout = async () => {
+    if (!isValidContact(form.contact)) {
+      setMessage("اكتب بريد إلكتروني صحيح أو رقم جوال سعودي عشان نحفظ اشتراكك.");
+      return;
+    }
+
+    if (!isValidAccessCode(form.accessCode)) {
+      setMessage("اختَر رمز دخول من 4 إلى 12 رقم أو حرف إنجليزي، بدون تكرار كامل.");
+      return;
+    }
+
     try {
       setIsStartingCheckout(true);
       setMessage("");
       const { data } = await axios.post(
         `${API_BASE_URL}/api/subscriptions/start-checkout`,
         {
-          email: form.email,
-          accessCode: form.accessCode,
+          email: form.contact,
+          accessCode: normalizeAccessCode(form.accessCode),
           returnUrl: window.location.href,
         }
       );
@@ -153,24 +202,24 @@ export default function PremiumAccessGate() {
       }
 
       trackEvent("premium_checkout_started", {
-        metadata: { feature, hasEmail: Boolean(form.email.trim()) },
+        metadata: { feature, hasContact: Boolean(form.contact.trim()) },
       });
 
       try {
         window.localStorage.setItem(
           PENDING_SUBSCRIPTION_KEY,
           JSON.stringify({
-            email: form.email,
-            accessCode: form.accessCode,
+            contact: form.contact,
+            accessCode: normalizeAccessCode(form.accessCode),
             startedAt: new Date().toISOString(),
           })
         );
       } catch {
-        // The user can still enter the same email and code manually.
+        // The user can still enter the same contact and code manually.
       }
 
       window.open(data.checkoutUrl, "_blank", "noopener,noreferrer");
-      setMessage("بعد الدفع ارجع هنا واضغط تفعيل اشتراكي بنفس البريد والرمز.");
+      setMessage("بعد الدفع ارجع هنا واضغط تفعيل اشتراكي بنفس البريد أو الجوال والرمز.");
     } catch (err) {
       setMessage(
         err.response?.data?.error ||
@@ -205,67 +254,89 @@ export default function PremiumAccessGate() {
           ×
         </button>
 
-        <div className="premium-access-badge">اشتراك دربك</div>
-        <h2 id="premium-access-title">باقي تكّة على تدريبك</h2>
-        <p className="premium-access-lead">
-          افتح {featureCopy[feature] || "المميزات المتقدمة"} وروابط التقديم
-          المباشرة وتجارب ونصائح المتدربين السابقين لمدة شهر كامل.
-        </p>
+        <div className="premium-access-layout">
+          <section className="premium-access-main">
+            <div className="premium-access-badge">اشتراك دربك</div>
+            <h2 id="premium-access-title">باقي خطوة وتفتح الطريق</h2>
+            <p className="premium-access-lead">
+              افتح {featureCopy[feature] || "المميزات المتقدمة"} وروابط التقديم
+              المباشرة لمدة شهر كامل.
+            </p>
 
-        <div className="premium-access-price">
-          <strong>5 ريال</strong>
-          <span>لشهر كامل</span>
+            <div className="premium-access-price">
+              <strong>5 ريال</strong>
+              <span>وصول كامل لمدة 30 يوم</span>
+            </div>
+
+            <div className="premium-access-form">
+              <p>
+                استخدم بريد أو رقم جوال مع رمز دخول بسيط تحفظه. الرمز ليس كلمة
+                مرور، فقط طريقة لاسترجاع اشتراكك من أي جهاز.
+              </p>
+              <div className="premium-access-fields">
+                <input
+                  type="text"
+                  inputMode="text"
+                  value={form.contact}
+                  onChange={(event) =>
+                    updateField("contact", event.target.value)
+                  }
+                  placeholder="البريد أو رقم الجوال"
+                  autoComplete="email"
+                />
+                <input
+                  value={form.accessCode}
+                  onChange={(event) =>
+                    updateField("accessCode", event.target.value)
+                  }
+                  placeholder="رمز دخول"
+                  autoComplete="one-time-code"
+                  maxLength={12}
+                />
+              </div>
+              <span className="premium-access-code-hint">
+                مثال مناسب: Darb5 أو 2580، من 4 إلى 12 رقم/حرف.
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="premium-access-pay-button"
+              onClick={startCheckout}
+              disabled={isStartingCheckout}
+            >
+              {isStartingCheckout ? "جاري فتح الدفع..." : "اشترك وافتح الوصول"}
+            </button>
+
+            <form
+              className="premium-access-verify-form"
+              onSubmit={verifySubscription}
+            >
+              <p>دفعت؟ فعّل الاشتراك بنفس البيانات.</p>
+              <button type="submit" disabled={isVerifying}>
+                {isVerifying ? "جاري التحقق..." : "تفعيل اشتراكي"}
+              </button>
+            </form>
+
+            <p className="premium-access-security">
+              الدفع آمن عبر ميسر، وبياناتك تستخدم فقط لحفظ الاشتراك.
+            </p>
+          </section>
+
+          <aside className="premium-access-benefits" aria-label="مزايا الاشتراك">
+            <p className="premium-access-benefits-kicker">وش يفتح لك؟</p>
+            <ul>
+              {premiumBenefits.map((benefit) => (
+                <li key={benefit}>{benefit}</li>
+              ))}
+            </ul>
+            <div className="premium-access-payments" aria-label="طرق الدفع">
+              <span>Apple Pay</span>
+              <span>مدى</span>
+              <span>بطاقة بنكية</span>
+            </div>
+          </aside>
         </div>
-
-        <div className="premium-access-payments" aria-label="طرق الدفع">
-          <span>Apple Pay</span>
-          <span>مدى</span>
-          <span>دفع آمن</span>
-        </div>
-
-        <div className="premium-access-form">
-          <p>
-            اكتب بريدك ورمز بسيط قبل الدفع، عشان نحفظ اشتراكك 30 يوم وتقدر
-            تدخل من أي جهاز.
-          </p>
-          <div className="premium-access-fields">
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) => updateField("email", event.target.value)}
-              placeholder="البريد الإلكتروني"
-            />
-            <input
-              value={form.accessCode}
-              onChange={(event) =>
-                updateField("accessCode", event.target.value)
-              }
-              placeholder="رمز تختاره"
-            />
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="premium-access-pay-button"
-          onClick={startCheckout}
-          disabled={isStartingCheckout}
-        >
-          {isStartingCheckout ? "جاري فتح الدفع..." : "اشترك وافتح الوصول"}
-        </button>
-
-        <p className="premium-access-security">
-          الاشتراك آمن ويفتح لك مميزات المنصة والتحديثات لمدة 30 يوم.
-        </p>
-
-        <form className="premium-access-form" onSubmit={verifySubscription}>
-          <p>
-            دفعت؟ اضغط التفعيل بنفس البريد والرمز، ويفتح لك الوصول مباشرة.
-          </p>
-          <button type="submit" disabled={isVerifying}>
-            {isVerifying ? "جاري التحقق..." : "تفعيل اشتراكي"}
-          </button>
-        </form>
 
         {message && <p className="premium-access-message">{message}</p>}
       </div>
