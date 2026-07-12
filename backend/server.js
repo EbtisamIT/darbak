@@ -181,18 +181,60 @@ const callMoyasar = async (path, options = {}) => {
   return data;
 };
 
+const flattenProviderError = (details = {}) => {
+  const messages = [];
+
+  const pushMessage = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(pushMessage);
+      return;
+    }
+    if (typeof value === "object") {
+      Object.values(value).forEach(pushMessage);
+      return;
+    }
+    messages.push(String(value));
+  };
+
+  pushMessage(details.message);
+  pushMessage(details.error);
+  pushMessage(details.errors);
+  pushMessage(details.raw);
+
+  return Array.from(new Set(messages)).join(" - ").slice(0, 240);
+};
+
+const getCheckoutErrorMessage = (err) => {
+  const providerReason = flattenProviderError(err.details);
+
+  if (err.statusCode === 401 || err.statusCode === 403) {
+    return "مفتاح ميسر غير صحيح أو غير مفعّل. تأكدي أن MOYASAR_SECRET_KEY هو Secret Key التجريبي كامل.";
+  }
+
+  if (err.statusCode === 400 || err.statusCode === 422) {
+    return providerReason
+      ? `ميسر رفض بيانات رابط الدفع: ${providerReason}`
+      : "ميسر رفض بيانات رابط الدفع. تأكدي من روابط FRONTEND_URL و API_PUBLIC_URL.";
+  }
+
+  if (err.statusCode >= 500) {
+    return "خدمة ميسر لم تستجب حاليًا. جرّبي بعد قليل أو راجعي لوحة ميسر.";
+  }
+
+  return providerReason || "تعذر إنشاء رابط الدفع التجريبي حاليًا.";
+};
+
 const createMoyasarInvoice = async ({
   amountHalalas,
   description,
   callbackUrl,
-  successUrl,
 }) => {
   const body = new URLSearchParams();
   body.set("amount", String(amountHalalas));
   body.set("currency", "SAR");
   body.set("description", description);
   body.set("callback_url", callbackUrl);
-  body.set("success_url", successUrl);
 
   return callMoyasar("/invoices", {
     method: "POST",
@@ -731,10 +773,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       const invoice = await createMoyasarInvoice({
         amountHalalas,
         description: `اشتراك دربك ${SUBSCRIPTION_DURATION_DAYS} يوم`,
-        callbackUrl: `${getPublicApiUrl(
-          req
-        )}/api/subscriptions/moyasar/callback`,
-        successUrl,
+        callbackUrl: successUrl,
       });
 
       await Subscription.findOneAndUpdate(
@@ -798,13 +837,18 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         "مفتاح ميسر التجريبي غير مفعّل بعد. أضيفي MOYASAR_SECRET_KEY في Render للباكند.",
     });
   } catch (err) {
-    console.error("❌ Subscription checkout error:", err);
+    console.error("❌ Subscription checkout error:", {
+      message: err.message,
+      statusCode: err.statusCode,
+      details: err.details,
+    });
     res.status(err.statusCode || 500).json({
       error:
         err.statusCode === 501
           ? err.message
-          : "تعذر إنشاء رابط الدفع التجريبي حاليًا.",
-      details: err.details,
+          : getCheckoutErrorMessage(err),
+      providerStatus: err.statusCode || null,
+      providerMessage: flattenProviderError(err.details),
     });
   }
 });
