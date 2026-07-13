@@ -701,11 +701,12 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const contact = normalizeSubscriberContact(req.body.email || req.body.contact);
+    const rawContact = req.body.email || req.body.contact;
+    const contact = normalizeSubscriberContact(rawContact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
 
     if (
-      !isValidSubscriberContact(req.body.email || req.body.contact) ||
+      !isValidSubscriberContact(rawContact) ||
       !isValidAccessCode(accessCode)
     ) {
       return res.status(400).json({
@@ -744,6 +745,7 @@ app.post('/api/subscriptions/verify', async (req, res) => {
 
           return res.json({
             active: true,
+            contact: activated.email,
             email: activated.email,
             expiresAt: activated.expiresAt,
           });
@@ -754,6 +756,21 @@ app.post('/api/subscriptions/verify', async (req, res) => {
         });
       }
 
+      const existingContact = await Subscription.findOne({
+        email: contact,
+        status: { $in: ["active", "pending"] },
+        expiresAt: { $gt: new Date() },
+      })
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      if (existingContact) {
+        return res.status(401).json({
+          error:
+            "هذا البريد أو الجوال مسجل مسبقًا. استخدم رمز الدخول الصحيح بدل إنشاء اشتراك جديد.",
+        });
+      }
+
       return res.status(404).json({
         error: "ما لقينا اشتراك نشط بهذا البريد والرمز.",
       });
@@ -761,6 +778,7 @@ app.post('/api/subscriptions/verify', async (req, res) => {
 
     res.json({
       active: true,
+      contact: subscription.email,
       email: subscription.email,
       expiresAt: subscription.expiresAt,
     });
@@ -776,11 +794,12 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const contact = normalizeSubscriberContact(req.body.email || req.body.contact);
+    const rawContact = req.body.email || req.body.contact;
+    const contact = normalizeSubscriberContact(rawContact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
 
     if (
-      !isValidSubscriberContact(req.body.email || req.body.contact) ||
+      !isValidSubscriberContact(rawContact) ||
       !isValidAccessCode(accessCode)
     ) {
       return res.status(400).json({
@@ -789,19 +808,71 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     }
 
     const accessCodeHash = hashAccessCode(contact, accessCode);
-    const activeSubscription = await Subscription.findOne({
+    const existingSubscription = await Subscription.findOne({
       email: contact,
-      accessCodeHash,
-      status: "active",
+      status: { $in: ["active", "pending"] },
       expiresAt: { $gt: new Date() },
-    }).lean();
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
 
-    if (activeSubscription) {
-      return res.json({
-        active: true,
-        email: activeSubscription.email,
-        expiresAt: activeSubscription.expiresAt,
-      });
+    if (existingSubscription) {
+      if (existingSubscription.accessCodeHash !== accessCodeHash) {
+        return res.status(409).json({
+          error:
+            "هذا البريد أو الجوال مسجل مسبقًا. إذا أنت مشترك سابق، استخدم رمز الدخول الصحيح واضغط دخول مشترك سابق.",
+        });
+      }
+
+      if (existingSubscription.status === "active") {
+        return res.json({
+          active: true,
+          contact: existingSubscription.email,
+          email: existingSubscription.email,
+          expiresAt: existingSubscription.expiresAt,
+        });
+      }
+
+      if (
+        existingSubscription.provider === "moyasar" &&
+        existingSubscription.providerPaymentId
+      ) {
+        const invoice = await getMoyasarInvoice(
+          existingSubscription.providerPaymentId
+        );
+
+        if (invoice.status === "paid") {
+          const activated = await Subscription.findByIdAndUpdate(
+            existingSubscription._id,
+            {
+              status: "active",
+              expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
+            },
+            { new: true }
+          ).lean();
+
+          return res.json({
+            active: true,
+            contact: activated.email,
+            email: activated.email,
+            expiresAt: activated.expiresAt,
+          });
+        }
+
+        if (["expired", "failed", "canceled", "cancelled"].includes(invoice.status)) {
+          await Subscription.findByIdAndUpdate(existingSubscription._id, {
+            status: "cancelled",
+          });
+        } else if (invoice.url) {
+          return res.json({
+            checkoutUrl: invoice.url,
+            provider: "moyasar",
+            invoiceId: invoice.id || existingSubscription.providerPaymentId,
+            priceSar: SUBSCRIPTION_PRICE_SAR,
+            durationDays: SUBSCRIPTION_DURATION_DAYS,
+          });
+        }
+      }
     }
 
     const successUrl = getSafeSubscriptionReturnUrl(req.body.returnUrl);

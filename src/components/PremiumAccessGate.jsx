@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
 import {
@@ -83,36 +83,6 @@ export default function PremiumAccessGate() {
       window.removeEventListener(PREMIUM_ACCESS_EVENT, handlePremiumRequest);
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("subscription") !== "success") return;
-
-    try {
-      const pending = JSON.parse(
-        window.localStorage.getItem(PENDING_SUBSCRIPTION_KEY) || "{}"
-      );
-      setForm({
-        contact: pending.contact || pending.email || "",
-        accessCode: pending.accessCode || "",
-      });
-    } catch {
-      // Ignore malformed pending checkout data.
-    }
-
-    setFeature("experience_details");
-    setMessage("تم الرجوع من صفحة الدفع. اضغط تفعيل اشتراكي لإكمال الوصول.");
-    setIsOpen(true);
-
-    params.delete("subscription");
-    const nextSearch = params.toString();
-    const nextUrl = `${window.location.pathname}${
-      nextSearch ? `?${nextSearch}` : ""
-    }${window.location.hash || ""}`;
-    window.history.replaceState({}, "", nextUrl);
-  }, []);
-
   const closeGate = () => {
     setIsOpen(false);
     setMessage("");
@@ -125,7 +95,7 @@ export default function PremiumAccessGate() {
     setMessage("");
   };
 
-  const grantAccess = (subscription) => {
+  const grantAccess = useCallback((subscription) => {
     savePremiumPass(subscription);
     try {
       window.localStorage.removeItem(PENDING_SUBSCRIPTION_KEY);
@@ -141,37 +111,88 @@ export default function PremiumAccessGate() {
     const action = pendingActionRef.current;
     pendingActionRef.current = null;
     if (typeof action === "function") action();
-  };
+  }, [feature]);
 
-  const verifySubscription = async (event) => {
-    event.preventDefault();
+  const verifyAccess = useCallback(async (
+    contactValue = form.contact,
+    accessCodeValue = form.accessCode,
+    options = {}
+  ) => {
+    const normalizedCode = normalizeAccessCode(accessCodeValue);
 
-    if (!isValidContact(form.contact)) {
+    if (!isValidContact(contactValue)) {
       setMessage("اكتب بريد إلكتروني صحيح أو رقم جوال سعودي قبل التحقق.");
-      return;
+      return false;
     }
 
-    if (!isValidAccessCode(form.accessCode)) {
+    if (!isValidAccessCode(normalizedCode)) {
       setMessage("اكتب رمز دخول بسيط من 4 إلى 12 رقم أو حرف إنجليزي.");
-      return;
+      return false;
     }
 
     try {
       setIsVerifying(true);
-      setMessage("");
+      setMessage(options.auto ? "جاري تفعيل اشتراكك..." : "");
       const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
-        email: form.contact,
-        accessCode: normalizeAccessCode(form.accessCode),
+        email: contactValue,
+        accessCode: normalizedCode,
       });
       grantAccess(data);
+      return true;
     } catch (err) {
       setMessage(
         err.response?.data?.error || "تعذر التحقق من الاشتراك حاليًا."
       );
+      return false;
     } finally {
       setIsVerifying(false);
     }
+  }, [form.accessCode, form.contact, grantAccess]);
+
+  const verifySubscription = (event) => {
+    event.preventDefault();
+    verifyAccess();
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("subscription") !== "success") return;
+
+    let pending = {};
+    try {
+      pending = JSON.parse(
+        window.localStorage.getItem(PENDING_SUBSCRIPTION_KEY) || "{}"
+      );
+    } catch {
+      // Ignore malformed pending checkout data.
+    }
+
+    const pendingContact = pending.contact || pending.email || "";
+    const pendingAccessCode = pending.accessCode || "";
+
+    setForm({
+      contact: pendingContact,
+      accessCode: pendingAccessCode,
+    });
+    setFeature("experience_details");
+    setIsOpen(true);
+
+    params.delete("subscription");
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${
+      nextSearch ? `?${nextSearch}` : ""
+    }${window.location.hash || ""}`;
+    window.history.replaceState({}, "", nextUrl);
+
+    if (pendingContact && pendingAccessCode) {
+      verifyAccess(pendingContact, pendingAccessCode, { auto: true });
+      return;
+    }
+
+    setMessage("تم الرجوع من صفحة الدفع. اكتب بيانات الاشتراك لتفعيل الوصول.");
+  }, [verifyAccess]);
 
   const startCheckout = async () => {
     if (!isValidContact(form.contact)) {
@@ -275,32 +296,38 @@ export default function PremiumAccessGate() {
 
             <div className="premium-access-form">
               <p>
-                استخدم بريد أو رقم جوال مع رمز دخول بسيط تحفظه. الرمز ليس كلمة
-                مرور، فقط طريقة لاسترجاع اشتراكك من أي جهاز.
+                استخدم بريد أو رقم جوال مع رمز دخول بسيط تحفظه. إذا كان لديك
+                اشتراك سابق، اكتب نفس البيانات واضغط دخول مشترك سابق.
               </p>
               <div className="premium-access-fields">
-                <input
-                  type="text"
-                  inputMode="text"
-                  value={form.contact}
-                  onChange={(event) =>
-                    updateField("contact", event.target.value)
-                  }
-                  placeholder="البريد أو رقم الجوال"
-                  autoComplete="email"
-                />
-                <input
-                  value={form.accessCode}
-                  onChange={(event) =>
-                    updateField("accessCode", event.target.value)
-                  }
-                  placeholder="رمز دخول"
-                  autoComplete="one-time-code"
-                  maxLength={12}
-                />
+                <label className="premium-access-field">
+                  <span>البريد أو رقم الجوال</span>
+                  <input
+                    type="text"
+                    inputMode="text"
+                    value={form.contact}
+                    onChange={(event) =>
+                      updateField("contact", event.target.value)
+                    }
+                    placeholder="example@email.com أو 05xxxxxxxx"
+                    autoComplete="email"
+                  />
+                </label>
+                <label className="premium-access-field">
+                  <span>رمز الدخول</span>
+                  <input
+                    value={form.accessCode}
+                    onChange={(event) =>
+                      updateField("accessCode", event.target.value)
+                    }
+                    placeholder="رمز تحفظه"
+                    autoComplete="one-time-code"
+                    maxLength={12}
+                  />
+                </label>
               </div>
               <span className="premium-access-code-hint">
-                مثال مناسب: Darb5 أو 2580، من 4 إلى 12 رقم/حرف.
+                مثال مناسب: Darb5 أو 2580. لا تستخدم رمزًا عامًا مثل 1111.
               </span>
             </div>
 
@@ -317,9 +344,9 @@ export default function PremiumAccessGate() {
               className="premium-access-verify-form"
               onSubmit={verifySubscription}
             >
-              <p>دفعت؟ فعّل الاشتراك بنفس البيانات.</p>
+              <p>مشترك سابق؟ ادخل بنفس البريد/الجوال والرمز.</p>
               <button type="submit" disabled={isVerifying}>
-                {isVerifying ? "جاري التحقق..." : "تفعيل اشتراكي"}
+                {isVerifying ? "جاري الدخول..." : "دخول مشترك سابق"}
               </button>
             </form>
 

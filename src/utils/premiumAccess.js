@@ -60,6 +60,7 @@ export const savePremiumPass = (pass) => {
     window.localStorage.setItem(
       PREMIUM_PASS_KEY,
       JSON.stringify({
+        contact: pass.contact || pass.email,
         email: pass.email,
         expiresAt: pass.expiresAt,
         savedAt: new Date().toISOString(),
