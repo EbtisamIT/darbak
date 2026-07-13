@@ -24,7 +24,26 @@ const premiumBenefits = [
   "افتح التفاصيل اللي تختصر عليك سؤال القروبات",
   "روابط تقديم وجهات مناسبة بدون تدوير طويل",
   "احفظ التجارب والجهات اللي تهمك وارجع لها لاحقًا",
-  "وصول 30 يوم من أي جهاز بنفس بياناتك",
+  "وصول من أي جهاز بنفس بياناتك طوال مدة الباقة",
+];
+
+const subscriptionPlans = [
+  {
+    id: "monthly",
+    title: "وصول شهر",
+    price: "5 ريال",
+    duration: "30 يوم",
+    description: "مناسب إذا تبغى تجربة سريعة وبأخف تكلفة.",
+    badge: "مرن",
+  },
+  {
+    id: "one_time_90",
+    title: "دفعة واحدة",
+    price: "10 ريال",
+    duration: "3 أشهر",
+    description: "يغطي موسم البحث والتقديم بدون قلق تجديد.",
+    badge: "الأفضل للطلاب",
+  },
 ];
 
 const normalizeArabicDigits = (value = "") =>
@@ -62,7 +81,11 @@ export default function PremiumAccessGate() {
   const [message, setMessage] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState("one_time_90");
   const pendingActionRef = useRef(null);
+  const selectedPlan =
+    subscriptionPlans.find((plan) => plan.id === selectedPlanId) ||
+    subscriptionPlans[0];
 
   useEffect(() => {
     const handlePremiumRequest = (event) => {
@@ -214,6 +237,7 @@ export default function PremiumAccessGate() {
         {
           email: form.contact,
           accessCode: normalizeAccessCode(form.accessCode),
+          planId: selectedPlan.id,
           returnUrl: window.location.href,
         }
       );
@@ -224,7 +248,11 @@ export default function PremiumAccessGate() {
       }
 
       trackEvent("premium_checkout_started", {
-        metadata: { feature, hasContact: Boolean(form.contact.trim()) },
+        metadata: {
+          feature,
+          hasContact: Boolean(form.contact.trim()),
+          planId: selectedPlan.id,
+        },
       });
 
       try {
@@ -233,6 +261,7 @@ export default function PremiumAccessGate() {
           JSON.stringify({
             contact: form.contact,
             accessCode: normalizeAccessCode(form.accessCode),
+            planId: selectedPlan.id,
             startedAt: new Date().toISOString(),
           })
         );
@@ -287,12 +316,32 @@ export default function PremiumAccessGate() {
             <h2 id="premium-access-title">باقي خطوة وتفتح الطريق</h2>
             <p className="premium-access-lead">
               افتح {featureCopy[feature] || "المميزات المتقدمة"} وروابط التقديم
-              المباشرة لمدة شهر كامل.
+              المباشرة بالمدة اللي تناسبك.
             </p>
 
+            <div className="premium-plan-options" role="radiogroup" aria-label="اختيار الباقة">
+              {subscriptionPlans.map((plan) => (
+                <button
+                  key={plan.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedPlan.id === plan.id}
+                  className={`premium-plan-option${
+                    selectedPlan.id === plan.id ? " is-selected" : ""
+                  }`}
+                  onClick={() => setSelectedPlanId(plan.id)}
+                >
+                  <span className="premium-plan-badge">{plan.badge}</span>
+                  <strong>{plan.price}</strong>
+                  <em>{plan.title}</em>
+                  <small>{plan.description}</small>
+                </button>
+              ))}
+            </div>
+
             <div className="premium-access-price">
-              <strong>5 ريال</strong>
-              <span>وصول كامل لمدة 30 يوم</span>
+              <strong>{selectedPlan.price}</strong>
+              <span>وصول كامل لمدة {selectedPlan.duration}</span>
             </div>
 
             <div className="premium-access-form">
@@ -338,7 +387,9 @@ export default function PremiumAccessGate() {
               onClick={startCheckout}
               disabled={isStartingCheckout}
             >
-              {isStartingCheckout ? "جاري فتح الدفع..." : "اشترك وافتح الوصول"}
+              {isStartingCheckout
+                ? "جاري فتح الدفع..."
+                : `ادفع ${selectedPlan.price} وافتح الوصول`}
             </button>
 
             <form
@@ -352,7 +403,7 @@ export default function PremiumAccessGate() {
             </form>
 
             <p className="premium-access-security">
-              الدفع آمن عبر ميسر، وبياناتك تستخدم فقط لحفظ الاشتراك.
+              الدفع آمن عبر ميسر، وكل خيار يفتح المدة المحددة بدون تجديد تلقائي داخل دربك.
             </p>
           </section>
 

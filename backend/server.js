@@ -19,6 +19,16 @@ const SUBSCRIPTION_PRICE_SAR = Number(process.env.SUBSCRIPTION_PRICE_SAR || 5);
 const SUBSCRIPTION_DURATION_DAYS = Number(
   process.env.SUBSCRIPTION_DURATION_DAYS || 30
 );
+const ONE_TIME_SUBSCRIPTION_PRICE_SAR = Number(
+  process.env.ONE_TIME_SUBSCRIPTION_PRICE_SAR ||
+    process.env.ONE_TIME_PRICE_SAR ||
+    10
+);
+const ONE_TIME_SUBSCRIPTION_DURATION_DAYS = Number(
+  process.env.ONE_TIME_SUBSCRIPTION_DURATION_DAYS ||
+    process.env.ONE_TIME_DURATION_DAYS ||
+    90
+);
 const SUBSCRIPTION_CHECKOUT_URL = process.env.SUBSCRIPTION_CHECKOUT_URL || "";
 const MOYASAR_SECRET_KEY = process.env.MOYASAR_SECRET_KEY || "";
 const MOYASAR_API_BASE_URL =
@@ -33,6 +43,20 @@ const SUBSCRIPTION_SECRET =
   ADMIN_PASSWORD ||
   process.env.MONGO_URI ||
   "darbak-subscription-local-secret";
+const SUBSCRIPTION_PLANS = {
+  monthly: {
+    id: "monthly",
+    label: "وصول شهر",
+    priceSar: SUBSCRIPTION_PRICE_SAR,
+    durationDays: SUBSCRIPTION_DURATION_DAYS,
+  },
+  one_time_90: {
+    id: "one_time_90",
+    label: "دفعة واحدة 3 أشهر",
+    priceSar: ONE_TIME_SUBSCRIPTION_PRICE_SAR,
+    durationDays: ONE_TIME_SUBSCRIPTION_DURATION_DAYS,
+  },
+};
 const GENERAL_SPECIALTY_MARKERS = [
   "__all_specialties__",
   "جميع التخصصات",
@@ -144,6 +168,15 @@ const addSubscriptionDays = (days = SUBSCRIPTION_DURATION_DAYS) => {
   expiresAt.setDate(expiresAt.getDate() + Number(days || 30));
   return expiresAt;
 };
+
+const getSubscriptionPlan = (planId = "") =>
+  SUBSCRIPTION_PLANS[planId] || SUBSCRIPTION_PLANS.monthly;
+
+const getSubscriptionDurationDays = (subscription = {}) =>
+  Number(subscription.durationDays || SUBSCRIPTION_DURATION_DAYS);
+
+const getSubscriptionPriceSar = (subscription = {}) =>
+  Number(subscription.priceSar || SUBSCRIPTION_PRICE_SAR);
 
 const getPublicApiUrl = (req) => {
   if (API_PUBLIC_URL) return API_PUBLIC_URL.replace(/\/$/, "");
@@ -738,7 +771,9 @@ app.post('/api/subscriptions/verify', async (req, res) => {
             pendingSubscription._id,
             {
               status: "active",
-              expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
+              expiresAt: addSubscriptionDays(
+                getSubscriptionDurationDays(pendingSubscription)
+              ),
             },
             { new: true }
           ).lean();
@@ -748,6 +783,9 @@ app.post('/api/subscriptions/verify', async (req, res) => {
             contact: activated.email,
             email: activated.email,
             expiresAt: activated.expiresAt,
+            planId: activated.planId || "monthly",
+            priceSar: getSubscriptionPriceSar(activated),
+            durationDays: getSubscriptionDurationDays(activated),
           });
         }
 
@@ -781,6 +819,9 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       contact: subscription.email,
       email: subscription.email,
       expiresAt: subscription.expiresAt,
+      planId: subscription.planId || "monthly",
+      priceSar: getSubscriptionPriceSar(subscription),
+      durationDays: getSubscriptionDurationDays(subscription),
     });
   } catch (err) {
     console.error("❌ Subscription verify error:", err);
@@ -797,6 +838,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     const rawContact = req.body.email || req.body.contact;
     const contact = normalizeSubscriberContact(rawContact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
+    const selectedPlan = getSubscriptionPlan(req.body.planId);
 
     if (
       !isValidSubscriberContact(rawContact) ||
@@ -830,6 +872,9 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           contact: existingSubscription.email,
           email: existingSubscription.email,
           expiresAt: existingSubscription.expiresAt,
+          planId: existingSubscription.planId || "monthly",
+          priceSar: getSubscriptionPriceSar(existingSubscription),
+          durationDays: getSubscriptionDurationDays(existingSubscription),
         });
       }
 
@@ -837,6 +882,8 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         existingSubscription.provider === "moyasar" &&
         existingSubscription.providerPaymentId
       ) {
+        const isSamePendingPlan =
+          (existingSubscription.planId || "monthly") === selectedPlan.id;
         const invoice = await getMoyasarInvoice(
           existingSubscription.providerPaymentId
         );
@@ -846,7 +893,9 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
             existingSubscription._id,
             {
               status: "active",
-              expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
+              expiresAt: addSubscriptionDays(
+                getSubscriptionDurationDays(existingSubscription)
+              ),
             },
             { new: true }
           ).lean();
@@ -856,6 +905,9 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
             contact: activated.email,
             email: activated.email,
             expiresAt: activated.expiresAt,
+            planId: activated.planId || "monthly",
+            priceSar: getSubscriptionPriceSar(activated),
+            durationDays: getSubscriptionDurationDays(activated),
           });
         }
 
@@ -863,13 +915,14 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           await Subscription.findByIdAndUpdate(existingSubscription._id, {
             status: "cancelled",
           });
-        } else if (invoice.url) {
+        } else if (isSamePendingPlan && invoice.url) {
           return res.json({
             checkoutUrl: invoice.url,
             provider: "moyasar",
             invoiceId: invoice.id || existingSubscription.providerPaymentId,
-            priceSar: SUBSCRIPTION_PRICE_SAR,
-            durationDays: SUBSCRIPTION_DURATION_DAYS,
+            planId: existingSubscription.planId || "monthly",
+            priceSar: getSubscriptionPriceSar(existingSubscription),
+            durationDays: getSubscriptionDurationDays(existingSubscription),
           });
         }
       }
@@ -877,12 +930,12 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
 
     const successUrl = getSafeSubscriptionReturnUrl(req.body.returnUrl);
 
-    const amountHalalas = Math.round(SUBSCRIPTION_PRICE_SAR * 100);
+    const amountHalalas = Math.round(selectedPlan.priceSar * 100);
 
     if (MOYASAR_SECRET_KEY) {
       const invoice = await createMoyasarInvoice({
         amountHalalas,
-        description: `اشتراك دربك ${SUBSCRIPTION_DURATION_DAYS} يوم`,
+        description: `دربك - ${selectedPlan.label}`,
         callbackUrl: successUrl,
       });
 
@@ -892,7 +945,10 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           email: contact,
           accessCodeHash,
           status: "pending",
-          expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
+          planId: selectedPlan.id,
+          priceSar: selectedPlan.priceSar,
+          durationDays: selectedPlan.durationDays,
+          expiresAt: addSubscriptionDays(selectedPlan.durationDays),
           provider: "moyasar",
           providerPaymentId: invoice.id || "",
         },
@@ -903,8 +959,9 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         checkoutUrl: invoice.url,
         provider: "moyasar",
         invoiceId: invoice.id,
-        priceSar: SUBSCRIPTION_PRICE_SAR,
-        durationDays: SUBSCRIPTION_DURATION_DAYS,
+        planId: selectedPlan.id,
+        priceSar: selectedPlan.priceSar,
+        durationDays: selectedPlan.durationDays,
       });
     }
 
@@ -914,8 +971,9 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       try {
         const url = new URL(SUBSCRIPTION_CHECKOUT_URL);
         url.searchParams.set("email", contact);
-        url.searchParams.set("amount", String(SUBSCRIPTION_PRICE_SAR));
-        url.searchParams.set("duration", String(SUBSCRIPTION_DURATION_DAYS));
+        url.searchParams.set("amount", String(selectedPlan.priceSar));
+        url.searchParams.set("duration", String(selectedPlan.durationDays));
+        url.searchParams.set("plan", selectedPlan.id);
         checkoutUrl = url.toString();
       } catch {
         // Keep custom provider links as-is if they are not parseable URLs.
@@ -927,7 +985,10 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           email: contact,
           accessCodeHash,
           status: "pending",
-          expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
+          planId: selectedPlan.id,
+          priceSar: selectedPlan.priceSar,
+          durationDays: selectedPlan.durationDays,
+          expiresAt: addSubscriptionDays(selectedPlan.durationDays),
           provider: "manual",
           providerPaymentId: "",
         },
@@ -937,8 +998,9 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       return res.json({
         checkoutUrl,
         provider: "manual",
-        priceSar: SUBSCRIPTION_PRICE_SAR,
-        durationDays: SUBSCRIPTION_DURATION_DAYS,
+        planId: selectedPlan.id,
+        priceSar: selectedPlan.priceSar,
+        durationDays: selectedPlan.durationDays,
       });
     }
 
@@ -989,11 +1051,22 @@ app.post('/api/subscriptions/moyasar/callback', async (req, res) => {
       return res.json({ ok: true, ignored: true, status });
     }
 
-    const subscription = await Subscription.findOneAndUpdate(
-      { provider: "moyasar", providerPaymentId: invoiceId },
+    const existingSubscription = await Subscription.findOne({
+      provider: "moyasar",
+      providerPaymentId: invoiceId,
+    }).lean();
+
+    if (!existingSubscription) {
+      return res.status(404).json({ error: "Subscription not found" });
+    }
+
+    const subscription = await Subscription.findByIdAndUpdate(
+      existingSubscription._id,
       {
         status: "active",
-        expiresAt: addSubscriptionDays(SUBSCRIPTION_DURATION_DAYS),
+        expiresAt: addSubscriptionDays(
+          getSubscriptionDurationDays(existingSubscription)
+        ),
       },
       { new: true }
     ).lean();
@@ -1020,7 +1093,9 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
 
     const contact = normalizeSubscriberContact(req.body.email || req.body.contact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
-    const days = Number(req.body.days || SUBSCRIPTION_DURATION_DAYS);
+    const selectedPlan = getSubscriptionPlan(req.body.planId);
+    const days = Number(req.body.days || selectedPlan.durationDays);
+    const priceSar = Number(req.body.priceSar || selectedPlan.priceSar);
 
     if (
       !isValidSubscriberContact(req.body.email || req.body.contact) ||
@@ -1038,6 +1113,9 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
         email: contact,
         accessCodeHash,
         status: "active",
+        planId: selectedPlan.id,
+        priceSar,
+        durationDays: days,
         expiresAt: addSubscriptionDays(days),
         provider: req.body.provider || "manual",
         providerPaymentId: req.body.providerPaymentId || "",

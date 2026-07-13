@@ -20,6 +20,20 @@ const subscriptionSchema = new mongoose.Schema(
       default: "active",
       index: true,
     },
+    planId: {
+      type: String,
+      default: "monthly",
+      trim: true,
+      index: true,
+    },
+    priceSar: {
+      type: Number,
+      default: 5,
+    },
+    durationDays: {
+      type: Number,
+      default: 30,
+    },
     expiresAt: {
       type: Date,
       required: true,

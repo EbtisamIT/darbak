@@ -230,6 +230,75 @@ body {
   font-weight: 800;
 }
 
+.premium-plan-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0 0;
+}
+
+.premium-plan-option {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-height: 134px;
+  padding: 13px;
+  border-radius: 17px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+  color: var(--app-text);
+  text-align: right;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.premium-plan-option:hover,
+.premium-plan-option.is-selected {
+  border-color: var(--app-brand);
+  box-shadow: 0 12px 26px var(--app-brand-soft);
+}
+
+.premium-plan-option.is-selected {
+  transform: translateY(-1px);
+  background:
+    linear-gradient(145deg, var(--app-brand-soft), transparent 70%),
+    var(--app-card);
+}
+
+.premium-plan-option strong {
+  margin-top: 14px;
+  color: var(--app-brand);
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.premium-plan-option em {
+  color: var(--app-text);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.premium-plan-option small {
+  color: var(--app-text-soft);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.premium-plan-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--app-card);
+  border: 1px solid var(--app-brand-border);
+  color: var(--app-brand);
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
 .premium-access-payments {
   display: flex;
   justify-content: flex-start;
@@ -697,6 +766,10 @@ body {
   }
 
   .premium-access-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .premium-plan-options {
     grid-template-columns: 1fr;
   }
 
