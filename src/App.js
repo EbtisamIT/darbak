@@ -707,18 +707,20 @@ function PlatformUpdateNotice() {
   );
 
   const renderResult = () => (
-    <div style={{ display: "grid", gap: "13px" }}>
-      <div
-        style={{
-          border: "1px solid var(--app-brand-border)",
-          borderRadius: "20px",
-          padding: "18px",
-          background:
-            "linear-gradient(145deg, var(--app-card), var(--app-surface))",
-          boxShadow: "0 18px 40px var(--app-shadow)",
-          textAlign: "right",
-        }}
-      >
+    <div
+      style={{
+        border: "1px solid var(--app-brand-border)",
+        borderRadius: "22px",
+        padding: "18px",
+        background:
+          "linear-gradient(145deg, var(--app-card), var(--app-surface))",
+        boxShadow: "0 18px 40px var(--app-shadow)",
+        textAlign: "right",
+        display: "grid",
+        gap: "16px",
+      }}
+    >
+      <div>
         <p
           id="platform-update-title"
           style={{
@@ -731,17 +733,20 @@ function PlatformUpdateNotice() {
         >
           تشخيص دربك
         </p>
+        <strong
+          style={{
+            display: "block",
+            fontSize: "24px",
+            lineHeight: 1.35,
+            textAlign: "center",
+            color: "var(--app-text)",
+            marginBottom: "12px",
+          }}
+        >
+          {diagnosis.name}
+        </strong>
+
         <div style={{ display: "grid", gap: "13px", color: "var(--app-text)" }}>
-          <strong
-            style={{
-              fontSize: "24px",
-              lineHeight: 1.35,
-              textAlign: "center",
-              color: "var(--app-text)",
-            }}
-          >
-            {diagnosis.name}
-          </strong>
           {[
             ["التخصص", selectedMajorLabel],
             ["المدينة", selectedCityLabel],
@@ -778,16 +783,13 @@ function PlatformUpdateNotice() {
 
       <div
         style={{
+          borderTop: "1px solid var(--app-border)",
+          paddingTop: "15px",
           display: "grid",
           gap: "12px",
-          border: "1px solid var(--app-border)",
-          borderRadius: "18px",
-          padding: "15px",
-          background: "var(--app-surface)",
-          textAlign: "right",
         }}
       >
-        <div style={{ display: "grid", gap: "4px" }}>
+        <div style={{ display: "grid", gap: "5px" }}>
           <span
             style={{
               color: "var(--app-brand)",
@@ -842,10 +844,10 @@ function PlatformUpdateNotice() {
             }}
           >
             <strong style={{ fontSize: "14px", lineHeight: 1.5 }}>
-              اعرض جهات تناسبك
+              اعرض جهات تناسبك الآن
             </strong>
             <span style={{ fontSize: "12px", lineHeight: 1.6, fontWeight: "700" }}>
-              حسب تخصصك والمدينة المختارة
+              نبدأ من تخصصك ومدينتك مباشرة
             </span>
           </button>
 
@@ -880,7 +882,7 @@ function PlatformUpdateNotice() {
                   lineHeight: 1.5,
                 }}
               >
-                رتّب خطة التقديم والمتابعة
+                خذ خطة التدريب الجاهزة
               </strong>
               <span
                 style={{
@@ -890,67 +892,67 @@ function PlatformUpdateNotice() {
                   fontWeight: "700",
                 }}
               >
-                رحلة المتدرب من التقديم إلى التقرير
+                رحلة المتدرب: جهات، روابط، متابعة، وتقرير بدون تشتت
               </span>
             </button>
           </a>
         </div>
-      </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "9px",
-          justifyContent: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setStep("questions")}
+        <div
           style={{
-            background: "transparent",
-            color: "var(--app-text-soft)",
-            border: "1px solid var(--app-border)",
-            borderRadius: "12px",
-            padding: "10px 14px",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontWeight: "800",
+            display: "flex",
+            gap: "9px",
+            justifyContent: "center",
+            flexWrap: "wrap",
           }}
         >
-          تعديل الإجابات
-        </button>
-        <button
-          type="button"
-          onClick={shareDiagnosis}
-          style={{
-            background: "transparent",
-            color: "var(--app-brand)",
-            border: "1px solid var(--app-brand-border)",
-            borderRadius: "12px",
-            padding: "10px 14px",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontWeight: "800",
-          }}
-        >
-          مشاركة التشخيص
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => setStep("questions")}
+            style={{
+              background: "transparent",
+              color: "var(--app-text-soft)",
+              border: "1px solid var(--app-border)",
+              borderRadius: "12px",
+              padding: "10px 14px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontWeight: "800",
+            }}
+          >
+            تعديل الإجابات
+          </button>
+          <button
+            type="button"
+            onClick={shareDiagnosis}
+            style={{
+              background: "transparent",
+              color: "var(--app-brand)",
+              border: "1px solid var(--app-brand-border)",
+              borderRadius: "12px",
+              padding: "10px 14px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontWeight: "800",
+            }}
+          >
+            مشاركة التشخيص
+          </button>
+        </div>
 
-      {shareStatus && (
-        <p
-          style={{
-            margin: 0,
-            color: "var(--app-text-soft)",
-            textAlign: "center",
-            fontSize: "12px",
-          }}
-        >
-          {shareStatus}
-        </p>
-      )}
+        {shareStatus && (
+          <p
+            style={{
+              margin: 0,
+              color: "var(--app-text-soft)",
+              textAlign: "center",
+              fontSize: "12px",
+            }}
+          >
+            {shareStatus}
+          </p>
+        )}
+      </div>
     </div>
   );
 

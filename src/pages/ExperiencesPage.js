@@ -2164,8 +2164,35 @@ const ExperiencesPage = () => {
               border: "1px solid var(--app-border)",
               boxShadow: "0 20px 50px var(--app-shadow)",
               textAlign: "center",
+              position: "relative",
             }}
           >
+            <button
+              type="button"
+              onClick={() => setSelectedExperience(null)}
+              aria-label="إغلاق التجربة"
+              style={{
+                position: "sticky",
+                top: 0,
+                marginRight: "auto",
+                marginBottom: "-30px",
+                width: "34px",
+                height: "34px",
+                borderRadius: "999px",
+                border: "1px solid var(--app-border)",
+                background: "var(--app-input-bg)",
+                color: "var(--app-text-soft)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "20px",
+                lineHeight: 1,
+                zIndex: 3,
+              }}
+            >
+              ×
+            </button>
             <div
               style={{
                 display: "flex",
