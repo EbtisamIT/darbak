@@ -21,9 +21,10 @@ const featureCopy = {
 };
 
 const premiumBenefits = [
-  "تجارب ونصائح المتدربين السابقين",
-  "روابط تقديم مباشرة للجهات والفرص",
-  "وصول 30 يوم من أي جهاز بنفس البيانات",
+  "افتح التفاصيل اللي تختصر عليك سؤال القروبات",
+  "روابط تقديم وجهات مناسبة بدون تدوير طويل",
+  "احفظ التجارب والجهات اللي تهمك وارجع لها لاحقًا",
+  "وصول 30 يوم من أي جهاز بنفس بياناتك",
 ];
 
 const normalizeArabicDigits = (value = "") =>
@@ -356,16 +357,23 @@ export default function PremiumAccessGate() {
           </section>
 
           <aside className="premium-access-benefits" aria-label="مزايا الاشتراك">
-            <p className="premium-access-benefits-kicker">وش يفتح لك؟</p>
+            <p className="premium-access-benefits-kicker">اشتراك صغير، فرق كبير</p>
             <ul>
               {premiumBenefits.map((benefit) => (
                 <li key={benefit}>{benefit}</li>
               ))}
             </ul>
             <div className="premium-access-payments" aria-label="طرق الدفع">
-              <span>Apple Pay</span>
-              <span>مدى</span>
-              <span>بطاقة بنكية</span>
+              <span className="payment-logo payment-logo-apple">
+                <strong>Pay</strong>
+              </span>
+              <span className="payment-logo payment-logo-mada">
+                <strong>mada</strong>
+              </span>
+              <span className="payment-logo payment-logo-card">
+                <strong>VISA</strong>
+                <em>MC</em>
+              </span>
             </div>
           </aside>
         </div>

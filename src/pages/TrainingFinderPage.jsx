@@ -6,6 +6,7 @@ import API_BASE_URL from "../config/api";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { requestPremiumAccess } from "../utils/premiumAccess";
+import { getSavedItemIds, toggleSavedItem } from "../utils/savedItems";
 
 export const cityOptions = [
   "الرياض",
@@ -721,6 +722,14 @@ export default function TrainingFinderPage() {
   );
   const [savingOpportunityRequest, setSavingOpportunityRequest] = useState(false);
   const [opportunityRequestMessage, setOpportunityRequestMessage] = useState("");
+  const [savedItemIds, setSavedItemIds] = useState(() => getSavedItemIds());
+
+  useEffect(() => {
+    const updateSavedItems = () => setSavedItemIds(getSavedItemIds());
+    window.addEventListener("darbak:saved-items-updated", updateSavedItems);
+    return () =>
+      window.removeEventListener("darbak:saved-items-updated", updateSavedItems);
+  }, []);
 
   const selectedSpecialtyOption = useMemo(
     () =>
@@ -1019,6 +1028,30 @@ export default function TrainingFinderPage() {
     } finally {
       setSavingOpportunityRequest(false);
     }
+  };
+
+  const updateSavedState = (id, isSaved) => {
+    setSavedItemIds((current) => {
+      const next = new Set(current);
+      if (isSaved) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleSaveTrainingItem = (event, item) => {
+    event.stopPropagation();
+    const isSaved = toggleSavedItem(item);
+    updateSavedState(item.id, isSaved);
+    trackEvent(isSaved ? "saved_item_added" : "saved_item_removed", {
+      major: selectedSpecialty,
+      city,
+      metadata: {
+        type: item.type,
+        title: item.title,
+        subtitle: item.subtitle,
+      },
+    });
   };
 
   const openOpportunityDetails = (opportunity) => {
@@ -1370,6 +1403,7 @@ export default function TrainingFinderPage() {
                     opportunity.applicationUrl ||
                     opportunity.sourceUrl ||
                     resolveOrganizationHomepageUrl(opportunity.organizationName);
+                  const savedOpportunityId = `opportunity:${opportunity._id}`;
 
                   return (
                     <article
@@ -1382,8 +1416,37 @@ export default function TrainingFinderPage() {
                         padding: "14px",
                         display: "grid",
                         gap: "10px",
+                        position: "relative",
                       }}
                     >
+                      <button
+                        type="button"
+                        className={`save-item-button ${
+                          savedItemIds.has(savedOpportunityId) ? "is-saved" : ""
+                        }`}
+                        onClick={(event) =>
+                          handleSaveTrainingItem(event, {
+                            id: savedOpportunityId,
+                            type: "opportunity",
+                            title: opportunity.title || "فرصة تدريب",
+                            subtitle: opportunity.organizationName,
+                            meta: getOpportunityCityText(opportunity) || city || "",
+                            url: opportunity.applicationUrl || opportunity.sourceUrl || "",
+                          })
+                        }
+                        aria-label={
+                          savedItemIds.has(savedOpportunityId)
+                            ? "إزالة الفرصة من المحفوظات"
+                            : "حفظ الفرصة"
+                        }
+                        title={
+                          savedItemIds.has(savedOpportunityId)
+                            ? "محفوظة"
+                            : "حفظ الفرصة"
+                        }
+                      >
+                        {savedItemIds.has(savedOpportunityId) ? "♥" : "♡"}
+                      </button>
                       <div
                         className="suggested-card-head opportunity-card-head"
                         style={{
@@ -1760,6 +1823,9 @@ export default function TrainingFinderPage() {
                     const organizationHomepageUrl = resolveOrganizationHomepageUrl(
                       target.organizationName
                     );
+                    const savedTargetId = `training-target:${normalizeName(
+                      target.organizationName
+                    )}`;
 
                     return (
                       <article
@@ -1772,8 +1838,39 @@ export default function TrainingFinderPage() {
                           padding: "14px",
                           display: "grid",
                           gap: "10px",
+                          position: "relative",
                         }}
                       >
+                        <button
+                          type="button"
+                          className={`save-item-button ${
+                            savedItemIds.has(savedTargetId) ? "is-saved" : ""
+                          }`}
+                          onClick={(event) =>
+                            handleSaveTrainingItem(event, {
+                              id: savedTargetId,
+                              type: "training-target",
+                              title: target.organizationName,
+                              subtitle: "جهة من تجارب دربك",
+                              meta: target.cities?.join("، ") || "",
+                              url: `/experiences?company=${encodeURIComponent(
+                                target.organizationName
+                              )}`,
+                            })
+                          }
+                          aria-label={
+                            savedItemIds.has(savedTargetId)
+                              ? "إزالة الجهة من المحفوظات"
+                              : "حفظ الجهة"
+                          }
+                          title={
+                            savedItemIds.has(savedTargetId)
+                              ? "محفوظة"
+                              : "حفظ الجهة"
+                          }
+                        >
+                          {savedItemIds.has(savedTargetId) ? "♥" : "♡"}
+                        </button>
                         <div
                           className="suggested-card-head"
                           style={{
@@ -2052,7 +2149,12 @@ export default function TrainingFinderPage() {
                     gap: "10px",
                   }}
                 >
-                  {suggestedOrganizations.map((organization) => (
+                  {suggestedOrganizations.map((organization) => {
+                    const savedOrganizationId = `suggested-organization:${normalizeName(
+                      organization.name
+                    )}`;
+
+                    return (
                     <article
                       className="finder-result-card suggested-target-card"
                       key={`${organization.name}-${organization.url}`}
@@ -2063,8 +2165,37 @@ export default function TrainingFinderPage() {
                         padding: "14px",
                         display: "grid",
                         gap: "10px",
+                        position: "relative",
                       }}
                     >
+                      <button
+                        type="button"
+                        className={`save-item-button ${
+                          savedItemIds.has(savedOrganizationId) ? "is-saved" : ""
+                        }`}
+                        onClick={(event) =>
+                          handleSaveTrainingItem(event, {
+                            id: savedOrganizationId,
+                            type: "suggested-organization",
+                            title: organization.name,
+                            subtitle: organization.sourceLabel || "اقتراح جهة",
+                            meta: selectedSpecialtyLabel || city || "",
+                            url: organization.url,
+                          })
+                        }
+                        aria-label={
+                          savedItemIds.has(savedOrganizationId)
+                            ? "إزالة الجهة من المحفوظات"
+                            : "حفظ الجهة"
+                        }
+                        title={
+                          savedItemIds.has(savedOrganizationId)
+                            ? "محفوظة"
+                            : "حفظ الجهة"
+                        }
+                      >
+                        {savedItemIds.has(savedOrganizationId) ? "♥" : "♡"}
+                      </button>
                       <div
                         className="suggested-card-head"
                         style={{
@@ -2189,7 +2320,8 @@ export default function TrainingFinderPage() {
                         </a>
                       </div>
                     </article>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>

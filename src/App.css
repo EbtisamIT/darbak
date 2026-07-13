@@ -233,19 +233,64 @@ body {
 .premium-access-payments {
   display: flex;
   justify-content: flex-start;
-  gap: 7px;
+  gap: 8px;
   flex-wrap: wrap;
   margin: 0 0 13px;
 }
 
 .premium-access-payments span {
-  border-radius: 999px;
+  min-height: 30px;
+  border-radius: 10px;
   border: 1px solid var(--app-border);
   background: var(--app-input-bg);
   color: var(--app-text-soft);
   padding: 6px 10px;
   font-size: 12px;
   font-weight: 900;
+}
+
+.payment-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.payment-logo strong {
+  color: var(--app-text);
+  font-size: 13px;
+}
+
+.payment-logo em {
+  margin-right: 5px;
+  color: var(--app-brand);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.payment-logo-apple {
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+
+.payment-logo-apple strong {
+  color: #111111;
+}
+
+.payment-logo-mada {
+  border-color: var(--app-brand-border) !important;
+  background: linear-gradient(135deg, #f6fffd, var(--app-brand-soft)) !important;
+}
+
+.payment-logo-mada strong {
+  color: #008f7a;
+  text-transform: lowercase;
+}
+
+.payment-logo-card {
+  background: var(--app-card) !important;
 }
 
 .premium-access-pay-button,
@@ -395,6 +440,206 @@ body {
   line-height: 1.7;
 }
 
+.save-item-button {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-surface) 88%, transparent);
+  color: var(--app-muted);
+  box-shadow: 0 8px 18px var(--app-shadow);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+  transition: transform 0.18s ease, border-color 0.18s ease,
+    color 0.18s ease, background 0.18s ease;
+}
+
+.save-item-button:hover {
+  transform: translateY(-1px);
+  border-color: var(--app-brand-border);
+  color: var(--app-brand);
+}
+
+.save-item-button.is-saved {
+  border-color: var(--app-brand-border);
+  background: var(--app-brand-soft);
+  color: var(--app-brand);
+}
+
+.experience-card .save-item-button,
+.finder-result-card .save-item-button {
+  width: 30px !important;
+  height: 30px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 999px !important;
+  font-size: 16px !important;
+}
+
+.saved-items-widget {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2100;
+  font-family: "Aniq", "Cairo", sans-serif;
+}
+
+.saved-items-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 999px;
+  background: var(--app-brand);
+  color: #07100e;
+  padding: 10px 14px;
+  box-shadow: 0 14px 35px var(--app-shadow);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.saved-items-trigger strong {
+  min-width: 24px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(7, 16, 14, 0.14);
+}
+
+.saved-items-panel {
+  position: absolute;
+  right: 0;
+  bottom: 48px;
+  width: min(360px, calc(100vw - 28px));
+  max-height: min(470px, calc(100vh - 110px));
+  display: grid;
+  gap: 10px;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 18px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 24px 65px var(--app-shadow);
+  padding: 12px;
+}
+
+.saved-items-panel-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.saved-items-panel-head p {
+  margin: 0;
+  color: var(--app-brand);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.saved-items-panel-head span {
+  display: block;
+  margin-top: 3px;
+  color: var(--app-muted);
+  font-size: 11.5px;
+}
+
+.saved-items-panel-head button {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+  color: var(--app-text-soft);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.saved-items-list {
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  padding-left: 2px;
+}
+
+.saved-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  background: var(--app-card);
+  padding: 9px;
+}
+
+.saved-item-row a {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.saved-item-row strong {
+  color: var(--app-text);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.saved-item-row small,
+.saved-item-row em {
+  color: var(--app-muted);
+  font-size: 11.5px;
+  font-style: normal;
+  line-height: 1.5;
+}
+
+.saved-item-type {
+  width: fit-content;
+  border-radius: 999px;
+  background: var(--app-brand-soft);
+  border: 1px solid var(--app-brand-border);
+  color: var(--app-brand);
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
+.saved-item-row > button {
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--app-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 8px;
+}
+
+.saved-item-row > button:hover {
+  color: var(--app-brand);
+  border-color: var(--app-brand-border);
+}
+
 @media (max-width: 768px) {
   .app-content-frame {
     padding: 16px 8px !important;
@@ -454,6 +699,16 @@ body {
 
   .premium-access-verify-form {
     grid-template-columns: 1fr;
+  }
+
+  .saved-items-widget {
+    right: 10px;
+    bottom: 10px;
+  }
+
+  .saved-items-trigger {
+    padding: 8px 11px;
+    font-size: 12px;
   }
 }
 

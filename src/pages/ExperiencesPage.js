@@ -6,6 +6,7 @@ import API_BASE_URL from "../config/api";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { requestPremiumAccess } from "../utils/premiumAccess";
+import { getSavedItemIds, toggleSavedItem } from "../utils/savedItems";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
@@ -380,6 +381,7 @@ const ExperiencesPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchAnalyticsVersion, setSearchAnalyticsVersion] = useState(0);
+  const [savedItemIds, setSavedItemIds] = useState(() => getSavedItemIds());
   const lastTrackedExperienceSearchRef = useRef("");
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
@@ -397,6 +399,13 @@ const ExperiencesPage = () => {
       setSortOption("latest");
     }
   }, [location.search]);
+
+  useEffect(() => {
+    const updateSavedItems = () => setSavedItemIds(getSavedItemIds());
+    window.addEventListener("darbak:saved-items-updated", updateSavedItems);
+    return () =>
+      window.removeEventListener("darbak:saved-items-updated", updateSavedItems);
+  }, []);
 
   const clearCompanySearch = () => {
     setCompanySearch("");
@@ -1007,6 +1016,40 @@ const ExperiencesPage = () => {
         setCurrentStep(1);
       }
     );
+  };
+
+  const getExperienceSavedId = (exp) =>
+    `experience:${exp._id || exp.id || exp.title || exp.organizationName}`;
+
+  const handleSaveExperience = (event, exp) => {
+    event.stopPropagation();
+    const id = getExperienceSavedId(exp);
+    const isSaved = toggleSavedItem({
+      id,
+      type: "experience",
+      title: exp.title || "تجربة تدريب",
+      subtitle: exp.organizationName || exp.companyName || "",
+      meta: [exp.city, getReadableMajor(exp)].filter(Boolean).join(" - "),
+      url: `/experiences?company=${encodeURIComponent(
+        exp.organizationName || exp.companyName || ""
+      )}`,
+    });
+
+    setSavedItemIds((current) => {
+      const next = new Set(current);
+      if (isSaved) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
+    trackEvent(isSaved ? "saved_item_added" : "saved_item_removed", {
+      major: exp.major || exp.majorCategory || "",
+      city: exp.city || "",
+      metadata: {
+        type: "experience",
+        organizationName: exp.organizationName || exp.companyName || "",
+      },
+    });
   };
 
   const renderStepContent = () => {
@@ -1874,6 +1917,7 @@ const ExperiencesPage = () => {
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
+                    position: "relative",
                     boxShadow: "0 10px 25px var(--app-shadow)",
                     transition: "0.3s ease",
                   }}
@@ -1892,6 +1936,25 @@ const ExperiencesPage = () => {
                       "1px solid var(--app-border)";
                   }}
                 >
+                  <button
+                    type="button"
+                    className={`save-item-button ${
+                      savedItemIds.has(getExperienceSavedId(exp)) ? "is-saved" : ""
+                    }`}
+                    onClick={(event) => handleSaveExperience(event, exp)}
+                    aria-label={
+                      savedItemIds.has(getExperienceSavedId(exp))
+                        ? "إزالة التجربة من المحفوظات"
+                        : "حفظ التجربة"
+                    }
+                    title={
+                      savedItemIds.has(getExperienceSavedId(exp))
+                        ? "محفوظة"
+                        : "حفظ التجربة"
+                    }
+                  >
+                    {savedItemIds.has(getExperienceSavedId(exp)) ? "♥" : "♡"}
+                  </button>
                   <div>
                     <div
                       className="experience-title-box"
