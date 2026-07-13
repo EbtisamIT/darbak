@@ -441,25 +441,27 @@ body {
 }
 
 .save-item-button {
-  position: absolute;
-  top: 9px;
-  left: 9px;
-  z-index: 2;
-  width: 30px;
-  height: 30px;
+  position: static;
+  width: fit-content;
+  min-width: 58px;
+  min-height: 27px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
+  justify-self: start;
+  align-self: start;
   border-radius: 999px;
   border: 1px solid var(--app-border);
   background: color-mix(in srgb, var(--app-surface) 88%, transparent);
   color: var(--app-muted);
-  box-shadow: 0 8px 18px var(--app-shadow);
+  box-shadow: none;
   cursor: pointer;
   font-family: inherit;
-  font-size: 16px;
+  font-size: 11px;
   font-weight: 900;
   line-height: 1;
+  padding: 6px 9px;
   transition: transform 0.18s ease, border-color 0.18s ease,
     color 0.18s ease, background 0.18s ease;
 }
@@ -478,12 +480,13 @@ body {
 
 .experience-card .save-item-button,
 .finder-result-card .save-item-button {
-  width: 30px !important;
-  height: 30px !important;
-  padding: 0 !important;
+  width: fit-content !important;
+  height: auto !important;
+  min-height: 27px !important;
+  padding: 6px 9px !important;
   margin: 0 !important;
   border-radius: 999px !important;
-  font-size: 16px !important;
+  font-size: 11px !important;
 }
 
 .saved-items-widget {

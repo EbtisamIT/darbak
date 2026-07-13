@@ -1953,7 +1953,9 @@ const ExperiencesPage = () => {
                         : "حفظ التجربة"
                     }
                   >
-                    {savedItemIds.has(getExperienceSavedId(exp)) ? "♥" : "♡"}
+                    {savedItemIds.has(getExperienceSavedId(exp))
+                      ? "♥ محفوظة"
+                      : "♡ حفظ"}
                   </button>
                   <div>
                     <div

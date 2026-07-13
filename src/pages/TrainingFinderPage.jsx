@@ -1445,7 +1445,9 @@ export default function TrainingFinderPage() {
                             : "حفظ الفرصة"
                         }
                       >
-                        {savedItemIds.has(savedOpportunityId) ? "♥" : "♡"}
+                        {savedItemIds.has(savedOpportunityId)
+                          ? "♥ محفوظة"
+                          : "♡ حفظ"}
                       </button>
                       <div
                         className="suggested-card-head opportunity-card-head"
@@ -1869,7 +1871,9 @@ export default function TrainingFinderPage() {
                               : "حفظ الجهة"
                           }
                         >
-                          {savedItemIds.has(savedTargetId) ? "♥" : "♡"}
+                          {savedItemIds.has(savedTargetId)
+                            ? "♥ محفوظة"
+                            : "♡ حفظ"}
                         </button>
                         <div
                           className="suggested-card-head"
@@ -2194,7 +2198,9 @@ export default function TrainingFinderPage() {
                             : "حفظ الجهة"
                         }
                       >
-                        {savedItemIds.has(savedOrganizationId) ? "♥" : "♡"}
+                        {savedItemIds.has(savedOrganizationId)
+                          ? "♥ محفوظة"
+                          : "♡ حفظ"}
                       </button>
                       <div
                         className="suggested-card-head"
