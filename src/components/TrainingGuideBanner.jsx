@@ -6,6 +6,7 @@ export const guideUrl =
 export default function TrainingGuideBanner({
   compact = false,
   style = {},
+  onClick,
   ariaLabel = "دليل التقديم على التدريب التعاوني لعام 2026",
   badges = ["🌟 للطلاب المقبلين على التدريب", "✅ أكثر من 700 جهة"],
   title = "لا تبدأ رحلة التدريب من الصفر 🌟",
@@ -82,6 +83,7 @@ export default function TrainingGuideBanner({
         href={guideUrl}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={onClick}
         style={{ textDecoration: "none" }}
       >
         <button

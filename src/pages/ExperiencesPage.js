@@ -1252,6 +1252,31 @@ const ExperiencesPage = () => {
           >
             {exp.description}
           </p>
+
+          <TrainingGuideBanner
+            compact
+            ariaLabel="إعلان رحلة المتدرب داخل تفاصيل التجربة"
+            badges={["بعد قراءة التجربة", "خطوة عملية للتقديم"]}
+            title="حوّل التجربة إلى خطة تقديم واضحة"
+            description="إذا حسّيت أن التجربة فادتك، رحلة المتدرب ترتب لك الخطوة اللي بعدها: جهات مناسبة، روابط وإيميلات، متابعة طلباتك، وطريقة كتابة تقرير التدريب بدون تشتت."
+            buttonText="افتح رحلة المتدرب"
+            onClick={() =>
+              trackEvent("training_guide_experience_detail_click", {
+                page: "/experiences",
+                major: exp.major || exp.majorCategory || "",
+                city: exp.city || "",
+                metadata: {
+                  source: "experience_detail_description",
+                  organizationName: exp.organizationName || "",
+                },
+              })
+            }
+            style={{
+              marginTop: "16px",
+              boxShadow: "none",
+              textAlign: "right",
+            }}
+          />
         </div>
       </div>
     );
