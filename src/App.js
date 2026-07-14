@@ -306,7 +306,7 @@ function PlatformUpdateNotice() {
   const suggestedSolution = `${targetCount} جهة مناسبة + ${experienceCount} تجارب سابقة + نموذج إيميل تقديم`;
   const guideRecommendation = buildGuideRecommendation(answers);
   const shareOrigin =
-    typeof window !== "undefined" ? window.location.origin : "https://darbak.onrender.com";
+    typeof window !== "undefined" ? window.location.origin : "https://darbak.space";
   const shareText = `تشخيص دربك
 الاسم: ${diagnosis.name}
 التخصص: ${selectedMajorLabel || "غير محدد"}

@@ -2,4 +2,4 @@
 User-agent: *
 Disallow:
 
-Sitemap: https://darbak.onrender.com/sitemap.xml
+Sitemap: https://darbak.space/sitemap.xml

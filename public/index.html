@@ -21,7 +21,7 @@
       name="description"
       content="دربك منصة سعودية لمشاركة تجارب التدريب التعاوني بين الطلاب والطالبات، تساعدك على اكتشاف جهات التدريب والاستفادة من تجارب حقيقية قبل بداية رحلتك المهنية."
     />
-    <link rel="canonical" href="https://darbak.onrender.com/" />
+    <link rel="canonical" href="https://darbak.space/" />
     <meta property="og:locale" content="ar_SA" />
     <meta property="og:site_name" content="منصة دربك" />
     <meta property="og:title" content="منصة دربك | تجارب التدريب التعاوني للطلاب" />
@@ -30,9 +30,9 @@
       content="اكتشف تجارب التدريب التعاوني وشارك تجربتك ليستفيد منها الطلاب والطالبات."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://darbak.onrender.com/" />
-    <meta property="og:image" content="https://darbak.onrender.com/logo.png" />
-    <meta property="og:image:secure_url" content="https://darbak.onrender.com/logo.png" />
+    <meta property="og:url" content="https://darbak.space/" />
+    <meta property="og:image" content="https://darbak.space/logo.png" />
+    <meta property="og:image:secure_url" content="https://darbak.space/logo.png" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="500" />
     <meta property="og:image:height" content="500" />
@@ -43,7 +43,7 @@
       name="twitter:description"
       content="منصة سعودية لمشاركة تجارب التدريب التعاوني بين الطلاب والطالبات."
     />
-    <meta name="twitter:image" content="https://darbak.onrender.com/logo.png" />
+    <meta name="twitter:image" content="https://darbak.space/logo.png" />
     <meta name="twitter:image:alt" content="شعار منصة دربك" />
     <link rel="apple-touch-icon" href="./logo.png" />
     <!--
@@ -66,7 +66,7 @@
         "@type": "WebSite",
         "name": "منصة دربك",
         "alternateName": "Darbak",
-        "url": "https://darbak.onrender.com/",
+        "url": "https://darbak.space/",
         "description": "دربك منصة سعودية لمشاركة تجارب التدريب التعاوني بين الطلاب والطالبات.",
         "inLanguage": "ar-SA",
         "publisher": {
@@ -74,10 +74,37 @@
           "name": "منصة دربك",
           "logo": {
             "@type": "ImageObject",
-            "url": "https://darbak.onrender.com/logo.png"
+            "url": "https://darbak.space/logo.png"
           }
         }
       }
+    </script>
+    <script>
+      (function () {
+        var oldHost = "darbak.onrender.com";
+        var newOrigin = "https://darbak.space";
+
+        if (window.location.hostname === oldHost) {
+          window.location.replace(
+            newOrigin +
+              window.location.pathname +
+              window.location.search +
+              window.location.hash
+          );
+          return;
+        }
+
+        var cleanPath =
+          window.location.pathname === "/"
+            ? "/"
+            : window.location.pathname.replace(/\/+$/, "");
+        var canonicalUrl = newOrigin + cleanPath;
+        var canonical = document.querySelector('link[rel="canonical"]');
+        var ogUrl = document.querySelector('meta[property="og:url"]');
+
+        if (canonical) canonical.setAttribute("href", canonicalUrl);
+        if (ogUrl) ogUrl.setAttribute("content", canonicalUrl);
+      })();
     </script>
     <title>منصة دربك | تجارب التدريب التعاوني للطلاب</title>
   </head>
