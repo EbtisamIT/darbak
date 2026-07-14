@@ -21,6 +21,7 @@ import Footer from "./pages/Footer";
 import { guideUrl } from "./components/TrainingGuideBanner";
 import PremiumAccessGate from "./components/PremiumAccessGate";
 import SavedItemsDrawer from "./components/SavedItemsDrawer";
+import DarbakAssistant from "./components/DarbakAssistant";
 import { trackEvent } from "./utils/analytics";
 
 const PLATFORM_UPDATE_NOTICE_KEY = "darbak_training_diagnosis_quiz_seen_v1";
@@ -1123,6 +1124,7 @@ function AppLayout({ theme, setTheme }) {
       <PlatformUpdateNotice />
       <PremiumAccessGate />
       <SavedItemsDrawer />
+      <DarbakAssistant />
 
       {/* المحتوى */}
       <div style={contentContainer}>

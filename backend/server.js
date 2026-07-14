@@ -640,6 +640,770 @@ const getCleanAnalyticsMatch = (match) => ({
   ],
 });
 
+const SMART_ASSISTANT_MAX_CANDIDATES = 1200;
+
+const SMART_ASSISTANT_ORG_ALIASES = [
+  {
+    label: "STC",
+    aliases: ["stc", "اس تي سي", "الاتصالات السعودية", "شركة الاتصالات السعودية"],
+  },
+  {
+    label: "أرامكو",
+    aliases: ["أرامكو", "ارامكو", "aramco", "saudi aramco"],
+  },
+  {
+    label: "سابك",
+    aliases: ["سابك", "sabic"],
+  },
+  {
+    label: "علم",
+    aliases: ["علم", "elm", "شركة علم"],
+  },
+  {
+    label: "هيئة السوق المالية",
+    aliases: ["هيئة السوق المالية", "cma", "capital market authority"],
+  },
+  {
+    label: "التأمينات الاجتماعية",
+    aliases: ["التأمينات", "التامينات", "gosi"],
+  },
+  {
+    label: "البنك الأهلي",
+    aliases: ["البنك الأهلي", "الاهلي", "alahli", "snb"],
+  },
+];
+
+const SMART_ASSISTANT_MAJOR_ALIASES = [
+  {
+    label: "الحاسب والتقنية",
+    aliases: ["حاسب", "تقنية", "تقنيه", "برمجة", "برمجه", "نظم", "it", "cs"],
+  },
+  {
+    label: "علوم الحاسب",
+    aliases: ["علوم حاسب", "computer science", "cs"],
+  },
+  {
+    label: "نظم المعلومات",
+    aliases: ["نظم معلومات", "information systems", "is"],
+  },
+  {
+    label: "تقنية المعلومات",
+    aliases: ["تقنية معلومات", "تقنيه معلومات", "it"],
+  },
+  {
+    label: "الأمن السيبراني",
+    aliases: ["امن سيبراني", "أمن سيبراني", "cyber", "cybersecurity"],
+  },
+  {
+    label: "المحاسبة",
+    aliases: ["محاسبة", "محاسب", "accounting"],
+  },
+  {
+    label: "المالية",
+    aliases: ["مالية", "finance"],
+  },
+  {
+    label: "إدارة الأعمال",
+    aliases: ["ادارة اعمال", "إدارة أعمال", "business administration"],
+  },
+  {
+    label: "الموارد البشرية",
+    aliases: ["موارد بشرية", "hr", "human resources"],
+  },
+  {
+    label: "التسويق",
+    aliases: ["تسويق", "marketing"],
+  },
+  {
+    label: "القانون والسياسة",
+    aliases: ["قانون", "محاماة", "حقوق", "law"],
+  },
+  {
+    label: "الهندسة والطاقة",
+    aliases: ["هندسة", "مهندس", "engineering"],
+  },
+  {
+    label: "الطب والعلوم الصحية",
+    aliases: ["طب", "صحة", "تمريض", "صيدلة", "health"],
+  },
+];
+
+const SMART_ASSISTANT_PROBLEM_THEMES = [
+  {
+    label: "قلة وضوح المهام أو التنظيم",
+    terms: ["غير واضح", "مو واضح", "تنظيم", "مهام غير واضحة", "مافي مهام"],
+  },
+  {
+    label: "ضغط أو كثرة مهام",
+    terms: ["ضغط", "كرف", "مهام كثيرة", "شغل كثير", "ضغط عمل"],
+  },
+  {
+    label: "ضعف التواصل أو المتابعة",
+    terms: ["تواصل", "متابعة", "مشرف", "توجيه", "رد"],
+  },
+  {
+    label: "بيئة غير مريحة",
+    terms: ["بيئة غير مريحة", "غير مريحة", "توتر", "صراخ", "مشاكل"],
+  },
+  {
+    label: "قلة التعلم أو محدودية الفائدة",
+    terms: ["ما استفدت", "لم استفد", "قليل", "محدودة", "روتيني"],
+  },
+  {
+    label: "طول الدوام أو صعوبة الالتزام",
+    terms: ["دوام", "حضور", "وقت", "اوقات", "ساعات"],
+  },
+];
+
+const SMART_ASSISTANT_POSITIVE_THEMES = [
+  {
+    label: "بيئة تدريب جيدة",
+    terms: ["بيئة ممتازة", "بيئة جيدة", "بيئة مريحة", "متعاونين", "لطيف"],
+  },
+  {
+    label: "تعلم ومهام مفيدة",
+    terms: ["استفدت", "تعلمت", "مفيدة", "مثرية", "تطوير"],
+  },
+  {
+    label: "تعاون المشرفين أو الفريق",
+    terms: ["مشرف", "متعاون", "الفريق", "توجيه", "دعم"],
+  },
+  {
+    label: "تنظيم واضح",
+    terms: ["منظم", "تنظيم", "واضح", "خطة"],
+  },
+];
+
+const SMART_ASSISTANT_SUGGESTED_QUESTIONS = [
+  "أفضل جهات التدريب لتخصص علوم الحاسب بالرياض؟",
+  "ماذا قال الطلاب عن تدريب STC؟",
+  "هل يوجد تجارب لتخصص المحاسبة في جدة؟",
+  "ما الجهات التي حصل فيها الطلاب على مكافأة؟",
+];
+
+const getApprovedExperiencesFilter = () => ({
+  $or: [{ status: "approved" }, { status: { $exists: false } }],
+});
+
+const uniqueTruthy = (values = []) =>
+  Array.from(
+    new Set(
+      values
+        .map((value) => (value || "").toString().trim())
+        .filter(Boolean)
+    )
+  );
+
+const smartIncludes = (value = "", term = "") => {
+  const normalizedValue = normalizeSearchText(value);
+  const normalizedTerm = normalizeSearchText(term);
+
+  if (!normalizedValue || !normalizedTerm || normalizedTerm.length < 2) {
+    return false;
+  }
+
+  return (
+    normalizedValue.includes(normalizedTerm) ||
+    normalizedTerm.includes(normalizedValue)
+  );
+};
+
+const smartTextIncludesAny = (value = "", terms = []) =>
+  terms.some((term) => smartIncludes(value, term));
+
+const getSmartWords = (value = "") =>
+  normalizeSearchText(value)
+    .replace(/[؟?.,،:;!()[\]{}"']/g, " ")
+    .split(/[^a-z0-9\u0600-\u06ff]+/i)
+    .map((word) => word.trim())
+    .filter(Boolean);
+
+const stripSmartWordPrefix = (word = "") => {
+  let cleanWord = word;
+
+  ["و", "ف", "ب", "ل"].forEach((prefix) => {
+    if (cleanWord.startsWith(prefix) && cleanWord.length > 3) {
+      cleanWord = cleanWord.slice(prefix.length);
+    }
+  });
+
+  return cleanWord;
+};
+
+const smartQuestionIncludesTerm = (question = "", term = "") => {
+  const normalizedQuestion = normalizeSearchText(question);
+  const normalizedTerm = normalizeSearchText(term);
+
+  if (!normalizedQuestion || !normalizedTerm || normalizedTerm.length < 2) {
+    return false;
+  }
+
+  if (normalizedTerm.includes(" ")) {
+    return normalizedQuestion.includes(normalizedTerm);
+  }
+
+  const words = getSmartWords(question);
+
+  if (normalizedTerm.length <= 4) {
+    return words.some((word) => {
+      const cleanWord = stripSmartWordPrefix(word);
+      return word === normalizedTerm || cleanWord === normalizedTerm;
+    });
+  }
+
+  return words.some((word) => {
+    const cleanWord = stripSmartWordPrefix(word);
+    return (
+      word === normalizedTerm ||
+      cleanWord === normalizedTerm ||
+      word.includes(normalizedTerm) ||
+      cleanWord.includes(normalizedTerm)
+    );
+  });
+};
+
+const getExperienceMajorValues = (exp = {}) =>
+  uniqueTruthy([exp.major, exp.majorCategory]);
+
+const getExperienceSearchText = (exp = {}) =>
+  [
+    exp.organizationName,
+    exp.city,
+    exp.major,
+    exp.majorCategory,
+    exp.howApplied,
+    exp.description,
+    exp.title,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+const detectSmartOrganizations = (question = "", organizationNames = []) => {
+  const matches = new Map();
+
+  organizationNames.forEach((organizationName) => {
+    if (smartQuestionIncludesTerm(question, organizationName)) {
+      matches.set(normalizeSearchText(organizationName), {
+        label: organizationName,
+        values: [organizationName],
+        terms: [organizationName],
+        groupKey: normalizeSearchText(organizationName),
+      });
+    }
+  });
+
+  SMART_ASSISTANT_ORG_ALIASES.forEach((group) => {
+    const aliasMatched = group.aliases.some((alias) =>
+      smartQuestionIncludesTerm(question, alias)
+    );
+    if (!aliasMatched) return;
+
+    const relatedNames = organizationNames.filter((organizationName) =>
+      smartTextIncludesAny(organizationName, [group.label, ...group.aliases])
+    );
+
+    if (relatedNames.length === 0) {
+      matches.set(normalizeSearchText(group.label), {
+        label: group.label,
+        values: [group.label],
+        terms: [group.label, ...group.aliases],
+        groupKey: normalizeSearchText(group.label),
+      });
+      return;
+    }
+
+    relatedNames.forEach((organizationName) => {
+      matches.set(normalizeSearchText(organizationName), {
+        label: organizationName,
+        values: [organizationName],
+        terms: [organizationName, group.label, ...group.aliases],
+        groupKey: normalizeSearchText(group.label),
+      });
+    });
+  });
+
+  return Array.from(matches.values()).slice(0, 4);
+};
+
+const detectSmartCities = (question = "", experienceCities = []) => {
+  const allCities = uniqueTruthy([
+    ...Object.keys(regionCities),
+    ...Object.values(regionCities).flat(),
+    ...experienceCities,
+  ]);
+
+  return allCities
+    .filter((city) => smartQuestionIncludesTerm(question, city))
+    .map((city) => ({
+      label: city,
+      values: getCityFilterValues(city).length ? getCityFilterValues(city) : [city],
+      terms: [city, ...getCityFilterValues(city)],
+    }))
+    .slice(0, 3);
+};
+
+const detectSmartMajors = (question = "", majorValues = []) => {
+  const matches = new Map();
+
+  majorValues.forEach((major) => {
+    if (smartQuestionIncludesTerm(question, major)) {
+      matches.set(normalizeSearchText(major), {
+        label: major,
+        values: [major],
+        terms: [major],
+      });
+    }
+  });
+
+  SMART_ASSISTANT_MAJOR_ALIASES.forEach((group) => {
+    const aliasMatched = [group.label, ...group.aliases].some((alias) =>
+      smartQuestionIncludesTerm(question, alias)
+    );
+    if (!aliasMatched) return;
+
+    const relatedMajors = majorValues.filter((major) =>
+      smartTextIncludesAny(major, [group.label, ...group.aliases])
+    );
+
+    if (relatedMajors.length === 0) {
+      matches.set(normalizeSearchText(group.label), {
+        label: group.label,
+        values: [group.label],
+        terms: [group.label, ...group.aliases],
+      });
+      return;
+    }
+
+    relatedMajors.forEach((major) => {
+      matches.set(normalizeSearchText(major), {
+        label: major,
+        values: [major],
+        terms: [major, group.label, ...group.aliases],
+      });
+    });
+  });
+
+  return Array.from(matches.values()).slice(0, 5);
+};
+
+const experienceMatchesSmartFilters = (exp, filters = {}) => {
+  const { organizations = [], cities = [], majors = [] } = filters;
+  const organizationName = exp.organizationName || "";
+  const majorValues = getExperienceMajorValues(exp).join(" ");
+
+  if (
+    organizations.length > 0 &&
+    !organizations.some((item) =>
+      smartTextIncludesAny(organizationName, item.terms || item.values)
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    cities.length > 0 &&
+    !cities.some((item) =>
+      (item.values || []).some(
+        (city) => normalizeSearchText(city) === normalizeSearchText(exp.city)
+      )
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    majors.length > 0 &&
+    !majors.some((item) => smartTextIncludesAny(majorValues, item.terms || item.values))
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+const getAverageRating = (experiences = []) => {
+  const ratings = experiences
+    .map((exp) => Number(exp.starRating))
+    .filter((rating) => Number.isFinite(rating) && rating > 0);
+
+  if (ratings.length === 0) return null;
+
+  const average = ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length;
+  return Math.round(average * 10) / 10;
+};
+
+const getFieldRatio = (experiences = [], field) => {
+  const known = experiences.filter((exp) => ["yes", "no"].includes(exp[field]));
+  if (known.length === 0) return null;
+
+  const yesCount = known.filter((exp) => exp[field] === "yes").length;
+  return {
+    yesCount,
+    noCount: known.length - yesCount,
+    total: known.length,
+    percent: Math.round((yesCount / known.length) * 100),
+  };
+};
+
+const getTopFrequencies = (values = [], limit = 3) => {
+  const counts = new Map();
+
+  values.filter(Boolean).forEach((value) => {
+    const label = value.toString().trim();
+    if (!label) return;
+    counts.set(label, (counts.get(label) || 0) + 1);
+  });
+
+  return Array.from(counts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "ar"))
+    .slice(0, limit);
+};
+
+const getThemeMatches = (experiences = [], themes = []) => {
+  const text = normalizeSearchText(
+    experiences.map((exp) => exp.description || "").join(" ")
+  );
+
+  return themes
+    .map((theme) => ({
+      label: theme.label,
+      count: theme.terms.filter((term) => text.includes(normalizeSearchText(term))).length,
+    }))
+    .filter((theme) => theme.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+};
+
+const getPrimaryRelatedUrl = (filters = {}) => {
+  const organization = filters.organizations?.[0]?.label;
+  const major = filters.majors?.[0]?.label;
+  const query = organization || major || "";
+
+  return query
+    ? `/experiences?company=${encodeURIComponent(query)}`
+    : "/experiences";
+};
+
+const mapSmartExperiencePreview = (exp = {}) => ({
+  id: exp._id,
+  title: exp.title || `تجربة في ${exp.organizationName || "جهة"}`,
+  organizationName: exp.organizationName,
+  city: exp.city,
+  major: getReadableMajor(exp.major, exp.majorCategory),
+  rating: exp.starRating,
+});
+
+const buildSmartSummaryBullets = (experiences = []) => {
+  const bullets = [];
+  const averageRating = getAverageRating(experiences);
+  const benefited = getFieldRatio(experiences, "benefitedFromTraining");
+  const recommended = getFieldRatio(experiences, "wouldRecommend");
+  const reward = getFieldRatio(experiences, "hadReward");
+  const hired = getFieldRatio(experiences, "wasHired");
+  const topEnvironments = getTopFrequencies(
+    experiences.map((exp) => exp.trainingEnvironment).filter(Boolean)
+  );
+  const topMethods = getTopFrequencies(
+    experiences.map((exp) => exp.howApplied).filter(Boolean)
+  );
+  const positiveThemes = getThemeMatches(experiences, SMART_ASSISTANT_POSITIVE_THEMES);
+  const problemThemes = getThemeMatches(experiences, SMART_ASSISTANT_PROBLEM_THEMES);
+  const hasInterviewMentions = experiences.some((exp) =>
+    smartTextIncludesAny(exp.description, ["مقابلة", "اسئلة", "أسئلة", "تعريفية"])
+  );
+
+  if (averageRating !== null) {
+    bullets.push(`متوسط التقييم في التجارب المطابقة هو ${averageRating}/5.`);
+  }
+
+  if (benefited) {
+    bullets.push(
+      `${benefited.percent}% من التجارب التي ذكرت الاستفادة قالت إن التدريب كان مفيدًا.`
+    );
+  }
+
+  if (recommended) {
+    bullets.push(
+      `${recommended.percent}% من التجارب التي ذكرت الترشيح قالت إنها تنصح بالتجربة.`
+    );
+  }
+
+  if (reward) {
+    bullets.push(
+      `${reward.percent}% من التجارب التي وضحت المكافأة ذكرت وجود مكافأة.`
+    );
+  }
+
+  if (hired && hired.yesCount > 0) {
+    bullets.push(
+      `ظهر عرض وظيفي في ${hired.yesCount} من التجارب التي وضحت هذا الحقل.`
+    );
+  }
+
+  if (topEnvironments.length > 0) {
+    const environmentLabels = {
+      mixed: "مختلطة",
+      women: "نسائية",
+      men: "رجالية",
+    };
+    bullets.push(
+      `أكثر بيئة مذكورة: ${environmentLabels[topEnvironments[0].label] || topEnvironments[0].label}.`
+    );
+  }
+
+  if (topMethods.length > 0) {
+    bullets.push(
+      `طرق التقديم الأكثر ذكرًا: ${topMethods.map((item) => item.label).join("، ")}.`
+    );
+  }
+
+  if (positiveThemes.length > 0) {
+    bullets.push(
+      `أبرز الانطباعات الإيجابية المتكررة: ${positiveThemes
+        .map((item) => item.label)
+        .join("، ")}.`
+    );
+  }
+
+  if (problemThemes.length > 0) {
+    bullets.push(
+      `أكثر الملاحظات أو التحديات تكرارًا: ${problemThemes
+        .map((item) => item.label)
+        .join("، ")}.`
+    );
+  }
+
+  if (hasInterviewMentions) {
+    bullets.push("بعض التجارب ذكرت وجود مقابلة أو أسئلة تعريفية قبل القبول.");
+  }
+
+  if (bullets.length === 0) {
+    bullets.push("التجارب الموجودة مطابقة، لكن تفاصيلها لا تكفي لاستخراج نمط واضح.");
+  }
+
+  return bullets;
+};
+
+const groupSmartExperiencesByOrganization = (experiences = []) => {
+  const groups = new Map();
+
+  experiences.forEach((exp) => {
+    const organizationName = (exp.organizationName || "").trim();
+    if (!organizationName) return;
+    const key = normalizeSearchText(organizationName);
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        organizationName,
+        experiences: [],
+      });
+    }
+
+    groups.get(key).experiences.push(exp);
+  });
+
+  return Array.from(groups.values());
+};
+
+const buildBestOrganizationsAnswer = (experiences = [], filters = {}) => {
+  const groups = groupSmartExperiencesByOrganization(experiences)
+    .map((group) => {
+      const averageRating = getAverageRating(group.experiences) || 0;
+      const benefited = getFieldRatio(group.experiences, "benefitedFromTraining");
+      const recommended = getFieldRatio(group.experiences, "wouldRecommend");
+      const score =
+        averageRating * 2 +
+        Math.min(group.experiences.length, 10) * 0.25 +
+        (benefited?.percent || 0) / 100 +
+        (recommended?.percent || 0) / 100;
+
+      return {
+        ...group,
+        averageRating,
+        benefited,
+        recommended,
+        score,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.experiences.length - a.experiences.length ||
+        a.organizationName.localeCompare(b.organizationName, "ar")
+    )
+    .slice(0, 6);
+
+  return {
+    title: "أفضل الجهات حسب تجارب دربك",
+    intro: `اعتمدت على ${experiences.length} تجربة مطابقة داخل دربك فقط.`,
+    bullets: groups.map((group) => {
+      const benefitText = group.benefited
+        ? `، الاستفادة ${group.benefited.percent}%`
+        : "";
+      const recommendText = group.recommended
+        ? `، الترشيح ${group.recommended.percent}%`
+        : "";
+      return `${group.organizationName}: ${group.experiences.length} تجربة، متوسط التقييم ${group.averageRating || "غير كاف"}/5${benefitText}${recommendText}.`;
+    }),
+    note:
+      groups.length === 0
+        ? "لا توجد جهات كافية للمقارنة ضمن السؤال."
+        : "الترتيب مبني على التقييم وعدد التجارب وحقول الاستفادة والترشيح إن وجدت.",
+    relatedUrl: getPrimaryRelatedUrl(filters),
+  };
+};
+
+const buildRewardOrganizationsAnswer = (experiences = [], filters = {}) => {
+  const groups = groupSmartExperiencesByOrganization(experiences)
+    .map((group) => {
+      const reward = getFieldRatio(group.experiences, "hadReward");
+      return {
+        ...group,
+        reward,
+      };
+    })
+    .filter((group) => group.reward && group.reward.yesCount > 0)
+    .sort(
+      (a, b) =>
+        b.reward.percent - a.reward.percent ||
+        b.reward.yesCount - a.reward.yesCount ||
+        b.experiences.length - a.experiences.length
+    )
+    .slice(0, 7);
+
+  return {
+    title: "الجهات التي ظهر فيها وجود مكافأة",
+    intro: `راجعت ${experiences.length} تجربة مطابقة داخل دربك.`,
+    bullets:
+      groups.length > 0
+        ? groups.map(
+            (group) =>
+              `${group.organizationName}: ${group.reward.yesCount} تجربة ذكرت وجود مكافأة من أصل ${group.reward.total} تجربة وضحت المكافأة.`
+          )
+        : ["لم أجد تجارب كافية تذكر وجود مكافأة ضمن السؤال."],
+    note: "النتيجة مبنية فقط على التجارب التي عبأت حقل المكافأة أو ذكرتها بوضوح.",
+    relatedUrl: getPrimaryRelatedUrl(filters),
+  };
+};
+
+const buildComparisonAnswer = (allExperiences = [], organizations = []) => {
+  const selectedOrganizations = organizations.slice(0, 2);
+  const bullets = selectedOrganizations.map((organization) => {
+    const experiences = allExperiences.filter((exp) =>
+      smartTextIncludesAny(exp.organizationName, organization.terms || organization.values)
+    );
+    const averageRating = getAverageRating(experiences);
+    const benefited = getFieldRatio(experiences, "benefitedFromTraining");
+    const reward = getFieldRatio(experiences, "hadReward");
+    const problemThemes = getThemeMatches(experiences, SMART_ASSISTANT_PROBLEM_THEMES);
+
+    if (experiences.length === 0) {
+      return `${organization.label}: لا توجد تجارب معتمدة كافية في دربك.`;
+    }
+
+    return `${organization.label}: ${experiences.length} تجربة، متوسط التقييم ${
+      averageRating || "غير كاف"
+    }/5${
+      benefited ? `، الاستفادة ${benefited.percent}%` : ""
+    }${
+      reward ? `، وجود مكافأة ${reward.percent}% من التجارب الموضحة` : ""
+    }${
+      problemThemes.length > 0
+        ? `، أبرز الملاحظات: ${problemThemes.map((item) => item.label).join("، ")}`
+        : ""
+    }.`;
+  });
+
+  return {
+    title: `مقارنة من واقع تجارب دربك`,
+    intro: "هذه المقارنة مبنية فقط على التجارب المعتمدة الموجودة في المنصة.",
+    bullets,
+    note: "إذا كان عدد التجارب قليلًا، اعتبر المقارنة مؤشرًا أوليًا وليس حكمًا نهائيًا.",
+    relatedUrl: selectedOrganizations[0]
+      ? `/experiences?company=${encodeURIComponent(selectedOrganizations[0].label)}`
+      : "/experiences",
+  };
+};
+
+const detectSmartIntent = (question = "", organizations = []) => {
+  const distinctOrganizationGroups = new Set(
+    organizations.map((organization) => organization.groupKey || normalizeSearchText(organization.label))
+  );
+
+  if (
+    distinctOrganizationGroups.size >= 2 ||
+    smartTextIncludesAny(question, ["قارن", "مقارنة", "الفرق"])
+  ) {
+    return "compare";
+  }
+
+  if (smartTextIncludesAny(question, ["أفضل", "افضل", "أنسب", "انسب", "رشح", "ترشح"])) {
+    return "best";
+  }
+
+  if (smartTextIncludesAny(question, ["مكافأة", "مكافاه", "مكافآت", "فلوس", "راتب"])) {
+    return "reward";
+  }
+
+  if (smartTextIncludesAny(question, ["مشاكل", "سلبيات", "عيوب", "تحديات", "صعوبات"])) {
+    return "problems";
+  }
+
+  if (smartTextIncludesAny(question, ["هل يوجد", "فيه تجارب", "يوجد تجارب", "عندكم"])) {
+    return "exists";
+  }
+
+  return "summary";
+};
+
+const buildSmartAssistantAnswer = ({ question, experiences, filters, intent }) => {
+  if (intent === "compare" && filters.organizations.length >= 2) {
+    return buildComparisonAnswer(experiences, filters.organizations);
+  }
+
+  if (experiences.length === 0) {
+    return {
+      title: "لا توجد بيانات كافية",
+      intro: "لم أجد تجارب معتمدة تطابق سؤالك داخل قاعدة بيانات دربك.",
+      bullets: [
+        "جرّب كتابة اسم الجهة بصيغة مختلفة أو اختر تخصصًا/مدينة أوسع.",
+        "لن أضيف معلومات من خارج دربك حتى لا أعطيك جوابًا غير موثوق.",
+      ],
+      note: "النتيجة مبنية فقط على تجارب دربك المعتمدة.",
+      relatedUrl: "/experiences",
+    };
+  }
+
+  if (intent === "best") return buildBestOrganizationsAnswer(experiences, filters);
+  if (intent === "reward") return buildRewardOrganizationsAnswer(experiences, filters);
+
+  if (intent === "problems") {
+    const problemThemes = getThemeMatches(experiences, SMART_ASSISTANT_PROBLEM_THEMES);
+    return {
+      title: "أبرز التحديات المذكورة",
+      intro: `تم العثور على ${experiences.length} تجربة مطابقة.`,
+      bullets:
+        problemThemes.length > 0
+          ? problemThemes.map((theme) => `تكرر في الوصف: ${theme.label}.`)
+          : ["لم أجد نمطًا واضحًا للمشاكل في أوصاف التجارب المطابقة."],
+      note: "لا يتم عرض أو استنتاج معلومات عن أشخاص، فقط تلخيص للأنماط المكتوبة في التجارب.",
+      relatedUrl: getPrimaryRelatedUrl(filters),
+    };
+  }
+
+  return {
+    title:
+      intent === "exists"
+        ? "نتيجة البحث داخل تجارب دربك"
+        : "ملخص من واقع التجارب",
+    intro: `تم العثور على ${experiences.length} تجربة مطابقة.`,
+    bullets: buildSmartSummaryBullets(experiences),
+    note: "هذا الملخص لا يستخدم الإنترنت ولا أي مصدر خارج قاعدة بيانات دربك.",
+    relatedUrl: getPrimaryRelatedUrl(filters),
+  };
+};
+
 // ===== Middlewares =====
 app.use(cors());
 app.use(express.json());
@@ -731,6 +1495,120 @@ app.post('/api/analytics-events', async (req, res) => {
     res.json({ ok: true, id: event._id });
   } catch (err) {
     console.error("❌ Analytics event error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/smart-assistant/query', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const question = sanitizeAnalyticsText(req.body.question, 500);
+
+    if (!question || normalizeSearchText(question).length < 3) {
+      return res.status(400).json({
+        error: "اكتب سؤالًا واضحًا عن جهة أو تخصص أو مدينة.",
+      });
+    }
+
+    if (containsBlockedTerms(question)) {
+      return res.status(400).json({
+        error: "الرجاء تعديل صياغة السؤال بدون عبارات جارحة.",
+      });
+    }
+
+    const approvedFilter = getApprovedExperiencesFilter();
+    const experiences = await Experience.find(approvedFilter)
+      .select(
+        [
+          "organizationName",
+          "city",
+          "major",
+          "majorCategory",
+          "howApplied",
+          "duration",
+          "trainingYear",
+          "wasHired",
+          "hadReward",
+          "rewardAmount",
+          "trainingEnvironment",
+          "benefitedFromTraining",
+          "wouldRecommend",
+          "trainingMode",
+          "starRating",
+          "ratings",
+          "description",
+          "title",
+          "sourceType",
+          "createdAt",
+        ].join(" ")
+      )
+      .sort({ createdAt: -1 })
+      .limit(SMART_ASSISTANT_MAX_CANDIDATES)
+      .lean();
+
+    const organizationNames = uniqueTruthy(
+      experiences.map((exp) => exp.organizationName)
+    );
+    const experienceCities = uniqueTruthy(experiences.map((exp) => exp.city));
+    const majorValues = uniqueTruthy(
+      experiences.flatMap((exp) => [exp.major, exp.majorCategory])
+    );
+
+    const filters = {
+      organizations: detectSmartOrganizations(question, organizationNames),
+      cities: detectSmartCities(question, experienceCities),
+      majors: detectSmartMajors(question, majorValues),
+    };
+
+    filters.organizations = filters.organizations.filter(
+      (organization) =>
+        !filters.majors.some(
+          (major) =>
+            smartIncludes(organization.label, major.label) ||
+            smartIncludes(major.label, organization.label)
+        )
+    );
+
+    const intent = detectSmartIntent(question, filters.organizations);
+    const matchingExperiences =
+      filters.organizations.length > 0 ||
+      filters.cities.length > 0 ||
+      filters.majors.length > 0
+        ? experiences.filter((exp) => experienceMatchesSmartFilters(exp, filters))
+        : ["best", "problems"].includes(intent)
+        ? experiences
+        : intent === "reward"
+        ? experiences.filter((exp) => exp.hadReward === "yes")
+        : [];
+
+    const answer = buildSmartAssistantAnswer({
+      question,
+      experiences: matchingExperiences,
+      filters,
+      intent,
+    });
+
+    res.json({
+      question,
+      intent,
+      count: matchingExperiences.length,
+      answer,
+      filters: {
+        organizations: filters.organizations.map((item) => item.label),
+        cities: filters.cities.map((item) => item.label),
+        majors: filters.majors.map((item) => item.label),
+      },
+      relatedUrl: answer.relatedUrl || getPrimaryRelatedUrl(filters),
+      relatedLabel: "عرض جميع التجارب المرتبطة",
+      experiences: matchingExperiences.slice(0, 6).map(mapSmartExperiencePreview),
+      suggestedQuestions: SMART_ASSISTANT_SUGGESTED_QUESTIONS,
+      source: "darbak_mongodb_only",
+    });
+  } catch (err) {
+    console.error("❌ Smart assistant error:", err);
     res.status(500).json({ error: err.message });
   }
 });
