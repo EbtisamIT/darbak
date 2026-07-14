@@ -1061,6 +1061,34 @@ function AppLayout({ theme, setTheme }) {
     });
   }, [isAdminPage, location.pathname, location.search]);
 
+  useEffect(() => {
+    if (isAdminPage || typeof document === "undefined") return undefined;
+
+    const sendSessionPing = () => {
+      if (document.visibilityState !== "visible") return;
+
+      trackEvent("session_ping", {
+        page: location.pathname,
+      });
+    };
+
+    sendSessionPing();
+    const intervalId = window.setInterval(sendSessionPing, 60 * 1000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        sendSessionPing();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isAdminPage, location.pathname]);
+
   if (isAdminPage) {
     return (
       <div

@@ -112,6 +112,9 @@ const emptyAnalytics = {
   days: 30,
   totalEvents: 0,
   uniqueVisitors: 0,
+  allTimeVisitors: 0,
+  activeVisitors: 0,
+  activeWindowMinutes: 5,
   topEvents: [],
   topMajors: [],
   topCities: [],
@@ -134,6 +137,7 @@ const analyticsEventLabels = {
   diagnosis_completed: "إكمال التشخيص",
   add_experience_started: "بدء إضافة تجربة",
   add_experience_submitted: "إرسال تجربة",
+  session_ping: "زائر نشط",
   opportunity_details_clicked: "فتح تفاصيل فرصة",
   opportunity_apply_clicked: "ضغط تقديم فرصة",
   opportunity_submission_started: "بدء إرسال فرصة",
@@ -1329,11 +1333,18 @@ export default function AdminReviewPage() {
             }}
           >
             {[
-              ["الأحداث النظيفة", analytics.totalEvents],
+              ["إجمالي الزوار من البداية", analytics.allTimeVisitors],
+              [
+                "النشطين الآن",
+                `${analytics.activeVisitors} خلال آخر ${
+                  analytics.activeWindowMinutes || 5
+                } دقائق`,
+              ],
+              ["زوار الفترة", analytics.uniqueVisitors],
+              ["الأحداث", analytics.totalEvents],
               ...(analytics.rawEvents > analytics.totalEvents
                 ? [["الأحداث الخام", analytics.rawEvents]]
                 : []),
-              ["زوار مميزون", analytics.uniqueVisitors],
               ["الفترة", analytics.rangeLabel || `${analytics.days} يوم`],
               [
                 "أقوى ساعة",
@@ -1390,8 +1401,18 @@ export default function AdminReviewPage() {
 
           <section style={cardStyle}>
             <h3 style={{ color: adminColors.brand, margin: "0 0 12px" }}>
-              آخر الأحداث
+              آخر 5 أحداث
             </h3>
+            <p
+              style={{
+                color: adminColors.muted,
+                margin: "-4px 0 12px",
+                fontSize: 13,
+                lineHeight: 1.7,
+              }}
+            >
+              عرض سريع للحركة الحالية فقط، بدون تفاصيل حساسة أو قائمة طويلة.
+            </p>
             {analytics.recentEvents.length === 0 ? (
               <p style={{ color: adminColors.muted, margin: 0 }}>
                 لا توجد أحداث مسجلة بعد.

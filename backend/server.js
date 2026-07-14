@@ -559,14 +559,20 @@ const sanitizeAnalyticsMetadata = (metadata = {}) => {
   }, {});
 };
 
-const getAnalyticsGroup = async (match, field, limit = 10) =>
-  AnalyticsEvent.aggregate([
-    { $match: { ...match, [field]: { $nin: [null, ""] } } },
+const getAnalyticsGroup = async (match, field, limit = 10) => {
+  const fieldFilter =
+    field === "eventName"
+      ? { $nin: [null, "", "session_ping"] }
+      : { $nin: [null, ""] };
+
+  return AnalyticsEvent.aggregate([
+    { $match: { ...match, [field]: fieldFilter } },
     { $group: { _id: `$${field}`, count: { $sum: 1 } } },
     { $sort: { count: -1, _id: 1 } },
     { $limit: limit },
     { $project: { _id: 0, label: "$_id", count: 1 } },
   ]);
+};
 
 const getAnalyticsSearches = async (match, limit = 12) =>
   AnalyticsEvent.aggregate([
@@ -624,6 +630,7 @@ const getAnalyticsDateScope = (daysParam) => {
 
 const getCleanAnalyticsMatch = (match) => ({
   ...match,
+  eventName: { $ne: "session_ping" },
   $or: [
     { eventName: { $ne: "experience_search" } },
     {
@@ -1142,11 +1149,21 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
 
     const { days, rangeLabel, match } = getAnalyticsDateScope(req.query.days);
     const cleanMatch = getCleanAnalyticsMatch(match);
+    const allTimeCleanMatch = getCleanAnalyticsMatch({});
+    const activeWindowMinutes = 5;
+    const activeVisitorsMatch = {
+      createdAt: {
+        $gte: new Date(Date.now() - activeWindowMinutes * 60 * 1000),
+      },
+      visitorId: { $nin: [null, ""] },
+    };
 
     const [
       rawEvents,
       totalEvents,
       uniqueVisitors,
+      allTimeVisitors,
+      activeVisitors,
       topEvents,
       topMajors,
       topCities,
@@ -1162,6 +1179,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       AnalyticsEvent.countDocuments(match),
       AnalyticsEvent.countDocuments(cleanMatch),
       AnalyticsEvent.distinct("visitorId", cleanMatch),
+      AnalyticsEvent.distinct("visitorId", allTimeCleanMatch),
+      AnalyticsEvent.distinct("visitorId", activeVisitorsMatch),
       getAnalyticsGroup(cleanMatch, "eventName", 12),
       getAnalyticsGroup(cleanMatch, "major", 12),
       getAnalyticsGroup(cleanMatch, "city", 12),
@@ -1219,9 +1238,9 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       ]),
       AnalyticsEvent.find(cleanMatch)
         .sort({ createdAt: -1 })
-        .limit(25)
+        .limit(5)
         .select(
-          "eventName page deviceType major city searchQuery resultsCount metadata createdAt"
+          "eventName page deviceType major city searchQuery resultsCount createdAt"
         )
         .lean(),
     ]);
@@ -1232,6 +1251,9 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       rawEvents,
       totalEvents,
       uniqueVisitors: uniqueVisitors.filter(Boolean).length,
+      allTimeVisitors: allTimeVisitors.filter(Boolean).length,
+      activeVisitors: activeVisitors.filter(Boolean).length,
+      activeWindowMinutes,
       topEvents,
       topMajors,
       topCities,
