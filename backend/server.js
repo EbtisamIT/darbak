@@ -1185,6 +1185,329 @@ const buildSmartSummaryBullets = (experiences = []) => {
   return bullets;
 };
 
+const SMART_ASSISTANT_ENVIRONMENT_LABELS = {
+  mixed: "مختلطة",
+  women: "نسائية",
+  men: "رجالية",
+};
+
+const SMART_ASSISTANT_SECTION_LABELS = [
+  "الإيجابيات",
+  "التحديات",
+  "سلبيات التدريب",
+  "الخلاصة بعد التدريب",
+  "نصيحة للمتدربين",
+  "المسمى أثناء التدريب",
+  "لغة العمل",
+  "مدة إجراءات التقديم",
+];
+
+const formatSmartPercent = (
+  ratio,
+  yesLabel,
+  noLabel = "",
+  groupLabel = "التجارب التي وضحت هذا الجانب"
+) => {
+  if (!ratio || ratio.total === 0) return "";
+
+  if (ratio.percent >= 70) {
+    return `أغلب ${groupLabel} ذكرت ${yesLabel}`;
+  }
+
+  if (ratio.percent >= 45) {
+    return `حوالي نصف ${groupLabel} ذكرت ${yesLabel}`;
+  }
+
+  if (ratio.yesCount > 0) {
+    return `بعض التجارب ذكرت ${yesLabel}`;
+  }
+
+  return noLabel || "";
+};
+
+const getSmartOrganizationDisplayName = (label = "") => {
+  const normalizedLabel = normalizeSearchText(label);
+  if (normalizedLabel === "stc") return "STC";
+  if (normalizedLabel.includes("channels by stc")) return "Channels by STC";
+  if (normalizedLabel === "pwc") return "PwC";
+  return label;
+};
+
+const isMeaningfulSmartValue = (value = "") => {
+  const normalizedValue = normalizeSearchText(value);
+  return Boolean(
+    normalizedValue &&
+      !["غير مذكور", "غير محدد", "غير واضح", "not sure"].includes(normalizedValue)
+  );
+};
+
+const getSmartSubjectLabel = (filters = {}) => {
+  const organization = filters.organizations?.[0]?.label
+    ? getSmartOrganizationDisplayName(filters.organizations[0].label)
+    : "";
+  const major = filters.majors?.[0]?.label;
+  const city = filters.cities?.[0]?.label;
+
+  if (organization && major && city) return `${organization} لتخصص ${major} في ${city}`;
+  if (organization && major) return `${organization} لتخصص ${major}`;
+  if (organization && city) return `${organization} في ${city}`;
+  if (major && city) return `تخصص ${major} في ${city}`;
+  if (organization) return organization;
+  if (major) return `تخصص ${major}`;
+  if (city) return `تجارب ${city}`;
+  return "التجارب المطابقة";
+};
+
+const getSmartTone = (experiences = []) => {
+  const averageRating = getAverageRating(experiences);
+  const recommended = getFieldRatio(experiences, "wouldRecommend");
+  const benefited = getFieldRatio(experiences, "benefitedFromTraining");
+  const problemThemes = getThemeMatches(experiences, SMART_ASSISTANT_PROBLEM_THEMES);
+
+  if (
+    averageRating >= 4.2 ||
+    recommended?.percent >= 70 ||
+    benefited?.percent >= 70
+  ) {
+    return "إيجابية بشكل عام";
+  }
+
+  if (
+    averageRating !== null &&
+    averageRating < 3.2 &&
+    problemThemes.length > 0
+  ) {
+    return "تحتاج انتباه قبل القرار";
+  }
+
+  return "متفاوتة وتعتمد على القسم أو الفريق";
+};
+
+const getSmartSectionValue = (description = "", label = "") => {
+  if (!description || !label) return "";
+
+  const labelsPattern = SMART_ASSISTANT_SECTION_LABELS.map((item) =>
+    item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  ).join("|");
+  const regex = new RegExp(`${label}\\s*:\\s*([\\s\\S]*?)(?=\\s*(?:${labelsPattern})\\s*:|$)`);
+  const match = description.match(regex);
+
+  return (match?.[1] || "")
+    .replace(/\s+/g, " ")
+    .replace(/[.،؛:]+$/g, "")
+    .trim();
+};
+
+const getSmartRoleInsights = (experiences = []) => {
+  const roles = getTopFrequencies(
+    experiences
+      .map((exp) => getSmartSectionValue(exp.description, "المسمى أثناء التدريب"))
+      .filter(Boolean),
+    4
+  );
+
+  return roles.map((item) => item.label);
+};
+
+const SMART_ASSISTANT_TASK_THEMES = [
+  {
+    label: "تحليل البيانات والتقارير",
+    terms: ["تحليل البيانات", "بيانات", "تقارير", "اكسل", "إكسل", "dashboard"],
+  },
+  {
+    label: "مهام تقنية أو برمجية",
+    terms: ["برمجة", "تطوير", "نظام", "تطبيق", "اختبار", "بايثون", "python"],
+  },
+  {
+    label: "مهام مالية أو مخاطر",
+    terms: ["مالية", "مخاطر", "استثمار", "محاسبة", "تدقيق", "إكتواري", "اكتواري"],
+  },
+  {
+    label: "تواصل وخدمة عملاء",
+    terms: ["تواصل", "عملاء", "خدمة", "مقابلات", "تنسيق"],
+  },
+  {
+    label: "تسويق ومحتوى",
+    terms: ["تسويق", "محتوى", "حملات", "تصميم", "إعلام"],
+  },
+];
+
+const getSmartTaskInsights = (experiences = []) =>
+  getThemeMatches(experiences, SMART_ASSISTANT_TASK_THEMES).map((item) => item.label);
+
+const getSmartQuoteCandidates = (experiences = []) => {
+  const preferredLabels = [
+    "الإيجابيات",
+    "التحديات",
+    "الخلاصة بعد التدريب",
+    "نصيحة للمتدربين",
+  ];
+
+  return experiences.flatMap((exp) =>
+    preferredLabels
+      .map((label) => ({
+        label,
+        organizationName: exp.organizationName,
+        text: getSmartSectionValue(exp.description, label),
+      }))
+      .filter((item) => item.text)
+  );
+};
+
+const trimSmartQuote = (text = "") => {
+  const cleanText = text
+    .replace(/\s+/g, " ")
+    .replace(/[\u064B-\u065F]+/g, "")
+    .replace(/[“”"]/g, "")
+    .replace(/([ء-ي])\1{2,}/g, "$1$1")
+    .trim();
+
+  if (!cleanText || containsBlockedTerms(cleanText)) return "";
+
+  const words = cleanText.split(/\s+/).filter(Boolean);
+  const trimmed = words.slice(0, 22).join(" ");
+
+  return `${trimmed}${words.length > 22 ? "..." : ""}`;
+};
+
+const getSmartHumanQuotes = (experiences = [], limit = 2) => {
+  const seen = new Set();
+  const candidates = getSmartQuoteCandidates(experiences);
+  const priority = {
+    "الإيجابيات": 1,
+    "الخلاصة بعد التدريب": 2,
+    "التحديات": 3,
+    "نصيحة للمتدربين": 4,
+  };
+
+  return candidates
+    .map((item) => ({
+      ...item,
+      text: trimSmartQuote(item.text),
+      weight: priority[item.label] || 9,
+    }))
+    .filter((item) => item.text && item.text.length >= 18)
+    .sort((a, b) => a.weight - b.weight || b.text.length - a.text.length)
+    .filter((item) => {
+      const key = normalizeSearchText(item.text.slice(0, 50));
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit)
+    .map((item) => ({
+      label: item.label === "التحديات" ? "ملاحظة من تجربة" : "من تجربة منشورة",
+      text: item.text,
+    }));
+};
+
+const buildSmartHumanParagraphs = (experiences = [], filters = {}, intent = "summary") => {
+  const averageRating = getAverageRating(experiences);
+  const benefited = getFieldRatio(experiences, "benefitedFromTraining");
+  const recommended = getFieldRatio(experiences, "wouldRecommend");
+  const reward = getFieldRatio(experiences, "hadReward");
+  const hired = getFieldRatio(experiences, "wasHired");
+  const topMethods = getTopFrequencies(
+    experiences.map((exp) => exp.howApplied).filter(isMeaningfulSmartValue),
+    3
+  );
+  const topEnvironments = getTopFrequencies(
+    experiences.map((exp) => exp.trainingEnvironment).filter(Boolean),
+    2
+  );
+  const roles = getSmartRoleInsights(experiences);
+  const tasks = getSmartTaskInsights(experiences);
+  const positiveThemes = getThemeMatches(experiences, SMART_ASSISTANT_POSITIVE_THEMES);
+  const problemThemes = getThemeMatches(experiences, SMART_ASSISTANT_PROBLEM_THEMES);
+  const subject = getSmartSubjectLabel(filters);
+  const tone = getSmartTone(experiences);
+  const paragraphs = [];
+
+  const introPieces = [`الصورة العامة عن ${subject} ${tone}`];
+  if (averageRating !== null) {
+    introPieces.push(`ومتوسط التقييم ${averageRating}/5`);
+  }
+  paragraphs.push(`${introPieces.join("، ")}.`);
+
+  const benefitText = formatSmartPercent(
+    benefited,
+    "أن التدريب كان مفيدًا",
+    "",
+    "التجارب التي وضحت الاستفادة"
+  );
+  const recommendText = formatSmartPercent(
+    recommended,
+    "أنها تنصح بالتجربة",
+    "",
+    "التجارب التي وضحت الترشيح"
+  );
+  if (benefitText || recommendText) {
+    paragraphs.push([benefitText, recommendText].filter(Boolean).join("، ") + ".");
+  }
+
+  if (positiveThemes.length > 0) {
+    paragraphs.push(
+      `أكثر الأشياء الإيجابية التي ظهرت في التجارب: ${positiveThemes
+        .map((item) => item.label)
+        .join("، ")}.`
+    );
+  }
+
+  if (problemThemes.length > 0) {
+    paragraphs.push(
+      `أما الملاحظات المتكررة فكانت حول ${problemThemes
+        .map((item) => item.label)
+        .join("، ")}. أتعامل معها كمؤشرات عامة لأن التجربة قد تختلف من إدارة لأخرى.`
+    );
+  }
+
+  if (roles.length > 0 || tasks.length > 0) {
+    const roleText = roles.length > 0 ? `أبرز المسميات المذكورة: ${roles.join("، ")}` : "";
+    const taskText = tasks.length > 0 ? `ومن المهام أو المجالات المتكررة: ${tasks.join("، ")}` : "";
+    paragraphs.push([roleText, taskText].filter(Boolean).join(". ") + ".");
+  }
+
+  const practicalSignals = [];
+  const rewardText = formatSmartPercent(
+    reward,
+    "وجود مكافأة",
+    "التجارب التي وضحت المكافأة لم تذكر وجود مكافأة",
+    "التجارب التي وضحت المكافأة"
+  );
+  const hiredText = formatSmartPercent(
+    hired,
+    "وجود عرض وظيفي بعد التدريب",
+    "",
+    "التجارب التي وضحت العرض الوظيفي"
+  );
+  if (rewardText) practicalSignals.push(rewardText);
+  if (hiredText) practicalSignals.push(hiredText);
+  if (topMethods.length > 0) {
+    practicalSignals.push(
+      `طرق الوصول للفرصة التي تكررت: ${topMethods.map((item) => item.label).join("، ")}`
+    );
+  }
+  if (topEnvironments.length > 0) {
+    practicalSignals.push(
+      `والبيئة الأكثر ذكرًا: ${
+        SMART_ASSISTANT_ENVIRONMENT_LABELS[topEnvironments[0].label] ||
+        topEnvironments[0].label
+      }`
+    );
+  }
+  if (practicalSignals.length > 0) {
+    paragraphs.push(`${practicalSignals.join("، ")}.`);
+  }
+
+  if (intent === "exists") {
+    paragraphs.push(
+      "نعم، توجد تجارب مطابقة لهذا السؤال داخل دربك. الأفضل بعدها تضييق القراءة حسب الجهة أو المدينة إذا كنت تقارن بين أكثر من خيار."
+    );
+  }
+
+  return paragraphs;
+};
+
 const groupSmartExperiencesByOrganization = (experiences = []) => {
   const groups = new Map();
 
@@ -1235,8 +1558,13 @@ const buildBestOrganizationsAnswer = (experiences = [], filters = {}) => {
     .slice(0, 6);
 
   return {
-    title: "أفضل الجهات حسب تجارب دربك",
-    intro: `اعتمدت على ${experiences.length} تجربة مطابقة داخل دربك فقط.`,
+    title: "ترشيحات من واقع تجارب دربك",
+    intro: `قرأت ${experiences.length} تجربة مطابقة، وطلعت لك الجهات الأقرب لسؤالك بدون الاعتماد على أي مصدر خارجي.`,
+    paragraphs: [
+      groups.length > 0
+        ? "الترشيح هنا ليس إعلانًا عن توفر تدريب حاليًا، لكنه يساعدك تعرف الجهات التي ظهرت بشكل أفضل في تجارب الطلاب."
+        : "ما لقيت جهات كافية أرتبها بثقة داخل تجارب دربك.",
+    ],
     bullets: groups.map((group) => {
       const benefitText = group.benefited
         ? `، الاستفادة ${group.benefited.percent}%`
@@ -1246,6 +1574,10 @@ const buildBestOrganizationsAnswer = (experiences = [], filters = {}) => {
         : "";
       return `${group.organizationName}: ${group.experiences.length} تجربة، متوسط التقييم ${group.averageRating || "غير كاف"}/5${benefitText}${recommendText}.`;
     }),
+    closing:
+      groups.length > 0
+        ? "ابدأ بقراءة تجارب أول جهتين أو ثلاث، ثم قارنها بتخصصك ومدينتك قبل التقديم."
+        : "",
     note:
       groups.length === 0
         ? "لا توجد جهات كافية للمقارنة ضمن السؤال."
@@ -1273,8 +1605,13 @@ const buildRewardOrganizationsAnswer = (experiences = [], filters = {}) => {
     .slice(0, 7);
 
   return {
-    title: "الجهات التي ظهر فيها وجود مكافأة",
-    intro: `راجعت ${experiences.length} تجربة مطابقة داخل دربك.`,
+    title: "المكافآت حسب تجارب دربك",
+    intro: `راجعت ${experiences.length} تجربة مطابقة، وركزت فقط على التجارب التي وضحت المكافأة أو ذكرتها بوضوح.`,
+    paragraphs: [
+      groups.length > 0
+        ? "هذه الجهات ظهر فيها ذكر للمكافأة أكثر من غيرها داخل البيانات الموجودة، لكن الأفضل دائمًا التأكد من الجهة قبل التقديم لأن السياسات قد تتغير."
+        : "ما لقيت تجارب كافية تقول بوضوح إن فيه مكافأة ضمن نطاق سؤالك.",
+    ],
     bullets:
       groups.length > 0
         ? groups.map(
@@ -1282,6 +1619,12 @@ const buildRewardOrganizationsAnswer = (experiences = [], filters = {}) => {
               `${group.organizationName}: ${group.reward.yesCount} تجربة ذكرت وجود مكافأة من أصل ${group.reward.total} تجربة وضحت المكافأة.`
           )
         : ["لم أجد تجارب كافية تذكر وجود مكافأة ضمن السؤال."],
+    quotes: getSmartHumanQuotes(
+      experiences.filter((exp) => exp.hadReward === "yes"),
+      1
+    ),
+    closing:
+      "اعتبر المكافأة عامل مساعد، لكن لا تخليها العامل الوحيد؛ جودة المهام ووضوح التدريب أهم على المدى الطويل.",
     note: "النتيجة مبنية فقط على التجارب التي عبأت حقل المكافأة أو ذكرتها بوضوح.",
     relatedUrl: getPrimaryRelatedUrl(filters),
   };
@@ -1289,7 +1632,7 @@ const buildRewardOrganizationsAnswer = (experiences = [], filters = {}) => {
 
 const buildComparisonAnswer = (allExperiences = [], organizations = []) => {
   const selectedOrganizations = organizations.slice(0, 2);
-  const bullets = selectedOrganizations.map((organization) => {
+  const comparisonLines = selectedOrganizations.map((organization) => {
     const experiences = allExperiences.filter((exp) =>
       smartTextIncludesAny(exp.organizationName, organization.terms || organization.values)
     );
@@ -1315,10 +1658,19 @@ const buildComparisonAnswer = (allExperiences = [], organizations = []) => {
     }.`;
   });
 
+  const relatedExperiences = selectedOrganizations.flatMap((organization) =>
+    allExperiences.filter((exp) =>
+      smartTextIncludesAny(exp.organizationName, organization.terms || organization.values)
+    )
+  );
+
   return {
-    title: `مقارنة من واقع تجارب دربك`,
-    intro: "هذه المقارنة مبنية فقط على التجارب المعتمدة الموجودة في المنصة.",
-    bullets,
+    title: "مقارنة من واقع تجارب دربك",
+    intro: "أقارن لك بناءً على التجارب المعتمدة فقط، لذلك إذا كان عدد التجارب قليلًا فاعتبرها قراءة أولية وليست حكمًا نهائيًا.",
+    paragraphs: comparisonLines,
+    quotes: getSmartHumanQuotes(relatedExperiences, 2),
+    closing:
+      "اختيار الجهة الأفضل يعتمد على تخصصك والمدينة ونوع المهام التي تبحث عنها، لذلك اقرأ التجارب المرتبطة قبل القرار.",
     note: "إذا كان عدد التجارب قليلًا، اعتبر المقارنة مؤشرًا أوليًا وليس حكمًا نهائيًا.",
     relatedUrl: selectedOrganizations[0]
       ? `/experiences?company=${encodeURIComponent(selectedOrganizations[0].label)}`
@@ -1365,7 +1717,10 @@ const buildSmartAssistantAnswer = ({ question, experiences, filters, intent }) =
   if (experiences.length === 0) {
     return {
       title: "لا توجد بيانات كافية",
-      intro: "لم أجد تجارب معتمدة تطابق سؤالك داخل قاعدة بيانات دربك.",
+      intro: "حاولت أبحث داخل تجارب دربك المعتمدة، لكن ما لقيت نتيجة تطابق سؤالك بشكل واضح.",
+      paragraphs: [
+        "ما راح أعطيك جواب من التخمين أو من الإنترنت؛ لأن هدف المساعد يكون صادق مع بيانات المنصة نفسها.",
+      ],
       bullets: [
         "جرّب كتابة اسم الجهة بصيغة مختلفة أو اختر تخصصًا/مدينة أوسع.",
         "لن أضيف معلومات من خارج دربك حتى لا أعطيك جوابًا غير موثوق.",
@@ -1381,24 +1736,46 @@ const buildSmartAssistantAnswer = ({ question, experiences, filters, intent }) =
   if (intent === "problems") {
     const problemThemes = getThemeMatches(experiences, SMART_ASSISTANT_PROBLEM_THEMES);
     return {
-      title: "أبرز التحديات المذكورة",
-      intro: `تم العثور على ${experiences.length} تجربة مطابقة.`,
+      title: "قراءة للتحديات بدون تهويل",
+      intro: `وجدت ${experiences.length} تجربة مطابقة، وركزت على الملاحظات المتكررة بدون ذكر أشخاص أو صياغات جارحة.`,
+      paragraphs:
+        problemThemes.length > 0
+          ? [
+              `أكثر ما تكرر في التجارب كان حول ${problemThemes
+                .map((theme) => theme.label)
+                .join("، ")}.`,
+              "وجود ملاحظة في تجربة أو تجربتين لا يعني أن كل التدريب سيئ؛ غالبًا التجربة تختلف حسب الإدارة والمشرف والفترة.",
+            ]
+          : ["ما ظهر نمط واضح للمشاكل في الأوصاف المطابقة، وهذا قد يعني أن التفاصيل المكتوبة قليلة أو عامة."],
       bullets:
         problemThemes.length > 0
           ? problemThemes.map((theme) => `تكرر في الوصف: ${theme.label}.`)
           : ["لم أجد نمطًا واضحًا للمشاكل في أوصاف التجارب المطابقة."],
+      quotes: getSmartHumanQuotes(experiences, 2),
+      closing:
+        "إذا كانت الجهة مهمة لك، اقرأ التجارب حسب التخصص أو القسم قبل ما تبني حكمك النهائي.",
       note: "لا يتم عرض أو استنتاج معلومات عن أشخاص، فقط تلخيص للأنماط المكتوبة في التجارب.",
       relatedUrl: getPrimaryRelatedUrl(filters),
     };
   }
 
+  const subject = getSmartSubjectLabel(filters);
+  const paragraphs = buildSmartHumanParagraphs(experiences, filters, intent);
+  const quotes = getSmartHumanQuotes(experiences, 2);
+
   return {
     title:
       intent === "exists"
-        ? "نتيجة البحث داخل تجارب دربك"
-        : "ملخص من واقع التجارب",
-    intro: `تم العثور على ${experiences.length} تجربة مطابقة.`,
-    bullets: buildSmartSummaryBullets(experiences),
+        ? "نعم، فيه تجارب مرتبطة بسؤالك"
+        : `قراءة سريعة عن ${subject}`,
+    intro: `بناءً على ${experiences.length} تجربة منشورة في دربك، هذه قراءة مختصرة بلغة بسيطة.`,
+    paragraphs,
+    quotes,
+    bullets: [],
+    closing:
+      experiences.length >= 6
+        ? `إذا كنت تفكر في ${subject}، فالقرار الأفضل يكون بقراءة التجارب القريبة من تخصصك لأن التفاصيل تختلف من قسم لآخر.`
+        : `البيانات هنا مفيدة كبداية، لكن عدد التجارب قليل؛ اقرأ التجارب المرتبطة ولا تعتمد على هذه الخلاصة وحدها.`,
     note: "هذا الملخص لا يستخدم الإنترنت ولا أي مصدر خارج قاعدة بيانات دربك.",
     relatedUrl: getPrimaryRelatedUrl(filters),
   };

@@ -123,12 +123,31 @@ export default function DarbakAssistant() {
           {typeof count === "number" && <span>{count} تجربة</span>}
         </div>
         {answer.intro && <p>{answer.intro}</p>}
+        {Array.isArray(answer.paragraphs) &&
+          answer.paragraphs.map((paragraph) => (
+            <p className="darbak-assistant-paragraph" key={paragraph}>
+              {paragraph}
+            </p>
+          ))}
         {Array.isArray(answer.bullets) && answer.bullets.length > 0 && (
           <ul>
             {answer.bullets.map((bullet) => (
               <li key={bullet}>{bullet}</li>
             ))}
           </ul>
+        )}
+        {Array.isArray(answer.quotes) && answer.quotes.length > 0 && (
+          <div className="darbak-assistant-quotes">
+            {answer.quotes.map((quote) => (
+              <blockquote key={`${quote.label}-${quote.text}`}>
+                <span>{quote.label}</span>
+                <p>“{quote.text}”</p>
+              </blockquote>
+            ))}
+          </div>
+        )}
+        {answer.closing && (
+          <p className="darbak-assistant-closing">{answer.closing}</p>
         )}
         {answer.note && <small>{answer.note}</small>}
 
