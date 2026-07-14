@@ -2039,6 +2039,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     const [
       rawEvents,
       totalEvents,
+      pageVisits,
+      allTimePageVisits,
       uniqueVisitors,
       allTimeVisitors,
       activeVisitors,
@@ -2056,6 +2058,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     ] = await Promise.all([
       AnalyticsEvent.countDocuments(match),
       AnalyticsEvent.countDocuments(cleanMatch),
+      AnalyticsEvent.countDocuments({ ...match, eventName: "page_view" }),
+      AnalyticsEvent.countDocuments({ eventName: "page_view" }),
       AnalyticsEvent.distinct("visitorId", cleanMatch),
       AnalyticsEvent.distinct("visitorId", allTimeCleanMatch),
       AnalyticsEvent.distinct("visitorId", activeVisitorsMatch),
@@ -2128,6 +2132,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       rangeLabel,
       rawEvents,
       totalEvents,
+      pageVisits,
+      allTimePageVisits,
       uniqueVisitors: uniqueVisitors.filter(Boolean).length,
       allTimeVisitors: allTimeVisitors.filter(Boolean).length,
       activeVisitors: activeVisitors.filter(Boolean).length,

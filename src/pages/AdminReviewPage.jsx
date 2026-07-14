@@ -111,6 +111,8 @@ const opportunityCityOptions = [
 const emptyAnalytics = {
   days: 30,
   totalEvents: 0,
+  pageVisits: 0,
+  allTimePageVisits: 0,
   uniqueVisitors: 0,
   allTimeVisitors: 0,
   activeVisitors: 0,
@@ -1333,14 +1335,16 @@ export default function AdminReviewPage() {
             }}
           >
             {[
-              ["إجمالي الزوار من البداية", analytics.allTimeVisitors],
+              ["زوار مميزين من البداية", analytics.allTimeVisitors],
+              ["جميع الزيارات من البداية", analytics.allTimePageVisits],
               [
                 "النشطين الآن",
                 `${analytics.activeVisitors} خلال آخر ${
                   analytics.activeWindowMinutes || 5
                 } دقائق`,
               ],
-              ["زوار الفترة", analytics.uniqueVisitors],
+              ["زوار مميزين في الفترة", analytics.uniqueVisitors],
+              ["جميع الزيارات في الفترة", analytics.pageVisits],
               ["الأحداث", analytics.totalEvents],
               ...(analytics.rawEvents > analytics.totalEvents
                 ? [["الأحداث الخام", analytics.rawEvents]]
