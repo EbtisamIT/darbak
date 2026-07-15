@@ -22,7 +22,7 @@ const SUBSCRIPTION_DURATION_DAYS = Number(
 const ONE_TIME_SUBSCRIPTION_PRICE_SAR = Number(
   process.env.ONE_TIME_SUBSCRIPTION_PRICE_SAR ||
     process.env.ONE_TIME_PRICE_SAR ||
-    10
+    15
 );
 const ONE_TIME_SUBSCRIPTION_DURATION_DAYS = Number(
   process.env.ONE_TIME_SUBSCRIPTION_DURATION_DAYS ||
@@ -46,13 +46,13 @@ const SUBSCRIPTION_SECRET =
 const SUBSCRIPTION_PLANS = {
   monthly: {
     id: "monthly",
-    label: "وصول شهر",
+    label: "دربك+ - المزايا المتقدمة شهر",
     priceSar: SUBSCRIPTION_PRICE_SAR,
     durationDays: SUBSCRIPTION_DURATION_DAYS,
   },
   one_time_90: {
     id: "one_time_90",
-    label: "دفعة واحدة 3 أشهر",
+    label: "دربك+ - المزايا المتقدمة 3 أشهر",
     priceSar: ONE_TIME_SUBSCRIPTION_PRICE_SAR,
     durationDays: ONE_TIME_SUBSCRIPTION_DURATION_DAYS,
   },
@@ -2471,7 +2471,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       !isValidAccessCode(accessCode)
     ) {
       return res.status(400).json({
-        error: "اكتب بريد أو رقم جوال صحيح، ورمز دخول من 4 إلى 12 رقم أو حرف قبل الدفع.",
+        error: "اكتب بريد أو رقم جوال صحيح، ورمز دخول من 4 إلى 12 رقم أو حرف قبل تفعيل دربك+.",
       });
     }
 
@@ -2561,7 +2561,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     if (MOYASAR_SECRET_KEY) {
       const invoice = await createMoyasarInvoice({
         amountHalalas,
-        description: `دربك - ${selectedPlan.label}`,
+        description: `${selectedPlan.label} للوصول إلى المزايا الرقمية المتقدمة في منصة دربك`,
         callbackUrl: successUrl,
       });
 

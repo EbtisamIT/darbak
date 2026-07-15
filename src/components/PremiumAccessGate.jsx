@@ -15,34 +15,36 @@ const initialForm = {
 const PENDING_SUBSCRIPTION_KEY = "darbak_pending_subscription_v1";
 
 const featureCopy = {
-  experience_details: "تفاصيل التجربة الكاملة",
-  opportunity_details: "تفاصيل فرصة التدريب",
-  opportunity_apply: "رابط التقديم المباشر",
+  experience_details: "المزايا الرقمية المتقدمة",
+  opportunity_details: "أدوات الفرص التدريبية المتقدمة",
+  opportunity_apply: "أدوات الوصول للفرص التدريبية",
 };
 
 const premiumBenefits = [
-  "افتح التفاصيل اللي تختصر عليك سؤال القروبات",
-  "روابط تقديم وجهات مناسبة بدون تدوير طويل",
-  "احفظ التجارب والجهات اللي تهمك وارجع لها لاحقًا",
-  "وصول من أي جهاز بنفس بياناتك طوال مدة الباقة",
+  "الوصول الكامل إلى جميع تجارب التدريب المنشورة.",
+  "دليل دربك لتحليل التجارب والإجابة على أسئلتك.",
+  "أدوات بحث متقدمة داخل التجارب والجهات والمدن.",
+  "مقارنة الجهات التدريبية من واقع تجارب الطلاب.",
+  "حفظ التجارب والجهات المفضلة والرجوع لها لاحقًا.",
+  "المزايا الجديدة فور إطلاقها طوال مدة الباقة.",
 ];
 
 const subscriptionPlans = [
   {
     id: "monthly",
-    title: "وصول شهر",
+    title: "دربك+",
     price: "5 ريال",
-    duration: "30 يوم",
-    description: "مناسب إذا تبغى تجربة سريعة وبأخف تكلفة.",
-    badge: "مرن",
+    duration: "شهر",
+    description: "وصول كامل للمزايا الرقمية المتقدمة لمدة شهر.",
+    badge: "شهري",
   },
   {
     id: "one_time_90",
-    title: "دفعة واحدة",
-    price: "10 ريال",
+    title: "دربك+ 3 أشهر",
+    price: "15 ريال",
     duration: "3 أشهر",
-    description: "يغطي موسم البحث والتقديم بدون قلق تجديد.",
-    badge: "الأفضل للطلاب",
+    description: "نفس المزايا لمدة أطول تناسب موسم البحث والتقديم.",
+    badge: "مدة أطول",
   },
 ];
 
@@ -156,7 +158,7 @@ export default function PremiumAccessGate() {
 
     try {
       setIsVerifying(true);
-      setMessage(options.auto ? "جاري تفعيل اشتراكك..." : "");
+      setMessage(options.auto ? "جاري تفعيل دربك+..." : "");
       const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
         email: contactValue,
         accessCode: normalizedCode,
@@ -215,12 +217,12 @@ export default function PremiumAccessGate() {
       return;
     }
 
-    setMessage("تم الرجوع من صفحة الدفع. اكتب بيانات الاشتراك لتفعيل الوصول.");
+    setMessage("تم الرجوع من صفحة الدفع. اكتب بيانات دربك+ لتفعيل المزايا.");
   }, [verifyAccess]);
 
   const startCheckout = async () => {
     if (!isValidContact(form.contact)) {
-      setMessage("اكتب بريد إلكتروني صحيح أو رقم جوال سعودي عشان نحفظ اشتراكك.");
+      setMessage("اكتب بريد إلكتروني صحيح أو رقم جوال سعودي عشان نحفظ وصولك لدربك+.");
       return;
     }
 
@@ -274,7 +276,7 @@ export default function PremiumAccessGate() {
         return;
       }
 
-      setMessage("بنقلك الآن لصفحة الدفع الآمنة...");
+      setMessage("بنقلك الآن لصفحة التفعيل الآمنة...");
       window.location.assign(data.checkoutUrl);
     } catch (err) {
       setMessage(
@@ -312,12 +314,26 @@ export default function PremiumAccessGate() {
 
         <div className="premium-access-layout">
           <section className="premium-access-main">
-            <div className="premium-access-badge">اشتراك دربك</div>
-            <h2 id="premium-access-title">باقي خطوة وتفتح الطريق</h2>
+            <div className="premium-access-badge">المزايا المتقدمة</div>
+            <h2 id="premium-access-title">✨ فعّل المزايا المتقدمة في منصة دربك</h2>
             <p className="premium-access-lead">
-              افتح {featureCopy[feature] || "المميزات المتقدمة"} وروابط التقديم
-              المباشرة بالمدة اللي تناسبك.
+              ساعدنا على تطوير المنصة واستمرارها، واحصل على وصول كامل إلى{" "}
+              {featureCopy[feature] || "جميع المزايا الرقمية"} التي تساعدك
+              تستفيد من تجارب التدريب بشكل أسرع وأدق.
             </p>
+
+            <div className="premium-free-plan" aria-label="المزايا المجانية">
+              <div>
+                <span>مجاني</span>
+                <strong>متاح دائمًا</strong>
+              </div>
+              <ul>
+                <li>عدد محدود من التجارب يوميًا</li>
+                <li>البحث الأساسي</li>
+                <li>إضافة تجربة</li>
+                <li>حفظ المفضلة</li>
+              </ul>
+            </div>
 
             <div className="premium-plan-options" role="radiogroup" aria-label="اختيار الباقة">
               {subscriptionPlans.map((plan) => (
@@ -341,13 +357,13 @@ export default function PremiumAccessGate() {
 
             <div className="premium-access-price">
               <strong>{selectedPlan.price}</strong>
-              <span>وصول كامل لمدة {selectedPlan.duration}</span>
+              <span>دربك+ لمدة {selectedPlan.duration}</span>
             </div>
 
             <div className="premium-access-form">
               <p>
                 استخدم بريد أو رقم جوال مع رمز دخول بسيط تحفظه. إذا كان لديك
-                اشتراك سابق، اكتب نفس البيانات واضغط دخول مشترك سابق.
+                دربك+ سابق، اكتب نفس البيانات واضغط دخول مستخدم دربك+.
               </p>
               <div className="premium-access-fields">
                 <label className="premium-access-field">
@@ -388,27 +404,29 @@ export default function PremiumAccessGate() {
               disabled={isStartingCheckout}
             >
               {isStartingCheckout
-                ? "جاري فتح الدفع..."
-                : `ادفع ${selectedPlan.price} وافتح الوصول`}
+                ? "جاري تجهيز التفعيل..."
+                : `فعّل دربك+ - ${selectedPlan.price}`}
             </button>
 
             <form
               className="premium-access-verify-form"
               onSubmit={verifySubscription}
             >
-              <p>مشترك سابق؟ ادخل بنفس البريد/الجوال والرمز.</p>
+              <p>لديك دربك+؟ ادخل بنفس البريد/الجوال والرمز.</p>
               <button type="submit" disabled={isVerifying}>
-                {isVerifying ? "جاري الدخول..." : "دخول مشترك سابق"}
+                {isVerifying ? "جاري الدخول..." : "دخول مستخدم دربك+"}
               </button>
             </form>
 
             <p className="premium-access-security">
-              الدفع آمن عبر ميسر، وكل خيار يفتح المدة المحددة بدون تجديد تلقائي داخل دربك.
+              يدعم تفعيلك تطوير منصة دربك وإضافة مزايا جديدة وتحسين تجربة
+              المستخدم بشكل مستمر. الدفع آمن عبر ميسر، وكل باقة تعمل لمدة
+              محددة بدون تجديد تلقائي داخل دربك.
             </p>
           </section>
 
-          <aside className="premium-access-benefits" aria-label="مزايا الاشتراك">
-            <p className="premium-access-benefits-kicker">اشتراك صغير، فرق كبير</p>
+          <aside className="premium-access-benefits" aria-label="مزايا دربك بلس">
+            <p className="premium-access-benefits-kicker">ماذا ستحصل عليه؟</p>
             <ul>
               {premiumBenefits.map((benefit) => (
                 <li key={benefit}>{benefit}</li>
@@ -426,6 +444,11 @@ export default function PremiumAccessGate() {
                 <em>MC</em>
               </span>
             </div>
+            <p className="premium-access-platform-note">
+              منصة دربك هي منصة إلكترونية مطورة لمساعدة طلاب التدريب التعاوني
+              من خلال تنظيم وتحليل تجارب المتدربين وتقديم أدوات رقمية تساعدهم
+              على اتخاذ قرارات أفضل.
+            </p>
           </aside>
         </div>
 
