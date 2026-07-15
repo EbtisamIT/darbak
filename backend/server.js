@@ -1335,14 +1335,97 @@ const SMART_ASSISTANT_TASK_THEMES = [
 const getSmartTaskInsights = (experiences = []) =>
   getThemeMatches(experiences, SMART_ASSISTANT_TASK_THEMES).map((item) => item.label);
 
-const getSmartQuoteCandidates = (experiences = []) => {
-  const preferredLabels = [
-    "الإيجابيات",
-    "التحديات",
-    "الخلاصة بعد التدريب",
-    "نصيحة للمتدربين",
-  ];
+const hasSmartFilters = (filters = {}) =>
+  Boolean(
+    filters.organizations?.length ||
+      filters.cities?.length ||
+      filters.majors?.length
+  );
 
+const rebuildSmartContextFilters = (
+  context = {},
+  organizationNames = [],
+  experienceCities = [],
+  majorValues = []
+) => {
+  const contextFilters = context.filters || {};
+  const contextQuestion = sanitizeAnalyticsText(context.question || "", 300);
+  const contextText = [
+    contextQuestion,
+    ...(Array.isArray(contextFilters.organizations)
+      ? contextFilters.organizations
+      : []),
+    ...(Array.isArray(contextFilters.cities) ? contextFilters.cities : []),
+    ...(Array.isArray(contextFilters.majors) ? contextFilters.majors : []),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (!contextText.trim()) {
+    return { organizations: [], cities: [], majors: [] };
+  }
+
+  return {
+    organizations: detectSmartOrganizations(contextText, organizationNames),
+    cities: detectSmartCities(contextText, experienceCities),
+    majors: detectSmartMajors(contextText, majorValues),
+  };
+};
+
+const isSmartFollowUpQuestion = (question = "") =>
+  smartTextIncludesAny(question, [
+    "كيف اقدم",
+    "كيف أقدم",
+    "طريقة التقديم",
+    "التقديم",
+    "اقدم",
+    "أقدم",
+    "قدموا",
+    "قدمو",
+    "الموقع",
+    "الايميل",
+    "الإيميل",
+    "لينكد",
+    "مكافأة",
+    "مكافاه",
+    "مكافآت",
+    "فلوس",
+    "راتب",
+    "عرض",
+    "توظيف",
+    "وظيفة",
+    "المقابلة",
+    "مقابلة",
+    "اسئلة",
+    "أسئلة",
+    "وش السلبيات",
+    "السلبيات",
+    "المشاكل",
+    "التحديات",
+    "تنصح",
+    "ينصحون",
+    "هل تنصح",
+    "المهام",
+    "المسمى",
+    "المسميات",
+    "وش اسوي",
+    "طبيعة التدريب",
+    "البيئة",
+    "عن بعد",
+    "حضوري",
+  ]);
+
+const DEFAULT_SMART_QUOTE_LABELS = [
+  "الإيجابيات",
+  "التحديات",
+  "الخلاصة بعد التدريب",
+  "نصيحة للمتدربين",
+];
+
+const getSmartQuoteCandidates = (
+  experiences = [],
+  preferredLabels = DEFAULT_SMART_QUOTE_LABELS
+) => {
   return experiences.flatMap((exp) =>
     preferredLabels
       .map((label) => ({
@@ -1370,15 +1453,17 @@ const trimSmartQuote = (text = "") => {
   return `${trimmed}${words.length > 22 ? "..." : ""}`;
 };
 
-const getSmartHumanQuotes = (experiences = [], limit = 2) => {
+const getSmartHumanQuotes = (
+  experiences = [],
+  limit = 2,
+  preferredLabels = DEFAULT_SMART_QUOTE_LABELS
+) => {
   const seen = new Set();
-  const candidates = getSmartQuoteCandidates(experiences);
-  const priority = {
-    "الإيجابيات": 1,
-    "الخلاصة بعد التدريب": 2,
-    "التحديات": 3,
-    "نصيحة للمتدربين": 4,
-  };
+  const candidates = getSmartQuoteCandidates(experiences, preferredLabels);
+  const priority = preferredLabels.reduce((acc, label, index) => {
+    acc[label] = index + 1;
+    return acc;
+  }, {});
 
   return candidates
     .map((item) => ({
@@ -1396,7 +1481,12 @@ const getSmartHumanQuotes = (experiences = [], limit = 2) => {
     })
     .slice(0, limit)
     .map((item) => ({
-      label: item.label === "التحديات" ? "ملاحظة من تجربة" : "من تجربة منشورة",
+      label:
+        item.label === "التحديات"
+          ? "ملاحظة من تجربة"
+          : item.label === "نصيحة للمتدربين"
+          ? "نصيحة من تجربة"
+          : "من تجربة منشورة",
       text: item.text,
     }));
 };
@@ -1506,6 +1596,193 @@ const buildSmartHumanParagraphs = (experiences = [], filters = {}, intent = "sum
   }
 
   return paragraphs;
+};
+
+const getSmartApplicationDurations = (experiences = []) =>
+  getTopFrequencies(
+    experiences
+      .map((exp) => getSmartSectionValue(exp.description, "مدة إجراءات التقديم"))
+      .filter(isMeaningfulSmartValue),
+    3
+  );
+
+const buildSmartApplicationAnswer = (experiences = [], filters = {}, usedContext = false) => {
+  const subject = getSmartSubjectLabel(filters);
+  const methods = getTopFrequencies(
+    experiences.map((exp) => exp.howApplied).filter(isMeaningfulSmartValue),
+    4
+  );
+  const durations = getSmartApplicationDurations(experiences);
+  const paragraphs = [];
+
+  if (methods.length > 0) {
+    paragraphs.push(
+      `طرق الحصول على الفرصة التي تكررت في تجارب ${subject}: ${methods
+        .map((item) => item.label)
+        .join("، ")}.`
+    );
+  } else {
+    paragraphs.push(
+      `ما لقيت في تجارب ${subject} طريقة تقديم مذكورة بوضوح، لذلك ما أقدر أحدد قناة تقديم مؤكدة من بيانات دربك.`
+    );
+  }
+
+  if (durations.length > 0) {
+    paragraphs.push(
+      `مدة إجراءات التقديم التي ظهرت في بعض التجارب: ${durations
+        .map((item) => item.label)
+        .join("، ")}.`
+    );
+  }
+
+  paragraphs.push(
+    "عمليًا: ابدأ بالقناة الأكثر تكرارًا في التجارب، ثم جرّب الموقع الرسمي أو لينكدإن إذا كانت مذكورة، وجهّز CV وخطاب تدريب مختصر قبل الإرسال."
+  );
+
+  return {
+    title: `طريقة التقديم على ${subject}`,
+    intro: usedContext
+      ? `فهمت أنك تقصد نفس الموضوع السابق: ${subject}. راجعت التجارب المرتبطة وركزت على طريقة الوصول للفرصة.`
+      : `راجعت ${experiences.length} تجربة مرتبطة بسؤالك وركزت على طريقة الحصول على الفرصة.`,
+    paragraphs,
+    quotes: getSmartHumanQuotes(experiences, 1, [
+      "نصيحة للمتدربين",
+      "مدة إجراءات التقديم",
+      "الإيجابيات",
+    ]),
+    closing:
+      "لو تبغى قرار أسرع، افتح التجارب المرتبطة وشوف التجارب القريبة من تخصصك لأنها تعطيك قناة التقديم الأنسب.",
+    note: "المساعد لا يضيف رابط تقديم من خارج دربك إذا لم يكن موجودًا في التجارب.",
+    relatedUrl: getPrimaryRelatedUrl(filters),
+  };
+};
+
+const buildSmartInterviewAnswer = (experiences = [], filters = {}, usedContext = false) => {
+  const subject = getSmartSubjectLabel(filters);
+  const interviewExperiences = experiences.filter((exp) =>
+    smartTextIncludesAny(exp.description, [
+      "مقابلة",
+      "اسئلة",
+      "أسئلة",
+      "تعريفية",
+      "هاتفية",
+      "اختبار",
+    ])
+  );
+
+  return {
+    title: `المقابلة في ${subject}`,
+    intro: usedContext
+      ? `أكمل على نفس الموضوع السابق: ${subject}.`
+      : `راجعت ${experiences.length} تجربة مرتبطة بسؤالك.`,
+    paragraphs:
+      interviewExperiences.length > 0
+        ? [
+            `وجدت ${interviewExperiences.length} تجربة فيها ذكر للمقابلة أو الأسئلة.`,
+            "الوصف غالبًا كان مختصرًا، لذلك أتعامل معه كمؤشر وليس كقائمة أسئلة ثابتة.",
+          ]
+        : [
+            `ما لقيت ذكر واضح للمقابلات أو الأسئلة في تجارب ${subject}. هذا لا يعني أنه ما فيه مقابلة؛ فقط يعني أن الطلاب ما كتبوها بوضوح في التجارب الموجودة.`,
+          ],
+    quotes: getSmartHumanQuotes(interviewExperiences, 2),
+    closing:
+      "الأفضل تجهز تعريفًا سريعًا بنفسك، سبب اختيارك للجهة، وأمثلة بسيطة من مشاريعك أو مهاراتك.",
+    note: "الجواب مبني فقط على التجارب التي ذكرت المقابلة داخل دربك.",
+    relatedUrl: getPrimaryRelatedUrl(filters),
+  };
+};
+
+const buildSmartRecommendationAnswer = (
+  experiences = [],
+  filters = {},
+  usedContext = false
+) => {
+  const subject = getSmartSubjectLabel(filters);
+  const recommended = getFieldRatio(experiences, "wouldRecommend");
+  const benefited = getFieldRatio(experiences, "benefitedFromTraining");
+  const problemThemes = getThemeMatches(experiences, SMART_ASSISTANT_PROBLEM_THEMES);
+  const positiveThemes = getThemeMatches(experiences, SMART_ASSISTANT_POSITIVE_THEMES);
+  const paragraphs = [
+    `الصورة العامة عن ${subject} ${getSmartTone(experiences)}.`,
+  ];
+
+  const recommendText = formatSmartPercent(
+    recommended,
+    "أنها تنصح بالتجربة",
+    "",
+    "التجارب التي وضحت الترشيح"
+  );
+  const benefitText = formatSmartPercent(
+    benefited,
+    "أن التدريب كان مفيدًا",
+    "",
+    "التجارب التي وضحت الاستفادة"
+  );
+
+  if (recommendText || benefitText) {
+    paragraphs.push([recommendText, benefitText].filter(Boolean).join("، ") + ".");
+  }
+
+  if (positiveThemes.length > 0) {
+    paragraphs.push(
+      `النقاط المشجعة التي تكررت: ${positiveThemes
+        .map((item) => item.label)
+        .join("، ")}.`
+    );
+  }
+
+  if (problemThemes.length > 0) {
+    paragraphs.push(
+      `لكن انتبه إلى: ${problemThemes.map((item) => item.label).join("، ")}.`
+    );
+  }
+
+  return {
+    title: `هل أنصحك بـ ${subject}؟`,
+    intro: usedContext
+      ? `أجاوبك بناءً على نفس الموضوع السابق، وعدد التجارب المطابقة ${experiences.length}.`
+      : `بناءً على ${experiences.length} تجربة مطابقة داخل دربك.`,
+    paragraphs,
+    quotes: getSmartHumanQuotes(experiences, 2),
+    closing:
+      "إذا تخصصك قريب من التجارب الموجودة فالخيار يبدو أوضح، أما إذا تخصصك مختلف فاقرأ التجارب المرتبطة قبل القرار.",
+    note: "هذه ليست توصية نهائية، لكنها قراءة من واقع تجارب الطلاب.",
+    relatedUrl: getPrimaryRelatedUrl(filters),
+  };
+};
+
+const buildSmartTasksAnswer = (experiences = [], filters = {}, usedContext = false) => {
+  const subject = getSmartSubjectLabel(filters);
+  const roles = getSmartRoleInsights(experiences);
+  const tasks = getSmartTaskInsights(experiences);
+  const paragraphs = [];
+
+  if (roles.length > 0) {
+    paragraphs.push(`أبرز المسميات التي ظهرت في التجارب: ${roles.join("، ")}.`);
+  }
+
+  if (tasks.length > 0) {
+    paragraphs.push(`طبيعة المهام أو المجالات المتكررة: ${tasks.join("، ")}.`);
+  }
+
+  if (paragraphs.length === 0) {
+    paragraphs.push(
+      `التجارب المرتبطة بـ ${subject} لا تحتوي وصفًا كافيًا للمهام، لكنها قد تفيدك في الانطباع العام وطريقة التقديم.`
+    );
+  }
+
+  return {
+    title: `طبيعة التدريب في ${subject}`,
+    intro: usedContext
+      ? `فهمت أنك تسأل عن تفاصيل نفس الموضوع السابق.`
+      : `راجعت ${experiences.length} تجربة مرتبطة بسؤالك.`,
+    paragraphs,
+    quotes: getSmartHumanQuotes(experiences, 2),
+    closing:
+      "إذا تبغى صورة أدق، اقرأ التجارب الأقرب لتخصصك لأن المهام تختلف كثيرًا حسب الإدارة.",
+    note: "المهام هنا مستخرجة من أوصاف الطلاب وليست وصفًا رسميًا للجهة.",
+    relatedUrl: getPrimaryRelatedUrl(filters),
+  };
 };
 
 const groupSmartExperiencesByOrganization = (experiences = []) => {
@@ -1690,16 +1967,68 @@ const detectSmartIntent = (question = "", organizations = []) => {
     return "compare";
   }
 
-  if (smartTextIncludesAny(question, ["أفضل", "افضل", "أنسب", "انسب", "رشح", "ترشح"])) {
-    return "best";
+  if (
+    smartTextIncludesAny(question, [
+      "كيف اقدم",
+      "كيف أقدم",
+      "طريقة التقديم",
+      "التقديم",
+      "اقدم",
+      "أقدم",
+      "قدموا",
+      "قدمو",
+      "كيف حصل",
+      "كيف حصلوا",
+      "الايميل",
+      "الإيميل",
+      "لينكد",
+    ])
+  ) {
+    return "apply";
   }
 
   if (smartTextIncludesAny(question, ["مكافأة", "مكافاه", "مكافآت", "فلوس", "راتب"])) {
     return "reward";
   }
 
+  if (smartTextIncludesAny(question, ["مقابلة", "المقابلة", "اسئلة", "أسئلة", "اختبار"])) {
+    return "interview";
+  }
+
   if (smartTextIncludesAny(question, ["مشاكل", "سلبيات", "عيوب", "تحديات", "صعوبات"])) {
     return "problems";
+  }
+
+  if (
+    smartTextIncludesAny(question, [
+      "تنصح",
+      "ينصحون",
+      "هل تنصح",
+      "ترشح",
+      "يرشحون",
+      "مناسب",
+      "كويس",
+    ])
+  ) {
+    return "recommend";
+  }
+
+  if (
+    smartTextIncludesAny(question, [
+      "المهام",
+      "وش اسوي",
+      "وش يسوون",
+      "طبيعة التدريب",
+      "المسمى",
+      "المسميات",
+      "الدور",
+    ])
+  ) {
+    return "tasks";
+  }
+
+  if (smartTextIncludesAny(question, ["أفضل", "افضل", "أنسب", "انسب", "رشح", "ترشح"])) {
+    return "best";
   }
 
   if (smartTextIncludesAny(question, ["هل يوجد", "فيه تجارب", "يوجد تجارب", "عندكم"])) {
@@ -1709,7 +2038,13 @@ const detectSmartIntent = (question = "", organizations = []) => {
   return "summary";
 };
 
-const buildSmartAssistantAnswer = ({ question, experiences, filters, intent }) => {
+const buildSmartAssistantAnswer = ({
+  question,
+  experiences,
+  filters,
+  intent,
+  usedContext = false,
+}) => {
   if (intent === "compare" && filters.organizations.length >= 2) {
     return buildComparisonAnswer(experiences, filters.organizations);
   }
@@ -1732,6 +2067,18 @@ const buildSmartAssistantAnswer = ({ question, experiences, filters, intent }) =
 
   if (intent === "best") return buildBestOrganizationsAnswer(experiences, filters);
   if (intent === "reward") return buildRewardOrganizationsAnswer(experiences, filters);
+  if (intent === "apply") {
+    return buildSmartApplicationAnswer(experiences, filters, usedContext);
+  }
+  if (intent === "interview") {
+    return buildSmartInterviewAnswer(experiences, filters, usedContext);
+  }
+  if (intent === "recommend") {
+    return buildSmartRecommendationAnswer(experiences, filters, usedContext);
+  }
+  if (intent === "tasks") {
+    return buildSmartTasksAnswer(experiences, filters, usedContext);
+  }
 
   if (intent === "problems") {
     const problemThemes = getThemeMatches(experiences, SMART_ASSISTANT_PROBLEM_THEMES);
@@ -1934,11 +2281,26 @@ app.post('/api/smart-assistant/query', async (req, res) => {
       experiences.flatMap((exp) => [exp.major, exp.majorCategory])
     );
 
-    const filters = {
+    let filters = {
       organizations: detectSmartOrganizations(question, organizationNames),
       cities: detectSmartCities(question, experienceCities),
       majors: detectSmartMajors(question, majorValues),
     };
+
+    const contextFilters = rebuildSmartContextFilters(
+      req.body.context || {},
+      organizationNames,
+      experienceCities,
+      majorValues
+    );
+    const usedContext =
+      !hasSmartFilters(filters) &&
+      hasSmartFilters(contextFilters) &&
+      isSmartFollowUpQuestion(question);
+
+    if (usedContext) {
+      filters = contextFilters;
+    }
 
     filters.organizations = filters.organizations.filter(
       (organization) =>
@@ -1966,11 +2328,13 @@ app.post('/api/smart-assistant/query', async (req, res) => {
       experiences: matchingExperiences,
       filters,
       intent,
+      usedContext,
     });
 
     res.json({
       question,
       intent,
+      usedContext,
       count: matchingExperiences.length,
       answer,
       filters: {

@@ -24,6 +24,21 @@ const introMessage = {
   ],
 };
 
+const getLatestAssistantContext = (conversationMessages = []) => {
+  const lastAnswer = [...conversationMessages]
+    .reverse()
+    .find((message) => message.role === "assistant" && message.type === "answer");
+
+  if (!lastAnswer?.data) return null;
+
+  return {
+    question: lastAnswer.data.question || "",
+    intent: lastAnswer.data.intent || "",
+    filters: lastAnswer.data.filters || {},
+    relatedUrl: lastAnswer.data.relatedUrl || "",
+  };
+};
+
 export default function DarbakAssistant() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -53,6 +68,7 @@ export default function DarbakAssistant() {
   const sendQuestion = async (text) => {
     const cleanQuestion = text.trim();
     if (!cleanQuestion || isLoading) return;
+    const context = getLatestAssistantContext(messages);
 
     setIsOpen(true);
     setQuestion("");
@@ -65,6 +81,7 @@ export default function DarbakAssistant() {
       setIsLoading(true);
       const { data } = await axios.post(`${API_BASE_URL}/api/smart-assistant/query`, {
         question: cleanQuestion,
+        context,
       });
 
       setMessages((currentMessages) => [
@@ -77,6 +94,7 @@ export default function DarbakAssistant() {
         resultsCount: data.count || 0,
         metadata: {
           intent: data.intent,
+          usedContext: data.usedContext,
           organizations: data.filters?.organizations || [],
           cities: data.filters?.cities || [],
           majors: data.filters?.majors || [],
