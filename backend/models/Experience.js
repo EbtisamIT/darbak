@@ -55,6 +55,19 @@ const experienceSchema = new mongoose.Schema(
       enum: ["onsite", "remote", ""],
       default: "",
     },
+    ambassadorConsent: {
+      type: String,
+      enum: ["yes", "no", ""],
+      default: "no",
+    },
+    ambassadorLinkedInUrl: {
+      type: String,
+      default: "",
+    },
+    ambassadorProfileImageUrl: {
+      type: String,
+      default: "",
+    },
     starRating: {
       type: Number,
       required: true,

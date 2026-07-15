@@ -38,8 +38,35 @@ const isUnclearMajorText = (value = "") => {
 const getYesNoDraftValue = (value = "") =>
   ["yes", "no"].includes(value) ? value : "";
 
+const normalizeLinkedInProfileUrl = (value = "") => {
+  const text = value.toString().trim();
+  if (!text) return "";
+
+  const withProtocol = /^https?:\/\//i.test(text)
+    ? text
+    : `https://${text.replace(/^\/+/, "")}`;
+
+  try {
+    const url = new URL(withProtocol);
+    const hostname = url.hostname.replace(/^www\./i, "").toLowerCase();
+
+    if (hostname !== "linkedin.com") return "";
+    if (!url.pathname.toLowerCase().startsWith("/in/")) return "";
+
+    url.protocol = "https:";
+    url.hostname = "www.linkedin.com";
+    url.search = "";
+    url.hash = "";
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+};
+
 export default function AddExperienceModal({ onClose, onSaved }) {
   const savedDraft = useMemo(() => getSavedDraft(), []);
+  const [introAccepted, setIntroAccepted] = useState(Boolean(savedDraft));
   const [step, setStep] = useState(savedDraft?.step || 0);
   const totalSteps = 6; // خطوات الإدخال: 0..5 ، بعد الحفظ step === totalSteps => شاشة النجاح
 
@@ -67,6 +94,12 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     getYesNoDraftValue(savedDraft?.wouldRecommend)
   );
   const [trainingMode, setTrainingMode] = useState(savedDraft?.trainingMode || "");
+  const [ambassadorConsent, setAmbassadorConsent] = useState(
+    savedDraft?.ambassadorConsent || "no"
+  );
+  const [ambassadorLinkedInUrl, setAmbassadorLinkedInUrl] = useState(
+    savedDraft?.ambassadorLinkedInUrl || ""
+  );
   
 
   const [loading, setLoading] = useState(false);
@@ -98,6 +131,12 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       setRewardAmount("");
     }
   }, [hadReward, rewardAmount]);
+
+  useEffect(() => {
+    if (ambassadorConsent !== "yes" && ambassadorLinkedInUrl) {
+      setAmbassadorLinkedInUrl("");
+    }
+  }, [ambassadorConsent, ambassadorLinkedInUrl]);
 
   const howAppliedOptions = [
     "موقع الجهة الرسمي",
@@ -311,6 +350,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           benefitedFromTraining.trim() ||
           wouldRecommend.trim() ||
           trainingMode.trim() ||
+          ambassadorConsent === "yes" ||
+          ambassadorLinkedInUrl.trim() ||
           starRating > 0
       ),
     [
@@ -333,6 +374,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       benefitedFromTraining,
       wouldRecommend,
       trainingMode,
+      ambassadorConsent,
+      ambassadorLinkedInUrl,
       starRating,
     ]
   );
@@ -366,6 +409,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       benefitedFromTraining,
       wouldRecommend,
       trainingMode,
+      ambassadorConsent,
+      ambassadorLinkedInUrl,
       starRating,
       updatedAt: new Date().toISOString(),
     };
@@ -398,6 +443,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     benefitedFromTraining,
     wouldRecommend,
     trainingMode,
+    ambassadorConsent,
+    ambassadorLinkedInUrl,
     starRating,
   ]);
 
@@ -447,6 +494,14 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       return;
     }
 
+    const normalizedAmbassadorLinkedInUrl =
+      normalizeLinkedInProfileUrl(ambassadorLinkedInUrl);
+
+    if (ambassadorConsent === "yes" && !normalizedAmbassadorLinkedInUrl) {
+      setError("أدخل/ي رابط LinkedIn صحيح يبدأ عادة بـ linkedin.com/in/ أو اختَر/ي البقاء مجهول.");
+      return;
+    }
+
     const payload = {
       title: `تجربتي في ${organizationName}`,
       organizationName,
@@ -463,6 +518,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       benefitedFromTraining,
       wouldRecommend,
       trainingMode,
+      ambassadorConsent: ambassadorConsent === "yes" ? "yes" : "no",
+      ambassadorLinkedInUrl:
+        ambassadorConsent === "yes" ? normalizedAmbassadorLinkedInUrl : "",
+      ambassadorProfileImageUrl: "",
       ratings,        // ممكن تخلينه أو تحذفينه لاحقًا
       starRating,     // ⭐ الجديد
       description,
@@ -492,6 +551,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           trainingEnvironment,
           trainingMode,
           starRating,
+          ambassadorConsent: ambassadorConsent === "yes" ? "yes" : "no",
         },
       });
       clearSavedDraft();
@@ -552,6 +612,174 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       </div>
     );
   };
+
+  if (!introAccepted && step < totalSteps) {
+    return (
+      <div
+        className="stepper-modal-bg"
+        onClick={(e) =>
+          e.target.classList.contains("stepper-modal-bg") && handleClose()
+        }
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.72)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 12000,
+          padding: 20,
+          fontFamily: "'Cairo', sans-serif",
+          direction: "rtl",
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          className="stepper-modal-card"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: "100%",
+            maxWidth: 620,
+            borderRadius: 18,
+            background:
+              "linear-gradient(145deg, var(--app-surface), rgba(125,219,205,0.08))",
+            color: "var(--app-text)",
+            boxShadow: "0 28px 80px rgba(0,0,0,0.45)",
+            overflow: "hidden",
+            border: "1px solid var(--app-border-soft)",
+          }}
+        >
+          <div style={{ padding: 18, display: "flex", justifyContent: "flex-start" }}>
+            <button
+              onClick={handleClose}
+              aria-label="close"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: "50%",
+                border: "1px solid var(--app-border-soft)",
+                background: "var(--app-input-bg)",
+                color: "var(--app-text-soft)",
+                cursor: "pointer",
+                fontSize: 20,
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          </div>
+
+          <div
+            style={{
+              padding: "6px 28px 30px",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "6px 12px",
+                borderRadius: "999px",
+                background: "var(--app-brand-soft)",
+                border: "1px solid var(--app-brand-border)",
+                color: "var(--app-brand)",
+                fontSize: 13,
+                fontWeight: 800,
+                marginBottom: 16,
+              }}
+            >
+              مشاركتك تفرق
+            </div>
+
+            <h2
+              style={{
+                margin: "0 0 10px",
+                color: "var(--app-text)",
+                fontSize: 28,
+                lineHeight: 1.45,
+              }}
+            >
+              طالب قبلك كتب تجربته...
+            </h2>
+
+            <p
+              style={{
+                color: "var(--app-text-soft)",
+                fontSize: 18,
+                margin: "0 0 8px",
+                lineHeight: 1.8,
+              }}
+            >
+              واليوم استفاد منها <strong style={{ color: "var(--app-brand)" }}>1000 طالبًا</strong>.
+            </p>
+
+            <div style={{ fontSize: 28, margin: "8px 0" }}>🤍</div>
+
+            <p
+              style={{
+                color: "var(--app-text)",
+                fontSize: 19,
+                fontWeight: 800,
+                lineHeight: 1.9,
+                margin: "0 auto 22px",
+                maxWidth: 500,
+              }}
+            >
+              اكتب تجربتك، ويمكن تكون سببًا في قبول شخص أو طمأنته قبل أول يوم تدريب.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIntroAccepted(true);
+                trackEvent("add_experience_intro_continue", {
+                  metadata: { resumedDraft: Boolean(savedDraft) },
+                });
+              }}
+              style={{
+                width: "100%",
+                maxWidth: 340,
+                border: "none",
+                borderRadius: 14,
+                background: "linear-gradient(90deg,var(--app-muted),var(--app-brand))",
+                color: "#07100e",
+                padding: "13px 18px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontWeight: 900,
+                fontSize: 16,
+                boxShadow: "0 16px 34px rgba(125,219,205,0.2)",
+              }}
+            >
+              ابدأ كتابة تجربتك
+            </button>
+
+            <div
+              style={{
+                margin: "22px auto 0",
+                padding: "14px 16px",
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.035)",
+                border: "1px solid var(--app-border-soft)",
+                color: "var(--app-muted)",
+                fontSize: 13,
+                lineHeight: 1.9,
+                maxWidth: 500,
+              }}
+            >
+              بعد كتابة التجربة، تقدر تختار الظهور كسفير دربك بإضافة رابط LinkedIn،
+              أو تبقى مجهول بالكامل. ظهورك يساعد الطلاب يعرفون أشخاص صنعوا أثرًا
+              حقيقيًا، وقد يلفت انتباه جهات تبحث عن طلاب مبادرين.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div
@@ -843,6 +1071,106 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                     {opt}
                   </button>
                 ))}
+              </div>
+
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 14,
+                  borderRadius: 14,
+                  background: "var(--app-brand-soft)",
+                  border: "1px solid var(--app-brand-border)",
+                }}
+              >
+                <h4
+                  style={{
+                    color: "var(--app-text)",
+                    margin: "0 0 6px",
+                    fontSize: 15,
+                  }}
+                >
+                  هل تحب تظهر كسفير دربك؟
+                </h4>
+                <p
+                  style={{
+                    color: "var(--app-muted)",
+                    fontSize: 13,
+                    lineHeight: 1.8,
+                    margin: "0 0 12px",
+                  }}
+                >
+                  إذا سمحت لنا، نحفظ رابط LinkedIn لعرضك لاحقًا ضمن سفراء دربك.
+                  وإذا فضلت الخصوصية، تبقى تجربتك مجهولة بالكامل.
+                </p>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: 8,
+                  }}
+                >
+                  {[
+                    { value: "no", label: "البقاء مجهول" },
+                    { value: "yes", label: "أسمح بعرض حسابي" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setAmbassadorConsent(option.value)}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 11,
+                        background:
+                          ambassadorConsent === option.value
+                            ? "linear-gradient(90deg,var(--app-muted),var(--app-brand))"
+                            : "var(--app-input-bg)",
+                        color:
+                          ambassadorConsent === option.value
+                            ? "#07100e"
+                            : "var(--app-text)",
+                        border: "1px solid var(--app-border-soft)",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        fontWeight: 800,
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                {ambassadorConsent === "yes" && (
+                  <div style={{ marginTop: 10 }}>
+                    <input
+                      type="url"
+                      value={ambassadorLinkedInUrl}
+                      onChange={(e) => setAmbassadorLinkedInUrl(e.target.value)}
+                      placeholder="رابط LinkedIn مثل: linkedin.com/in/username"
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        padding: "10px 11px",
+                        borderRadius: 10,
+                        background: "var(--app-input-bg)",
+                        color: "var(--app-text)",
+                        border: "1px solid var(--app-border-soft)",
+                        fontFamily: "inherit",
+                        fontSize: 13,
+                      }}
+                    />
+                    <p
+                      style={{
+                        color: "var(--app-muted)",
+                        fontSize: 12,
+                        margin: "6px 0 0",
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      نستخدم الرابط فقط إذا اعتمدت التجربة وقررت لاحقًا عرض سفراء دربك.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}

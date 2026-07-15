@@ -116,6 +116,32 @@ const containsBlockedTerms = (value = "") => {
   );
 };
 
+const normalizeLinkedInProfileUrl = (value = "") => {
+  const text = value.toString().trim();
+  if (!text) return "";
+
+  const withProtocol = /^https?:\/\//i.test(text)
+    ? text
+    : `https://${text.replace(/^\/+/, "")}`;
+
+  try {
+    const url = new URL(withProtocol);
+    const hostname = url.hostname.replace(/^www\./i, "").toLowerCase();
+
+    if (hostname !== "linkedin.com") return "";
+    if (!url.pathname.toLowerCase().startsWith("/in/")) return "";
+
+    url.protocol = "https:";
+    url.hostname = "www.linkedin.com";
+    url.search = "";
+    url.hash = "";
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+};
+
 const normalizeArabicDigits = (value = "") =>
   value
     .toString()
@@ -3263,10 +3289,24 @@ app.post('/api/experiences', async (req, res) => {
 
     const rewardAmount =
       typeof req.body.rewardAmount === "string" ? req.body.rewardAmount.trim() : "";
+    const ambassadorConsent = req.body.ambassadorConsent === "yes" ? "yes" : "no";
+    const ambassadorLinkedInUrl =
+      ambassadorConsent === "yes"
+        ? normalizeLinkedInProfileUrl(req.body.ambassadorLinkedInUrl)
+        : "";
+
+    if (ambassadorConsent === "yes" && !ambassadorLinkedInUrl) {
+      return res.status(400).json({
+        error: "رابط LinkedIn غير صحيح. استخدم رابط ملف شخصي يبدأ بـ linkedin.com/in/ أو اختر البقاء مجهول.",
+      });
+    }
 
     const newExp = new Experience({
       ...req.body,
       rewardAmount: req.body.hadReward === "yes" ? rewardAmount : "",
+      ambassadorConsent,
+      ambassadorLinkedInUrl,
+      ambassadorProfileImageUrl: "",
       sourceType: "direct",
       status: "pending",
     });
@@ -3600,6 +3640,9 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
       "benefitedFromTraining",
       "wouldRecommend",
       "trainingMode",
+      "ambassadorConsent",
+      "ambassadorLinkedInUrl",
+      "ambassadorProfileImageUrl",
       "starRating",
       "ratings",
       "sourceType",
@@ -3617,6 +3660,33 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
 
     if (typeof updates.rewardAmount === "string") {
       updates.rewardAmount = updates.rewardAmount.trim();
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(updates, "ambassadorConsent") &&
+      updates.ambassadorConsent !== "yes"
+    ) {
+      updates.ambassadorConsent = "no";
+      updates.ambassadorLinkedInUrl = "";
+      updates.ambassadorProfileImageUrl = "";
+    }
+
+    if (typeof updates.ambassadorLinkedInUrl === "string") {
+      updates.ambassadorLinkedInUrl = updates.ambassadorLinkedInUrl.trim();
+    }
+
+    if (updates.ambassadorConsent === "yes") {
+      const normalizedLinkedInUrl = normalizeLinkedInProfileUrl(
+        updates.ambassadorLinkedInUrl
+      );
+
+      if (!normalizedLinkedInUrl) {
+        return res.status(400).json({
+          error: "رابط LinkedIn غير صحيح. استخدم رابط ملف شخصي يبدأ بـ linkedin.com/in/ أو اجعل السفير مجهول.",
+        });
+      }
+
+      updates.ambassadorLinkedInUrl = normalizedLinkedInUrl;
     }
 
     if (

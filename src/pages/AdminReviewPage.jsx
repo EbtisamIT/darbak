@@ -41,6 +41,9 @@ const editableFields = [
   "benefitedFromTraining",
   "wouldRecommend",
   "trainingMode",
+  "ambassadorConsent",
+  "ambassadorLinkedInUrl",
+  "ambassadorProfileImageUrl",
   "starRating",
   "sourceType",
   "description",
@@ -537,6 +540,15 @@ const adminQuickSelectFields = [
     options: [
       ["direct", "تجربة مباشرة من طالب"],
       ["public_summary", "ملخص من مصدر عام"],
+    ],
+  },
+  {
+    field: "ambassadorConsent",
+    label: "سفير دربك",
+    options: [
+      ["no", "مجهول"],
+      ["yes", "موافق"],
+      ["", "غير محدد"],
     ],
   },
 ];
@@ -2093,6 +2105,7 @@ export default function AdminReviewPage() {
                   ["trainingMode", "النوع"],
                   ["benefitedFromTraining", "استفاد؟"],
                   ["wouldRecommend", "ينصح؟"],
+                  ["ambassadorConsent", "سفير دربك"],
                   ["sourceType", "المصدر"],
                 ].map(([field, label]) => (
                   <span
@@ -2115,6 +2128,30 @@ export default function AdminReviewPage() {
                 ))}
               </div>
 
+              {exp.ambassadorConsent === "yes" && exp.ambassadorLinkedInUrl && (
+                <a
+                  href={exp.ambassadorLinkedInUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    margin: "0 0 12px",
+                    color: adminColors.brand,
+                    background: "rgba(125,219,205,0.08)",
+                    border: "1px solid rgba(125,219,205,0.22)",
+                    borderRadius: "10px",
+                    padding: "8px 10px",
+                    fontSize: "13px",
+                    textDecoration: "none",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  رابط سفير دربك: {exp.ambassadorLinkedInUrl}
+                </a>
+              )}
+
               {editingId === exp._id ? (
                 <div
                   style={{
@@ -2133,6 +2170,8 @@ export default function AdminReviewPage() {
                       ["duration", "مدة التدريب"],
                       ["trainingYear", "سنة التدريب"],
                       ["rewardAmount", "قيمة المكافأة"],
+                      ["ambassadorLinkedInUrl", "رابط LinkedIn للسفير"],
+                      ["ambassadorProfileImageUrl", "رابط صورة السفير"],
                     ].map(([field, label]) => (
                       <label key={field} style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                         {label}
