@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
@@ -7,6 +7,12 @@ import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { requestPremiumAccess } from "../utils/premiumAccess";
 import { getSavedItemIds, toggleSavedItem } from "../utils/savedItems";
+import {
+  buildTrainingFinderSeoPath,
+  getSeoCityBySlug,
+  getSeoSpecialtyBySlug,
+} from "../utils/seoRoutes";
+import { buildTrainingFinderSeoMeta, setPageSeo } from "../utils/seoMetadata";
 
 export const cityOptions = [
   "الرياض",
@@ -697,9 +703,19 @@ const resolveOrganizationHomepageUrl = (organizationName) => {
 };
 
 export default function TrainingFinderPage() {
+  const routeParams = useParams();
   const [searchParams] = useSearchParams();
-  const initialSpecialty = searchParams.get("major") || "";
-  const initialCity = searchParams.get("city") || "";
+  const routeSpecialty =
+    getSeoSpecialtyBySlug(routeParams.majorSlug)?.label || "";
+  const routeCity = getSeoCityBySlug(routeParams.citySlug)?.label || "";
+  const querySpecialty = searchParams.get("major") || "";
+  const queryCity = searchParams.get("city") || "";
+  const initialSpecialty = routeSpecialty || querySpecialty;
+  const initialCity = routeCity || queryCity;
+  const seoPath = buildTrainingFinderSeoPath({
+    city: routeCity,
+    specialty: routeSpecialty,
+  });
   const [selectedSpecialty, setSelectedSpecialty] = useState(() =>
     specializationOptions.some((option) => option.value === initialSpecialty)
       ? initialSpecialty
@@ -926,22 +942,36 @@ export default function TrainingFinderPage() {
   };
 
   useEffect(() => {
-    const majorFromUrl = searchParams.get("major") || "";
-    const cityFromUrl = searchParams.get("city") || "";
+    setPageSeo(
+      buildTrainingFinderSeoMeta({
+        city: routeCity,
+        specialty: routeSpecialty,
+        path: seoPath,
+      })
+    );
+  }, [routeCity, routeSpecialty, seoPath]);
+
+  useEffect(() => {
+    const nextMajor = routeSpecialty || querySpecialty;
+    const nextCity = routeCity || queryCity;
     const hasKnownMajor = specializationOptions.some(
-      (option) => option.value === majorFromUrl
+      (option) => option.value === nextMajor
     );
 
     if (!hasKnownMajor) {
+      setSelectedSpecialty("");
+      setCity(nextCity);
+      setSearched(false);
+      setTargets([]);
       fetchOpportunities();
       return;
     }
 
-    setSelectedSpecialty(majorFromUrl);
-    setCity(cityFromUrl);
-    runTrainingTargetSearch(majorFromUrl, cityFromUrl);
+    setSelectedSpecialty(nextMajor);
+    setCity(nextCity);
+    runTrainingTargetSearch(nextMajor, nextCity);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [queryCity, querySpecialty, routeCity, routeSpecialty]);
 
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
@@ -1149,7 +1179,11 @@ export default function TrainingFinderPage() {
               lineHeight: 1.35,
             }}
           >
-            وين أتدرب؟
+            {routeSpecialty || routeCity
+              ? `جهات تدريب ${routeSpecialty || "مناسبة"}${
+                  routeCity ? ` في ${routeCity}` : ""
+                }`
+              : "وين أتدرب؟"}
           </h1>
           <p
             style={{
@@ -1160,7 +1194,9 @@ export default function TrainingFinderPage() {
               fontSize: "15px",
             }}
           >
-            اختَر تخصصك والمدينة، وشاهد الجهات والفرص بطريقة مرتبة.
+            {routeSpecialty || routeCity
+              ? "شاهد الجهات والفرص والتجارب المقترحة بناءً على اختياراتك، ثم وسّع البحث أو غيّر المدينة والتخصص من الفلاتر."
+              : "اختَر تخصصك والمدينة، وشاهد الجهات والفرص بطريقة مرتبة."}
           </p>
         </header>
 

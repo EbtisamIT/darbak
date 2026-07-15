@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
@@ -7,6 +7,12 @@ import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { requestPremiumAccess } from "../utils/premiumAccess";
 import { getSavedItemIds, toggleSavedItem } from "../utils/savedItems";
+import {
+  buildExperiencesSeoPath,
+  getSeoCityBySlug,
+  getSeoSpecialtyBySlug,
+} from "../utils/seoRoutes";
+import { buildExperiencesSeoMeta, setPageSeo } from "../utils/seoMetadata";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
@@ -358,6 +364,14 @@ const getMajorSearchTerms = (value) => {
 const ExperiencesPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const routeParams = useParams();
+  const seoCity = getSeoCityBySlug(routeParams.citySlug)?.label || "";
+  const seoSpecialty =
+    getSeoSpecialtyBySlug(routeParams.majorSlug)?.label || "";
+  const seoPath = buildExperiencesSeoPath({
+    city: seoCity,
+    specialty: seoSpecialty,
+  });
   const [experiences, setExperiences] = useState(() => getCachedExperiences());
   const [loading, setLoading] = useState(() => getCachedExperiences().length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -385,6 +399,21 @@ const ExperiencesPage = () => {
   const lastTrackedExperienceSearchRef = useRef("");
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
+
+  useEffect(() => {
+    setPageSeo(
+      buildExperiencesSeoMeta({
+        city: seoCity,
+        specialty: seoSpecialty,
+        path: seoPath,
+      })
+    );
+  }, [seoCity, seoPath, seoSpecialty]);
+
+  useEffect(() => {
+    setSelectedMajors(seoSpecialty ? [seoSpecialty] : []);
+    setSelectedCity(seoCity || "");
+  }, [seoCity, seoSpecialty]);
 
   useEffect(() => {
     const companyFromUrl = getCompanySearchFromUrl(location.search);
@@ -1310,6 +1339,43 @@ const ExperiencesPage = () => {
             buttonText="استكشف الملف الآن"
             style={{ margin: "0 auto 18px", maxWidth: "980px" }}
           />
+        )}
+
+        {(seoCity || seoSpecialty) && (
+          <section
+            style={{
+              maxWidth: "980px",
+              margin: "0 auto 16px",
+              padding: "14px 16px",
+              borderRadius: "16px",
+              border: "1px solid var(--app-border)",
+              background: "var(--app-surface)",
+              textAlign: "right",
+            }}
+          >
+            <h1
+              style={{
+                margin: "0 0 6px",
+                color: "var(--app-brand)",
+                fontSize: "clamp(20px, 3vw, 30px)",
+                lineHeight: 1.5,
+              }}
+            >
+              تجارب تدريب {seoSpecialty || "الطلاب"}
+              {seoCity ? ` في ${seoCity}` : ""}
+            </h1>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--app-text-soft)",
+                lineHeight: 1.8,
+                fontSize: "14px",
+              }}
+            >
+              صفحة تجمع التجارب المطابقة من دربك حسب التخصص والمدينة، وتساعدك
+              تقارن بين الجهات وتقرأ ملاحظات الطلاب قبل بداية التدريب.
+            </p>
+          </section>
         )}
 
         <div

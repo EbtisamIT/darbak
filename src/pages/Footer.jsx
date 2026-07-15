@@ -1,6 +1,22 @@
 import { Link } from "react-router-dom";
 
+const footerLinkStyle = {
+  color: "var(--app-muted)",
+  textDecoration: "none",
+  borderBottom: "1px solid var(--app-brand-border)",
+  paddingBottom: "3px",
+};
+
 export default function Footer() {
+    const popularSeoLinks = [
+      ["تجارب تدريب الرياض", "/experiences/city/riyadh"],
+      ["تجارب تدريب علوم الحاسب", "/experiences/major/computer-science"],
+      ["تجارب تدريب المحاسبة", "/experiences/major/accounting"],
+      ["وين أتدرب بالرياض؟", "/where-to-train/city/riyadh"],
+      ["جهات تدريب علوم الحاسب", "/where-to-train/major/computer-science"],
+      ["جهات تدريب المحاسبة", "/where-to-train/major/accounting"],
+    ];
+
     return (
       <footer
         style={{
@@ -35,6 +51,26 @@ export default function Footer() {
         </p>
 
         <nav
+          aria-label="روابط بحث شائعة"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: "10px 14px",
+            flexWrap: "wrap",
+            marginTop: "14px",
+            fontSize: "12.5px",
+            lineHeight: 1.8,
+          }}
+        >
+          {popularSeoLinks.map(([label, url]) => (
+            <Link key={url} to={url} style={footerLinkStyle}>
+              {label}
+            </Link>
+          ))}
+        </nav>
+
+        <nav
           aria-label="روابط قانونية"
           style={{
             display: "flex",
@@ -48,12 +84,7 @@ export default function Footer() {
         >
           <Link
             to="/legal#terms"
-            style={{
-              color: "var(--app-muted)",
-              textDecoration: "none",
-              borderBottom: "1px solid var(--app-brand-border)",
-              paddingBottom: "3px",
-            }}
+            style={footerLinkStyle}
           >
            سياسة الاستخدام والخصوصية
           </Link>

@@ -197,7 +197,7 @@ const markPlatformUpdateNoticeSeen = () => {
 
 function PageBanner() {
   const location = useLocation();
-  const isExperiencesPage = location.pathname === "/experiences";
+  const isExperiencesPage = location.pathname.startsWith("/experiences");
 
   if (!isExperiencesPage) return null;
 
@@ -263,7 +263,7 @@ function PlatformUpdateNotice() {
 
   useEffect(() => {
     const isAdminPage = location.pathname === ADMIN_REVIEW_PATH;
-    const isTrainingFinderPage = location.pathname === "/where-to-train";
+    const isTrainingFinderPage = location.pathname.startsWith("/where-to-train");
 
     setShowNotice(
       !isAdminPage && !isTrainingFinderPage && !hasSeenPlatformUpdateNotice()
@@ -1132,7 +1132,25 @@ function AppLayout({ theme, setTheme }) {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/experiences" element={<ExperiencesPage />} />
+            <Route path="/experiences/city/:citySlug" element={<ExperiencesPage />} />
+            <Route path="/experiences/major/:majorSlug" element={<ExperiencesPage />} />
+            <Route
+              path="/experiences/city/:citySlug/major/:majorSlug"
+              element={<ExperiencesPage />}
+            />
             <Route path="/where-to-train" element={<TrainingFinderPage />} />
+            <Route
+              path="/where-to-train/city/:citySlug"
+              element={<TrainingFinderPage />}
+            />
+            <Route
+              path="/where-to-train/major/:majorSlug"
+              element={<TrainingFinderPage />}
+            />
+            <Route
+              path="/where-to-train/city/:citySlug/major/:majorSlug"
+              element={<TrainingFinderPage />}
+            />
             <Route path="/legal" element={<LegalPage />} />
             <Route path="/terms" element={<LegalPage />} />
             <Route path="/privacy" element={<LegalPage />} />
