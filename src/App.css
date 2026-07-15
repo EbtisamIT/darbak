@@ -724,25 +724,55 @@ body {
 .darbak-assistant-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   border: 1px solid var(--app-brand-border);
-  border-radius: 999px;
-  background: var(--app-surface);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, var(--app-brand-soft), transparent 70%),
+    var(--app-surface);
   color: var(--app-text);
-  padding: 10px 14px;
+  padding: 8px 12px;
   box-shadow: 0 14px 35px var(--app-shadow);
   cursor: pointer;
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 900;
+  min-height: 54px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
-.darbak-assistant-trigger strong {
+.darbak-assistant-trigger:hover {
+  transform: translateY(-2px);
+  border-color: var(--app-brand);
+}
+
+.darbak-assistant-trigger-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
   background: var(--app-brand);
   color: #07100e;
-  padding: 4px 9px;
-  font-size: 12px;
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+.darbak-assistant-trigger-copy {
+  display: grid;
+  gap: 1px;
+  text-align: right;
+}
+
+.darbak-assistant-trigger-copy strong {
+  color: var(--app-text);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.darbak-assistant-trigger-copy small {
+  color: var(--app-muted);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .darbak-assistant-panel {
@@ -770,6 +800,26 @@ body {
   gap: 12px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--app-border);
+}
+
+.darbak-assistant-panel-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.darbak-assistant-panel-head .darbak-assistant-panel-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 14px;
+  background: var(--app-brand-soft);
+  color: var(--app-brand);
+  border: 1px solid var(--app-brand-border);
+  font-size: 18px;
 }
 
 .darbak-assistant-panel-head span {
@@ -957,26 +1007,44 @@ body {
 }
 
 .darbak-assistant-quick-questions {
-  display: flex;
-  gap: 7px;
-  overflow-x: auto;
-  padding: 0 12px 10px;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
   border-top: 1px solid var(--app-border-soft);
+  background: color-mix(in srgb, var(--app-surface) 92%, transparent);
 }
 
-.darbak-assistant-quick-questions button {
-  flex: 0 0 auto;
-  max-width: 250px;
+.darbak-assistant-quick-title {
+  color: var(--app-brand);
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.darbak-assistant-quick-list {
+  display: grid;
+  gap: 7px;
+}
+
+.darbak-assistant-quick-list button {
+  width: 100%;
   border: 1px solid var(--app-border);
-  border-radius: 999px;
+  border-radius: 13px;
   background: var(--app-input-bg);
   color: var(--app-text-soft);
-  padding: 7px 10px;
+  padding: 9px 11px;
   cursor: pointer;
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 800;
-  white-space: nowrap;
+  line-height: 1.5;
+  text-align: right;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.darbak-assistant-quick-list button:hover {
+  border-color: var(--app-brand-border);
+  color: var(--app-brand);
+  background: var(--app-brand-soft);
 }
 
 .darbak-assistant-form {
@@ -1006,6 +1074,10 @@ body {
 }
 
 .darbak-assistant-form button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: none;
   border-radius: 14px;
   background: var(--app-brand);
@@ -1018,7 +1090,7 @@ body {
 }
 
 .darbak-assistant-form button:disabled,
-.darbak-assistant-quick-questions button:disabled {
+.darbak-assistant-quick-list button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -1104,12 +1176,23 @@ body {
   }
 
   .darbak-assistant-trigger {
-    padding: 8px 11px;
-    font-size: 12px;
+    padding: 7px 9px;
+    min-height: 48px;
+    border-radius: 18px;
   }
 
-  .darbak-assistant-trigger span {
+  .darbak-assistant-trigger-icon {
+    width: 34px;
+    height: 34px;
+    font-size: 17px;
+  }
+
+  .darbak-assistant-trigger-copy small {
     display: none;
+  }
+
+  .darbak-assistant-trigger-copy strong {
+    font-size: 12.5px;
   }
 
   .darbak-assistant-panel {

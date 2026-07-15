@@ -126,6 +126,11 @@ const emptyAnalytics = {
   topDiagnosis: [],
   topFears: [],
   topOrganizations: [],
+  assistantQueries: 0,
+  assistantContextUses: 0,
+  assistantZeroResultQueries: 0,
+  topAssistantIntents: [],
+  topAssistantQuestions: [],
   hourlyActivity: [],
   recentEvents: [],
   rawEvents: 0,
@@ -145,9 +150,23 @@ const analyticsEventLabels = {
   opportunity_submission_started: "بدء إرسال فرصة",
   opportunity_submitted: "إرسال فرصة للمراجعة",
   experience_card_opened: "فتح تجربة",
+  smart_assistant_query: "سؤال دليل دربك",
   premium_gate_opened: "ظهور نافذة الاشتراك",
   premium_checkout_started: "بدء الدفع",
   premium_access_verified: "تفعيل اشتراك",
+};
+
+const assistantIntentLabels = {
+  apply: "طريقة التقديم",
+  best: "أفضل الجهات",
+  compare: "مقارنة جهات",
+  exists: "وجود تجارب",
+  interview: "المقابلة",
+  problems: "المشاكل",
+  recommend: "هل تنصح",
+  reward: "المكافأة",
+  summary: "ملخص جهة",
+  tasks: "المهام",
 };
 
 const diagnosisFearLabels = {
@@ -1346,6 +1365,9 @@ export default function AdminReviewPage() {
               ["زوار مميزين في الفترة", analytics.uniqueVisitors],
               ["جميع الزيارات في الفترة", analytics.pageVisits],
               ["الأحداث", analytics.totalEvents],
+              ["أسئلة دليل دربك", analytics.assistantQueries || 0],
+              ["متابعات فهمها الدليل", analytics.assistantContextUses || 0],
+              ["أسئلة بلا نتائج", analytics.assistantZeroResultQueries || 0],
               ...(analytics.rawEvents > analytics.totalEvents
                 ? [["الأحداث الخام", analytics.rawEvents]]
                 : []),
@@ -1386,6 +1408,15 @@ export default function AdminReviewPage() {
             {renderAnalyticsList("أكثر المدن", analytics.topCities)}
             {renderAnalyticsList("أكثر الجهات تفاعلًا", analytics.topOrganizations)}
             {renderAnalyticsList("أكثر كلمات البحث", analytics.topSearches)}
+            {renderAnalyticsList(
+              "نوايا دليل دربك",
+              analytics.topAssistantIntents,
+              (label) => assistantIntentLabels[label] || label
+            )}
+            {renderAnalyticsList(
+              "أكثر أسئلة دليل دربك",
+              analytics.topAssistantQuestions
+            )}
             {renderAnalyticsList("أكثر الصفحات", analytics.topPages)}
             {renderAnalyticsList(
               "الأجهزة",

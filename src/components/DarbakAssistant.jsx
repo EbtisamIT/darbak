@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { FiMessageCircle, FiSend } from "react-icons/fi";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
 import { trackEvent } from "../utils/analytics";
@@ -14,13 +15,13 @@ const defaultQuestions = [
 const introMessage = {
   role: "assistant",
   type: "intro",
-  title: "اسأل مساعد دربك",
+  title: "دليل دربك",
   intro:
-    "أجاوبك من تجارب دربك فقط: جهات، تخصصات، مدن، مكافآت، تقييمات وملاحظات الطلاب.",
+    "أنا شات يساعدك تفهم تجارب التدريب الموجودة في دربك: جهات، تخصصات، مدن، مكافآت، تقييمات وملاحظات الطلاب.",
   bullets: [
-    "لا أستخدم الإنترنت.",
-    "لا أخترع معلومات غير موجودة.",
-    "إذا البيانات غير كافية بقول لك بوضوح.",
+    "أقرأ بيانات دربك فقط بدون البحث في الإنترنت.",
+    "ألخص لك الصورة العامة بلغة بسيطة.",
+    "إذا ما لقيت بيانات كافية بقول لك بوضوح.",
   ],
 };
 
@@ -199,11 +200,16 @@ export default function DarbakAssistant() {
   return (
     <div className="darbak-assistant-widget" dir="rtl">
       {isOpen && (
-        <section className="darbak-assistant-panel" aria-label="مساعد دربك الذكي">
+        <section className="darbak-assistant-panel" aria-label="دليل دربك">
           <div className="darbak-assistant-panel-head">
-            <div>
-              <span>مساعد دربك الذكي</span>
-              <p>يعتمد فقط على تجارب المنصة</p>
+            <div className="darbak-assistant-panel-brand">
+              <span className="darbak-assistant-panel-icon" aria-hidden="true">
+                <FiMessageCircle />
+              </span>
+              <div>
+                <span>دليل دربك</span>
+                <p>شات يقرأ تجارب المنصة ويجاوبك منها فقط</p>
+              </div>
             </div>
             <button
               type="button"
@@ -233,16 +239,19 @@ export default function DarbakAssistant() {
           </div>
 
           <div className="darbak-assistant-quick-questions">
-            {defaultQuestions.map((item) => (
-              <button
-                type="button"
-                key={item}
-                onClick={() => sendQuestion(item)}
-                disabled={isLoading}
-              >
-                {item}
-              </button>
-            ))}
+            <span className="darbak-assistant-quick-title">أسئلة مقترحة</span>
+            <div className="darbak-assistant-quick-list">
+              {defaultQuestions.map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  onClick={() => sendQuestion(item)}
+                  disabled={isLoading}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
 
           <form className="darbak-assistant-form" onSubmit={submitQuestion}>
@@ -254,6 +263,7 @@ export default function DarbakAssistant() {
               disabled={isLoading}
             />
             <button type="submit" disabled={isLoading || !question.trim()}>
+              <FiSend aria-hidden="true" />
               اسأل
             </button>
           </form>
@@ -266,8 +276,13 @@ export default function DarbakAssistant() {
         onClick={() => setIsOpen((current) => !current)}
         aria-expanded={isOpen}
       >
-        <span>المساعد الذكي</span>
-        <strong>اسأل</strong>
+        <span className="darbak-assistant-trigger-icon" aria-hidden="true">
+          <FiMessageCircle />
+        </span>
+        <span className="darbak-assistant-trigger-copy">
+          <strong>دليل دربك</strong>
+          <small>شات التجارب</small>
+        </span>
       </button>
     </div>
   );

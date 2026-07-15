@@ -2769,6 +2769,10 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     const { days, rangeLabel, match } = getAnalyticsDateScope(req.query.days);
     const cleanMatch = getCleanAnalyticsMatch(match);
     const allTimeCleanMatch = getCleanAnalyticsMatch({});
+    const assistantMatch = {
+      ...cleanMatch,
+      eventName: "smart_assistant_query",
+    };
     const activeWindowMinutes = 5;
     const activeVisitorsMatch = {
       createdAt: {
@@ -2794,6 +2798,11 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       topDiagnosis,
       topFears,
       topOrganizations,
+      assistantQueries,
+      assistantContextUses,
+      assistantZeroResultQueries,
+      topAssistantIntents,
+      topAssistantQuestions,
       hourlyActivity,
       recentEvents,
     ] = await Promise.all([
@@ -2848,6 +2857,54 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $limit: 12 },
         { $project: { _id: 0, label: "$_id", count: 1 } },
       ]),
+      AnalyticsEvent.countDocuments(assistantMatch),
+      AnalyticsEvent.countDocuments({
+        ...assistantMatch,
+        "metadata.usedContext": true,
+      }),
+      AnalyticsEvent.countDocuments({
+        ...assistantMatch,
+        resultsCount: { $lte: 0 },
+      }),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...assistantMatch,
+            "metadata.intent": { $nin: [null, ""] },
+          },
+        },
+        { $group: { _id: "$metadata.intent", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...assistantMatch,
+            searchQuery: { $nin: [null, ""] },
+          },
+        },
+        {
+          $addFields: {
+            cleanSearchQuery: {
+              $trim: {
+                input: "$searchQuery",
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            searchLength: { $strLenCP: "$cleanSearchQuery" },
+          },
+        },
+        { $match: { searchLength: { $gte: 4 } } },
+        { $group: { _id: "$cleanSearchQuery", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
       AnalyticsEvent.aggregate([
         { $match: cleanMatch },
         {
@@ -2888,6 +2945,11 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       topDiagnosis,
       topFears,
       topOrganizations,
+      assistantQueries,
+      assistantContextUses,
+      assistantZeroResultQueries,
+      topAssistantIntents,
+      topAssistantQuestions,
       hourlyActivity,
       recentEvents,
     });
