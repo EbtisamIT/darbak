@@ -613,6 +613,109 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     );
   };
 
+  const AmbassadorOptInCard = ({ compact = false }) => (
+    <div
+      style={{
+        marginTop: compact ? 14 : 18,
+        padding: compact ? 14 : 16,
+        borderRadius: 14,
+        background: compact
+          ? "var(--app-brand-soft)"
+          : "rgba(255,255,255,0.035)",
+        border: "1px solid var(--app-border-soft)",
+        textAlign: "right",
+      }}
+    >
+      <h4
+        style={{
+          color: "var(--app-text)",
+          margin: "0 0 6px",
+          fontSize: compact ? 15 : 16,
+        }}
+      >
+        هل تحب تظهر كسفير دربك؟
+      </h4>
+      <p
+        style={{
+          color: "var(--app-muted)",
+          fontSize: 13,
+          lineHeight: 1.8,
+          margin: "0 0 12px",
+        }}
+      >
+        إذا وافقت، نحفظ رابط LinkedIn لعرضه لاحقًا ضمن سفراء دربك. وإذا فضلت
+        الخصوصية، تبقى تجربتك مجهولة بالكامل.
+      </p>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: 8,
+        }}
+      >
+        {[
+          { value: "no", label: "البقاء مجهول" },
+          { value: "yes", label: "أوافق على عرض حسابي" },
+        ].map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => setAmbassadorConsent(option.value)}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 11,
+              background:
+                ambassadorConsent === option.value
+                  ? "linear-gradient(90deg,var(--app-muted),var(--app-brand))"
+                  : "var(--app-input-bg)",
+              color:
+                ambassadorConsent === option.value ? "#07100e" : "var(--app-text)",
+              border: "1px solid var(--app-border-soft)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontWeight: 800,
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      {ambassadorConsent === "yes" && (
+        <div style={{ marginTop: 10 }}>
+          <input
+            type="url"
+            value={ambassadorLinkedInUrl}
+            onChange={(e) => setAmbassadorLinkedInUrl(e.target.value)}
+            placeholder="رابط LinkedIn مثل: linkedin.com/in/username"
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "10px 11px",
+              borderRadius: 10,
+              background: "var(--app-input-bg)",
+              color: "var(--app-text)",
+              border: "1px solid var(--app-border-soft)",
+              fontFamily: "inherit",
+              fontSize: 13,
+            }}
+          />
+          <p
+            style={{
+              color: "var(--app-muted)",
+              fontSize: 12,
+              margin: "6px 0 0",
+              lineHeight: 1.7,
+            }}
+          >
+            نستخدم الرابط فقط إذا اعتمدت التجربة وقررت لاحقًا عرض سفراء دربك.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
   if (!introAccepted && step < totalSteps) {
     return (
       <div
@@ -647,7 +750,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               "linear-gradient(145deg, var(--app-surface), rgba(125,219,205,0.08))",
             color: "var(--app-text)",
             boxShadow: "0 28px 80px rgba(0,0,0,0.45)",
-            overflow: "hidden",
+            maxHeight: "calc(100dvh - 40px)",
+            overflowY: "auto",
             border: "1px solid var(--app-border-soft)",
           }}
         >
@@ -732,6 +836,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               اكتب تجربتك، ويمكن تكون سببًا في قبول شخص أو طمأنته قبل أول يوم تدريب.
             </p>
 
+            <AmbassadorOptInCard />
+
             <button
               type="button"
               onClick={() => {
@@ -771,9 +877,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 maxWidth: 500,
               }}
             >
-              بعد كتابة التجربة، تقدر تختار الظهور كسفير دربك بإضافة رابط LinkedIn،
-              أو تبقى مجهول بالكامل. ظهورك يساعد الطلاب يعرفون أشخاص صنعوا أثرًا
-              حقيقيًا، وقد يلفت انتباه جهات تبحث عن طلاب مبادرين.
+              ظهورك كسفير دربك يساعد الطلاب يعرفون أشخاص صنعوا أثرًا حقيقيًا،
+              وقد يلفت انتباه جهات تبحث عن طلاب مبادرين.
             </div>
           </div>
         </div>
@@ -1073,105 +1178,6 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 ))}
               </div>
 
-              <div
-                style={{
-                  marginTop: 14,
-                  padding: 14,
-                  borderRadius: 14,
-                  background: "var(--app-brand-soft)",
-                  border: "1px solid var(--app-brand-border)",
-                }}
-              >
-                <h4
-                  style={{
-                    color: "var(--app-text)",
-                    margin: "0 0 6px",
-                    fontSize: 15,
-                  }}
-                >
-                  هل تحب تظهر كسفير دربك؟
-                </h4>
-                <p
-                  style={{
-                    color: "var(--app-muted)",
-                    fontSize: 13,
-                    lineHeight: 1.8,
-                    margin: "0 0 12px",
-                  }}
-                >
-                  إذا سمحت لنا، نحفظ رابط LinkedIn لعرضك لاحقًا ضمن سفراء دربك.
-                  وإذا فضلت الخصوصية، تبقى تجربتك مجهولة بالكامل.
-                </p>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: 8,
-                  }}
-                >
-                  {[
-                    { value: "no", label: "البقاء مجهول" },
-                    { value: "yes", label: "أسمح بعرض حسابي" },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setAmbassadorConsent(option.value)}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 11,
-                        background:
-                          ambassadorConsent === option.value
-                            ? "linear-gradient(90deg,var(--app-muted),var(--app-brand))"
-                            : "var(--app-input-bg)",
-                        color:
-                          ambassadorConsent === option.value
-                            ? "#07100e"
-                            : "var(--app-text)",
-                        border: "1px solid var(--app-border-soft)",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                        fontWeight: 800,
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-
-                {ambassadorConsent === "yes" && (
-                  <div style={{ marginTop: 10 }}>
-                    <input
-                      type="url"
-                      value={ambassadorLinkedInUrl}
-                      onChange={(e) => setAmbassadorLinkedInUrl(e.target.value)}
-                      placeholder="رابط LinkedIn مثل: linkedin.com/in/username"
-                      style={{
-                        width: "100%",
-                        boxSizing: "border-box",
-                        padding: "10px 11px",
-                        borderRadius: 10,
-                        background: "var(--app-input-bg)",
-                        color: "var(--app-text)",
-                        border: "1px solid var(--app-border-soft)",
-                        fontFamily: "inherit",
-                        fontSize: 13,
-                      }}
-                    />
-                    <p
-                      style={{
-                        color: "var(--app-muted)",
-                        fontSize: 12,
-                        margin: "6px 0 0",
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      نستخدم الرابط فقط إذا اعتمدت التجربة وقررت لاحقًا عرض سفراء دربك.
-                    </p>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
@@ -1453,6 +1459,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   </div>
                 ))}
               </div>
+
+              <AmbassadorOptInCard compact />
             </div>
           )}
 
