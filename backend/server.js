@@ -438,6 +438,40 @@ const regionCities = {
   "منطقة الجوف": ["سكاكا", "القريات", "دومة الجندل", "طبرجل"],
 };
 
+const regionAliases = {
+  الشرقية: "المنطقة الشرقية",
+  شرقية: "المنطقة الشرقية",
+  "الشرقيه": "المنطقة الشرقية",
+  "المنطقة الشرقيه": "المنطقة الشرقية",
+  القصيم: "منطقة القصيم",
+  قصيم: "منطقة القصيم",
+  "منطقه القصيم": "منطقة القصيم",
+  عسير: "منطقة عسير",
+  تبوك: "منطقة تبوك",
+  حائل: "منطقة حائل",
+  جازان: "منطقة جازان",
+  نجران: "منطقة نجران",
+  الباحة: "منطقة الباحة",
+  الباحه: "منطقة الباحة",
+  الجوف: "منطقة الجوف",
+  "منطقة مكة": "منطقة مكة المكرمة",
+  "منطقه مكه": "منطقة مكة المكرمة",
+  "منطقة المدينة": "منطقة المدينة المنورة",
+  "منطقه المدينه": "منطقة المدينة المنورة",
+};
+
+const getCanonicalRegionName = (city = "") => {
+  if (!city) return "";
+  if (regionCities[city]) return city;
+
+  const normalizedCity = normalizeSearchText(city);
+  const matchedAlias = Object.entries(regionAliases).find(
+    ([alias]) => normalizeSearchText(alias) === normalizedCity
+  );
+
+  return matchedAlias?.[1] || "";
+};
+
 const requireAdmin = (req, res, next) => {
   if (!ADMIN_PASSWORD) {
     return res.status(500).json({ error: "Admin password is not configured" });
@@ -540,7 +574,19 @@ const sanitizeOpportunityPayload = (body = {}) => {
 
 const getCityFilterValues = (city = "") => {
   if (!city) return [];
-  return regionCities[city] ? [city, ...regionCities[city]] : [city];
+  const regionName = getCanonicalRegionName(city);
+  if (!regionName) return [city];
+
+  return Array.from(
+    new Set([
+      city,
+      regionName,
+      ...Object.entries(regionAliases)
+        .filter(([, value]) => value === regionName)
+        .map(([alias]) => alias),
+      ...regionCities[regionName],
+    ])
+  );
 };
 
 const sanitizeAnalyticsText = (value = "", maxLength = 160) => {
@@ -954,6 +1000,7 @@ const detectSmartOrganizations = (question = "", organizationNames = []) => {
 const detectSmartCities = (question = "", experienceCities = []) => {
   const allCities = uniqueTruthy([
     ...Object.keys(regionCities),
+    ...Object.keys(regionAliases),
     ...Object.values(regionCities).flat(),
     ...experienceCities,
   ]);
@@ -3086,7 +3133,9 @@ app.get('/api/training-targets', async (req, res) => {
     }
 
     if (city) {
-      filter.city = regionCities[city] ? { $in: regionCities[city] } : city;
+      const cityValues = getCityFilterValues(city);
+      filter.city =
+        cityValues.length > 1 ? { $in: cityValues } : cityValues[0] || city;
     }
 
     const experiences = await Experience.find(filter)
@@ -3398,7 +3447,10 @@ app.get('/api/experiences', async (req, res) => {
     }
 
     if (cityFilter) {
-      andFilters.push({ city: cityFilter });
+      const cityValues = getCityFilterValues(cityFilter);
+      andFilters.push({
+        city: cityValues.length > 1 ? { $in: cityValues } : cityFilter,
+      });
     }
 
     if (rewardFilter) {

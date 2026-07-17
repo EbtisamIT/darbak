@@ -17,7 +17,114 @@ import { buildExperiencesSeoMeta, setPageSeo } from "../utils/seoMetadata";
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
 const SHOW_TRAINING_GUIDE_BANNER = true;
+const CITY_REGION_GROUPS = {
+  "منطقة الرياض": [
+    "الرياض",
+    "الخرج",
+    "الدرعية",
+    "المجمعة",
+    "الزلفي",
+    "الدوادمي",
+    "وادي الدواسر",
+    "القويعية",
+    "شقراء",
+    "عفيف",
+    "حوطة بني تميم",
+  ],
+  "منطقة مكة": [
+    "جدة",
+    "مكة المكرمة",
+    "الطائف",
+    "رابغ",
+    "القنفذة",
+    "الليث",
+    "رنية",
+    "تربة",
+    "الخرمة",
+    "بحرة",
+  ],
+  "منطقة المدينة": [
+    "المدينة المنورة",
+    "ينبع",
+    "العلا",
+    "خيبر",
+    "بدر",
+    "المهد",
+    "الحناكية",
+  ],
+  الشرقية: [
+    "الدمام",
+    "الخبر",
+    "الظهران",
+    "الأحساء",
+    "الجبيل",
+    "القطيف",
+    "رأس تنورة",
+    "حفر الباطن",
+    "الخفجي",
+    "بقيق",
+    "النعيرية",
+    "قرية العليا",
+  ],
+  القصيم: [
+    "بريدة",
+    "عنيزة",
+    "الرس",
+    "المذنب",
+    "البكيرية",
+    "البدائع",
+    "الأسياح",
+    "رياض الخبراء",
+  ],
+  "منطقة عسير": [
+    "أبها",
+    "خميس مشيط",
+    "بيشة",
+    "محايل عسير",
+    "النماص",
+    "تنومة",
+    "رجال ألمع",
+    "سراة عبيدة",
+    "ظهران الجنوب",
+  ],
+  "منطقة تبوك": ["تبوك", "الوجه", "ضباء", "أملج", "تيماء", "البدع"],
+  "منطقة حائل": ["حائل"],
+  "منطقة الحدود الشمالية": ["عرعر", "رفحاء", "طريف"],
+  "منطقة جازان": [
+    "جازان",
+    "صبيا",
+    "أبو عريش",
+    "صامطة",
+    "بيش",
+    "الدرب",
+    "فرسان",
+  ],
+  "منطقة نجران": ["نجران", "شرورة", "حبونا", "يدمة"],
+  "منطقة الباحة": ["الباحة", "بلجرشي", "المندق", "العقيق", "المخواة"],
+  "منطقة الجوف": ["سكاكا", "القريات", "دومة الجندل", "طبرجل"],
+};
+const CITY_FILTER_ALIASES = {
+  "منطقة مكة المكرمة": "منطقة مكة",
+  "منطقة المدينة المنورة": "منطقة المدينة",
+  "المنطقة الشرقية": "الشرقية",
+  شرقية: "الشرقية",
+  "منطقة القصيم": "القصيم",
+  قصيم: "القصيم",
+};
 const MAIN_CITY_FILTERS = [
+  "الشرقية",
+  "القصيم",
+  "منطقة الرياض",
+  "منطقة مكة",
+  "منطقة المدينة",
+  "منطقة عسير",
+  "منطقة تبوك",
+  "منطقة حائل",
+  "منطقة الحدود الشمالية",
+  "منطقة جازان",
+  "منطقة نجران",
+  "منطقة الباحة",
+  "منطقة الجوف",
   "الرياض",
   "جدة",
   "مكة المكرمة",
@@ -34,7 +141,15 @@ const MAIN_CITY_FILTERS = [
   "تبوك",
   "حائل",
   "بريدة",
+  "عنيزة",
+  "الرس",
   "نجران",
+  "الباحة",
+  "سكاكا",
+  "عرعر",
+  "ينبع",
+  "الخرج",
+  "العلا",
 ];
 
 const getCompanySearchFromUrl = (search = "") => {
@@ -302,6 +417,33 @@ const normalizeSearchText = (value = "") =>
     .replace(/[\u064B-\u065F]/g, "")
     .replace(/\s+/g, " ");
 
+const getCanonicalCityFilter = (city = "") => {
+  const normalizedCity = normalizeSearchText(city);
+  const matchedAlias = Object.entries(CITY_FILTER_ALIASES).find(
+    ([alias]) => normalizeSearchText(alias) === normalizedCity
+  );
+
+  return matchedAlias?.[1] || city;
+};
+
+const getCityFilterScope = (city = "") => {
+  if (!city) return [];
+
+  const canonicalCity = getCanonicalCityFilter(city);
+  const regionCities = CITY_REGION_GROUPS[canonicalCity];
+
+  if (!regionCities) return [city];
+
+  return [
+    canonicalCity,
+    city,
+    ...Object.entries(CITY_FILTER_ALIASES)
+      .filter(([, value]) => value === canonicalCity)
+      .map(([alias]) => alias),
+    ...regionCities,
+  ];
+};
+
 const isUnclearMajorText = (value = "") => {
   const text = value.toString().trim();
   if (!text) return true;
@@ -524,6 +666,11 @@ const ExperiencesPage = () => {
     [selectedMajors]
   );
 
+  const selectedCityTerms = useMemo(
+    () => new Set(getCityFilterScope(selectedCity).map(normalizeSearchText)),
+    [selectedCity]
+  );
+
   const filteredExperiences = useMemo(
     () =>
       experiences
@@ -532,7 +679,9 @@ const ExperiencesPage = () => {
             selectedMajors.length === 0 ||
             selectedMajorTerms.includes(exp.major) ||
             selectedMajorTerms.includes(exp.majorCategory);
-          const matchesCity = !selectedCity || exp.city === selectedCity;
+          const matchesCity =
+            !selectedCity ||
+            selectedCityTerms.has(normalizeSearchText(exp.city));
 
           const searchableNames = [
             exp.organizationName,
@@ -579,6 +728,7 @@ const ExperiencesPage = () => {
       selectedMajors,
       selectedMajorTerms,
       selectedCity,
+      selectedCityTerms,
       normalizedCompanySearch,
       searchTerms,
       rewardFilter,

@@ -8,8 +8,8 @@ export const seoCities = [
   { slug: "dammam", label: "الدمام" },
   { slug: "khobar", label: "الخبر" },
   { slug: "dhahran", label: "الظهران" },
-  { slug: "eastern-province", label: "المنطقة الشرقية" },
-  { slug: "qassim", label: "منطقة القصيم" },
+  { slug: "eastern-province", label: "الشرقية" },
+  { slug: "qassim", label: "القصيم" },
   { slug: "abha", label: "أبها" },
   { slug: "jazan", label: "جازان" },
   { slug: "tabuk", label: "تبوك" },
@@ -53,6 +53,13 @@ const specialtyLabels = new Set(
   majors.flatMap((major) => [major.name, ...(major.subMajors || [])])
 );
 
+const citySeoAliases = {
+  "المنطقة الشرقية": "الشرقية",
+  شرقية: "الشرقية",
+  "منطقة القصيم": "القصيم",
+  قصيم: "القصيم",
+};
+
 export const getSeoCityBySlug = (slug = "") =>
   seoCities.find((city) => city.slug === slug) || null;
 
@@ -64,8 +71,15 @@ export const getSeoSpecialtyBySlug = (slug = "") => {
   return hasSpecialty ? specialty : null;
 };
 
-export const getSeoSlugForCity = (cityLabel = "") =>
-  seoCities.find((city) => city.label === cityLabel)?.slug || "";
+export const getSeoSlugForCity = (cityLabel = "") => {
+  const canonicalCityLabel = citySeoAliases[cityLabel] || cityLabel;
+  const normalizedLabel = normalizeText(canonicalCityLabel);
+
+  return (
+    seoCities.find((city) => normalizeText(city.label) === normalizedLabel)
+      ?.slug || ""
+  );
+};
 
 export const getSeoSlugForSpecialty = (specialtyLabel = "") => {
   const normalizedLabel = normalizeText(specialtyLabel);

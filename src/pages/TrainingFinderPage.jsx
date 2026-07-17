@@ -186,7 +186,48 @@ const regionCities = {
   "منطقة الجوف": ["سكاكا", "القريات", "دومة الجندل", "طبرجل"],
 };
 
-const regionOptions = Object.keys(regionCities);
+const regionDisplayNames = {
+  "منطقة مكة المكرمة": "منطقة مكة",
+  "منطقة المدينة المنورة": "منطقة المدينة",
+  "المنطقة الشرقية": "الشرقية",
+  "منطقة القصيم": "القصيم",
+};
+
+const regionAliases = {
+  الشرقية: "المنطقة الشرقية",
+  شرقية: "المنطقة الشرقية",
+  القصيم: "منطقة القصيم",
+  قصيم: "منطقة القصيم",
+  عسير: "منطقة عسير",
+  تبوك: "منطقة تبوك",
+  حائل: "منطقة حائل",
+  جازان: "منطقة جازان",
+  نجران: "منطقة نجران",
+  الباحة: "منطقة الباحة",
+  الجوف: "منطقة الجوف",
+  "منطقة مكة": "منطقة مكة المكرمة",
+  "منطقة المدينة": "منطقة المدينة المنورة",
+};
+
+const getRegionDisplayName = (regionName = "") =>
+  regionDisplayNames[regionName] || regionName;
+
+const getCanonicalRegionName = (cityName = "") => {
+  if (!cityName) return "";
+  if (regionCities[cityName]) return cityName;
+
+  const normalizedCityName = normalizeName(cityName);
+  const matchedAlias = Object.entries(regionAliases).find(
+    ([alias]) => normalizeName(alias) === normalizedCityName
+  );
+
+  return matchedAlias?.[1] || "";
+};
+
+const regionOptions = Object.keys(regionCities).map((regionName) => ({
+  label: getRegionDisplayName(regionName),
+  value: getRegionDisplayName(regionName),
+}));
 
 const cityToSuggestionRegion = new Map(
   Object.entries(regionCities).flatMap(([region, cities]) =>
@@ -196,14 +237,30 @@ const cityToSuggestionRegion = new Map(
 
 const resolveSuggestionRegion = (cityName) => {
   if (!cityName) return "";
-  if (regionCities[cityName]) return cityName;
+  const regionName = getCanonicalRegionName(cityName);
+  if (regionName) return regionName;
   return cityToSuggestionRegion.get(cityName) || "";
 };
 
 const getSelectedCityScope = (cityName) => {
   if (!cityName) return [];
-  if (regionCities[cityName]) return regionCities[cityName];
-  return [cityName];
+  const regionName = getCanonicalRegionName(cityName);
+  if (regionName) {
+    return [
+      regionName,
+      getRegionDisplayName(regionName),
+      ...regionCities[regionName],
+    ];
+  }
+
+  const containingRegion = cityToSuggestionRegion.get(cityName);
+  if (!containingRegion) return [cityName];
+
+  return [
+    cityName,
+    containingRegion,
+    getRegionDisplayName(containingRegion),
+  ];
 };
 
 const dedupeOrganizations = (organizations = []) =>
@@ -1255,9 +1312,9 @@ export default function TrainingFinderPage() {
             >
               <option value="">كل المدن والمناطق</option>
               <optgroup label="المناطق الرئيسية">
-                {regionOptions.map((regionName) => (
-                  <option key={regionName} value={regionName}>
-                    {regionName}
+                {regionOptions.map((region) => (
+                  <option key={region.value} value={region.value}>
+                    {region.label}
                   </option>
                 ))}
               </optgroup>
@@ -2625,7 +2682,10 @@ export default function TrainingFinderPage() {
                   }}
                 >
                   <option value="">كل المدن أو غير محدد</option>
-                  {[...regionOptions, ...cityOptions].map((cityName) => (
+                  {[
+                    ...regionOptions.map((region) => region.value),
+                    ...cityOptions,
+                  ].map((cityName) => (
                     <option key={cityName} value={cityName}>
                       {cityName}
                     </option>
