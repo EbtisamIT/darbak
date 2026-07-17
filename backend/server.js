@@ -681,15 +681,7 @@ const getItemInteractionCounts = async (itemType, ids = []) => {
     },
     {
       $group: {
-        _id: {
-          itemId: `$${metadataField}`,
-          visitorId: { $ifNull: ["$visitorId", ""] },
-        },
-      },
-    },
-    {
-      $group: {
-        _id: "$_id.itemId",
+        _id: `$${metadataField}`,
         count: { $sum: 1 },
       },
     },
