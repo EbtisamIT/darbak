@@ -120,6 +120,9 @@ const emptyAnalytics = {
   allTimeVisitors: 0,
   activeVisitors: 0,
   activeWindowMinutes: 5,
+  averageSessionSeconds: 0,
+  totalSessionSeconds: 0,
+  sessionDurationSamples: 0,
   topEvents: [],
   topMajors: [],
   topCities: [],
@@ -148,6 +151,7 @@ const analyticsEventLabels = {
   add_experience_started: "بدء إضافة تجربة",
   add_experience_submitted: "إرسال تجربة",
   session_ping: "زائر نشط",
+  session_duration: "مدة الجلسة",
   opportunity_details_clicked: "فتح تفاصيل فرصة",
   opportunity_apply_clicked: "ضغط تقديم فرصة",
   opportunity_submission_started: "بدء إرسال فرصة",
@@ -596,6 +600,25 @@ const formatAdminDateTime = (value) => {
     dateStyle: "medium",
     timeStyle: "short",
   });
+};
+
+const formatDuration = (seconds = 0) => {
+  const totalSeconds = Math.max(0, Math.round(Number(seconds) || 0));
+  if (!totalSeconds) return "-";
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}س ${minutes}د`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}د ${remainingSeconds}ث`;
+  }
+
+  return `${remainingSeconds}ث`;
 };
 
 const isUnclearMajorText = (value = "") => {
@@ -1374,6 +1397,11 @@ export default function AdminReviewPage() {
                   analytics.activeWindowMinutes || 5
                 } دقائق`,
               ],
+              [
+                "متوسط وقت الجلسة",
+                formatDuration(analytics.averageSessionSeconds),
+              ],
+              ["جلسات مقاسة", analytics.sessionDurationSamples || 0],
               ["زوار مميزين في الفترة", analytics.uniqueVisitors],
               ["جميع الزيارات في الفترة", analytics.pageVisits],
               ["الأحداث", analytics.totalEvents],

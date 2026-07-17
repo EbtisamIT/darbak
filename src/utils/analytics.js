@@ -1,6 +1,7 @@
 import API_BASE_URL from "../config/api";
 
 const VISITOR_ID_KEY = "darbak_visitor_id_v1";
+const SESSION_ID_KEY = "darbak_session_id_v1";
 
 const getVisitorId = () => {
   if (typeof window === "undefined") return "";
@@ -28,8 +29,26 @@ const getDeviceType = () => {
   return "desktop";
 };
 
+const getSessionId = () => {
+  if (typeof window === "undefined") return "";
+
+  try {
+    const existingId = window.sessionStorage.getItem(SESSION_ID_KEY);
+    if (existingId) return existingId;
+
+    const randomId =
+      window.crypto?.randomUUID?.() ||
+      `session_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    window.sessionStorage.setItem(SESSION_ID_KEY, randomId);
+    return randomId;
+  } catch {
+    return "";
+  }
+};
+
 export const trackEvent = (eventName, payload = {}) => {
   if (!eventName || typeof window === "undefined") return;
+  const sessionId = getSessionId();
 
   const body = {
     eventName,
@@ -37,6 +56,10 @@ export const trackEvent = (eventName, payload = {}) => {
     page: window.location.pathname,
     deviceType: getDeviceType(),
     ...payload,
+    metadata: {
+      ...(payload.metadata || {}),
+      ...(sessionId ? { sessionId } : {}),
+    },
   };
 
   fetch(`${API_BASE_URL}/api/analytics-events`, {

@@ -656,7 +656,7 @@ const getAnalyticsDateScope = (daysParam) => {
 
 const getCleanAnalyticsMatch = (match) => ({
   ...match,
-  eventName: { $ne: "session_ping" },
+  eventName: { $nin: ["session_ping", "session_duration"] },
   $or: [
     { eventName: { $ne: "experience_search" } },
     {
@@ -2815,6 +2815,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       uniqueVisitors,
       allTimeVisitors,
       activeVisitors,
+      sessionDurationStats,
       topEvents,
       topMajors,
       topCities,
@@ -2839,6 +2840,38 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       AnalyticsEvent.distinct("visitorId", cleanMatch),
       AnalyticsEvent.distinct("visitorId", allTimeCleanMatch),
       AnalyticsEvent.distinct("visitorId", activeVisitorsMatch),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...match,
+            eventName: "session_duration",
+            resultsCount: { $gte: 5, $lte: 3 * 60 * 60 },
+            "metadata.sessionId": { $nin: [null, ""] },
+          },
+        },
+        {
+          $group: {
+            _id: "$metadata.sessionId",
+            durationSeconds: { $max: "$resultsCount" },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            averageSeconds: { $avg: "$durationSeconds" },
+            totalSeconds: { $sum: "$durationSeconds" },
+            sessions: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            averageSeconds: { $round: ["$averageSeconds", 0] },
+            totalSeconds: { $round: ["$totalSeconds", 0] },
+            sessions: 1,
+          },
+        },
+      ]),
       getAnalyticsGroup(cleanMatch, "eventName", 12),
       getAnalyticsGroup(cleanMatch, "major", 12),
       getAnalyticsGroup(cleanMatch, "city", 12),
@@ -2962,6 +2995,9 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       allTimeVisitors: allTimeVisitors.filter(Boolean).length,
       activeVisitors: activeVisitors.filter(Boolean).length,
       activeWindowMinutes,
+      averageSessionSeconds: sessionDurationStats[0]?.averageSeconds || 0,
+      totalSessionSeconds: sessionDurationStats[0]?.totalSeconds || 0,
+      sessionDurationSamples: sessionDurationStats[0]?.sessions || 0,
       topEvents,
       topMajors,
       topCities,

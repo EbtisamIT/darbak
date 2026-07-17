@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -1061,6 +1061,67 @@ function AppLayout({ theme, setTheme }) {
       metadata: { search: location.search },
     });
   }, [isAdminPage, location.pathname, location.search]);
+
+  const sessionStartedAtRef = useRef(null);
+  const lastDurationSentRef = useRef(0);
+
+  useEffect(() => {
+    if (isAdminPage || typeof window === "undefined") return undefined;
+
+    sessionStartedAtRef.current = Date.now();
+    lastDurationSentRef.current = 0;
+
+    const sendSessionDuration = (reason = "interval") => {
+      if (!sessionStartedAtRef.current) return;
+
+      const durationSeconds = Math.round(
+        (Date.now() - sessionStartedAtRef.current) / 1000
+      );
+
+      if (durationSeconds < 5) return;
+      if (durationSeconds - lastDurationSentRef.current < 15 && reason !== "exit") {
+        return;
+      }
+
+      const cappedDurationSeconds = Math.min(durationSeconds, 3 * 60 * 60);
+      lastDurationSentRef.current = durationSeconds;
+
+      trackEvent("session_duration", {
+        resultsCount: cappedDurationSeconds,
+        metadata: {
+          durationSeconds: cappedDurationSeconds,
+          reason,
+        },
+      });
+    };
+
+    const intervalId = window.setInterval(
+      () => sendSessionDuration("interval"),
+      60 * 1000
+    );
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        sendSessionDuration("hidden");
+      }
+    };
+
+    const handlePageHide = () => {
+      sendSessionDuration("exit");
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handlePageHide);
+
+    return () => {
+      sendSessionDuration("exit");
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handlePageHide);
+    };
+  }, [isAdminPage]);
 
   useEffect(() => {
     if (isAdminPage || typeof document === "undefined") return undefined;
