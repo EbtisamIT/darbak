@@ -16,7 +16,7 @@ import { buildExperiencesSeoMeta, setPageSeo } from "../utils/seoMetadata";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
-const SHOW_TRAINING_GUIDE_BANNER = false;
+const SHOW_TRAINING_GUIDE_BANNER = true;
 const MAIN_CITY_FILTERS = [
   "الرياض",
   "جدة",
