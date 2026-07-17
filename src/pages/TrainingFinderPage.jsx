@@ -1,5 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
@@ -261,6 +267,12 @@ const getSelectedCityScope = (cityName) => {
     containingRegion,
     getRegionDisplayName(containingRegion),
   ];
+};
+
+const formatInteractionCount = (count = 0) => {
+  const numericCount = Number(count) || 0;
+  if (numericCount >= 1000) return `${(numericCount / 1000).toFixed(1)}k`;
+  return numericCount.toString();
 };
 
 const dedupeOrganizations = (organizations = []) =>
@@ -760,8 +772,11 @@ const resolveOrganizationHomepageUrl = (organizationName) => {
 };
 
 export default function TrainingFinderPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const routeParams = useParams();
   const [searchParams] = useSearchParams();
+  const routeOpportunityId = routeParams.opportunityId || "";
   const routeSpecialty =
     getSeoSpecialtyBySlug(routeParams.majorSlug)?.label || "";
   const routeCity = getSeoCityBySlug(routeParams.citySlug)?.label || "";
@@ -796,6 +811,7 @@ export default function TrainingFinderPage() {
   const [savingOpportunityRequest, setSavingOpportunityRequest] = useState(false);
   const [opportunityRequestMessage, setOpportunityRequestMessage] = useState("");
   const [savedItemIds, setSavedItemIds] = useState(() => getSavedItemIds());
+  const handledRouteOpportunityIdRef = useRef("");
 
   useEffect(() => {
     const updateSavedItems = () => setSavedItemIds(getSavedItemIds());
@@ -1009,6 +1025,8 @@ export default function TrainingFinderPage() {
   }, [routeCity, routeSpecialty, seoPath]);
 
   useEffect(() => {
+    if (routeOpportunityId) return;
+
     const nextMajor = routeSpecialty || querySpecialty;
     const nextCity = routeCity || queryCity;
     const hasKnownMajor = specializationOptions.some(
@@ -1028,7 +1046,94 @@ export default function TrainingFinderPage() {
     setCity(nextCity);
     runTrainingTargetSearch(nextMajor, nextCity);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryCity, querySpecialty, routeCity, routeSpecialty]);
+  }, [queryCity, querySpecialty, routeCity, routeOpportunityId, routeSpecialty]);
+
+  useEffect(() => {
+    if (!routeOpportunityId) {
+      handledRouteOpportunityIdRef.current = "";
+      return undefined;
+    }
+
+    if (handledRouteOpportunityIdRef.current === routeOpportunityId) {
+      return undefined;
+    }
+
+    handledRouteOpportunityIdRef.current = routeOpportunityId;
+    let isActive = true;
+
+    const openRouteOpportunity = async () => {
+      try {
+        setError("");
+        setOpportunitiesLoading(true);
+        const { data } = await axios.get(
+          `${API_BASE_URL}/api/opportunities/${routeOpportunityId}`
+        );
+        const opportunity = data?.data || data;
+
+        if (!isActive || !opportunity?._id) return;
+
+        setOpportunities([opportunity]);
+        setTargets([]);
+        setSearched(true);
+        setActiveResultsTab("opportunities");
+
+        setPageSeo({
+          title: `${opportunity.title || "فرصة تدريب"} - ${
+            opportunity.organizationName || "دربك"
+          }`,
+          description: `فرصة تدريب في ${
+            opportunity.organizationName || "جهة تدريب"
+          }${getOpportunityCityText(opportunity) ? ` - ${getOpportunityCityText(opportunity)}` : ""} على منصة دربك.`,
+          path: `/where-to-train/opportunity/${opportunity._id}`,
+          keywords: [
+            "فرصة تدريب",
+            "تدريب تعاوني",
+            opportunity.organizationName,
+            getOpportunityCityText(opportunity),
+            opportunity.title,
+          ]
+            .filter(Boolean)
+            .join(", "),
+        });
+
+        requestPremiumAccess(
+          {
+            feature: "opportunity_details",
+            title: opportunity.title || opportunity.organizationName || "",
+            source: "opportunity_direct_link",
+          },
+          () => {
+            if (!isActive) return;
+            trackEvent("opportunity_detail_viewed", {
+              major: selectedSpecialty,
+              city: getOpportunityCityText(opportunity) || city,
+              metadata: {
+                opportunityId: opportunity._id,
+                opportunityTitle: opportunity.title,
+                organizationName: opportunity.organizationName,
+              },
+            });
+            setExpandedOpportunityId(opportunity._id);
+          }
+        );
+      } catch (err) {
+        console.error(err);
+        if (isActive) {
+          setError("تعذر فتح رابط الفرصة. قد تكون غير منشورة أو غير متاحة.");
+          setOpportunities([]);
+        }
+      } finally {
+        if (isActive) setOpportunitiesLoading(false);
+      }
+    };
+
+    openRouteOpportunity();
+
+    return () => {
+      isActive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeOpportunityId]);
 
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
@@ -1142,6 +1247,23 @@ export default function TrainingFinderPage() {
   };
 
   const openOpportunityDetails = (opportunity) => {
+    const opportunityId = opportunity._id || opportunity.id || "";
+
+    if (expandedOpportunityId === opportunityId) {
+      setExpandedOpportunityId("");
+
+      if (routeOpportunityId) {
+        const returnPath =
+          typeof location.state?.from === "string" &&
+          !location.state.from.includes(`/where-to-train/opportunity/${routeOpportunityId}`)
+            ? location.state.from
+            : "/where-to-train";
+
+        navigate(returnPath, { replace: true });
+      }
+      return;
+    }
+
     requestPremiumAccess(
       {
         feature: "opportunity_details",
@@ -1153,13 +1275,19 @@ export default function TrainingFinderPage() {
           major: selectedSpecialty,
           city,
           metadata: {
+            opportunityId,
             opportunityTitle: opportunity.title,
             organizationName: opportunity.organizationName,
           },
         });
-        setExpandedOpportunityId((currentId) =>
-          currentId === opportunity._id ? "" : opportunity._id
-        );
+        setExpandedOpportunityId(opportunityId);
+
+        if (opportunityId && routeOpportunityId !== opportunityId) {
+          handledRouteOpportunityIdRef.current = opportunityId;
+          navigate(`/where-to-train/opportunity/${opportunityId}`, {
+            state: { from: `${location.pathname}${location.search}` },
+          });
+        }
       }
     );
   };
@@ -1178,6 +1306,7 @@ export default function TrainingFinderPage() {
           major: selectedSpecialty,
           city,
           metadata: {
+            opportunityId: opportunity._id || opportunity.id || "",
             opportunityTitle: opportunity.title,
             organizationName: opportunity.organizationName,
             applicationMethod: opportunity.applicationMethod,
@@ -1607,6 +1736,18 @@ export default function TrainingFinderPage() {
                             {getOpportunityCityText(opportunity)
                               ? ` - ${getOpportunityCityText(opportunity)}`
                               : ""}
+                          </p>
+                          <p
+                            className="opportunity-interaction-count"
+                            style={{
+                              margin: "5px 0 0",
+                              color: "var(--app-muted)",
+                              fontSize: "11px",
+                              lineHeight: 1.4,
+                              fontWeight: 800,
+                            }}
+                          >
+                            👁 {formatInteractionCount(opportunity.interactionCount)} تفاعل
                           </p>
                         </div>
                       </div>

@@ -444,6 +444,12 @@ const getCityFilterScope = (city = "") => {
   ];
 };
 
+const formatInteractionCount = (count = 0) => {
+  const numericCount = Number(count) || 0;
+  if (numericCount >= 1000) return `${(numericCount / 1000).toFixed(1)}k`;
+  return numericCount.toString();
+};
+
 const isUnclearMajorText = (value = "") => {
   const text = value.toString().trim();
   if (!text) return true;
@@ -514,6 +520,7 @@ const ExperiencesPage = () => {
     city: seoCity,
     specialty: seoSpecialty,
   });
+  const routeExperienceId = routeParams.experienceId || "";
   const [experiences, setExperiences] = useState(() => getCachedExperiences());
   const [loading, setLoading] = useState(() => getCachedExperiences().length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -539,6 +546,7 @@ const ExperiencesPage = () => {
   const [searchAnalyticsVersion, setSearchAnalyticsVersion] = useState(0);
   const [savedItemIds, setSavedItemIds] = useState(() => getSavedItemIds());
   const lastTrackedExperienceSearchRef = useRef("");
+  const handledRouteExperienceIdRef = useRef("");
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
 
@@ -807,6 +815,82 @@ const ExperiencesPage = () => {
   useEffect(() => {
     fetchExperiencesPage(1, { append: false });
   }, [fetchExperiencesPage]);
+
+  useEffect(() => {
+    if (!routeExperienceId) {
+      handledRouteExperienceIdRef.current = "";
+      return undefined;
+    }
+
+    if (handledRouteExperienceIdRef.current === routeExperienceId) {
+      return undefined;
+    }
+
+    handledRouteExperienceIdRef.current = routeExperienceId;
+    let isActive = true;
+
+    const openRouteExperience = async () => {
+      try {
+        setFetchError("");
+        const { data } = await axios.get(
+          `${API_BASE_URL}/api/experiences/${routeExperienceId}`
+        );
+        const exp = data?.data || data;
+
+        if (!isActive || !exp?._id) return;
+
+        setExperiences((current) => {
+          const exists = current.some((item) => item._id === exp._id);
+          if (exists) {
+            return current.map((item) => (item._id === exp._id ? exp : item));
+          }
+          return [exp, ...current];
+        });
+
+        setPageSeo({
+          title: exp.title || `تجربة تدريب في ${exp.organizationName || "دربك"}`,
+          description: `تجربة تدريب في ${exp.organizationName || "جهة تدريب"}${
+            exp.city ? ` بمدينة ${exp.city}` : ""
+          } لتخصص ${getReadableMajor(exp) || "طلاب التدريب التعاوني"} على منصة دربك.`,
+          path: `/experiences/${exp._id}`,
+          keywords: [
+            "تجربة تدريب",
+            "تدريب تعاوني",
+            exp.organizationName,
+            exp.city,
+            getReadableMajor(exp),
+          ]
+            .filter(Boolean)
+            .join(", "),
+        });
+
+        requestPremiumAccess(
+          {
+            feature: "experience_details",
+            title: exp.title || exp.organizationName || "",
+            source: "experience_direct_link",
+          },
+          () => {
+            if (!isActive) return;
+            trackExperienceDetailView(exp);
+            setSelectedExperience(exp);
+            setCurrentStep(1);
+          }
+        );
+      } catch (err) {
+        console.error(err);
+        if (isActive) {
+          setFetchError("تعذر فتح رابط التجربة. قد تكون غير منشورة أو غير متاحة.");
+        }
+      }
+    };
+
+    openRouteExperience();
+
+    return () => {
+      isActive = false;
+    };
+  }, [routeExperienceId]);
 
   useEffect(() => {
     if (searchAnalyticsVersion === 0) return;
@@ -1173,12 +1257,44 @@ const ExperiencesPage = () => {
     />
   );
 
+  const trackExperienceDetailView = (exp, eventName = "experience_detail_viewed") => {
+    const experienceId = exp._id || exp.id || "";
+    trackEvent(eventName, {
+      major: exp.major || exp.majorCategory || "",
+      majorCategory: exp.majorCategory || "",
+      city: exp.city || "",
+      metadata: {
+        experienceId,
+        title: exp.title || "",
+        organizationName: exp.organizationName || exp.companyName || "",
+        starRating: exp.starRating || 0,
+      },
+    });
+  };
+
+  const closeExperienceDetails = () => {
+    setSelectedExperience(null);
+
+    if (!routeExperienceId) return;
+
+    const fallbackPath = "/experiences";
+    const returnPath =
+      typeof location.state?.from === "string" &&
+      !location.state.from.includes(`/experiences/${routeExperienceId}`)
+        ? location.state.from
+        : fallbackPath;
+
+    navigate(returnPath, { replace: true });
+  };
+
   const openExperienceDetails = (exp) => {
     trackEvent("experience_card_opened", {
       major: exp.major || exp.majorCategory || "",
       majorCategory: exp.majorCategory || "",
       city: exp.city || "",
       metadata: {
+        experienceId: exp._id || exp.id || "",
+        title: exp.title || "",
         organizationName: exp.organizationName || exp.companyName || "",
         starRating: exp.starRating || 0,
       },
@@ -1191,6 +1307,14 @@ const ExperiencesPage = () => {
         source: "experiences_page",
       },
       () => {
+        const experienceId = exp._id || exp.id || "";
+        if (experienceId && routeExperienceId !== experienceId) {
+          handledRouteExperienceIdRef.current = experienceId;
+          navigate(`/experiences/${experienceId}`, {
+            state: { from: `${location.pathname}${location.search}` },
+          });
+        }
+        trackExperienceDetailView(exp);
         setSelectedExperience(exp);
         setCurrentStep(1);
       }
@@ -2284,6 +2408,19 @@ const ExperiencesPage = () => {
                       {getExperienceSourceLabel(exp)}
                     </p>
 
+                    <p
+                      className="experience-interaction-count"
+                      style={{
+                        margin: "0 0 6px",
+                        color: "var(--app-muted)",
+                        fontSize: "10.5px",
+                        lineHeight: 1.4,
+                        fontWeight: 700,
+                      }}
+                    >
+                      👁 {formatInteractionCount(exp.interactionCount)} مشاهدة
+                    </p>
+
                     {getVisibleOutcomeBadges(exp).length > 0 && (
                       <div
                         className="experience-outcome-badges"
@@ -2354,7 +2491,7 @@ const ExperiencesPage = () => {
       {/* ================= Modal ================= */}
       {selectedExperience && (
         <div
-          onClick={() => setSelectedExperience(null)}
+          onClick={closeExperienceDetails}
           style={{
             position: "fixed",
             inset: 0,
@@ -2387,7 +2524,7 @@ const ExperiencesPage = () => {
           >
             <button
               type="button"
-              onClick={() => setSelectedExperience(null)}
+              onClick={closeExperienceDetails}
               aria-label="إغلاق التجربة"
               style={{
                 position: "sticky",
@@ -2504,7 +2641,7 @@ const ExperiencesPage = () => {
                 </button>
               ) : (
                 <button
-                  onClick={() => setSelectedExperience(null)}
+                  onClick={closeExperienceDetails}
                   style={{
                     flex: 1,
                     padding: "10px",

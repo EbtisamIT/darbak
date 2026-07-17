@@ -646,6 +646,71 @@ const getAnalyticsGroup = async (match, field, limit = 10) => {
   ]);
 };
 
+const itemInteractionEvents = {
+  experience: ["experience_card_opened", "experience_detail_viewed"],
+  opportunity: [
+    "opportunity_details_clicked",
+    "opportunity_detail_viewed",
+    "opportunity_apply_clicked",
+  ],
+};
+
+const getItemInteractionCounts = async (itemType, ids = []) => {
+  const cleanIds = Array.from(
+    new Set(
+      ids
+        .map((id) => (id ? id.toString() : ""))
+        .filter(Boolean)
+    )
+  );
+
+  if (cleanIds.length === 0) return new Map();
+
+  const metadataField =
+    itemType === "opportunity"
+      ? "metadata.opportunityId"
+      : "metadata.experienceId";
+  const eventNames = itemInteractionEvents[itemType] || [];
+
+  const rows = await AnalyticsEvent.aggregate([
+    {
+      $match: {
+        eventName: { $in: eventNames },
+        [metadataField]: { $in: cleanIds },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          itemId: `$${metadataField}`,
+          visitorId: { $ifNull: ["$visitorId", ""] },
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$_id.itemId",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  return new Map(rows.map((row) => [row._id, row.count]));
+};
+
+const attachItemInteractionCounts = async (itemType, items = []) => {
+  const safeItems = Array.isArray(items) ? items : [];
+  const counts = await getItemInteractionCounts(
+    itemType,
+    safeItems.map((item) => item?._id)
+  );
+
+  return safeItems.map((item) => ({
+    ...item,
+    interactionCount: counts.get(item._id?.toString()) || 0,
+  }));
+};
+
 const getAnalyticsSearches = async (match, limit = 12) =>
   AnalyticsEvent.aggregate([
     {
@@ -3273,9 +3338,48 @@ app.get('/api/opportunities', async (req, res) => {
       })
       .slice(0, 60);
 
-    res.json({ data: sortedOpportunities, total: sortedOpportunities.length });
+    const opportunitiesWithCounts = await attachItemInteractionCounts(
+      "opportunity",
+      sortedOpportunities
+    );
+
+    res.json({
+      data: opportunitiesWithCounts,
+      total: opportunitiesWithCounts.length,
+    });
   } catch (err) {
     console.error("❌ Opportunities fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/opportunities/:id', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid opportunity id" });
+    }
+
+    const opportunity = await Opportunity.findOne({
+      _id: req.params.id,
+      status: "active",
+    }).lean();
+
+    if (!opportunity) {
+      return res.status(404).json({ error: "Opportunity not found" });
+    }
+
+    const [opportunityWithCounts] = await attachItemInteractionCounts(
+      "opportunity",
+      [opportunity]
+    );
+
+    res.json({ data: opportunityWithCounts });
+  } catch (err) {
+    console.error("❌ Opportunity fetch error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -3504,6 +3608,8 @@ app.get('/api/experiences', async (req, res) => {
       total = count;
     }
 
+    experiences = await attachItemInteractionCounts("experience", experiences);
+
     console.log("✅ Data fetched:", experiences.length);
 
     res.json({
@@ -3515,6 +3621,37 @@ app.get('/api/experiences', async (req, res) => {
     });
   } catch (err) {
     console.error("❌ FULL ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/experiences/:id', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid experience id" });
+    }
+
+    const experience = await Experience.findOne({
+      _id: req.params.id,
+      ...getApprovedExperiencesFilter(),
+    }).lean();
+
+    if (!experience) {
+      return res.status(404).json({ error: "Experience not found" });
+    }
+
+    const [experienceWithCounts] = await attachItemInteractionCounts(
+      "experience",
+      [experience]
+    );
+
+    res.json({ data: experienceWithCounts });
+  } catch (err) {
+    console.error("❌ Experience fetch error:", err);
     res.status(500).json({ error: err.message });
   }
 });

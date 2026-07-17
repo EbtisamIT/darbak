@@ -1199,7 +1199,12 @@ function AppLayout({ theme, setTheme }) {
               path="/experiences/city/:citySlug/major/:majorSlug"
               element={<ExperiencesPage />}
             />
+            <Route path="/experiences/:experienceId" element={<ExperiencesPage />} />
             <Route path="/where-to-train" element={<TrainingFinderPage />} />
+            <Route
+              path="/where-to-train/opportunity/:opportunityId"
+              element={<TrainingFinderPage />}
+            />
             <Route
               path="/where-to-train/city/:citySlug"
               element={<TrainingFinderPage />}
