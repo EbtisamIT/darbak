@@ -2898,27 +2898,23 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
 
     const { days, rangeLabel, match } = getAnalyticsDateScope(req.query.days);
     const cleanMatch = getCleanAnalyticsMatch(match);
-    const allTimeCleanMatch = getCleanAnalyticsMatch({});
     const assistantMatch = {
       ...cleanMatch,
       eventName: "smart_assistant_query",
     };
     const activeWindowMinutes = 5;
-    const activeVisitorsMatch = {
+    const activeActivityMatch = getCleanAnalyticsMatch({
       createdAt: {
         $gte: new Date(Date.now() - activeWindowMinutes * 60 * 1000),
       },
-      visitorId: { $nin: [null, ""] },
-    };
+    });
 
     const [
       rawEvents,
       totalEvents,
       pageVisits,
       allTimePageVisits,
-      uniqueVisitors,
-      allTimeVisitors,
-      activeVisitors,
+      activeEvents,
       sessionDurationStats,
       topEvents,
       topMajors,
@@ -2941,9 +2937,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       AnalyticsEvent.countDocuments(cleanMatch),
       AnalyticsEvent.countDocuments({ ...match, eventName: "page_view" }),
       AnalyticsEvent.countDocuments({ eventName: "page_view" }),
-      AnalyticsEvent.distinct("visitorId", cleanMatch),
-      AnalyticsEvent.distinct("visitorId", allTimeCleanMatch),
-      AnalyticsEvent.distinct("visitorId", activeVisitorsMatch),
+      AnalyticsEvent.countDocuments(activeActivityMatch),
       AnalyticsEvent.aggregate([
         {
           $match: {
@@ -3095,9 +3089,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       totalEvents,
       pageVisits,
       allTimePageVisits,
-      uniqueVisitors: uniqueVisitors.filter(Boolean).length,
-      allTimeVisitors: allTimeVisitors.filter(Boolean).length,
-      activeVisitors: activeVisitors.filter(Boolean).length,
+      activeEvents,
       activeWindowMinutes,
       averageSessionSeconds: sessionDurationStats[0]?.averageSeconds || 0,
       totalSessionSeconds: sessionDurationStats[0]?.totalSeconds || 0,
