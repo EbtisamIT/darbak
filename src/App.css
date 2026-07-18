@@ -683,6 +683,11 @@ body {
   white-space: nowrap;
 }
 
+.opportunity-card .card-time-label,
+.opportunity-detail-modal .detail-time-chip {
+  color: var(--app-brand);
+}
+
 @media (max-width: 640px) {
   .card-timestamp-row {
     min-height: 15px;

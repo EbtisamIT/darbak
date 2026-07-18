@@ -3822,11 +3822,13 @@ app.get('/api/opportunities', async (req, res) => {
         const featuredDiff = Number(b.featured) - Number(a.featured);
         if (featuredDiff !== 0) return featuredDiff;
 
+        const createdDiff =
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        if (createdDiff !== 0) return createdDiff;
+
         const aDeadline = a.deadline ? new Date(a.deadline).getTime() : Infinity;
         const bDeadline = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-        if (aDeadline !== bDeadline) return aDeadline - bDeadline;
-
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return aDeadline - bDeadline;
       })
       .slice(0, 60);
 
