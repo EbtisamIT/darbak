@@ -463,7 +463,7 @@ const getExperienceCardStats = (exp = {}) => {
     ...(saves > 0
       ? [{ key: "saves", icon: "♥", label: "حفظ", value: saves }]
       : []),
-  ];
+  ].filter((stat) => Number(stat.value) > 0);
 };
 
 const isUnclearMajorText = (value = "") => {
@@ -2426,15 +2426,17 @@ const ExperiencesPage = () => {
                       {getExperienceSourceLabel(exp)}
                     </p>
 
-                    <div className="card-interaction-stats experience-interaction-count">
-                      {getExperienceCardStats(exp).map((stat) => (
-                        <span className="card-interaction-stat" key={stat.key}>
-                          <span aria-hidden="true">{stat.icon}</span>
-                          <strong>{formatInteractionCount(stat.value)}</strong>
-                          <span>{stat.label}</span>
-                        </span>
-                      ))}
-                    </div>
+                    {getExperienceCardStats(exp).length > 0 && (
+                      <div className="card-interaction-stats experience-interaction-count">
+                        {getExperienceCardStats(exp).map((stat) => (
+                          <span className="card-interaction-stat" key={stat.key}>
+                            <span aria-hidden="true">{stat.icon}</span>
+                            <strong>{formatInteractionCount(stat.value)}</strong>
+                            <span>{stat.label}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     {getVisibleOutcomeBadges(exp).length > 0 && (
                       <div

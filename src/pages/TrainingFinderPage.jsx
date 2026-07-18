@@ -294,7 +294,7 @@ const getOpportunityCardStats = (opportunity = {}) => {
     ...(saves > 0
       ? [{ key: "saves", icon: "♥", label: "حفظ", value: saves }]
       : []),
-  ];
+  ].filter((stat) => Number(stat.value) > 0);
 };
 
 const dedupeOrganizations = (organizations = []) =>
@@ -1765,15 +1765,17 @@ export default function TrainingFinderPage() {
                               ? ` - ${getOpportunityCityText(opportunity)}`
                               : ""}
                           </p>
-                          <div className="card-interaction-stats opportunity-interaction-count">
-                            {getOpportunityCardStats(opportunity).map((stat) => (
-                              <span className="card-interaction-stat" key={stat.key}>
-                                <span aria-hidden="true">{stat.icon}</span>
-                                <strong>{formatInteractionCount(stat.value)}</strong>
-                                <span>{stat.label}</span>
-                              </span>
-                            ))}
-                          </div>
+                          {getOpportunityCardStats(opportunity).length > 0 && (
+                            <div className="card-interaction-stats opportunity-interaction-count">
+                              {getOpportunityCardStats(opportunity).map((stat) => (
+                                <span className="card-interaction-stat" key={stat.key}>
+                                  <span aria-hidden="true">{stat.icon}</span>
+                                  <strong>{formatInteractionCount(stat.value)}</strong>
+                                  <span>{stat.label}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
