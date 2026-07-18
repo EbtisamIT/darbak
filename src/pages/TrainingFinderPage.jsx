@@ -105,6 +105,26 @@ const normalizeName = (value = "") =>
     .replace(/[\u064B-\u065F]/g, "")
     .replace(/\s+/g, " ");
 
+const createReadableSlug = (value = "") => {
+  const slug = normalizeName(value)
+    .replace(/[^a-z0-9\u0600-\u06FF]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  return slug || "training-opportunity";
+};
+
+const buildOpportunityDetailPath = (opportunity = {}) => {
+  const opportunityId = opportunity._id || opportunity.id || "";
+  const slug = createReadableSlug(
+    [opportunity.organizationName, opportunity.title].filter(Boolean).join(" ")
+  );
+
+  return opportunityId
+    ? `/where-to-train/opportunity/${encodeURIComponent(slug)}/${opportunityId}`
+    : "/where-to-train";
+};
+
 const regionCities = {
   "منطقة الرياض": [
     "الرياض",
@@ -823,7 +843,7 @@ export default function TrainingFinderPage() {
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [error, setError] = useState("");
   const [faqExpanded, setFaqExpanded] = useState(false);
-  const [expandedOpportunityId, setExpandedOpportunityId] = useState("");
+  const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [activeResultsTab, setActiveResultsTab] = useState("opportunities");
   const [showOpportunityRequestModal, setShowOpportunityRequestModal] =
     useState(false);
@@ -874,6 +894,20 @@ export default function TrainingFinderPage() {
       ),
     [visibleTargets]
   );
+  const getRelatedTargetForOpportunity = (opportunity = {}) => {
+    const normalizedOpportunityName = normalizeName(opportunity.organizationName);
+
+    return visibleTargets.find((target) => {
+      const normalizedTargetName = normalizeName(target.organizationName);
+      return (
+        normalizedOpportunityName &&
+        normalizedTargetName &&
+        (normalizedOpportunityName === normalizedTargetName ||
+          normalizedOpportunityName.includes(normalizedTargetName) ||
+          normalizedTargetName.includes(normalizedOpportunityName))
+      );
+    });
+  };
   const hasTrainingTargets = visibleTargets.length > 0;
   const totalVisibleExperienceCount = useMemo(
     () =>
@@ -1073,6 +1107,7 @@ export default function TrainingFinderPage() {
   useEffect(() => {
     if (!routeOpportunityId) {
       handledRouteOpportunityIdRef.current = "";
+      setSelectedOpportunity(null);
       return undefined;
     }
 
@@ -1106,7 +1141,7 @@ export default function TrainingFinderPage() {
           description: `فرصة تدريب في ${
             opportunity.organizationName || "جهة تدريب"
           }${getOpportunityCityText(opportunity) ? ` - ${getOpportunityCityText(opportunity)}` : ""} على منصة دربك.`,
-          path: `/where-to-train/opportunity/${opportunity._id}`,
+          path: buildOpportunityDetailPath(opportunity),
           keywords: [
             "فرصة تدريب",
             "تدريب تعاوني",
@@ -1135,7 +1170,7 @@ export default function TrainingFinderPage() {
                 organizationName: opportunity.organizationName,
               },
             });
-            setExpandedOpportunityId(opportunity._id);
+            setSelectedOpportunity(opportunity);
           }
         );
       } catch (err) {
@@ -1269,23 +1304,23 @@ export default function TrainingFinderPage() {
     });
   };
 
+  const closeOpportunityDetails = () => {
+    setSelectedOpportunity(null);
+
+    if (!routeOpportunityId) return;
+
+    const returnPath =
+      typeof location.state?.from === "string" &&
+      !location.state.from.includes(`/where-to-train/opportunity/`)
+        ? location.state.from
+        : "/where-to-train";
+
+    navigate(returnPath, { replace: true });
+  };
+
   const openOpportunityDetails = (opportunity) => {
     const opportunityId = opportunity._id || opportunity.id || "";
-
-    if (expandedOpportunityId === opportunityId) {
-      setExpandedOpportunityId("");
-
-      if (routeOpportunityId) {
-        const returnPath =
-          typeof location.state?.from === "string" &&
-          !location.state.from.includes(`/where-to-train/opportunity/${routeOpportunityId}`)
-            ? location.state.from
-            : "/where-to-train";
-
-        navigate(returnPath, { replace: true });
-      }
-      return;
-    }
+    const opportunityPath = buildOpportunityDetailPath(opportunity);
 
     requestPremiumAccess(
       {
@@ -1303,11 +1338,11 @@ export default function TrainingFinderPage() {
             organizationName: opportunity.organizationName,
           },
         });
-        setExpandedOpportunityId(opportunityId);
+        setSelectedOpportunity(opportunity);
 
-        if (opportunityId && routeOpportunityId !== opportunityId) {
+        if (opportunityId && location.pathname !== opportunityPath) {
           handledRouteOpportunityIdRef.current = opportunityId;
-          navigate(`/where-to-train/opportunity/${opportunityId}`, {
+          navigate(opportunityPath, {
             state: { from: `${location.pathname}${location.search}` },
           });
         }
@@ -1339,6 +1374,18 @@ export default function TrainingFinderPage() {
       }
     );
   };
+
+  const selectedOpportunityRelatedTarget = selectedOpportunity
+    ? getRelatedTargetForOpportunity(selectedOpportunity)
+    : null;
+  const selectedOpportunityStatus = selectedOpportunity
+    ? getOpportunityApplicationState(selectedOpportunity.deadline)
+    : null;
+  const selectedOpportunityLogoUrl = selectedOpportunity
+    ? selectedOpportunity.applicationUrl ||
+      selectedOpportunity.sourceUrl ||
+      resolveOrganizationHomepageUrl(selectedOpportunity.organizationName)
+    : "";
 
   return (
     <main
@@ -1623,27 +1670,9 @@ export default function TrainingFinderPage() {
                 }}
               >
                 {opportunities.map((opportunity) => {
-                  const isExpanded = expandedOpportunityId === opportunity._id;
                   const applicationState = getOpportunityApplicationState(
                     opportunity.deadline
                   );
-                  const normalizedOpportunityName = normalizeName(
-                    opportunity.organizationName
-                  );
-                  const relatedTarget = visibleTargets.find((target) => {
-                    const normalizedTargetName = normalizeName(
-                      target.organizationName
-                    );
-                    return (
-                      normalizedOpportunityName &&
-                      normalizedTargetName &&
-                      (normalizedOpportunityName === normalizedTargetName ||
-                        normalizedOpportunityName.includes(
-                          normalizedTargetName
-                        ) ||
-                        normalizedTargetName.includes(normalizedOpportunityName))
-                    );
-                  });
                   const opportunityLogoUrl =
                     opportunity.applicationUrl ||
                     opportunity.sourceUrl ||
@@ -1654,6 +1683,7 @@ export default function TrainingFinderPage() {
                     <article
                       key={opportunity._id}
                       className="finder-result-card suggested-target-card opportunity-card"
+                      onClick={() => openOpportunityDetails(opportunity)}
                       style={{
                         background: "var(--app-surface)",
                         border: "1px solid var(--app-border)",
@@ -1662,6 +1692,7 @@ export default function TrainingFinderPage() {
                         display: "grid",
                         gap: "10px",
                         position: "relative",
+                        cursor: "pointer",
                       }}
                     >
                       <button
@@ -1818,92 +1849,6 @@ export default function TrainingFinderPage() {
                         </p>
                       </div>
 
-                      {isExpanded && (
-                        <div
-                          className="finder-card-info"
-                          style={{
-                            display: "grid",
-                            gap: "8px",
-                            background: "var(--app-card)",
-                            border: "1px solid var(--app-border)",
-                            borderRadius: "12px",
-                            padding: "10px",
-                          }}
-                        >
-                          <div className="opportunity-chip-grid">
-                            {[
-                              ["trainingEnvironment", "البيئة", "👥"],
-                              ["trainingMode", "النوع", "💻"],
-                              ["hasReward", "المكافأة", "💰"],
-                              ["applicationMethod", "التقديم", "🔗"],
-                            ].map(([field, label, icon]) => (
-                              <span
-                                className="opportunity-chip"
-                                key={`${opportunity._id}-${field}`}
-                                title={`${label}: ${getOpportunityLabel(
-                                  field,
-                                  opportunity[field]
-                                )}`}
-                              >
-                                <span aria-hidden="true">{icon}</span>
-                                <span>
-                                  {label}:{" "}
-                                  {getOpportunityLabel(field, opportunity[field])}
-                                </span>
-                              </span>
-                            ))}
-                          </div>
-
-                          {opportunity.deadline && (
-                            <span className="opportunity-deadline">
-                              ينتهي: {formatOpportunityDate(opportunity.deadline)}
-                            </span>
-                          )}
-
-                          <p
-                            style={{
-                              margin: 0,
-                              color: "var(--app-text-soft)",
-                              fontSize: "12px",
-                              lineHeight: 1.8,
-                            }}
-                          >
-                            {opportunity.note ||
-                              "تحقق من شروط الجهة وتفاصيل الإعلان قبل التقديم."}
-                          </p>
-
-                          {opportunity.sourceUrl && (
-                            <a
-                              href={opportunity.sourceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                color: "var(--app-brand)",
-                                fontSize: "12px",
-                                textDecoration: "none",
-                                fontWeight: "800",
-                              }}
-                            >
-                              عرض مصدر الفرصة
-                            </a>
-                          )}
-
-                          {relatedTarget && (
-                            <Link
-                              to={{
-                                pathname: "/experiences",
-                                search: `?company=${encodeURIComponent(
-                                  relatedTarget.organizationName
-                                )}`,
-                              }}
-                              className="opportunity-inline-link"
-                            >
-                              عرض تجارب الجهة
-                            </Link>
-                          )}
-                        </div>
-                      )}
-
                       <div
                         className="finder-card-actions opportunity-actions"
                         style={{
@@ -1912,17 +1857,23 @@ export default function TrainingFinderPage() {
                       >
                         <button
                           type="button"
-                          onClick={() => openOpportunityDetails(opportunity)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openOpportunityDetails(opportunity);
+                          }}
                           className="opportunity-secondary-button"
                         >
-                          {isExpanded ? "إخفاء" : "التفاصيل"}
+                          التفاصيل
                         </button>
 
                         {opportunity.applicationUrl ? (
                           <button
                             type="button"
                             className="opportunity-apply-button"
-                            onClick={() => openOpportunityApplication(opportunity)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openOpportunityApplication(opportunity);
+                            }}
                           >
                             تقديم الآن
                           </button>
@@ -2690,6 +2641,144 @@ export default function TrainingFinderPage() {
         )}
       </section>
 
+      {selectedOpportunity && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`تفاصيل ${selectedOpportunity.organizationName || "فرصة تدريب"}`}
+          onClick={closeOpportunityDetails}
+          className="opportunity-detail-overlay"
+        >
+          <div
+            className="opportunity-detail-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="opportunity-detail-head">
+              <OrganizationLogo
+                name={selectedOpportunity.organizationName}
+                url={selectedOpportunityLogoUrl}
+                imageUrl={selectedOpportunity.logoUrl}
+              />
+              <div>
+                <p className="opportunity-detail-eyebrow">تفاصيل الفرصة</p>
+                <h2>{selectedOpportunity.organizationName}</h2>
+                <p>
+                  {selectedOpportunity.title}
+                  {getOpportunityCityText(selectedOpportunity)
+                    ? ` - ${getOpportunityCityText(selectedOpportunity)}`
+                    : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeOpportunityDetails}
+                aria-label="إغلاق تفاصيل الفرصة"
+                className="opportunity-detail-close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="opportunity-detail-meta">
+              {selectedOpportunityStatus && (
+                <span className={`opportunity-status ${selectedOpportunityStatus.tone}`}>
+                  {selectedOpportunityStatus.label}
+                </span>
+              )}
+              {selectedOpportunity.featured && (
+                <span className="opportunity-featured-badge">مميزة</span>
+              )}
+              {selectedOpportunity.deadline && (
+                <span className="opportunity-deadline">
+                  ينتهي: {formatOpportunityDate(selectedOpportunity.deadline)}
+                </span>
+              )}
+            </div>
+
+            <div className="opportunity-chip-grid opportunity-detail-chips">
+              {[
+                ["trainingEnvironment", "البيئة", "👥"],
+                ["trainingMode", "النوع", "💻"],
+                ["hasReward", "المكافأة", "💰"],
+                ["applicationMethod", "التقديم", "🔗"],
+              ].map(([field, label, icon]) => (
+                <span
+                  className="opportunity-chip"
+                  key={`selected-${selectedOpportunity._id}-${field}`}
+                  title={`${label}: ${getOpportunityLabel(
+                    field,
+                    selectedOpportunity[field]
+                  )}`}
+                >
+                  <span aria-hidden="true">{icon}</span>
+                  <span>
+                    {label}: {getOpportunityLabel(field, selectedOpportunity[field])}
+                  </span>
+                </span>
+              ))}
+            </div>
+
+            <p className="opportunity-detail-note">
+              {selectedOpportunity.note ||
+                "يتم عرض الفرص حسب المعلومات المتاحة وقت الإضافة، ويرجى التحقق من شروط الجهة قبل التقديم."}
+            </p>
+
+            <div className="opportunity-detail-links">
+              {selectedOpportunity.sourceUrl && (
+                <a
+                  href={selectedOpportunity.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  عرض مصدر الفرصة
+                </a>
+              )}
+
+              {selectedOpportunityRelatedTarget && (
+                <Link
+                  to={{
+                    pathname: "/experiences",
+                    search: `?company=${encodeURIComponent(
+                      selectedOpportunityRelatedTarget.organizationName
+                    )}`,
+                  }}
+                  onClick={() => setSelectedOpportunity(null)}
+                >
+                  عرض تجارب الجهة
+                </Link>
+              )}
+            </div>
+
+            <div className="opportunity-detail-actions">
+              <button
+                type="button"
+                onClick={closeOpportunityDetails}
+                className="opportunity-secondary-button"
+              >
+                إغلاق
+              </button>
+              {selectedOpportunity.applicationUrl ? (
+                <button
+                  type="button"
+                  className="opportunity-apply-button"
+                  onClick={() => openOpportunityApplication(selectedOpportunity)}
+                >
+                  تقديم الآن
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="opportunity-apply-button is-disabled"
+                  disabled
+                >
+                  لا يوجد رابط تقديم
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showOpportunityRequestModal && (
         <div
           role="dialog"
@@ -3351,6 +3440,119 @@ export default function TrainingFinderPage() {
           font-weight: 800;
         }
 
+        .opportunity-detail-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 3300;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
+          background: var(--app-overlay);
+          backdrop-filter: blur(8px);
+        }
+
+        .opportunity-detail-modal {
+          width: min(620px, 100%);
+          max-height: 88vh;
+          overflow-y: auto;
+          display: grid;
+          gap: 13px;
+          background: var(--app-surface);
+          border: 1px solid var(--app-border);
+          border-radius: 20px;
+          padding: 18px;
+          box-shadow: 0 24px 70px var(--app-shadow);
+          text-align: right;
+        }
+
+        .opportunity-detail-head {
+          display: grid;
+          grid-template-columns: 50px minmax(0, 1fr) 34px;
+          gap: 12px;
+          align-items: start;
+        }
+
+        .opportunity-detail-eyebrow {
+          margin: 0 0 4px;
+          color: var(--app-brand);
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .opportunity-detail-head h2 {
+          margin: 0;
+          color: var(--app-text);
+          font-size: 23px;
+          line-height: 1.35;
+          overflow-wrap: anywhere;
+        }
+
+        .opportunity-detail-head p:not(.opportunity-detail-eyebrow) {
+          margin: 5px 0 0;
+          color: var(--app-text-soft);
+          font-size: 13px;
+          line-height: 1.75;
+          overflow-wrap: anywhere;
+        }
+
+        .opportunity-detail-close {
+          width: 34px;
+          height: 34px;
+          border-radius: 50%;
+          border: 1px solid var(--app-border);
+          background: var(--app-card);
+          color: var(--app-text);
+          cursor: pointer;
+          font-size: 20px;
+          line-height: 1;
+        }
+
+        .opportunity-detail-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+          align-items: center;
+        }
+
+        .opportunity-detail-chips {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .opportunity-detail-note {
+          margin: 0;
+          color: var(--app-text-soft);
+          background: var(--app-card);
+          border: 1px solid var(--app-border);
+          border-radius: 14px;
+          padding: 12px;
+          font-size: 13px;
+          line-height: 1.9;
+        }
+
+        .opportunity-detail-links {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .opportunity-detail-links a {
+          color: var(--app-brand);
+          background: var(--app-brand-soft);
+          border: 1px solid var(--app-brand-border);
+          border-radius: 999px;
+          padding: 8px 11px;
+          font-size: 12px;
+          font-weight: 900;
+          text-decoration: none;
+        }
+
+        .opportunity-detail-actions {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+
         @media (max-width: 760px) {
           .training-guide-banner {
             grid-template-columns: 1fr !important;
@@ -3497,6 +3699,36 @@ export default function TrainingFinderPage() {
           .opportunity-actions a,
           .opportunity-actions button {
             min-height: 32px !important;
+          }
+
+          .opportunity-detail-overlay {
+            align-items: end !important;
+            padding: 10px !important;
+          }
+
+          .opportunity-detail-modal {
+            max-height: 84vh !important;
+            border-radius: 18px 18px 14px 14px !important;
+            padding: 14px !important;
+            gap: 11px !important;
+          }
+
+          .opportunity-detail-head {
+            grid-template-columns: 42px minmax(0, 1fr) 32px !important;
+            gap: 9px !important;
+          }
+
+          .opportunity-detail-head h2 {
+            font-size: 19px !important;
+          }
+
+          .opportunity-detail-head p:not(.opportunity-detail-eyebrow),
+          .opportunity-detail-note {
+            font-size: 12px !important;
+          }
+
+          .opportunity-detail-actions {
+            grid-template-columns: 1fr !important;
           }
 
           .training-target-card,

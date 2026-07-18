@@ -1202,6 +1202,10 @@ function AppLayout({ theme, setTheme }) {
             <Route path="/experiences/:experienceId" element={<ExperiencesPage />} />
             <Route path="/where-to-train" element={<TrainingFinderPage />} />
             <Route
+              path="/where-to-train/opportunity/:organizationSlug/:opportunityId"
+              element={<TrainingFinderPage />}
+            />
+            <Route
               path="/where-to-train/opportunity/:opportunityId"
               element={<TrainingFinderPage />}
             />
