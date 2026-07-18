@@ -67,6 +67,26 @@ export const markSavedItemSeen = (id, currentUpdatedAt) => {
   window.dispatchEvent(new CustomEvent("darbak:saved-items-updated"));
 };
 
+export const markSavedItemOrganizationUpdatesSeen = (id, latestAcceptedAt) => {
+  if (typeof window === "undefined" || !id) return;
+
+  const savedItems = getSavedItems();
+  if (!savedItems.some((item) => item.id === id)) return;
+
+  const nextItems = savedItems.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          lastOrganizationUpdateSeenAt:
+            latestAcceptedAt || new Date().toISOString(),
+        }
+      : item
+  );
+
+  window.localStorage.setItem(SAVED_ITEMS_KEY, JSON.stringify(nextItems));
+  window.dispatchEvent(new CustomEvent("darbak:saved-items-updated"));
+};
+
 export const toggleSavedItem = (item) => {
   if (typeof window === "undefined" || !item?.id) return false;
 

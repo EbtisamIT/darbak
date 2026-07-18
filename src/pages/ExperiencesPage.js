@@ -1398,6 +1398,7 @@ const ExperiencesPage = () => {
       type: "experience",
       title: exp.title || "تجربة تدريب",
       subtitle: exp.organizationName || exp.companyName || "",
+      organizationName: exp.organizationName || exp.companyName || "",
       meta: [exp.city, getReadableMajor(exp)].filter(Boolean).join(" - "),
       updatedAt: getExperienceUpdateTimestamp(exp),
       url: getExperienceSharePath(exp),

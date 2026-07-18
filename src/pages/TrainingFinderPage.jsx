@@ -1801,6 +1801,7 @@ export default function TrainingFinderPage() {
                               type: "opportunity",
                               title: opportunity.title || "فرصة تدريب",
                               subtitle: opportunity.organizationName,
+                              organizationName: opportunity.organizationName,
                               meta: getOpportunityCityText(opportunity) || city || "",
                               updatedAt: getOpportunityUpdateTimestamp(opportunity),
                               url: buildOpportunityDetailPath(opportunity),
@@ -2194,6 +2195,7 @@ export default function TrainingFinderPage() {
                                 type: "training-target",
                                 title: target.organizationName,
                                 subtitle: "جهة من تجارب دربك",
+                                organizationName: target.organizationName,
                                 meta: target.cities?.join("، ") || "",
                                 url: `/experiences?company=${encodeURIComponent(
                                   target.organizationName
@@ -2537,6 +2539,7 @@ export default function TrainingFinderPage() {
                               type: "suggested-organization",
                               title: organization.name,
                               subtitle: organization.sourceLabel || "اقتراح جهة",
+                              organizationName: organization.name,
                               meta: selectedSpecialtyLabel || city || "",
                               url: organization.url,
                             })

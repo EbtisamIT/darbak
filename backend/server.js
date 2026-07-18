@@ -3757,6 +3757,116 @@ app.get('/api/training-targets', async (req, res) => {
   }
 });
 
+app.post('/api/saved-items/experience-updates', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const items = Array.isArray(req.body.items) ? req.body.items.slice(0, 120) : [];
+    const parseDate = (value) => {
+      const time = new Date(value).getTime();
+      return Number.isFinite(time) ? new Date(time) : null;
+    };
+    const getSavedOrganizationName = (item = {}) => {
+      if (item.organizationName) return item.organizationName;
+      if (item.type === "experience" || item.type === "opportunity") {
+        return item.subtitle || item.title || "";
+      }
+      return item.title || item.subtitle || "";
+    };
+
+    const watchedItems = items
+      .map((item) => {
+        const id = (item.id || "").toString().trim();
+        const organizationName = getSavedOrganizationName(item).toString().trim();
+        const since =
+          parseDate(item.lastOrganizationUpdateSeenAt) ||
+          parseDate(item.savedAt) ||
+          parseDate(item.lastSeenAt);
+
+        return {
+          id,
+          organizationName,
+          since,
+          variants: getOrganizationNameVariants(organizationName),
+        };
+      })
+      .filter(
+        (item) =>
+          item.id &&
+          item.organizationName &&
+          item.since &&
+          item.variants.length > 0
+      );
+
+    if (watchedItems.length === 0) {
+      return res.json({ updates: [] });
+    }
+
+    const oldestSince = new Date(
+      Math.min(...watchedItems.map((item) => item.since.getTime()))
+    );
+
+    const experiences = await Experience.find({
+      $and: [
+        getApprovedExperiencesFilter(),
+        {
+          $or: [
+            { reviewedAt: { $gt: oldestSince } },
+            { createdAt: { $gt: oldestSince } },
+          ],
+        },
+      ],
+    })
+      .select("organizationName title city major majorCategory reviewedAt createdAt")
+      .sort({ reviewedAt: -1, createdAt: -1 })
+      .limit(1000)
+      .lean();
+
+    const normalizedExperiences = experiences
+      .map((exp) => ({
+        ...exp,
+        acceptedAt: parseDate(exp.reviewedAt) || parseDate(exp.createdAt),
+        variants: getOrganizationNameVariants(exp.organizationName),
+      }))
+      .filter((exp) => exp.acceptedAt && exp.variants.length > 0);
+
+    const updates = watchedItems
+      .map((item) => {
+        const matches = normalizedExperiences
+          .filter(
+            (exp) =>
+              exp.acceptedAt.getTime() > item.since.getTime() &&
+              item.variants.some((savedName) =>
+                exp.variants.some((experienceName) =>
+                  isSameOrganizationName(savedName, experienceName)
+                )
+              )
+          )
+          .sort((a, b) => b.acceptedAt.getTime() - a.acceptedAt.getTime());
+
+        if (matches.length === 0) return null;
+
+        const latest = matches[0];
+        return {
+          id: item.id,
+          organizationName: item.organizationName,
+          count: matches.length,
+          latestAcceptedAt: latest.acceptedAt.toISOString(),
+          latestExperienceId: latest._id?.toString() || "",
+          latestExperienceTitle: latest.title || `تجربة في ${latest.organizationName}`,
+        };
+      })
+      .filter(Boolean);
+
+    res.json({ updates });
+  } catch (err) {
+    console.error("❌ Saved item experience updates error:", err);
+    res.status(500).json({ error: "Unable to fetch saved updates" });
+  }
+});
+
 app.get('/api/opportunities', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {

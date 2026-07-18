@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getSavedItems, toggleSavedItem } from "../utils/savedItems";
+import axios from "axios";
+import API_BASE_URL from "../config/api";
+import {
+  getSavedItems,
+  markSavedItemOrganizationUpdatesSeen,
+  toggleSavedItem,
+} from "../utils/savedItems";
 
 const getTypeLabel = (type = "") => {
   if (type === "experience") return "تجربة";
@@ -11,6 +17,7 @@ const getTypeLabel = (type = "") => {
 export default function SavedItemsDrawer() {
   const [items, setItems] = useState(() => getSavedItems());
   const [isOpen, setIsOpen] = useState(false);
+  const [organizationUpdates, setOrganizationUpdates] = useState({});
 
   useEffect(() => {
     const updateItems = () => setItems(getSavedItems());
@@ -19,11 +26,57 @@ export default function SavedItemsDrawer() {
       window.removeEventListener("darbak:saved-items-updated", updateItems);
   }, []);
 
+  useEffect(() => {
+    if (!isOpen || items.length === 0) {
+      setOrganizationUpdates({});
+      return undefined;
+    }
+
+    let isActive = true;
+    const payloadItems = items.map((item) => ({
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      subtitle: item.subtitle,
+      organizationName: item.organizationName,
+      savedAt: item.savedAt,
+      lastSeenAt: item.lastSeenAt,
+      lastOrganizationUpdateSeenAt: item.lastOrganizationUpdateSeenAt,
+    }));
+
+    axios
+      .post(`${API_BASE_URL}/api/saved-items/experience-updates`, {
+        items: payloadItems,
+      })
+      .then(({ data }) => {
+        if (!isActive) return;
+        const nextUpdates = (data?.updates || []).reduce((updatesMap, update) => {
+          if (update?.id) updatesMap[update.id] = update;
+          return updatesMap;
+        }, {});
+        setOrganizationUpdates(nextUpdates);
+      })
+      .catch(() => {
+        if (isActive) setOrganizationUpdates({});
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [isOpen, items]);
+
   if (items.length === 0) return null;
 
   const removeItem = (item) => {
     toggleSavedItem(item);
     setItems(getSavedItems());
+  };
+
+  const markOrganizationUpdateRead = (item, update) => {
+    if (update?.latestAcceptedAt) {
+      markSavedItemOrganizationUpdatesSeen(item.id, update.latestAcceptedAt);
+    }
+    setIsOpen(false);
   };
 
   return (
@@ -56,6 +109,12 @@ export default function SavedItemsDrawer() {
           <div className="saved-items-list">
             {items.map((item) => {
               const isInternal = item.url?.startsWith("/");
+              const organizationUpdate = organizationUpdates[item.id];
+              const organizationName =
+                item.organizationName || item.subtitle || item.title || "";
+              const updatePath = `/experiences?company=${encodeURIComponent(
+                organizationUpdate?.organizationName || organizationName
+              )}`;
               const content = (
                 <>
                   <span className="saved-item-type">{getTypeLabel(item.type)}</span>
@@ -83,6 +142,17 @@ export default function SavedItemsDrawer() {
                   <button type="button" onClick={() => removeItem(item)}>
                     إزالة
                   </button>
+                  {organizationUpdate && (
+                    <Link
+                      to={updatePath}
+                      className="saved-item-update-link"
+                      onClick={() =>
+                        markOrganizationUpdateRead(item, organizationUpdate)
+                      }
+                    >
+                      📖 تجربة جديدة وصلت لجهة محفوظة عندك
+                    </Link>
+                  )}
                 </div>
               );
             })}

@@ -1068,6 +1068,24 @@ body {
   border-color: var(--app-brand-border);
 }
 
+.saved-item-update-link {
+  grid-column: 1 / -1;
+  display: block;
+  border-radius: 12px;
+  border: 1px solid var(--app-brand-border);
+  background: var(--app-brand-soft);
+  color: var(--app-brand) !important;
+  font-size: 11.5px;
+  font-weight: 900;
+  line-height: 1.7;
+  padding: 7px 9px;
+  text-decoration: none;
+}
+
+.saved-item-update-link:hover {
+  border-color: var(--app-brand);
+}
+
 .darbak-assistant-widget {
   position: fixed;
   left: 18px;
