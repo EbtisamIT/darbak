@@ -668,11 +668,39 @@ const itemInteractionConfig = {
 
 const getEmptyItemInteractionStats = () => ({
   total: 0,
+  engagement: 0,
+  organizationEngagement: 0,
   views: 0,
   details: 0,
   applies: 0,
   saves: 0,
 });
+
+const getOrganizationNameVariants = (value = "") => {
+  const rawText = value?.toString?.() || "";
+  const normalizedFull = normalizeSearchText(
+    rawText.replace(/[()]/g, " ")
+  );
+  const parts = rawText
+    .split(/[|/،,()\-–—]+/)
+    .map(normalizeSearchText)
+    .filter((part) => part.length >= 2);
+
+  return Array.from(
+    new Set([normalizeSearchText(rawText), normalizedFull, ...parts])
+  ).filter((name) => name.length >= 2);
+};
+
+const isSameOrganizationName = (firstName = "", secondName = "") => {
+  if (!firstName || !secondName) return false;
+  if (firstName === secondName) return true;
+
+  return (
+    firstName.length >= 3 &&
+    secondName.length >= 3 &&
+    (firstName.includes(secondName) || secondName.includes(firstName))
+  );
+};
 
 const getItemInteractionStats = async (itemType, ids = []) => {
   const cleanIds = Array.from(
@@ -725,21 +753,90 @@ const getItemInteractionStats = async (itemType, ids = []) => {
   }, new Map());
 };
 
+const getOrganizationInteractionStats = async (items = []) => {
+  const wantedNames = Array.from(
+    new Set(
+      items
+        .flatMap((item) => [
+          item?.organizationName,
+          item?.companyName,
+          item?.title,
+        ])
+        .flatMap(getOrganizationNameVariants)
+        .filter((name) => name.length >= 2)
+    )
+  );
+
+  if (wantedNames.length === 0) return new Map();
+
+  const rows = await AnalyticsEvent.aggregate([
+    {
+      $match: {
+        eventName: { $ne: "session_ping" },
+        "metadata.organizationName": { $nin: [null, ""] },
+      },
+    },
+    {
+      $group: {
+        _id: "$metadata.organizationName",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const normalizedRows = rows
+    .map((row) => ({
+      key: normalizeSearchText(row._id),
+      variants: getOrganizationNameVariants(row._id),
+      count: Number(row.count) || 0,
+    }))
+    .filter((row) => row.key.length >= 2);
+
+  return wantedNames.reduce((statsMap, wantedName) => {
+    const total = normalizedRows.reduce((sum, row) => {
+      const isSameOrganization = row.variants.some((variant) =>
+        isSameOrganizationName(wantedName, variant)
+      );
+
+      return isSameOrganization ? sum + row.count : sum;
+    }, 0);
+
+    statsMap.set(wantedName, total);
+    return statsMap;
+  }, new Map());
+};
+
 const attachItemInteractionCounts = async (itemType, items = []) => {
   const safeItems = Array.isArray(items) ? items : [];
-  const stats = await getItemInteractionStats(
-    itemType,
-    safeItems.map((item) => item?._id)
-  );
+  const [stats, organizationStats] = await Promise.all([
+    getItemInteractionStats(
+      itemType,
+      safeItems.map((item) => item?._id)
+    ),
+    getOrganizationInteractionStats(safeItems),
+  ]);
 
   return safeItems.map((item) => {
     const itemStats =
       stats.get(item._id?.toString()) || getEmptyItemInteractionStats();
+    const organizationNames = getOrganizationNameVariants(
+      item.organizationName || item.companyName || item.title || ""
+    );
+    const organizationEngagement = Math.max(
+      0,
+      ...organizationNames.map((name) => organizationStats.get(name) || 0)
+    );
+    const engagement = Math.max(itemStats.total, organizationEngagement);
 
     return {
       ...item,
-      interactionStats: itemStats,
-      interactionCount: itemStats.total,
+      interactionStats: {
+        ...itemStats,
+        organizationEngagement,
+        engagement,
+        total: engagement,
+      },
+      interactionCount: engagement,
     };
   });
 };

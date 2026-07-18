@@ -454,15 +454,12 @@ const getInteractionStat = (item = {}, key) =>
   Number(item.interactionStats?.[key]) || 0;
 
 const getExperienceCardStats = (exp = {}) => {
-  const hasDetailedStats =
-    exp.interactionStats && typeof exp.interactionStats === "object";
-  const views = hasDetailedStats
-    ? getInteractionStat(exp, "views")
-    : Number(exp.interactionCount) || 0;
+  const engagement =
+    getInteractionStat(exp, "engagement") || Number(exp.interactionCount) || 0;
   const saves = getInteractionStat(exp, "saves");
 
   return [
-    { key: "views", icon: "👁", label: "مشاهدة", value: views },
+    { key: "engagement", icon: "👁", label: "تفاعل", value: engagement },
     ...(saves > 0
       ? [{ key: "saves", icon: "♥", label: "حفظ", value: saves }]
       : []),

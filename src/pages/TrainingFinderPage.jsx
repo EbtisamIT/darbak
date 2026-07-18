@@ -279,16 +279,15 @@ const getInteractionStat = (item = {}, key) =>
   Number(item.interactionStats?.[key]) || 0;
 
 const getOpportunityCardStats = (opportunity = {}) => {
-  const hasDetailedStats =
-    opportunity.interactionStats && typeof opportunity.interactionStats === "object";
-  const details = hasDetailedStats
-    ? getInteractionStat(opportunity, "details")
-    : Number(opportunity.interactionCount) || 0;
+  const engagement =
+    getInteractionStat(opportunity, "engagement") ||
+    Number(opportunity.interactionCount) ||
+    0;
   const applies = getInteractionStat(opportunity, "applies");
   const saves = getInteractionStat(opportunity, "saves");
 
   return [
-    { key: "details", icon: "🔎", label: "تفاصيل", value: details },
+    { key: "engagement", icon: "👁", label: "تفاعل", value: engagement },
     ...(applies > 0
       ? [{ key: "applies", icon: "↗", label: "تقديم", value: applies }]
       : []),
