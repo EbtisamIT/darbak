@@ -568,8 +568,12 @@ const ExperiencesPage = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchAnalyticsVersion, setSearchAnalyticsVersion] = useState(0);
   const [savedItemIds, setSavedItemIds] = useState(() => getSavedItemIds());
+  const [relatedExperiences, setRelatedExperiences] = useState([]);
+  const [relatedLoading, setRelatedLoading] = useState(false);
   const lastTrackedExperienceSearchRef = useRef("");
   const handledRouteExperienceIdRef = useRef("");
+  const selectedExperienceId =
+    selectedExperience?._id || selectedExperience?.id || "";
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
 
@@ -608,6 +612,34 @@ const ExperiencesPage = () => {
     return () =>
       window.removeEventListener("darbak:saved-items-updated", updateSavedItems);
   }, []);
+
+  useEffect(() => {
+    if (!selectedExperienceId) {
+      setRelatedExperiences([]);
+      setRelatedLoading(false);
+      return undefined;
+    }
+
+    let isActive = true;
+    setRelatedLoading(true);
+
+    axios
+      .get(`${API_BASE_URL}/api/experiences/${selectedExperienceId}/related`)
+      .then(({ data }) => {
+        if (!isActive) return;
+        setRelatedExperiences(Array.isArray(data?.data) ? data.data : []);
+      })
+      .catch(() => {
+        if (isActive) setRelatedExperiences([]);
+      })
+      .finally(() => {
+        if (isActive) setRelatedLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedExperienceId]);
 
   const clearCompanySearch = () => {
     setCompanySearch("");
@@ -1446,6 +1478,50 @@ const ExperiencesPage = () => {
         organizationName: exp.organizationName || exp.companyName || "",
       },
     });
+  };
+
+  const renderRelatedExperiences = () => {
+    if (!selectedExperienceId) return null;
+
+    if (relatedLoading) {
+      return (
+        <section className="related-experiences-section">
+          <div className="related-experiences-head">
+            <h3>تجارب مشابهة</h3>
+            <p>نبحث عن تجارب قريبة من تخصصك أو مدينتك...</p>
+          </div>
+        </section>
+      );
+    }
+
+    if (relatedExperiences.length === 0) return null;
+
+    return (
+      <section className="related-experiences-section">
+        <div className="related-experiences-head">
+          <h3>تجارب مشابهة</h3>
+          <p>حسب التخصص أو المدينة أو قرب التجربة من اختيارك.</p>
+        </div>
+
+        <div className="related-experiences-grid">
+          {relatedExperiences.map((exp) => (
+            <button
+              type="button"
+              className="related-experience-card"
+              key={exp._id || exp.id || exp.title}
+              onClick={() => openExperienceDetails(exp)}
+            >
+              <strong>{exp.organizationName || exp.companyName}</strong>
+              <span>{exp.title || "تجربة تدريب"}</span>
+              <em>
+                {[exp.city, getReadableMajor(exp)].filter(Boolean).join(" - ")}
+              </em>
+              <StarRating value={exp.starRating || 0} />
+            </button>
+          ))}
+        </div>
+      </section>
+    );
   };
 
   const renderStepContent = () => {
@@ -2706,6 +2782,8 @@ const ExperiencesPage = () => {
             <div style={{ marginTop: "20px" }}>
               {renderStepContent()}
             </div>
+
+            {renderRelatedExperiences()}
 
             <div
               style={{

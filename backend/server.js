@@ -4339,6 +4339,110 @@ app.get('/api/experiences', async (req, res) => {
   }
 });
 
+app.get('/api/experiences/:id/related', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid experience id" });
+    }
+
+    const currentExperience = await Experience.findOne({
+      _id: req.params.id,
+      ...getApprovedExperiencesFilter(),
+    }).lean();
+
+    if (!currentExperience) {
+      return res.status(404).json({ error: "Experience not found" });
+    }
+
+    const currentMajor = (currentExperience.major || "").trim();
+    const currentMajorCategory = (currentExperience.majorCategory || "").trim();
+    const currentCity = (currentExperience.city || "").trim();
+    const currentOrganization = normalizeSearchText(
+      currentExperience.organizationName || currentExperience.companyName || ""
+    );
+    const relatedConditions = [
+      currentMajor ? { major: currentMajor } : null,
+      currentMajorCategory ? { majorCategory: currentMajorCategory } : null,
+      currentCity ? { city: currentCity } : null,
+    ].filter(Boolean);
+
+    const relatedFilter = {
+      $and: [
+        getApprovedExperiencesFilter(),
+        { _id: { $ne: currentExperience._id } },
+        ...(relatedConditions.length > 0 ? [{ $or: relatedConditions }] : []),
+      ],
+    };
+
+    let candidates = await Experience.find(relatedFilter)
+      .sort({ starRating: -1, createdAt: -1 })
+      .limit(120)
+      .lean();
+
+    if (candidates.length === 0) {
+      candidates = await Experience.find({
+        $and: [
+          getApprovedExperiencesFilter(),
+          { _id: { $ne: currentExperience._id } },
+        ],
+      })
+        .sort({ starRating: -1, createdAt: -1 })
+        .limit(40)
+        .lean();
+    }
+
+    const scored = candidates
+      .map((exp) => {
+        const expOrganization = normalizeSearchText(
+          exp.organizationName || exp.companyName || ""
+        );
+        const sameOrganization =
+          currentOrganization &&
+          expOrganization &&
+          isSameOrganizationName(currentOrganization, expOrganization);
+        const score =
+          (exp.major && exp.major === currentMajor ? 5 : 0) +
+          (exp.majorCategory && exp.majorCategory === currentMajorCategory ? 4 : 0) +
+          (exp.city && exp.city === currentCity ? 3 : 0) +
+          (sameOrganization ? -2 : 1) +
+          (Number(exp.starRating) || 0) / 10;
+
+        return { exp, score, sameOrganization };
+      })
+      .sort((a, b) => {
+        if (a.sameOrganization !== b.sameOrganization) {
+          return Number(a.sameOrganization) - Number(b.sameOrganization);
+        }
+        if (b.score !== a.score) return b.score - a.score;
+        return new Date(b.exp.createdAt || 0) - new Date(a.exp.createdAt || 0);
+      });
+
+    const seenOrganizations = new Set();
+    const related = scored
+      .filter(({ exp }) => {
+        const organizationKey = normalizeSearchText(
+          exp.organizationName || exp.companyName || exp.title || exp._id
+        );
+        if (!organizationKey || seenOrganizations.has(organizationKey)) {
+          return false;
+        }
+        seenOrganizations.add(organizationKey);
+        return true;
+      })
+      .slice(0, 4)
+      .map(({ exp }) => exp);
+
+    res.json({ data: related });
+  } catch (err) {
+    console.error("❌ Related experiences fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/experiences/:id', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
