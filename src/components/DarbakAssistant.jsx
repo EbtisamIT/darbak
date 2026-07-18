@@ -6,10 +6,12 @@ import API_BASE_URL from "../config/api";
 import { trackEvent } from "../utils/analytics";
 
 const defaultQuestions = [
-  "أفضل جهات التدريب لتخصص علوم الحاسب بالرياض؟",
+  "أنا ضايع/ة وما أعرف من وين أبدأ، وش أسوي؟",
+  "كيف أكتب إيميل تقديم للتدريب؟",
+  "كيف أجهز CV للتدريب؟",
+  "كيف أستعد للمقابلة؟",
+  "وش أهم شيء أشيك عليه قبل أختار جهة؟",
   "ماذا قال الطلاب عن تدريب STC؟",
-  "هل يوجد تجارب لتخصص المحاسبة في جدة؟",
-  "ما الجهات التي حصل فيها الطلاب على مكافأة؟",
 ];
 
 const introMessage = {
@@ -17,11 +19,11 @@ const introMessage = {
   type: "intro",
   title: "دليل دربك",
   intro:
-    "أنا شات يساعدك تفهم تجارب التدريب الموجودة في دربك: جهات، تخصصات، مدن، مكافآت، تقييمات وملاحظات الطلاب.",
+    "أنا دليل يساعدك تفهم تجارب التدريب في دربك، وأسئلة التقديم، المقابلات، اختيار الجهة، وتجهيز نفسك للتدريب.",
   bullets: [
-    "أقرأ بيانات دربك فقط بدون البحث في الإنترنت.",
-    "ألخص لك الصورة العامة بلغة بسيطة.",
-    "إذا ما لقيت بيانات كافية بقول لك بوضوح.",
+    "إذا سألت عن جهة أو تخصص، أقرأ تجارب دربك فقط بدون إنترنت.",
+    "إذا سألت سؤال تدريب عام، أعطيك خطوات عملية وواضحة.",
+    "إذا ما لقيت بيانات كافية، أقول لك بوضوح بدون اختراع.",
   ],
 };
 
@@ -132,6 +134,7 @@ export default function DarbakAssistant() {
   const renderAssistantAnswer = (message, index) => {
     const answer = message.data?.answer || message;
     const count = message.data?.count;
+    const shouldShowCount = typeof count === "number" && !answer.hideCount;
     const relatedUrl = message.data?.relatedUrl || answer.relatedUrl;
     const previews = message.data?.experiences || [];
 
@@ -139,7 +142,7 @@ export default function DarbakAssistant() {
       <div className="darbak-assistant-message is-assistant" key={index}>
         <div className="darbak-assistant-answer-head">
           <strong>{answer.title}</strong>
-          {typeof count === "number" && <span>{count} تجربة</span>}
+          {shouldShowCount && <span>{count} تجربة</span>}
         </div>
         {answer.intro && <p>{answer.intro}</p>}
         {Array.isArray(answer.paragraphs) &&
@@ -208,7 +211,7 @@ export default function DarbakAssistant() {
               </span>
               <div>
                 <span>دليل دربك</span>
-                <p>شات يقرأ تجارب المنصة ويجاوبك منها فقط</p>
+                <p>اسأل عن التدريب، التقديم، المقابلات أو الجهات</p>
               </div>
             </div>
             <button

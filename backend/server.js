@@ -1042,10 +1042,12 @@ const SMART_ASSISTANT_POSITIVE_THEMES = [
 ];
 
 const SMART_ASSISTANT_SUGGESTED_QUESTIONS = [
+  "أنا ضايع/ة وما أعرف من وين أبدأ، وش أسوي؟",
+  "كيف أكتب إيميل تقديم للتدريب؟",
   "أفضل جهات التدريب لتخصص علوم الحاسب بالرياض؟",
+  "كيف أستعد للمقابلة؟",
   "ماذا قال الطلاب عن تدريب STC؟",
-  "هل يوجد تجارب لتخصص المحاسبة في جدة؟",
-  "ما الجهات التي حصل فيها الطلاب على مكافأة؟",
+  "وش أهم شيء أشيك عليه قبل أختار جهة؟",
 ];
 
 const getApprovedExperiencesFilter = () => ({
@@ -2053,6 +2055,233 @@ const buildSmartTasksAnswer = (experiences = [], filters = {}, usedContext = fal
   };
 };
 
+const getSmartGuidanceRelatedUrl = (filters = {}) =>
+  hasSmartFilters(filters) ? getPrimaryRelatedUrl(filters) : "/where-to-train";
+
+const getSmartGuidanceRelatedLabel = (filters = {}) =>
+  hasSmartFilters(filters)
+    ? "عرض التجارب المرتبطة"
+    : "افتح صفحة وين أتدرب";
+
+const buildSmartEmailCoachAnswer = (experiences = [], filters = {}, usedContext = false) => {
+  const subject = hasSmartFilters(filters)
+    ? getSmartSubjectLabel(filters)
+    : "التقديم على التدريب";
+  const methods = getTopFrequencies(
+    experiences.map((exp) => exp.howApplied).filter(isMeaningfulSmartValue),
+    3
+  );
+  const bullets = [
+    "العنوان: طلب تدريب تعاوني - اسمك - تخصصك.",
+    "ابدأ بتعريف مختصر: اسمك، جامعتك، تخصصك، ومدة التدريب المطلوبة.",
+    "اكتب سبب اختيار الجهة بجملة واحدة صادقة ومباشرة.",
+    "ارفق CV وخطاب التدريب أو المتطلبات الرسمية من الجامعة.",
+    "اختم بطلب واضح: أرجو إفادتي بإمكانية التدريب أو الجهة المناسبة للتواصل.",
+  ];
+
+  return {
+    title: "خلّينا نرتب إيميل التقديم",
+    hideCount: !hasSmartFilters(filters),
+    intro: usedContext
+      ? `فهمت أنك تقصد ${subject}. خلّيني أعطيك طريقة إرسال واضحة ومختصرة.`
+      : "أفضل إيميل تدريب هو اللي يكون قصير، واضح، ومرفقاته جاهزة. لا يحتاج يكون طويل أو رسمي بزيادة.",
+    paragraphs: [
+      methods.length > 0
+        ? `من تجارب دربك، أكثر طرق الوصول للفرصة التي تكررت هنا: ${methods
+            .map((item) => item.label)
+            .join("، ")}. إذا كان الإيميل ضمنها فابدأ به، وإذا لم يكن مذكورًا استخدمه كخطة ثانية بعد الموقع الرسمي.`
+        : "إذا ما عندك قناة تقديم واضحة، ابدأ بالموقع الرسمي، ثم جرّب إيميل الموارد البشرية أو القسم، وبعدها لينكدإن برسالة مختصرة.",
+      "لا ترسل رسالة عامة جدًا. الجهة تحتاج تفهم بسرعة: من أنت؟ ماذا تريد؟ ومتى يبدأ تدريبك؟",
+    ],
+    bullets,
+    quotes: getSmartHumanQuotes(experiences, 1, ["نصيحة للمتدربين", "مدة إجراءات التقديم"]),
+    closing:
+      "إذا كتبت الإيميل بهذه الطريقة، تزيد فرصة أن الشخص يرد عليك أو يحولك للمسار الصحيح بدل ما تضيع رسالتك.",
+    note: "هذا إرشاد عملي من دربك، ولا يعتمد على البحث في الإنترنت.",
+    relatedUrl: getSmartGuidanceRelatedUrl(filters),
+    relatedLabel: getSmartGuidanceRelatedLabel(filters),
+  };
+};
+
+const buildSmartCvCoachAnswer = (experiences = [], filters = {}) => {
+  const subject = hasSmartFilters(filters) ? getSmartSubjectLabel(filters) : "التدريب";
+
+  return {
+    title: "خلّينا نضبط الـ CV للتدريب",
+    hideCount: !hasSmartFilters(filters),
+    intro: `للـ ${subject}، أهم شيء أن السيرة تكون واضحة وسريعة القراءة. لا تحاول تثبت كل شيء؛ ركز على الشيء المرتبط بالفرصة.`,
+    paragraphs: [
+      "خلي أول نصف صفحة يجاوب على سؤال: من أنت، وش تخصصك، وش المهارات أو المشاريع التي تخليك مناسب للتدريب؟",
+      "إذا ما عندك خبرة، عادي. عوّضها بمشاريع الجامعة، أدوات تعرف تستخدمها، مواد قوية درستها، وشهادات قصيرة إن وجدت.",
+    ],
+    bullets: [
+      "اكتب الهدف: طالب/ـة يبحث عن تدريب تعاوني في مجال محدد.",
+      "رتب المهارات حسب التخصص: تقنية، تحليل، تصميم، محاسبة، تواصل... إلخ.",
+      "أضف مشروعين أو ثلاثة مع نتيجة واضحة لكل مشروع.",
+      "لا تكثر ألوان وتنسيقات؛ خله نظيف ومقروء.",
+      "احفظه PDF وسمّه باسمك وتخصصك.",
+    ],
+    closing:
+      "السيرة الجيدة ما تعني أنك كامل؛ تعني أن الجهة فهمت بسرعة كيف ممكن تستفيد منك كمتدرب.",
+    note: "النصيحة هنا عامة ومناسبة للتقديم، وليست حكمًا على قبول جهة محددة.",
+    relatedUrl: getSmartGuidanceRelatedUrl(filters),
+    relatedLabel: getSmartGuidanceRelatedLabel(filters),
+  };
+};
+
+const buildSmartStartPlanAnswer = (experiences = [], filters = {}) => {
+  const subject = hasSmartFilters(filters) ? getSmartSubjectLabel(filters) : "بداية البحث عن تدريب";
+  const topMethods = getTopFrequencies(
+    experiences.map((exp) => exp.howApplied).filter(isMeaningfulSmartValue),
+    3
+  );
+
+  return {
+    title: "نبدأها بهدوء، مو لازم تعرف كل شيء الآن",
+    hideCount: !hasSmartFilters(filters),
+    intro: `إذا أنت في مرحلة ${subject}، فالمطلوب الآن ليس أنك تلقى أفضل جهة فورًا؛ المطلوب أنك تبدأ بخطوة منظمة.`,
+    paragraphs: [
+      topMethods.length > 0
+        ? `في تجارب دربك، طرق الوصول التي تكررت أكثر: ${topMethods
+            .map((item) => item.label)
+            .join("، ")}. خذها كبداية بحث بدل ما تبدأ من الصفر.`
+        : "ابدأ بثلاث مسارات معًا: صفحة وين أتدرب، مواقع الجهات، ولينكدإن أو الإيميل المباشر.",
+      "لا تنتظر إعلان واحد مثالي. جهّز قائمة جهات، أرسل على دفعات، وسجل وين قدمت ومتى.",
+    ],
+    bullets: [
+      "حدد تخصصك والمدينة في صفحة وين أتدرب.",
+      "افتح 10 جهات مناسبة واحفظها.",
+      "جهز CV وخطاب التدريب.",
+      "قدّم من الموقع إن وجد، ثم أرسل إيميل مختصر.",
+      "بعد 5 إلى 7 أيام تابع بلطف إذا ما جاء رد.",
+    ],
+    closing:
+      "الفرق غالبًا ليس أن شخص يعرف جهة سرية؛ الفرق أنه بدأ بدري، نظم طلباته، وتابع بدون عشوائية.",
+    note: "دربك يساعدك تبدأ من تجارب الطلاب والجهات المقترحة، لكنه لا يضمن توفر تدريب حاليًا.",
+    relatedUrl: getSmartGuidanceRelatedUrl(filters),
+    relatedLabel: getSmartGuidanceRelatedLabel(filters),
+  };
+};
+
+const buildSmartChooseAnswer = (experiences = [], filters = {}) => {
+  const subject = hasSmartFilters(filters) ? getSmartSubjectLabel(filters) : "اختيار جهة التدريب";
+  const paragraphs = [
+    `عند ${subject}، لا تختار فقط حسب اسم الجهة. الاسم مهم، لكن تجربة التدريب نفسها تعتمد على الإدارة، المهام، والمشرف.`,
+    "قيّم الجهة من ثلاث زوايا: هل المهام قريبة من تخصصك؟ هل البيئة واضحة؟ وهل الطلاب استفادوا أو نصحوا بها؟",
+  ];
+
+  if (experiences.length > 0) {
+    paragraphs.unshift(
+      `راجعت ${experiences.length} تجربة من دربك مرتبطة بسؤالك، والصورة العامة ${getSmartTone(experiences)}.`
+    );
+  }
+
+  return {
+    title: "كيف تختار جهة تدريب مناسبة؟",
+    hideCount: !hasSmartFilters(filters),
+    intro:
+      "الاختيار الذكي مو دائمًا أشهر جهة؛ الاختيار الذكي هو الجهة التي تعطيك تعلّم فعلي وتناسب ظرفك.",
+    paragraphs,
+    bullets: [
+      "قرب المهام من تخصصك أهم من الاسم وحده.",
+      "المكافأة ميزة، لكنها لا تعوض تجربة بلا مهام واضحة.",
+      "اقرأ التجارب السلبية بهدوء: هل المشكلة عامة أو تجربة فردية؟",
+      "إذا عندك أكثر من خيار، قارن حسب المدينة، البيئة، طريقة التقديم، والاستفادة.",
+    ],
+    quotes: getSmartHumanQuotes(experiences, 1),
+    closing:
+      "إذا احتجت، اسألني: قارن بين جهة X وجهة Y، أو هل جهة X مناسبة لتخصصي؟",
+    note: "الاختيار النهائي يعتمد على ظروفك والفرص المتاحة في وقتك.",
+    relatedUrl: getSmartGuidanceRelatedUrl(filters),
+    relatedLabel: getSmartGuidanceRelatedLabel(filters),
+  };
+};
+
+const buildSmartInterviewCoachAnswer = (experiences = [], filters = {}) => {
+  const subject = hasSmartFilters(filters) ? getSmartSubjectLabel(filters) : "مقابلة التدريب";
+  const interviewExperiences = experiences.filter((exp) =>
+    smartTextIncludesAny(exp.description, [
+      "مقابلة",
+      "اسئلة",
+      "أسئلة",
+      "تعريفية",
+      "اختبار",
+    ])
+  );
+
+  return {
+    title: "كيف تستعد للمقابلة؟",
+    hideCount: !hasSmartFilters(filters),
+    intro: `لمقابلة ${subject}، لا تحتاج تحفظ كلام كثير؛ تحتاج تعرف تقدم نفسك وتربط تخصصك بالجهة.`,
+    paragraphs: [
+      interviewExperiences.length > 0
+        ? `وجدت ${interviewExperiences.length} تجربة في دربك فيها ذكر للمقابلة أو الأسئلة، لكنها غالبًا كانت إشارات مختصرة وليست بنك أسئلة كامل.`
+        : "حتى لو ما وجدت تجارب كثيرة تذكر المقابلة، تقدر تستعد للأسئلة الأساسية لأنها تتكرر في أغلب مقابلات التدريب.",
+      "جهّز إجابة قصيرة عن نفسك، مشروع أو مادة قوية، سبب اختيار الجهة، وما الذي تتمنى تتعلمه خلال التدريب.",
+    ],
+    bullets: [
+      "عرّف بنفسك في 30 ثانية.",
+      "راجع مشروعين من دراستك واشرح دورك فيها.",
+      "اقرأ عن مجال الجهة بشكل عام من موقعها الرسمي.",
+      "جهز سؤالًا محترمًا عن طبيعة المهام أو الفريق.",
+      "لا تبالغ في خبرتك؛ وضح أنك متعلم ومستعد.",
+    ],
+    quotes: getSmartHumanQuotes(interviewExperiences, 1),
+    closing:
+      "المقابلة غالبًا تقيس وضوحك وحماسك أكثر من كونك خبير. خلك مرتب وصادق.",
+    note: "هذا إرشاد عام، ومعه ما توفر من إشارات داخل تجارب دربك.",
+    relatedUrl: getSmartGuidanceRelatedUrl(filters),
+    relatedLabel: getSmartGuidanceRelatedLabel(filters),
+  };
+};
+
+const buildSmartEnvironmentAnswer = (experiences = [], filters = {}) => {
+  const subject = hasSmartFilters(filters) ? getSmartSubjectLabel(filters) : "بيئة التدريب";
+  const environments = getTopFrequencies(
+    experiences.map((exp) => exp.trainingEnvironment).filter(Boolean),
+    3
+  );
+  const modes = getTopFrequencies(
+    experiences.map((exp) => exp.trainingMode).filter(Boolean),
+    3
+  );
+
+  return {
+    title: `بيئة التدريب في ${subject}`,
+    hideCount: !hasSmartFilters(filters),
+    intro:
+      experiences.length > 0
+        ? `راجعت ${experiences.length} تجربة مرتبطة بسؤالك وركزت على البيئة ونوع التدريب.`
+        : "إذا كان سؤالك عن البيئة، أهم شيء تسأل عن طبيعة الحضور، الفريق، ومكان العمل قبل القبول.",
+    paragraphs: [
+      environments.length > 0
+        ? `البيئات الأكثر ذكرًا: ${environments
+            .map(
+              (item) =>
+                SMART_ASSISTANT_ENVIRONMENT_LABELS[item.label] || item.label
+            )
+            .join("، ")}.`
+        : "ما وجدت بيانات كافية عن نوع البيئة في التجارب المطابقة.",
+      modes.length > 0
+        ? `أما نوع التدريب الأكثر ظهورًا: ${modes
+            .map((item) => item.label)
+            .join("، ")}.`
+        : "اسأل الجهة قبل القبول: هل التدريب حضوري، عن بعد، أو مختلط؟",
+    ],
+    bullets: [
+      "اسأل عن مكان العمل والدوام قبل بداية التدريب.",
+      "اسأل هل يوجد مشرف واضح أو خطة مهام.",
+      "إذا البيئة مهمة لك جدًا، اقرأ أكثر من تجربة لنفس الجهة أو المدينة.",
+    ],
+    quotes: getSmartHumanQuotes(experiences, 1, ["الإيجابيات", "التحديات"]),
+    closing:
+      "البيئة قد تختلف من فرع أو إدارة لأخرى، لذلك خذ التجارب كمؤشر وليس حكمًا مطلقًا.",
+    note: "الجواب مبني على الحقول المكتوبة في تجارب دربك فقط.",
+    relatedUrl: getSmartGuidanceRelatedUrl(filters),
+    relatedLabel: getSmartGuidanceRelatedLabel(filters),
+  };
+};
+
 const groupSmartExperiencesByOrganization = (experiences = []) => {
   const groups = new Map();
 
@@ -2237,6 +2466,104 @@ const detectSmartIntent = (question = "", organizations = []) => {
 
   if (
     smartTextIncludesAny(question, [
+      "ضايع",
+      "ضايعه",
+      "ضياع",
+      "ما اعرف من وين",
+      "ما أعرف من وين",
+      "من وين ابدا",
+      "من وين أبدأ",
+      "كيف ابدا",
+      "كيف أبدأ",
+      "وش اسوي",
+      "وش أسوي",
+      "متاخر",
+      "متأخر",
+      "آخر لحظة",
+      "اخر لحظة",
+      "خايف",
+      "خايفه",
+      "اخاف",
+      "أخاف",
+    ])
+  ) {
+    return "start";
+  }
+
+  if (
+    smartTextIncludesAny(question, [
+      "ايميل",
+      "إيميل",
+      "الايميل",
+      "الإيميل",
+      "بريد",
+      "رسالة",
+      "ارسل",
+      "أرسل",
+      "خطاب",
+      "صيغة",
+      "نص ارسله",
+      "نص أرسله",
+    ])
+  ) {
+    return "email";
+  }
+
+  if (
+    smartTextIncludesAny(question, [
+      "cv",
+      "CV",
+      "سيفي",
+      "سي في",
+      "السيرة",
+      "سيرة",
+      "resume",
+      "ملفي",
+      "ملف",
+    ])
+  ) {
+    return "cv";
+  }
+
+  if (
+    smartTextIncludesAny(question, [
+      "اختار",
+      "أختار",
+      "ايهم",
+      "أيهم",
+      "اي جهة",
+      "أي جهة",
+      "وش الافضل لي",
+      "وش الأفضل لي",
+      "قرار",
+      "محتار",
+      "محتاره",
+    ])
+  ) {
+    return "choose";
+  }
+
+  if (
+    smartTextIncludesAny(question, [
+      "بيئة",
+      "البيئة",
+      "نسائية",
+      "نساء",
+      "رجالية",
+      "رجال",
+      "مختلطة",
+      "مختلط",
+      "حضوري",
+      "عن بعد",
+      "اونلاين",
+      "أونلاين",
+    ])
+  ) {
+    return "environment";
+  }
+
+  if (
+    smartTextIncludesAny(question, [
       "كيف اقدم",
       "كيف أقدم",
       "طريقة التقديم",
@@ -2247,8 +2574,6 @@ const detectSmartIntent = (question = "", organizations = []) => {
       "قدمو",
       "كيف حصل",
       "كيف حصلوا",
-      "الايميل",
-      "الإيميل",
       "لينكد",
     ])
   ) {
@@ -2315,6 +2640,30 @@ const buildSmartAssistantAnswer = ({
 }) => {
   if (intent === "compare" && filters.organizations.length >= 2) {
     return buildComparisonAnswer(experiences, filters.organizations);
+  }
+
+  if (intent === "email") {
+    return buildSmartEmailCoachAnswer(experiences, filters, usedContext);
+  }
+
+  if (intent === "cv") {
+    return buildSmartCvCoachAnswer(experiences, filters);
+  }
+
+  if (intent === "start") {
+    return buildSmartStartPlanAnswer(experiences, filters);
+  }
+
+  if (intent === "choose") {
+    return buildSmartChooseAnswer(experiences, filters);
+  }
+
+  if (intent === "environment") {
+    return buildSmartEnvironmentAnswer(experiences, filters);
+  }
+
+  if (intent === "interview" && !hasSmartFilters(filters)) {
+    return buildSmartInterviewCoachAnswer(experiences, filters);
   }
 
   if (experiences.length === 0) {
@@ -2580,15 +2929,28 @@ app.post('/api/smart-assistant/query', async (req, res) => {
     );
 
     const intent = detectSmartIntent(question, filters.organizations);
+    const broadExperienceIntents = [
+      "best",
+      "problems",
+      "apply",
+      "interview",
+      "tasks",
+      "email",
+      "cv",
+      "start",
+      "choose",
+      "environment",
+      "summary",
+    ];
     const matchingExperiences =
       filters.organizations.length > 0 ||
       filters.cities.length > 0 ||
       filters.majors.length > 0
         ? experiences.filter((exp) => experienceMatchesSmartFilters(exp, filters))
-        : ["best", "problems"].includes(intent)
-        ? experiences
         : intent === "reward"
         ? experiences.filter((exp) => exp.hadReward === "yes")
+        : broadExperienceIntents.includes(intent)
+        ? experiences
         : [];
 
     const answer = buildSmartAssistantAnswer({
@@ -2611,7 +2973,7 @@ app.post('/api/smart-assistant/query', async (req, res) => {
         majors: filters.majors.map((item) => item.label),
       },
       relatedUrl: answer.relatedUrl || getPrimaryRelatedUrl(filters),
-      relatedLabel: "عرض جميع التجارب المرتبطة",
+      relatedLabel: answer.relatedLabel || "عرض جميع التجارب المرتبطة",
       experiences: matchingExperiences.slice(0, 6).map(mapSmartExperiencePreview),
       suggestedQuestions: SMART_ASSISTANT_SUGGESTED_QUESTIONS,
       source: "darbak_mongodb_only",
