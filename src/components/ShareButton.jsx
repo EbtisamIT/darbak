@@ -1,6 +1,23 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FaInstagram, FaSnapchatGhost, FaWhatsapp } from "react-icons/fa";
-import { FiCopy, FiShare2 } from "react-icons/fi";
+import { FiLink, FiShare2 } from "react-icons/fi";
+
+const SHARE_MENU_WIDTH = 206;
+const SHARE_MENU_HEIGHT = 110;
+const VIEWPORT_MARGIN = 12;
+
+function AirDropIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 18.5v-3.2" />
+      <path d="M8.8 15.1a4.6 4.6 0 0 1 6.4 0" />
+      <path d="M5.8 12.1a8.9 8.9 0 0 1 12.4 0" />
+      <path d="M3.1 9.1a12.8 12.8 0 0 1 17.8 0" />
+      <circle cx="12" cy="19.4" r="1.2" />
+    </svg>
+  );
+}
 
 const getAbsoluteShareUrl = (url = "") => {
   if (!url) return "";
@@ -43,21 +60,69 @@ export default function ShareButton({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [status, setStatus] = useState("");
+  const [menuPosition, setMenuPosition] = useState(null);
   const wrapperRef = useRef(null);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
   const shareUrl = getAbsoluteShareUrl(url);
   const shareText = [text, shareUrl].filter(Boolean).join("\n");
 
   useEffect(() => {
     if (!isOpen) return undefined;
 
-    const closeOnOutsideClick = (event) => {
-      if (!wrapperRef.current?.contains(event.target)) {
-        setIsOpen(false);
+    const updateMenuPosition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const viewportWidth = window.innerWidth || SHARE_MENU_WIDTH;
+      const viewportHeight = window.innerHeight || SHARE_MENU_HEIGHT;
+      const width = Math.min(SHARE_MENU_WIDTH, viewportWidth - VIEWPORT_MARGIN * 2);
+      let left = rect.right - width;
+      let top = rect.bottom + 8;
+      let opensUp = false;
+
+      left = Math.max(
+        VIEWPORT_MARGIN,
+        Math.min(left, viewportWidth - width - VIEWPORT_MARGIN)
+      );
+
+      if (top + SHARE_MENU_HEIGHT > viewportHeight - VIEWPORT_MARGIN) {
+        top = rect.top - SHARE_MENU_HEIGHT - 8;
+        opensUp = true;
       }
+
+      setMenuPosition({
+        left,
+        top: Math.max(VIEWPORT_MARGIN, top),
+        width,
+        opensUp,
+      });
     };
 
+    const closeOnOutsideClick = (event) => {
+      const target = event.target;
+      if (
+        wrapperRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setIsOpen(false);
+    };
+
+    updateMenuPosition();
     document.addEventListener("mousedown", closeOnOutsideClick);
-    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("touchstart", closeOnOutsideClick);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("touchstart", closeOnOutsideClick);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
   }, [isOpen]);
 
   const reportAction = (action) => {
@@ -111,6 +176,90 @@ export default function ShareButton({
     setIsOpen(false);
   };
 
+  const shareMenu =
+    isOpen && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className={`share-card-menu ${menuPosition?.opensUp ? "opens-up" : ""}`}
+            role="menu"
+            aria-label="خيارات المشاركة"
+            style={{
+              top: `${menuPosition?.top || 0}px`,
+              left: `${menuPosition?.left || VIEWPORT_MARGIN}px`,
+              width: `${menuPosition?.width || SHARE_MENU_WIDTH}px`,
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="share-icon-option share-airdrop-option"
+              onClick={openNativeShare}
+              role="menuitem"
+              aria-label="مشاركة الجهاز أو AirDrop"
+              title="مشاركة الجهاز / AirDrop"
+            >
+              <AirDropIcon />
+            </button>
+            <button
+              type="button"
+              className="share-icon-option share-whatsapp-option"
+              onClick={() =>
+                openExternalShare(
+                  "whatsapp",
+                  `https://wa.me/?text=${encodeURIComponent(shareText)}`
+                )
+              }
+              role="menuitem"
+              aria-label="مشاركة عبر واتساب"
+              title="واتساب"
+            >
+              <FaWhatsapp aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="share-icon-option share-snapchat-option"
+              onClick={() =>
+                openExternalShare(
+                  "snapchat",
+                  `https://www.snapchat.com/scan?attachmentUrl=${encodeURIComponent(
+                    shareUrl
+                  )}`,
+                  true
+                )
+              }
+              role="menuitem"
+              aria-label="مشاركة عبر سناب"
+              title="سناب"
+            >
+              <FaSnapchatGhost aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="share-icon-option share-instagram-option"
+              onClick={() =>
+                openExternalShare("instagram", "https://www.instagram.com/", true)
+              }
+              role="menuitem"
+              aria-label="مشاركة عبر انستقرام"
+              title="انستقرام"
+            >
+              <FaInstagram aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="share-copy-option"
+              onClick={copyLink}
+              role="menuitem"
+            >
+              <FiLink aria-hidden="true" />
+              <span>نسخ رابط</span>
+            </button>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <div
       ref={wrapperRef}
@@ -118,6 +267,7 @@ export default function ShareButton({
       onClick={(event) => event.stopPropagation()}
     >
       <button
+        ref={buttonRef}
         type="button"
         className="share-card-button"
         onClick={(event) => {
@@ -133,57 +283,7 @@ export default function ShareButton({
         <span>{compact ? "شارك" : buttonLabel}</span>
       </button>
 
-      {isOpen && (
-        <div className="share-card-menu" role="menu" aria-label="خيارات المشاركة">
-          <button type="button" onClick={openNativeShare} role="menuitem">
-            <FiShare2 aria-hidden="true" />
-            <span>مشاركة الجهاز / AirDrop</span>
-          </button>
-          <button type="button" onClick={copyLink} role="menuitem">
-            <FiCopy aria-hidden="true" />
-            <span>نسخ الرابط</span>
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              openExternalShare(
-                "whatsapp",
-                `https://wa.me/?text=${encodeURIComponent(shareText)}`
-              )
-            }
-            role="menuitem"
-          >
-            <FaWhatsapp aria-hidden="true" />
-            <span>واتساب</span>
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              openExternalShare(
-                "snapchat",
-                `https://www.snapchat.com/scan?attachmentUrl=${encodeURIComponent(
-                  shareUrl
-                )}`,
-                true
-              )
-            }
-            role="menuitem"
-          >
-            <FaSnapchatGhost aria-hidden="true" />
-            <span>سناب</span>
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              openExternalShare("instagram", "https://www.instagram.com/", true)
-            }
-            role="menuitem"
-          >
-            <FaInstagram aria-hidden="true" />
-            <span>انستقرام</span>
-          </button>
-        </div>
-      )}
+      {shareMenu}
 
       {status && <span className="share-card-status">{status}</span>}
     </div>
