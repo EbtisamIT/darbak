@@ -968,6 +968,7 @@ body {
   width: min(390px, calc(100vw - 28px));
   max-height: min(520px, calc(100vh - 110px));
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   overflow: hidden;
   border: 1px solid var(--app-border);
@@ -1013,9 +1014,12 @@ body {
 }
 
 .saved-items-list {
+  min-height: 0;
   display: grid;
   gap: 8px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding-left: 2px;
 }
 
