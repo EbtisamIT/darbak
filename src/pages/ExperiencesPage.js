@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
+import ShareButton from "../components/ShareButton";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { requestPremiumAccess } from "../utils/premiumAccess";
@@ -1373,6 +1374,31 @@ const ExperiencesPage = () => {
     });
   };
 
+  const getExperienceSharePath = (exp) => {
+    const experienceId = exp._id || exp.id || "";
+    if (experienceId) return `/experiences/${experienceId}`;
+
+    const organizationName = exp.organizationName || exp.companyName || "";
+    return organizationName
+      ? `/experiences?company=${encodeURIComponent(organizationName)}`
+      : "/experiences";
+  };
+
+  const trackExperienceShareAction = (action, exp) => {
+    trackEvent("share_item_clicked", {
+      major: exp.major || exp.majorCategory || "",
+      majorCategory: exp.majorCategory || "",
+      city: exp.city || "",
+      metadata: {
+        action,
+        itemType: "experience",
+        experienceId: exp._id || exp.id || "",
+        title: exp.title || "",
+        organizationName: exp.organizationName || exp.companyName || "",
+      },
+    });
+  };
+
   const renderStepContent = () => {
     const exp = selectedExperience;
     if (!exp) return null;
@@ -2294,27 +2320,39 @@ const ExperiencesPage = () => {
                       "1px solid var(--app-border)";
                   }}
                 >
-                  <button
-                    type="button"
-                    className={`save-item-button ${
-                      savedItemIds.has(getExperienceSavedId(exp)) ? "is-saved" : ""
-                    }`}
-                    onClick={(event) => handleSaveExperience(event, exp)}
-                    aria-label={
-                      savedItemIds.has(getExperienceSavedId(exp))
-                        ? "إزالة التجربة من المحفوظات"
-                        : "حفظ التجربة"
-                    }
-                    title={
-                      savedItemIds.has(getExperienceSavedId(exp))
-                        ? "محفوظة"
-                        : "حفظ التجربة"
-                    }
-                  >
-                    {savedItemIds.has(getExperienceSavedId(exp))
-                      ? "♥ محفوظة"
-                      : "♡ حفظ"}
-                  </button>
+                  <div className="card-quick-actions">
+                    <button
+                      type="button"
+                      className={`save-item-button ${
+                        savedItemIds.has(getExperienceSavedId(exp)) ? "is-saved" : ""
+                      }`}
+                      onClick={(event) => handleSaveExperience(event, exp)}
+                      aria-label={
+                        savedItemIds.has(getExperienceSavedId(exp))
+                          ? "إزالة التجربة من المحفوظات"
+                          : "حفظ التجربة"
+                      }
+                      title={
+                        savedItemIds.has(getExperienceSavedId(exp))
+                          ? "محفوظة"
+                          : "حفظ التجربة"
+                      }
+                    >
+                      {savedItemIds.has(getExperienceSavedId(exp))
+                        ? "♥ محفوظة"
+                        : "♡ حفظ"}
+                    </button>
+                    <ShareButton
+                      compact
+                      buttonLabel="مشاركة صديق"
+                      title={exp.title || "تجربة تدريب من دربك"}
+                      text={`شوف هذه التجربة في دربك: ${
+                        exp.organizationName || exp.companyName || exp.title || "تجربة تدريب"
+                      }`}
+                      url={getExperienceSharePath(exp)}
+                      onShareAction={(action) => trackExperienceShareAction(action, exp)}
+                    />
+                  </div>
                   <div>
                     <div
                       className="experience-title-box"

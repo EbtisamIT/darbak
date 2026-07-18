@@ -9,6 +9,7 @@ import {
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
+import ShareButton from "../components/ShareButton";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { requestPremiumAccess } from "../utils/premiumAccess";
@@ -1418,6 +1419,32 @@ export default function TrainingFinderPage() {
         .filter((chip) => chip.value)
     : [];
 
+  const buildTrainingFinderSharePath = () => {
+    const params = new URLSearchParams();
+    if (selectedSpecialty) params.set("major", selectedSpecialty);
+    if (city) params.set("city", city);
+    const query = params.toString();
+    return `/where-to-train${query ? `?${query}` : ""}`;
+  };
+
+  const getTrainingTargetSharePath = (organizationName = "") =>
+    organizationName
+      ? `/experiences?company=${encodeURIComponent(organizationName)}`
+      : buildTrainingFinderSharePath();
+
+  const trackTrainingShareAction = (action, itemType, metadata = {}) => {
+    trackEvent("share_item_clicked", {
+      major: selectedSpecialty,
+      city,
+      metadata: {
+        action,
+        itemType,
+        selectedSpecialtyLabel,
+        ...metadata,
+      },
+    });
+  };
+
   return (
     <main
       style={{
@@ -1726,41 +1753,58 @@ export default function TrainingFinderPage() {
                         cursor: "pointer",
                       }}
                     >
-                      <button
-                        type="button"
-                        className={`save-item-button ${
-                          savedItemIds.has(savedOpportunityId) ? "is-saved" : ""
-                        }`}
-                        onClick={(event) =>
-                          handleSaveTrainingItem(event, {
-                            id: savedOpportunityId,
-                            type: "opportunity",
-                            title: opportunity.title || "فرصة تدريب",
-                            subtitle: opportunity.organizationName,
-                            meta: getOpportunityCityText(opportunity) || city || "",
-                            url: opportunity.applicationUrl || opportunity.sourceUrl || "",
-                            analyticsMetadata: {
-                              opportunityId: opportunity._id,
+                      <div className="card-quick-actions">
+                        <button
+                          type="button"
+                          className={`save-item-button ${
+                            savedItemIds.has(savedOpportunityId) ? "is-saved" : ""
+                          }`}
+                          onClick={(event) =>
+                            handleSaveTrainingItem(event, {
+                              id: savedOpportunityId,
+                              type: "opportunity",
+                              title: opportunity.title || "فرصة تدريب",
+                              subtitle: opportunity.organizationName,
+                              meta: getOpportunityCityText(opportunity) || city || "",
+                              url: opportunity.applicationUrl || opportunity.sourceUrl || "",
+                              analyticsMetadata: {
+                                opportunityId: opportunity._id,
+                                opportunityTitle: opportunity.title || "",
+                                organizationName: opportunity.organizationName || "",
+                              },
+                            })
+                          }
+                          aria-label={
+                            savedItemIds.has(savedOpportunityId)
+                              ? "إزالة الفرصة من المحفوظات"
+                              : "حفظ الفرصة"
+                          }
+                          title={
+                            savedItemIds.has(savedOpportunityId)
+                              ? "محفوظة"
+                              : "حفظ الفرصة"
+                          }
+                        >
+                          {savedItemIds.has(savedOpportunityId)
+                            ? "♥ محفوظة"
+                            : "♡ حفظ"}
+                        </button>
+                        <ShareButton
+                          buttonLabel="مشاركة صديق"
+                          title={opportunity.title || "فرصة تدريب من دربك"}
+                          text={`شوف هذه الفرصة في دربك: ${
+                            opportunity.organizationName || opportunity.title || "فرصة تدريب"
+                          }`}
+                          url={buildOpportunityDetailPath(opportunity)}
+                          onShareAction={(action) =>
+                            trackTrainingShareAction(action, "opportunity", {
+                              opportunityId: opportunity._id || "",
                               opportunityTitle: opportunity.title || "",
                               organizationName: opportunity.organizationName || "",
-                            },
-                          })
-                        }
-                        aria-label={
-                          savedItemIds.has(savedOpportunityId)
-                            ? "إزالة الفرصة من المحفوظات"
-                            : "حفظ الفرصة"
-                        }
-                        title={
-                          savedItemIds.has(savedOpportunityId)
-                            ? "محفوظة"
-                            : "حفظ الفرصة"
-                        }
-                      >
-                        {savedItemIds.has(savedOpportunityId)
-                          ? "♥ محفوظة"
-                          : "♡ حفظ"}
-                      </button>
+                            })
+                          }
+                        />
+                      </div>
                       <div
                         className="suggested-card-head opportunity-card-head"
                         style={{
@@ -2086,38 +2130,52 @@ export default function TrainingFinderPage() {
                           position: "relative",
                         }}
                       >
-                        <button
-                          type="button"
-                          className={`save-item-button ${
-                            savedItemIds.has(savedTargetId) ? "is-saved" : ""
-                          }`}
-                          onClick={(event) =>
-                            handleSaveTrainingItem(event, {
-                              id: savedTargetId,
-                              type: "training-target",
-                              title: target.organizationName,
-                              subtitle: "جهة من تجارب دربك",
-                              meta: target.cities?.join("، ") || "",
-                              url: `/experiences?company=${encodeURIComponent(
-                                target.organizationName
-                              )}`,
-                            })
-                          }
-                          aria-label={
-                            savedItemIds.has(savedTargetId)
-                              ? "إزالة الجهة من المحفوظات"
-                              : "حفظ الجهة"
-                          }
-                          title={
-                            savedItemIds.has(savedTargetId)
-                              ? "محفوظة"
-                              : "حفظ الجهة"
-                          }
-                        >
-                          {savedItemIds.has(savedTargetId)
-                            ? "♥ محفوظة"
-                            : "♡ حفظ"}
-                        </button>
+                        <div className="card-quick-actions">
+                          <button
+                            type="button"
+                            className={`save-item-button ${
+                              savedItemIds.has(savedTargetId) ? "is-saved" : ""
+                            }`}
+                            onClick={(event) =>
+                              handleSaveTrainingItem(event, {
+                                id: savedTargetId,
+                                type: "training-target",
+                                title: target.organizationName,
+                                subtitle: "جهة من تجارب دربك",
+                                meta: target.cities?.join("، ") || "",
+                                url: `/experiences?company=${encodeURIComponent(
+                                  target.organizationName
+                                )}`,
+                              })
+                            }
+                            aria-label={
+                              savedItemIds.has(savedTargetId)
+                                ? "إزالة الجهة من المحفوظات"
+                                : "حفظ الجهة"
+                            }
+                            title={
+                              savedItemIds.has(savedTargetId)
+                                ? "محفوظة"
+                                : "حفظ الجهة"
+                            }
+                          >
+                            {savedItemIds.has(savedTargetId)
+                              ? "♥ محفوظة"
+                              : "♡ حفظ"}
+                          </button>
+                          <ShareButton
+                            buttonLabel="مشاركة صديق"
+                            title={`تجارب التدريب في ${target.organizationName}`}
+                            text={`شوف تجارب الطلاب في ${target.organizationName} على دربك.`}
+                            url={getTrainingTargetSharePath(target.organizationName)}
+                            onShareAction={(action) =>
+                              trackTrainingShareAction(action, "training-target", {
+                                organizationName: target.organizationName,
+                                experienceCount: target.count || 0,
+                              })
+                            }
+                          />
+                        </div>
                         <div
                           className="suggested-card-head"
                           style={{
@@ -2415,36 +2473,50 @@ export default function TrainingFinderPage() {
                         position: "relative",
                       }}
                     >
-                      <button
-                        type="button"
-                        className={`save-item-button ${
-                          savedItemIds.has(savedOrganizationId) ? "is-saved" : ""
-                        }`}
-                        onClick={(event) =>
-                          handleSaveTrainingItem(event, {
-                            id: savedOrganizationId,
-                            type: "suggested-organization",
-                            title: organization.name,
-                            subtitle: organization.sourceLabel || "اقتراح جهة",
-                            meta: selectedSpecialtyLabel || city || "",
-                            url: organization.url,
-                          })
-                        }
-                        aria-label={
-                          savedItemIds.has(savedOrganizationId)
-                            ? "إزالة الجهة من المحفوظات"
-                            : "حفظ الجهة"
-                        }
-                        title={
-                          savedItemIds.has(savedOrganizationId)
-                            ? "محفوظة"
-                            : "حفظ الجهة"
-                        }
-                      >
-                        {savedItemIds.has(savedOrganizationId)
-                          ? "♥ محفوظة"
-                          : "♡ حفظ"}
-                      </button>
+                      <div className="card-quick-actions">
+                        <button
+                          type="button"
+                          className={`save-item-button ${
+                            savedItemIds.has(savedOrganizationId) ? "is-saved" : ""
+                          }`}
+                          onClick={(event) =>
+                            handleSaveTrainingItem(event, {
+                              id: savedOrganizationId,
+                              type: "suggested-organization",
+                              title: organization.name,
+                              subtitle: organization.sourceLabel || "اقتراح جهة",
+                              meta: selectedSpecialtyLabel || city || "",
+                              url: organization.url,
+                            })
+                          }
+                          aria-label={
+                            savedItemIds.has(savedOrganizationId)
+                              ? "إزالة الجهة من المحفوظات"
+                              : "حفظ الجهة"
+                          }
+                          title={
+                            savedItemIds.has(savedOrganizationId)
+                              ? "محفوظة"
+                              : "حفظ الجهة"
+                          }
+                        >
+                          {savedItemIds.has(savedOrganizationId)
+                            ? "♥ محفوظة"
+                            : "♡ حفظ"}
+                        </button>
+                        <ShareButton
+                          buttonLabel="مشاركة صديق"
+                          title={`جهة مقترحة في دربك: ${organization.name}`}
+                          text={`شوف هذه الجهة المقترحة في دربك: ${organization.name}.`}
+                          url={buildTrainingFinderSharePath()}
+                          onShareAction={(action) =>
+                            trackTrainingShareAction(action, "suggested-organization", {
+                              organizationName: organization.name,
+                              sourceLabel: organization.sourceLabel || "",
+                            })
+                          }
+                        />
+                      </div>
                       <div
                         className="suggested-card-head"
                         style={{
