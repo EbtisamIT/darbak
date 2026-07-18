@@ -7,7 +7,13 @@ import ShareButton from "../components/ShareButton";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { requestPremiumAccess } from "../utils/premiumAccess";
-import { getSavedItemIds, toggleSavedItem } from "../utils/savedItems";
+import {
+  getSavedItemIds,
+  getSavedItemUpdateState,
+  markSavedItemSeen,
+  toggleSavedItem,
+} from "../utils/savedItems";
+import { formatRelativeArabicTime } from "../utils/dateDisplay";
 import {
   buildExperiencesSeoPath,
   getSeoCityBySlug,
@@ -890,6 +896,10 @@ const ExperiencesPage = () => {
           () => {
             if (!isActive) return;
             trackExperienceDetailView(exp);
+            markSavedItemSeen(
+              getExperienceSavedId(exp),
+              getExperienceUpdateTimestamp(exp)
+            );
             setSelectedExperience(exp);
             setCurrentStep(1);
           }
@@ -1332,6 +1342,10 @@ const ExperiencesPage = () => {
           });
         }
         trackExperienceDetailView(exp);
+        markSavedItemSeen(
+          getExperienceSavedId(exp),
+          getExperienceUpdateTimestamp(exp)
+        );
         setSelectedExperience(exp);
         setCurrentStep(1);
       }
@@ -1340,6 +1354,41 @@ const ExperiencesPage = () => {
 
   const getExperienceSavedId = (exp) =>
     `experience:${exp._id || exp.id || exp.title || exp.organizationName}`;
+
+  const getExperienceAcceptedAt = (exp = {}) =>
+    exp.reviewedAt || exp.updatedAt || exp.createdAt;
+
+  const getExperienceUpdateTimestamp = (exp = {}) =>
+    exp.updatedAt || exp.reviewedAt || exp.createdAt;
+
+  const getExperienceAcceptedLabel = (exp = {}) => {
+    const relativeTime = formatRelativeArabicTime(getExperienceAcceptedAt(exp));
+    return relativeTime ? `اعتمدت ${relativeTime}` : "";
+  };
+
+  const getExperienceSavedUpdate = (exp = {}) =>
+    getSavedItemUpdateState(
+      getExperienceSavedId(exp),
+      getExperienceUpdateTimestamp(exp)
+    );
+
+  const renderExperienceTimeRow = (exp = {}) => {
+    const acceptedLabel = getExperienceAcceptedLabel(exp);
+    const savedUpdate = getExperienceSavedUpdate(exp);
+
+    if (!acceptedLabel && !savedUpdate.hasUpdate) return null;
+
+    return (
+      <div className="card-timestamp-row">
+        {acceptedLabel && (
+          <span className="card-time-label">{acceptedLabel}</span>
+        )}
+        {savedUpdate.hasUpdate && (
+          <span className="saved-update-badge">تحديث محفوظ</span>
+        )}
+      </div>
+    );
+  };
 
   const handleSaveExperience = (event, exp) => {
     event.stopPropagation();
@@ -1350,9 +1399,8 @@ const ExperiencesPage = () => {
       title: exp.title || "تجربة تدريب",
       subtitle: exp.organizationName || exp.companyName || "",
       meta: [exp.city, getReadableMajor(exp)].filter(Boolean).join(" - "),
-      url: `/experiences?company=${encodeURIComponent(
-        exp.organizationName || exp.companyName || ""
-      )}`,
+      updatedAt: getExperienceUpdateTimestamp(exp),
+      url: getExperienceSharePath(exp),
     });
 
     setSavedItemIds((current) => {
@@ -2353,6 +2401,7 @@ const ExperiencesPage = () => {
                       onShareAction={(action) => trackExperienceShareAction(action, exp)}
                     />
                   </div>
+                  {renderExperienceTimeRow(exp)}
                   <div>
                     <div
                       className="experience-title-box"
@@ -2646,6 +2695,12 @@ const ExperiencesPage = () => {
             >
               هذه تجربة شخصية لا تمثل الجهة بالضرورة، وقد تختلف حسب الوقت والظروف.
             </p>
+
+            {getExperienceAcceptedLabel(selectedExperience) && (
+              <p className="detail-time-note">
+                {getExperienceAcceptedLabel(selectedExperience)}
+              </p>
+            )}
 
             <div style={{ marginTop: "20px" }}>
               {renderStepContent()}

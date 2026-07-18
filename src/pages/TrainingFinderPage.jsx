@@ -13,7 +13,16 @@ import ShareButton from "../components/ShareButton";
 import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { requestPremiumAccess } from "../utils/premiumAccess";
-import { getSavedItemIds, toggleSavedItem } from "../utils/savedItems";
+import {
+  getSavedItemIds,
+  getSavedItemUpdateState,
+  markSavedItemSeen,
+  toggleSavedItem,
+} from "../utils/savedItems";
+import {
+  formatRelativeArabicTime,
+  hasMeaningfulUpdate,
+} from "../utils/dateDisplay";
 import {
   buildTrainingFinderSeoPath,
   getSeoCityBySlug,
@@ -466,6 +475,19 @@ const formatOpportunityDate = (value) => {
     month: "short",
     day: "numeric",
   });
+};
+
+const getOpportunityUpdateTimestamp = (opportunity = {}) =>
+  opportunity.updatedAt || opportunity.createdAt;
+
+const getOpportunityFreshnessLabel = (opportunity = {}) => {
+  if (hasMeaningfulUpdate(opportunity.createdAt, opportunity.updatedAt)) {
+    const relativeUpdate = formatRelativeArabicTime(opportunity.updatedAt);
+    return relativeUpdate ? `تم التحديث ${relativeUpdate}` : "";
+  }
+
+  const relativeCreate = formatRelativeArabicTime(opportunity.createdAt);
+  return relativeCreate ? `أضيفت ${relativeCreate}` : "";
 };
 
 const getOpportunityApplicationState = (deadline) => {
@@ -1187,6 +1209,10 @@ export default function TrainingFinderPage() {
                 organizationName: opportunity.organizationName,
               },
             });
+            markSavedItemSeen(
+              `opportunity:${opportunity._id}`,
+              getOpportunityUpdateTimestamp(opportunity)
+            );
             setSelectedOpportunity(opportunity);
           }
         );
@@ -1355,6 +1381,10 @@ export default function TrainingFinderPage() {
             organizationName: opportunity.organizationName,
           },
         });
+        markSavedItemSeen(
+          `opportunity:${opportunityId}`,
+          getOpportunityUpdateTimestamp(opportunity)
+        );
         setSelectedOpportunity(opportunity);
 
         if (opportunityId && location.pathname !== opportunityPath) {
@@ -1736,6 +1766,12 @@ export default function TrainingFinderPage() {
                     opportunity.sourceUrl ||
                     resolveOrganizationHomepageUrl(opportunity.organizationName);
                   const savedOpportunityId = `opportunity:${opportunity._id}`;
+                  const savedOpportunityUpdate = getSavedItemUpdateState(
+                    savedOpportunityId,
+                    getOpportunityUpdateTimestamp(opportunity)
+                  );
+                  const opportunityFreshnessLabel =
+                    getOpportunityFreshnessLabel(opportunity);
 
                   return (
                     <article
@@ -1766,7 +1802,8 @@ export default function TrainingFinderPage() {
                               title: opportunity.title || "فرصة تدريب",
                               subtitle: opportunity.organizationName,
                               meta: getOpportunityCityText(opportunity) || city || "",
-                              url: opportunity.applicationUrl || opportunity.sourceUrl || "",
+                              updatedAt: getOpportunityUpdateTimestamp(opportunity),
+                              url: buildOpportunityDetailPath(opportunity),
                               analyticsMetadata: {
                                 opportunityId: opportunity._id,
                                 opportunityTitle: opportunity.title || "",
@@ -1805,6 +1842,21 @@ export default function TrainingFinderPage() {
                           }
                         />
                       </div>
+                      {(opportunityFreshnessLabel ||
+                        savedOpportunityUpdate.hasUpdate) && (
+                        <div className="card-timestamp-row">
+                          {opportunityFreshnessLabel && (
+                            <span className="card-time-label">
+                              {opportunityFreshnessLabel}
+                            </span>
+                          )}
+                          {savedOpportunityUpdate.hasUpdate && (
+                            <span className="saved-update-badge">
+                              تحديث محفوظ
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div
                         className="suggested-card-head opportunity-card-head"
                         style={{
@@ -2783,6 +2835,11 @@ export default function TrainingFinderPage() {
             </div>
 
             <div className="opportunity-detail-meta">
+              {getOpportunityFreshnessLabel(selectedOpportunity) && (
+                <span className="detail-time-chip">
+                  {getOpportunityFreshnessLabel(selectedOpportunity)}
+                </span>
+              )}
               {selectedOpportunityStatus && (
                 <span className={`opportunity-status ${selectedOpportunityStatus.tone}`}>
                   {selectedOpportunityStatus.label}
