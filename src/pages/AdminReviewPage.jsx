@@ -116,7 +116,9 @@ const emptyAnalytics = {
   totalEvents: 0,
   pageVisits: 0,
   allTimePageVisits: 0,
-  activeEvents: 0,
+  uniqueVisitors: 0,
+  allTimeVisitors: 0,
+  activeVisitors: 0,
   activeWindowMinutes: 5,
   averageSessionSeconds: 0,
   totalSessionSeconds: 0,
@@ -1387,10 +1389,11 @@ export default function AdminReviewPage() {
             }}
           >
             {[
-              ["كل الزيارات من البداية", analytics.allTimePageVisits],
+              ["زوار مميزين من البداية", analytics.allTimeVisitors],
+              ["جميع الزيارات من البداية", analytics.allTimePageVisits],
               [
-                "حركة آخر دقائق",
-                `${analytics.activeEvents || 0} خلال آخر ${
+                "النشطين الآن",
+                `${analytics.activeVisitors} خلال آخر ${
                   analytics.activeWindowMinutes || 5
                 } دقائق`,
               ],
@@ -1399,8 +1402,9 @@ export default function AdminReviewPage() {
                 formatDuration(analytics.averageSessionSeconds),
               ],
               ["جلسات مقاسة", analytics.sessionDurationSamples || 0],
-              ["كل الزيارات في الفترة", analytics.pageVisits],
-              ["كل الأحداث في الفترة", analytics.totalEvents],
+              ["زوار مميزين في الفترة", analytics.uniqueVisitors],
+              ["جميع الزيارات في الفترة", analytics.pageVisits],
+              ["الأحداث", analytics.totalEvents],
               ["أسئلة دليل دربك", analytics.assistantQueries || 0],
               ["متابعات فهمها الدليل", analytics.assistantContextUses || 0],
               ["أسئلة بلا نتائج", analytics.assistantZeroResultQueries || 0],

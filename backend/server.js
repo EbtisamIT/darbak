@@ -646,16 +646,35 @@ const getAnalyticsGroup = async (match, field, limit = 10) => {
   ]);
 };
 
-const itemInteractionEvents = {
-  experience: ["experience_card_opened", "experience_detail_viewed"],
-  opportunity: [
-    "opportunity_details_clicked",
-    "opportunity_detail_viewed",
-    "opportunity_apply_clicked",
-  ],
+const itemInteractionConfig = {
+  experience: {
+    metadataField: "metadata.experienceId",
+    eventBuckets: {
+      experience_card_opened: "views",
+      experience_detail_viewed: "views",
+      saved_item_added: "saves",
+    },
+  },
+  opportunity: {
+    metadataField: "metadata.opportunityId",
+    eventBuckets: {
+      opportunity_details_clicked: "details",
+      opportunity_detail_viewed: "details",
+      opportunity_apply_clicked: "applies",
+      saved_item_added: "saves",
+    },
+  },
 };
 
-const getItemInteractionCounts = async (itemType, ids = []) => {
+const getEmptyItemInteractionStats = () => ({
+  total: 0,
+  views: 0,
+  details: 0,
+  applies: 0,
+  saves: 0,
+});
+
+const getItemInteractionStats = async (itemType, ids = []) => {
   const cleanIds = Array.from(
     new Set(
       ids
@@ -666,11 +685,11 @@ const getItemInteractionCounts = async (itemType, ids = []) => {
 
   if (cleanIds.length === 0) return new Map();
 
-  const metadataField =
-    itemType === "opportunity"
-      ? "metadata.opportunityId"
-      : "metadata.experienceId";
-  const eventNames = itemInteractionEvents[itemType] || [];
+  const config = itemInteractionConfig[itemType];
+  if (!config) return new Map();
+
+  const { metadataField, eventBuckets } = config;
+  const eventNames = Object.keys(eventBuckets);
 
   const rows = await AnalyticsEvent.aggregate([
     {
@@ -681,26 +700,48 @@ const getItemInteractionCounts = async (itemType, ids = []) => {
     },
     {
       $group: {
-        _id: `$${metadataField}`,
+        _id: {
+          itemId: `$${metadataField}`,
+          eventName: "$eventName",
+        },
         count: { $sum: 1 },
       },
     },
   ]);
 
-  return new Map(rows.map((row) => [row._id, row.count]));
+  return rows.reduce((statsMap, row) => {
+    const itemId = row?._id?.itemId;
+    const eventName = row?._id?.eventName;
+    const bucket = eventBuckets[eventName];
+    const count = Number(row.count) || 0;
+
+    if (!itemId || !bucket) return statsMap;
+
+    const current = statsMap.get(itemId) || getEmptyItemInteractionStats();
+    current[bucket] += count;
+    current.total += count;
+    statsMap.set(itemId, current);
+    return statsMap;
+  }, new Map());
 };
 
 const attachItemInteractionCounts = async (itemType, items = []) => {
   const safeItems = Array.isArray(items) ? items : [];
-  const counts = await getItemInteractionCounts(
+  const stats = await getItemInteractionStats(
     itemType,
     safeItems.map((item) => item?._id)
   );
 
-  return safeItems.map((item) => ({
-    ...item,
-    interactionCount: counts.get(item._id?.toString()) || 0,
-  }));
+  return safeItems.map((item) => {
+    const itemStats =
+      stats.get(item._id?.toString()) || getEmptyItemInteractionStats();
+
+    return {
+      ...item,
+      interactionStats: itemStats,
+      interactionCount: itemStats.total,
+    };
+  });
 };
 
 const getAnalyticsSearches = async (match, limit = 12) =>
@@ -2898,23 +2939,27 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
 
     const { days, rangeLabel, match } = getAnalyticsDateScope(req.query.days);
     const cleanMatch = getCleanAnalyticsMatch(match);
+    const allTimeCleanMatch = getCleanAnalyticsMatch({});
     const assistantMatch = {
       ...cleanMatch,
       eventName: "smart_assistant_query",
     };
     const activeWindowMinutes = 5;
-    const activeActivityMatch = getCleanAnalyticsMatch({
+    const activeVisitorsMatch = {
       createdAt: {
         $gte: new Date(Date.now() - activeWindowMinutes * 60 * 1000),
       },
-    });
+      visitorId: { $nin: [null, ""] },
+    };
 
     const [
       rawEvents,
       totalEvents,
       pageVisits,
       allTimePageVisits,
-      activeEvents,
+      uniqueVisitors,
+      allTimeVisitors,
+      activeVisitors,
       sessionDurationStats,
       topEvents,
       topMajors,
@@ -2937,7 +2982,9 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       AnalyticsEvent.countDocuments(cleanMatch),
       AnalyticsEvent.countDocuments({ ...match, eventName: "page_view" }),
       AnalyticsEvent.countDocuments({ eventName: "page_view" }),
-      AnalyticsEvent.countDocuments(activeActivityMatch),
+      AnalyticsEvent.distinct("visitorId", cleanMatch),
+      AnalyticsEvent.distinct("visitorId", allTimeCleanMatch),
+      AnalyticsEvent.distinct("visitorId", activeVisitorsMatch),
       AnalyticsEvent.aggregate([
         {
           $match: {
@@ -3089,7 +3136,9 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       totalEvents,
       pageVisits,
       allTimePageVisits,
-      activeEvents,
+      uniqueVisitors: uniqueVisitors.filter(Boolean).length,
+      allTimeVisitors: allTimeVisitors.filter(Boolean).length,
+      activeVisitors: activeVisitors.filter(Boolean).length,
       activeWindowMinutes,
       averageSessionSeconds: sessionDurationStats[0]?.averageSeconds || 0,
       totalSessionSeconds: sessionDurationStats[0]?.totalSeconds || 0,

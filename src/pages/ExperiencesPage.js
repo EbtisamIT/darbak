@@ -450,6 +450,25 @@ const formatInteractionCount = (count = 0) => {
   return numericCount.toString();
 };
 
+const getInteractionStat = (item = {}, key) =>
+  Number(item.interactionStats?.[key]) || 0;
+
+const getExperienceCardStats = (exp = {}) => {
+  const hasDetailedStats =
+    exp.interactionStats && typeof exp.interactionStats === "object";
+  const views = hasDetailedStats
+    ? getInteractionStat(exp, "views")
+    : Number(exp.interactionCount) || 0;
+  const saves = getInteractionStat(exp, "saves");
+
+  return [
+    { key: "views", icon: "👁", label: "مشاهدة", value: views },
+    ...(saves > 0
+      ? [{ key: "saves", icon: "♥", label: "حفظ", value: saves }]
+      : []),
+  ];
+};
+
 const isUnclearMajorText = (value = "") => {
   const text = value.toString().trim();
   if (!text) return true;
@@ -1349,7 +1368,9 @@ const ExperiencesPage = () => {
       major: exp.major || exp.majorCategory || "",
       city: exp.city || "",
       metadata: {
+        experienceId: exp._id || exp.id || "",
         type: "experience",
+        title: exp.title || "",
         organizationName: exp.organizationName || exp.companyName || "",
       },
     });
@@ -2408,18 +2429,15 @@ const ExperiencesPage = () => {
                       {getExperienceSourceLabel(exp)}
                     </p>
 
-                    <p
-                      className="experience-interaction-count"
-                      style={{
-                        margin: "0 0 6px",
-                        color: "var(--app-muted)",
-                        fontSize: "10.5px",
-                        lineHeight: 1.4,
-                        fontWeight: 700,
-                      }}
-                    >
-                      👁 {formatInteractionCount(exp.interactionCount)} مشاهدة
-                    </p>
+                    <div className="card-interaction-stats experience-interaction-count">
+                      {getExperienceCardStats(exp).map((stat) => (
+                        <span className="card-interaction-stat" key={stat.key}>
+                          <span aria-hidden="true">{stat.icon}</span>
+                          <strong>{formatInteractionCount(stat.value)}</strong>
+                          <span>{stat.label}</span>
+                        </span>
+                      ))}
+                    </div>
 
                     {getVisibleOutcomeBadges(exp).length > 0 && (
                       <div

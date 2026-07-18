@@ -275,6 +275,29 @@ const formatInteractionCount = (count = 0) => {
   return numericCount.toString();
 };
 
+const getInteractionStat = (item = {}, key) =>
+  Number(item.interactionStats?.[key]) || 0;
+
+const getOpportunityCardStats = (opportunity = {}) => {
+  const hasDetailedStats =
+    opportunity.interactionStats && typeof opportunity.interactionStats === "object";
+  const details = hasDetailedStats
+    ? getInteractionStat(opportunity, "details")
+    : Number(opportunity.interactionCount) || 0;
+  const applies = getInteractionStat(opportunity, "applies");
+  const saves = getInteractionStat(opportunity, "saves");
+
+  return [
+    { key: "details", icon: "🔎", label: "تفاصيل", value: details },
+    ...(applies > 0
+      ? [{ key: "applies", icon: "↗", label: "تقديم", value: applies }]
+      : []),
+    ...(saves > 0
+      ? [{ key: "saves", icon: "♥", label: "حفظ", value: saves }]
+      : []),
+  ];
+};
+
 const dedupeOrganizations = (organizations = []) =>
   Array.from(
     new Map(
@@ -1242,6 +1265,7 @@ export default function TrainingFinderPage() {
         type: item.type,
         title: item.title,
         subtitle: item.subtitle,
+        ...(item.analyticsMetadata || {}),
       },
     });
   };
@@ -1654,6 +1678,11 @@ export default function TrainingFinderPage() {
                             subtitle: opportunity.organizationName,
                             meta: getOpportunityCityText(opportunity) || city || "",
                             url: opportunity.applicationUrl || opportunity.sourceUrl || "",
+                            analyticsMetadata: {
+                              opportunityId: opportunity._id,
+                              opportunityTitle: opportunity.title || "",
+                              organizationName: opportunity.organizationName || "",
+                            },
                           })
                         }
                         aria-label={
@@ -1737,18 +1766,15 @@ export default function TrainingFinderPage() {
                               ? ` - ${getOpportunityCityText(opportunity)}`
                               : ""}
                           </p>
-                          <p
-                            className="opportunity-interaction-count"
-                            style={{
-                              margin: "5px 0 0",
-                              color: "var(--app-muted)",
-                              fontSize: "11px",
-                              lineHeight: 1.4,
-                              fontWeight: 800,
-                            }}
-                          >
-                            👁 {formatInteractionCount(opportunity.interactionCount)} تفاعل
-                          </p>
+                          <div className="card-interaction-stats opportunity-interaction-count">
+                            {getOpportunityCardStats(opportunity).map((stat) => (
+                              <span className="card-interaction-stat" key={stat.key}>
+                                <span aria-hidden="true">{stat.icon}</span>
+                                <strong>{formatInteractionCount(stat.value)}</strong>
+                                <span>{stat.label}</span>
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
 

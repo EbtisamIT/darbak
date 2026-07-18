@@ -621,6 +621,39 @@ body {
   font-size: 11px !important;
 }
 
+.card-interaction-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 25px;
+  margin: 4px 0 7px;
+}
+
+.card-interaction-stat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 54px;
+  min-height: 23px;
+  padding: 4px 7px;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-input-bg) 88%, transparent);
+  color: var(--app-muted);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.card-interaction-stat strong {
+  color: var(--app-brand);
+  font-size: 10.5px;
+}
+
 .saved-items-widget {
   position: fixed;
   right: 18px;
