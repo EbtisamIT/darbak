@@ -439,6 +439,22 @@ const opportunityLabels = {
 const getOpportunityLabel = (field, value) =>
   opportunityLabels[field]?.[value || ""] || "غير محدد";
 
+const hiddenOpportunityLabels = new Set([
+  "",
+  "غير محدد",
+  "غير واضح",
+  "غير مذكور",
+  "not specified",
+  "unknown",
+]);
+
+const getOpportunityDisplayLabel = (field, value) => {
+  const label = getOpportunityLabel(field, value);
+  return hiddenOpportunityLabels.has(String(label).trim().toLowerCase())
+    ? ""
+    : label;
+};
+
 const formatOpportunityDate = (value) => {
   if (!value) return "";
   const date = new Date(value);
@@ -1386,6 +1402,21 @@ export default function TrainingFinderPage() {
       selectedOpportunity.sourceUrl ||
       resolveOrganizationHomepageUrl(selectedOpportunity.organizationName)
     : "";
+  const selectedOpportunityChips = selectedOpportunity
+    ? [
+        ["trainingEnvironment", "البيئة", "👥"],
+        ["trainingMode", "النوع", "💻"],
+        ["hasReward", "المكافأة", "💰"],
+        ["applicationMethod", "التقديم", "🔗"],
+      ]
+        .map(([field, label, icon]) => ({
+          field,
+          label,
+          icon,
+          value: getOpportunityDisplayLabel(field, selectedOpportunity[field]),
+        }))
+        .filter((chip) => chip.value)
+    : [];
 
   return (
     <main
@@ -2695,28 +2726,22 @@ export default function TrainingFinderPage() {
               )}
             </div>
 
-            <div className="opportunity-chip-grid opportunity-detail-chips">
-              {[
-                ["trainingEnvironment", "البيئة", "👥"],
-                ["trainingMode", "النوع", "💻"],
-                ["hasReward", "المكافأة", "💰"],
-                ["applicationMethod", "التقديم", "🔗"],
-              ].map(([field, label, icon]) => (
-                <span
-                  className="opportunity-chip"
-                  key={`selected-${selectedOpportunity._id}-${field}`}
-                  title={`${label}: ${getOpportunityLabel(
-                    field,
-                    selectedOpportunity[field]
-                  )}`}
-                >
-                  <span aria-hidden="true">{icon}</span>
-                  <span>
-                    {label}: {getOpportunityLabel(field, selectedOpportunity[field])}
+            {selectedOpportunityChips.length > 0 && (
+              <div className="opportunity-chip-grid opportunity-detail-chips">
+                {selectedOpportunityChips.map((chip) => (
+                  <span
+                    className="opportunity-chip"
+                    key={`selected-${selectedOpportunity._id}-${chip.field}`}
+                    title={`${chip.label}: ${chip.value}`}
+                  >
+                    <span aria-hidden="true">{chip.icon}</span>
+                    <span>
+                      {chip.label}: {chip.value}
+                    </span>
                   </span>
-                </span>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             <p className="opportunity-detail-note">
               {selectedOpportunity.note ||
