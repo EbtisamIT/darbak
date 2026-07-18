@@ -7,6 +7,7 @@ import {
   markSavedItemOrganizationUpdatesSeen,
   toggleSavedItem,
 } from "../utils/savedItems";
+import { formatRelativeArabicTime } from "../utils/dateDisplay";
 
 const getTypeLabel = (type = "") => {
   if (type === "experience") return "تجربة";
@@ -17,7 +18,7 @@ const getTypeLabel = (type = "") => {
 export default function SavedItemsDrawer() {
   const [items, setItems] = useState(() => getSavedItems());
   const [isOpen, setIsOpen] = useState(false);
-  const [organizationUpdates, setOrganizationUpdates] = useState({});
+  const [dashboardUpdates, setDashboardUpdates] = useState({});
 
   useEffect(() => {
     const updateItems = () => setItems(getSavedItems());
@@ -27,8 +28,8 @@ export default function SavedItemsDrawer() {
   }, []);
 
   useEffect(() => {
-    if (!isOpen || items.length === 0) {
-      setOrganizationUpdates({});
+    if (items.length === 0) {
+      setDashboardUpdates({});
       return undefined;
     }
 
@@ -54,10 +55,10 @@ export default function SavedItemsDrawer() {
           if (update?.id) updatesMap[update.id] = update;
           return updatesMap;
         }, {});
-        setOrganizationUpdates(nextUpdates);
+        setDashboardUpdates(nextUpdates);
       })
       .catch(() => {
-        if (isActive) setOrganizationUpdates({});
+        if (isActive) setDashboardUpdates({});
       });
 
     return () => {
@@ -67,14 +68,37 @@ export default function SavedItemsDrawer() {
 
   if (items.length === 0) return null;
 
+  const getLatestDashboardTime = (item) => {
+    const update = dashboardUpdates[item.id];
+    const events = Array.isArray(update?.events) ? update.events : [];
+    return events.reduce((latest, event) => {
+      const time = new Date(event.date).getTime();
+      return Number.isFinite(time) ? Math.max(latest, time) : latest;
+    }, 0);
+  };
+
+  const sortedItems = [...items].sort((a, b) => {
+    const updateDiff = getLatestDashboardTime(b) - getLatestDashboardTime(a);
+    if (updateDiff !== 0) return updateDiff;
+    return new Date(b.savedAt || 0).getTime() - new Date(a.savedAt || 0).getTime();
+  });
+
+  const unreadUpdateCount = Object.values(dashboardUpdates).reduce(
+    (sum, update) => sum + (Array.isArray(update?.events) ? update.events.length : 0),
+    0
+  );
+
   const removeItem = (item) => {
     toggleSavedItem(item);
     setItems(getSavedItems());
   };
 
-  const markOrganizationUpdateRead = (item, update) => {
-    if (update?.latestAcceptedAt) {
-      markSavedItemOrganizationUpdatesSeen(item.id, update.latestAcceptedAt);
+  const markDashboardUpdateRead = (item, update) => {
+    if (update?.latestEventAt || update?.latestAcceptedAt) {
+      markSavedItemOrganizationUpdatesSeen(
+        item.id,
+        update.latestEventAt || update.latestAcceptedAt
+      );
     }
     setIsOpen(false);
   };
@@ -83,19 +107,25 @@ export default function SavedItemsDrawer() {
     <div className="saved-items-widget" dir="rtl">
       <button
         type="button"
-        className="saved-items-trigger"
+        className={`saved-items-trigger ${
+          unreadUpdateCount > 0 ? "has-updates" : ""
+        }`}
         onClick={() => setIsOpen((current) => !current)}
       >
-        <span>محفوظاتي</span>
-        <strong>{items.length}</strong>
+        <span>متابعاتي</span>
+        {unreadUpdateCount > 0 ? (
+          <strong className="saved-items-update-count">{unreadUpdateCount}</strong>
+        ) : (
+          <strong>{items.length}</strong>
+        )}
       </button>
 
       {isOpen && (
         <div className="saved-items-panel">
           <div className="saved-items-panel-head">
             <div>
-              <p>محفوظات دربك</p>
-              <span>تجارب وجهات ترجع لها لاحقًا</span>
+              <p>لوحة متابعاتي</p>
+              <span>آخر ما تغير في الجهات والفرص اللي تهمك</span>
             </div>
             <button
               type="button"
@@ -107,13 +137,16 @@ export default function SavedItemsDrawer() {
           </div>
 
           <div className="saved-items-list">
-            {items.map((item) => {
+            {sortedItems.map((item) => {
               const isInternal = item.url?.startsWith("/");
-              const organizationUpdate = organizationUpdates[item.id];
+              const dashboardUpdate = dashboardUpdates[item.id];
+              const dashboardEvents = Array.isArray(dashboardUpdate?.events)
+                ? dashboardUpdate.events
+                : [];
               const organizationName =
                 item.organizationName || item.subtitle || item.title || "";
               const updatePath = `/experiences?company=${encodeURIComponent(
-                organizationUpdate?.organizationName || organizationName
+                dashboardUpdate?.organizationName || organizationName
               )}`;
               const content = (
                 <>
@@ -142,16 +175,51 @@ export default function SavedItemsDrawer() {
                   <button type="button" onClick={() => removeItem(item)}>
                     إزالة
                   </button>
-                  {organizationUpdate && (
-                    <Link
-                      to={updatePath}
-                      className="saved-item-update-link"
-                      onClick={() =>
-                        markOrganizationUpdateRead(item, organizationUpdate)
-                      }
-                    >
-                      📖 تجربة جديدة وصلت لجهة محفوظة عندك
-                    </Link>
+                  {dashboardEvents.length > 0 && (
+                    <div className="saved-item-events">
+                      {dashboardEvents.slice(0, 2).map((event) => {
+                        const eventUrl = event.url || updatePath;
+                        const eventIsInternal = eventUrl.startsWith("/");
+                        const eventContent = (
+                          <>
+                            <span className="saved-item-event-status">
+                              <b>{event.icon || "🟢"}</b>
+                              <strong>{event.label || "تحديث جديد"}</strong>
+                            </span>
+                            <span>{event.message}</span>
+                            {event.date && (
+                              <em>{formatRelativeArabicTime(event.date)}</em>
+                            )}
+                          </>
+                        );
+
+                        return eventIsInternal ? (
+                          <Link
+                            key={`${item.id}-${event.type}-${event.date}`}
+                            to={eventUrl}
+                            className={`saved-item-event ${event.tone || "success"}`}
+                            onClick={() =>
+                              markDashboardUpdateRead(item, dashboardUpdate)
+                            }
+                          >
+                            {eventContent}
+                          </Link>
+                        ) : (
+                          <a
+                            key={`${item.id}-${event.type}-${event.date}`}
+                            href={eventUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`saved-item-event ${event.tone || "success"}`}
+                            onClick={() =>
+                              markDashboardUpdateRead(item, dashboardUpdate)
+                            }
+                          >
+                            {eventContent}
+                          </a>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               );

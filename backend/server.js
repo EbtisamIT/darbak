@@ -3832,6 +3832,65 @@ app.post('/api/saved-items/experience-updates', async (req, res) => {
       }))
       .filter((exp) => exp.acceptedAt && exp.variants.length > 0);
 
+    const opportunities = await Opportunity.find({
+      status: { $in: ["active", "expired"] },
+      $or: [
+        { updatedAt: { $gt: oldestSince } },
+        { createdAt: { $gt: oldestSince } },
+      ],
+    })
+      .select("organizationName title status deadline updatedAt createdAt applicationUrl sourceUrl")
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .limit(1000)
+      .lean();
+
+    const normalizedOpportunities = opportunities
+      .map((opportunity) => ({
+        ...opportunity,
+        eventAt:
+          parseDate(opportunity.updatedAt) || parseDate(opportunity.createdAt),
+        createdAtDate: parseDate(opportunity.createdAt),
+        variants: getOrganizationNameVariants(opportunity.organizationName),
+      }))
+      .filter((opportunity) => opportunity.eventAt && opportunity.variants.length > 0);
+
+    const buildOpportunityEvent = (opportunity) => {
+      const isClosed =
+        opportunity.status === "expired" || isClosedByDeadline(opportunity.deadline);
+      const isNew =
+        opportunity.createdAtDate &&
+        opportunity.eventAt.getTime() - opportunity.createdAtDate.getTime() <
+          2 * 60 * 1000;
+
+      if (isClosed) {
+        return {
+          type: "opportunity_closed",
+          tone: "danger",
+          icon: "🔴",
+          label: "أغلق التقديم",
+          message: "أغلق التقديم على فرصة محفوظة عندك.",
+        };
+      }
+
+      if (isNew) {
+        return {
+          type: "opportunity_new",
+          tone: "success",
+          icon: "⭐",
+          label: "فرصة جديدة",
+          message: "أضيفت فرصة جديدة لجهة محفوظة عندك.",
+        };
+      }
+
+      return {
+        type: "opportunity_updated",
+        tone: "success",
+        icon: "🟢",
+        label: "تحديث جديد",
+        message: "تم تحديث بيانات فرصة محفوظة عندك.",
+      };
+    };
+
     const updates = watchedItems
       .map((item) => {
         const matches = normalizedExperiences
@@ -3846,16 +3905,67 @@ app.post('/api/saved-items/experience-updates', async (req, res) => {
           )
           .sort((a, b) => b.acceptedAt.getTime() - a.acceptedAt.getTime());
 
-        if (matches.length === 0) return null;
+        const opportunityMatches = normalizedOpportunities
+          .filter(
+            (opportunity) =>
+              opportunity.eventAt.getTime() > item.since.getTime() &&
+              item.variants.some((savedName) =>
+                opportunity.variants.some((opportunityName) =>
+                  isSameOrganizationName(savedName, opportunityName)
+                )
+              )
+          )
+          .sort((a, b) => b.eventAt.getTime() - a.eventAt.getTime());
 
-        const latest = matches[0];
+        const events = [];
+
+        if (matches.length > 0) {
+          const latest = matches[0];
+          events.push({
+            type: "new_experience",
+            tone: "success",
+            icon: "📝",
+            label: "تجربة جديدة",
+            message: "أضيفت تجربة جديدة لجهة محفوظة عندك.",
+            date: latest.acceptedAt.toISOString(),
+            count: matches.length,
+            url: `/experiences?company=${encodeURIComponent(
+              latest.organizationName || item.organizationName
+            )}`,
+            itemId: latest._id?.toString() || "",
+            title: latest.title || `تجربة في ${latest.organizationName}`,
+          });
+        }
+
+        if (opportunityMatches.length > 0) {
+          const latestOpportunity = opportunityMatches[0];
+          const opportunityEvent = buildOpportunityEvent(latestOpportunity);
+          events.push({
+            ...opportunityEvent,
+            date: latestOpportunity.eventAt.toISOString(),
+            count: opportunityMatches.length,
+            url: `/where-to-train/opportunity/${latestOpportunity._id?.toString()}`,
+            itemId: latestOpportunity._id?.toString() || "",
+            title:
+              latestOpportunity.title ||
+              `فرصة في ${latestOpportunity.organizationName}`,
+          });
+        }
+
+        events.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+
+        if (events.length === 0) return null;
+
+        const latestEvent = events[0];
         return {
           id: item.id,
           organizationName: item.organizationName,
-          count: matches.length,
-          latestAcceptedAt: latest.acceptedAt.toISOString(),
-          latestExperienceId: latest._id?.toString() || "",
-          latestExperienceTitle: latest.title || `تجربة في ${latest.organizationName}`,
+          count: events.reduce((sum, event) => sum + (event.count || 1), 0),
+          latestAcceptedAt: latestEvent.date,
+          latestEventAt: latestEvent.date,
+          events,
         };
       })
       .filter(Boolean);
