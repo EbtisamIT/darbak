@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import { FaInstagram, FaSnapchatGhost, FaWhatsapp } from "react-icons/fa";
+import { FiCopy, FiShare2 } from "react-icons/fi";
 
 const getAbsoluteShareUrl = (url = "") => {
   if (!url) return "";
@@ -127,18 +129,18 @@ export default function ShareButton({
         aria-label={buttonLabel}
         title={buttonLabel}
       >
-        <span aria-hidden="true">↗</span>
+        <FiShare2 aria-hidden="true" />
         <span>{compact ? "شارك" : buttonLabel}</span>
       </button>
 
       {isOpen && (
         <div className="share-card-menu" role="menu" aria-label="خيارات المشاركة">
           <button type="button" onClick={openNativeShare} role="menuitem">
-            <span aria-hidden="true">⌁</span>
+            <FiShare2 aria-hidden="true" />
             <span>مشاركة الجهاز / AirDrop</span>
           </button>
           <button type="button" onClick={copyLink} role="menuitem">
-            <span aria-hidden="true">⧉</span>
+            <FiCopy aria-hidden="true" />
             <span>نسخ الرابط</span>
           </button>
           <button
@@ -151,7 +153,7 @@ export default function ShareButton({
             }
             role="menuitem"
           >
-            <span aria-hidden="true">☘</span>
+            <FaWhatsapp aria-hidden="true" />
             <span>واتساب</span>
           </button>
           <button
@@ -167,7 +169,7 @@ export default function ShareButton({
             }
             role="menuitem"
           >
-            <span aria-hidden="true">◒</span>
+            <FaSnapchatGhost aria-hidden="true" />
             <span>سناب</span>
           </button>
           <button
@@ -177,7 +179,7 @@ export default function ShareButton({
             }
             role="menuitem"
           >
-            <span aria-hidden="true">◎</span>
+            <FaInstagram aria-hidden="true" />
             <span>انستقرام</span>
           </button>
         </div>

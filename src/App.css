@@ -668,6 +668,13 @@ body {
   background: color-mix(in srgb, var(--app-brand-soft) 70%, var(--app-surface));
 }
 
+.share-card-button svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  stroke-width: 2.4;
+}
+
 .share-card-menu {
   position: absolute;
   top: calc(100% + 7px);
@@ -707,6 +714,12 @@ body {
   border-color: var(--app-brand-border);
   background: var(--app-brand-soft);
   color: var(--app-brand);
+}
+
+.share-card-menu svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
 }
 
 .share-card-status {
