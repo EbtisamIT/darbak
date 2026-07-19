@@ -10,7 +10,7 @@ import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import ShareButton from "../components/ShareButton";
-import TrainingGuideBanner from "../components/TrainingGuideBanner";
+import { guideUrl } from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { requestPremiumAccess } from "../utils/premiumAccess";
 import {
@@ -57,7 +57,6 @@ export const cityOptions = [
 ];
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
-const SHOW_TRAINING_GUIDE_BANNER = true;
 const SHOW_TRAINING_FINDER_FAQ = false;
 
 const emptyOpportunityRequest = {
@@ -1475,6 +1474,88 @@ export default function TrainingFinderPage() {
     });
   };
 
+  const opportunityGuideBannerIndex =
+    opportunities.length >= 7 ? 5 : opportunities.length >= 4 ? 2 : -1;
+
+  const trackOpportunityGuideBannerClick = () => {
+    trackEvent("training_guide_opportunities_banner_click", {
+      major: selectedSpecialtyLabel,
+      city,
+      resultsCount: opportunities.length,
+      metadata: {
+        selectedSpecialty,
+        source: "where_to_train_opportunities_grid",
+      },
+    });
+  };
+
+  const renderOpportunityGuideBanner = () => (
+    <aside
+      className="opportunity-guide-inline-banner"
+      aria-label="دليل رحلة المتدرب"
+      style={{
+        gridColumn: "1 / -1",
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) auto",
+        alignItems: "center",
+        gap: "14px",
+        border: "1px solid var(--app-brand-border)",
+        borderRadius: "16px",
+        background:
+          "linear-gradient(135deg, var(--app-brand-soft), var(--app-surface) 65%, rgba(245,158,11,0.10))",
+        padding: "14px 16px",
+        boxShadow: "0 12px 28px var(--app-shadow)",
+      }}
+    >
+      <div style={{ display: "grid", gap: "5px", minWidth: 0 }}>
+        <strong
+          style={{
+            color: "var(--app-brand)",
+            fontSize: "16px",
+            lineHeight: 1.5,
+          }}
+        >
+          ما لقيت فرصة مناسبة؟
+        </strong>
+        <span
+          style={{
+            color: "var(--app-text-soft)",
+            fontSize: "13px",
+            lineHeight: 1.8,
+            fontWeight: "700",
+          }}
+        >
+          جرّب دليل رحلة المتدرب للوصول إلى مئات الجهات وروابط التقديم.
+        </span>
+      </div>
+      <a
+        href={guideUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={trackOpportunityGuideBannerClick}
+        style={{ textDecoration: "none" }}
+      >
+        <button
+          type="button"
+          style={{
+            border: "none",
+            borderRadius: "13px",
+            background: "var(--app-brand)",
+            color: "#07100e",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontSize: "13px",
+            fontWeight: "900",
+            padding: "10px 14px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          افتح دليل رحلة المتدرب
+        </button>
+      </a>
+    </aside>
+  );
+
   return (
     <main
       style={{
@@ -1493,17 +1574,6 @@ export default function TrainingFinderPage() {
           gap: "18px",
         }}
       >
-        {SHOW_TRAINING_GUIDE_BANNER && (
-          <TrainingGuideBanner
-            compact
-            ariaLabel="إعلان ملف رحلة المتدرب"
-            badges={["🌟 ملف يساعدك تختصر الطريق", "✅ من التقديم إلى التقرير"]}
-            title="رحلة المتدرب: شاملة من التقديم إلى كتابة التقرير"
-            description="إذا كنت في مرحلة البحث عن تدريب أو بدأت تجربتك، هذا الملف يرتب لك الطريق خطوة بخطوة: كيف تقدم، تتابع طلباتك، تستعد، وتكتب تقريرك بثقة."
-            buttonText="استكشف الملف الآن"
-          />
-        )}
-
         <header style={{ textAlign: "center" }}>
           <p
             style={{
@@ -1757,7 +1827,7 @@ export default function TrainingFinderPage() {
                   gap: "10px",
                 }}
               >
-                {opportunities.map((opportunity) => {
+                {opportunities.map((opportunity, index) => {
                   const applicationState = getOpportunityApplicationState(
                     opportunity.deadline
                   );
@@ -1774,8 +1844,14 @@ export default function TrainingFinderPage() {
                     getOpportunityFreshnessLabel(opportunity);
 
                   return (
+                    <React.Fragment
+                      key={
+                        opportunity._id ||
+                        opportunity.id ||
+                        `${opportunity.organizationName}-${index}`
+                      }
+                    >
                     <article
-                      key={opportunity._id}
                       className="finder-result-card suggested-target-card opportunity-card"
                       onClick={() => openOpportunityDetails(opportunity)}
                       style={{
@@ -2016,6 +2092,9 @@ export default function TrainingFinderPage() {
                         )}
                       </div>
                     </article>
+                    {index === opportunityGuideBannerIndex &&
+                      renderOpportunityGuideBanner()}
+                    </React.Fragment>
                   );
                 })}
               </div>
@@ -3711,20 +3790,14 @@ export default function TrainingFinderPage() {
         }
 
         @media (max-width: 760px) {
-          .training-guide-banner {
+          .opportunity-guide-inline-banner {
             grid-template-columns: 1fr !important;
-            padding: 14px !important;
-            gap: 12px !important;
           }
 
-          .training-guide-banner a,
-          .training-guide-banner button {
+          .opportunity-guide-inline-banner a,
+          .opportunity-guide-inline-banner button {
             width: 100% !important;
             max-width: none !important;
-          }
-
-          .training-guide-banner h2 {
-            font-size: 20px !important;
           }
 
           .training-finder-form {

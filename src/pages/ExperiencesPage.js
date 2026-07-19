@@ -4,7 +4,6 @@ import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import ShareButton from "../components/ShareButton";
-import TrainingGuideBanner from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { requestPremiumAccess } from "../utils/premiumAccess";
 import {
@@ -23,7 +22,6 @@ import { buildExperiencesSeoMeta, setPageSeo } from "../utils/seoMetadata";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
-const SHOW_TRAINING_GUIDE_BANNER = true;
 const CITY_REGION_GROUPS = {
   "منطقة الرياض": [
     "الرياض",
@@ -1747,18 +1745,6 @@ const ExperiencesPage = () => {
           padding: "15px 12px",
         }}
       >
-        {SHOW_TRAINING_GUIDE_BANNER && (
-          <TrainingGuideBanner
-            compact
-            ariaLabel="إعلان ملف رحلة المتدرب"
-            badges={["🌟 ملف يساعدك تختصر الطريق", "✅ من التقديم إلى التقرير"]}
-            title="رحلة المتدرب: شاملة من التقديم إلى كتابة التقرير"
-            description="إذا كنت في مرحلة البحث عن تدريب أو بدأت تجربتك، هذا الملف يرتب لك الطريق خطوة بخطوة: كيف تقدم، تتابع طلباتك، تستعد، وتكتب تقريرك بثقة."
-            buttonText="استكشف الملف الآن"
-            style={{ margin: "0 auto 18px", maxWidth: "980px" }}
-          />
-        )}
-
         {(seoCity || seoSpecialty) && (
           <section
             style={{
