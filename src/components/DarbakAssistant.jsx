@@ -14,6 +14,9 @@ const defaultQuestions = [
   "ماذا قال الطلاب عن تدريب STC؟",
 ];
 
+const ASSISTANT_STORAGE_KEY = "darbak_assistant_conversation_v1";
+const MAX_STORED_MESSAGES = 40;
+
 const introMessage = {
   role: "assistant",
   type: "intro",
@@ -25,6 +28,54 @@ const introMessage = {
     "إذا سألت سؤال تدريب عام، أعطيك خطوات عملية وواضحة.",
     "إذا ما لقيت بيانات كافية، أقول لك بوضوح بدون اختراع.",
   ],
+};
+
+const isBrowser = typeof window !== "undefined";
+
+const getStoredAssistantMessages = () => {
+  if (!isBrowser) return [introMessage];
+
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(ASSISTANT_STORAGE_KEY) || "[]"
+    );
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return [introMessage];
+    }
+
+    const safeMessages = parsed.filter(
+      (message) =>
+        message &&
+        (message.role === "assistant" || message.role === "user") &&
+        (message.text || message.type || message.data)
+    );
+
+    if (safeMessages.length === 0) return [introMessage];
+
+    const hasIntro = safeMessages.some(
+      (message) => message.role === "assistant" && message.type === "intro"
+    );
+
+    return (hasIntro ? safeMessages : [introMessage, ...safeMessages]).slice(
+      -MAX_STORED_MESSAGES
+    );
+  } catch {
+    return [introMessage];
+  }
+};
+
+const storeAssistantMessages = (messages = []) => {
+  if (!isBrowser) return;
+
+  try {
+    window.localStorage.setItem(
+      ASSISTANT_STORAGE_KEY,
+      JSON.stringify(messages.slice(-MAX_STORED_MESSAGES))
+    );
+  } catch {
+    // تجاهل امتلاء التخزين المحلي حتى لا يتعطل المساعد.
+  }
 };
 
 const getLatestAssistantContext = (conversationMessages = []) => {
@@ -44,12 +95,24 @@ const getLatestAssistantContext = (conversationMessages = []) => {
 
 export default function DarbakAssistant() {
   const navigate = useNavigate();
+  const initialMessagesRef = useRef(null);
+  if (!initialMessagesRef.current) {
+    initialMessagesRef.current = getStoredAssistantMessages();
+  }
+
   const [isOpen, setIsOpen] = useState(false);
   const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState([introMessage]);
+  const [messages, setMessages] = useState(initialMessagesRef.current);
+  const [showQuickQuestions, setShowQuickQuestions] = useState(
+    () => !initialMessagesRef.current.some((message) => message.role === "user")
+  );
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const hasUserMessages = messages.some((message) => message.role === "user");
+  const quickQuestions = hasUserMessages
+    ? defaultQuestions.slice(0, 3)
+    : defaultQuestions;
 
   useEffect(() => {
     const openAssistant = () => setIsOpen(true);
@@ -68,6 +131,10 @@ export default function DarbakAssistant() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isLoading]);
 
+  useEffect(() => {
+    storeAssistantMessages(messages);
+  }, [messages]);
+
   const sendQuestion = async (text) => {
     const cleanQuestion = text.trim();
     if (!cleanQuestion || isLoading) return;
@@ -75,6 +142,7 @@ export default function DarbakAssistant() {
 
     setIsOpen(true);
     setQuestion("");
+    setShowQuickQuestions(false);
     setMessages((currentMessages) => [
       ...currentMessages,
       { role: "user", text: cleanQuestion },
@@ -129,6 +197,13 @@ export default function DarbakAssistant() {
   const openRelatedExperiences = (url = "/experiences") => {
     setIsOpen(false);
     navigate(url);
+  };
+
+  const clearConversation = () => {
+    const freshMessages = [introMessage];
+    setMessages(freshMessages);
+    setShowQuickQuestions(true);
+    storeAssistantMessages(freshMessages);
   };
 
   const renderAssistantAnswer = (message, index) => {
@@ -241,20 +316,60 @@ export default function DarbakAssistant() {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="darbak-assistant-quick-questions">
-            <span className="darbak-assistant-quick-title">أسئلة مقترحة</span>
-            <div className="darbak-assistant-quick-list">
-              {defaultQuestions.map((item) => (
+          <div
+            className={`darbak-assistant-quick-questions${
+              !showQuickQuestions ? " is-collapsed" : ""
+            }`}
+          >
+            {showQuickQuestions ? (
+              <>
+                <div className="darbak-assistant-quick-row">
+                  <span className="darbak-assistant-quick-title">
+                    أسئلة مقترحة
+                  </span>
+                  {hasUserMessages && (
+                    <button
+                      type="button"
+                      className="darbak-assistant-quick-toggle"
+                      onClick={() => setShowQuickQuestions(false)}
+                    >
+                      إخفاء
+                    </button>
+                  )}
+                </div>
+                <div className="darbak-assistant-quick-list">
+                  {quickQuestions.map((item) => (
+                    <button
+                      type="button"
+                      key={item}
+                      onClick={() => sendQuestion(item)}
+                      disabled={isLoading}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="darbak-assistant-quick-row">
                 <button
                   type="button"
-                  key={item}
-                  onClick={() => sendQuestion(item)}
-                  disabled={isLoading}
+                  className="darbak-assistant-quick-toggle"
+                  onClick={() => setShowQuickQuestions(true)}
                 >
-                  {item}
+                  عرض أسئلة مقترحة
                 </button>
-              ))}
-            </div>
+                {hasUserMessages && (
+                  <button
+                    type="button"
+                    className="darbak-assistant-quick-toggle is-muted"
+                    onClick={clearConversation}
+                  >
+                    مسح المحادثة
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <form className="darbak-assistant-form" onSubmit={submitQuestion}>
