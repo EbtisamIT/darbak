@@ -26,6 +26,8 @@ import { trackEvent } from "./utils/analytics";
 
 const PLATFORM_UPDATE_NOTICE_KEY = "darbak_training_diagnosis_quiz_seen_v1";
 const ADMIN_REVIEW_PATH = "/darbak-owner-review-2026";
+const cvProductUrl =
+  "https://darbakk.com/%D8%B3%D9%8A%D8%B1%D8%A9-%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8-%D8%A7%D9%84%D8%AA%D8%B9%D8%A7%D9%88%D9%86%D9%8A/p1027158085";
 
 const diagnosisFearOptions = [
   { value: "unknownTargets", label: "ما أعرف الجهات" },
@@ -306,6 +308,10 @@ function PlatformUpdateNotice() {
   const experienceCount = answers.appliedBefore === "yes" ? 6 : 4;
   const suggestedSolution = `${targetCount} جهة مناسبة + ${experienceCount} تجارب سابقة + نموذج إيميل تقديم`;
   const guideRecommendation = buildGuideRecommendation(answers);
+  const shouldShowCvProduct =
+    answers.hasCv === "no" ||
+    answers.fear === "noCv" ||
+    diagnosis.name.includes("CV");
   const shareOrigin =
     typeof window !== "undefined" ? window.location.origin : "https://darbak.space";
   const shareText = `تشخيص دربك
@@ -357,6 +363,21 @@ function PlatformUpdateNotice() {
         priority: answers.priority,
         fear: answers.fear,
         guideTitle: guideRecommendation.title,
+      },
+    });
+    markPlatformUpdateNoticeSeen();
+  };
+
+  const trackCvProductClick = () => {
+    trackEvent("diagnosis_cv_product_click", {
+      major: selectedMajorLabel,
+      city: answers.city,
+      resultsCount: diagnosis.percent,
+      metadata: {
+        diagnosisName: diagnosis.name,
+        hasCv: answers.hasCv,
+        fear: answers.fear,
+        source: "diagnosis_result",
       },
     });
     markPlatformUpdateNoticeSeen();
@@ -658,6 +679,75 @@ function PlatformUpdateNotice() {
           ))}
         </div>
       </div>
+
+      {shouldShowCvProduct && (
+        <div
+          style={{
+            border: "1px solid var(--app-brand-border)",
+            borderRadius: "18px",
+            background:
+              "linear-gradient(135deg, var(--app-brand-soft), transparent 72%), var(--app-card)",
+            padding: "14px",
+            display: "grid",
+            gap: "10px",
+          }}
+        >
+          <span
+            style={{
+              color: "var(--app-brand)",
+              fontSize: "13px",
+              fontWeight: "900",
+            }}
+          >
+            تحتاج ترتيب السيرة؟
+          </span>
+          <strong
+            style={{
+              color: "var(--app-text)",
+              fontSize: "17px",
+              lineHeight: 1.6,
+            }}
+          >
+            لا تؤجل التقديم بسبب السيرة الذاتية.
+          </strong>
+          <p
+            style={{
+              margin: 0,
+              color: "var(--app-text-soft)",
+              fontSize: "13.5px",
+              lineHeight: 1.85,
+              fontWeight: "700",
+            }}
+          >
+            ننشئ لك سيرة ذاتية احترافية من الصفر، جاهزة للتقديم ومتوافقة مع
+            أنظمة ATS.
+          </p>
+          <a
+            href={cvProductUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={trackCvProductClick}
+            style={{ textDecoration: "none", width: "fit-content" }}
+          >
+            <button
+              type="button"
+              style={{
+                border: "none",
+                borderRadius: "13px",
+                background: "var(--app-brand)",
+                color: "#07100e",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: "13.5px",
+                fontWeight: "900",
+                padding: "10px 14px",
+              }}
+            >
+              أنشئ سيرتي الذاتية
+            </button>
+          </a>
+        </div>
+      )}
 
       <div
         style={{
