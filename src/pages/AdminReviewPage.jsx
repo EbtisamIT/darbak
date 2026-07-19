@@ -643,6 +643,7 @@ export default function AdminReviewPage() {
   const [experiences, setExperiences] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
+  const [interviewQuestions, setInterviewQuestions] = useState([]);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
   const [analyticsDays, setAnalyticsDays] = useState("30");
   const [loading, setLoading] = useState(false);
@@ -658,6 +659,8 @@ export default function AdminReviewPage() {
   const currentItemsCount =
     adminView === "suggestions"
       ? suggestions.length
+      : adminView === "interviewQuestions"
+      ? interviewQuestions.length
       : adminView === "opportunities"
       ? opportunities.length
       : adminView === "analytics"
@@ -666,6 +669,8 @@ export default function AdminReviewPage() {
   const currentItemsLabel =
     adminView === "suggestions"
       ? "اقتراح"
+      : adminView === "interviewQuestions"
+      ? "أسئلة مقابلة"
       : adminView === "opportunities"
       ? "فرصة"
       : adminView === "analytics"
@@ -758,6 +763,38 @@ export default function AdminReviewPage() {
     }
   };
 
+  const fetchInterviewQuestions = async () => {
+    if (!password) {
+      setMessage("اكتب كلمة المرور لعرض المحتوى.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      sessionStorage.setItem("darbak_admin_password", password);
+
+      const { data } = await axios.get(
+        `${API_BASE_URL}/api/admin/interview-questions`,
+        {
+          params: { status },
+          headers: authHeaders,
+        }
+      );
+
+      setInterviewQuestions(Array.isArray(data.data) ? data.data : []);
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.status === 401
+          ? "كلمة المرور غير صحيحة."
+          : "تعذر تحميل أسئلة المقابلات."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchAnalytics = async () => {
     if (!password) {
       setMessage("اكتب كلمة المرور لعرض المحتوى.");
@@ -792,6 +829,8 @@ export default function AdminReviewPage() {
 
     if (adminView === "suggestions") {
       fetchSuggestions();
+    } else if (adminView === "interviewQuestions") {
+      fetchInterviewQuestions();
     } else if (adminView === "opportunities") {
       fetchOpportunities();
     } else if (adminView === "analytics") {
@@ -810,6 +849,11 @@ export default function AdminReviewPage() {
 
     if (adminView === "opportunities") {
       fetchOpportunities();
+      return;
+    }
+
+    if (adminView === "interviewQuestions") {
+      fetchInterviewQuestions();
       return;
     }
 
@@ -833,6 +877,21 @@ export default function AdminReviewPage() {
     } catch (err) {
       console.error(err);
       setMessage("تعذر تحديث حالة التجربة.");
+    }
+  };
+
+  const updateInterviewQuestionStatus = async (id, nextStatus) => {
+    try {
+      setMessage("");
+      await axios.patch(
+        `${API_BASE_URL}/api/admin/interview-questions/${id}/status`,
+        { status: nextStatus },
+        { headers: authHeaders }
+      );
+      setInterviewQuestions((prev) => prev.filter((item) => item._id !== id));
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر تحديث حالة أسئلة المقابلة.");
     }
   };
 
@@ -945,6 +1004,25 @@ export default function AdminReviewPage() {
     } catch (err) {
       console.error(err);
       setMessage("تعذر حذف الاقتراح.");
+    }
+  };
+
+  const deleteInterviewQuestion = async (id) => {
+    const confirmed = window.confirm(
+      "هل أنت متأكد من حذف أسئلة المقابلة؟ لا يمكن التراجع عن الحذف."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setMessage("");
+      await axios.delete(`${API_BASE_URL}/api/admin/interview-questions/${id}`, {
+        headers: authHeaders,
+      });
+      setInterviewQuestions((prev) => prev.filter((item) => item._id !== id));
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر حذف أسئلة المقابلة.");
     }
   };
 
@@ -1298,6 +1376,7 @@ export default function AdminReviewPage() {
           <option value="experiences">التجارب</option>
           <option value="suggestions">الاقتراحات</option>
           <option value="opportunities">الفرص</option>
+          <option value="interviewQuestions">أسئلة المقابلات</option>
           <option value="analytics">التحليلات</option>
         </select>
 
@@ -1595,6 +1674,164 @@ export default function AdminReviewPage() {
                     onClick={() => deleteSuggestion(suggestion._id)}
                     style={{
                       background: "rgba(127,29,29,0.2)",
+                      color: "#fecaca",
+                      border: "1px solid rgba(248,113,113,0.35)",
+                      borderRadius: "10px",
+                      padding: "9px 14px",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    حذف
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      ) : adminView === "interviewQuestions" ? (
+        <div style={{ display: "grid", gap: "12px" }}>
+          {interviewQuestions.length === 0 && !loading ? (
+            <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
+              لا توجد أسئلة مقابلات في هذه الحالة.
+            </div>
+          ) : (
+            interviewQuestions.map((item) => (
+              <article key={item._id} style={cardStyle}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div>
+                    <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                      {item.organizationName}
+                    </h3>
+                    <p
+                      style={{
+                        color: adminColors.textSoft,
+                        margin: 0,
+                        lineHeight: 1.8,
+                        fontSize: "13px",
+                      }}
+                    >
+                      {item.majorCategory ? `${item.majorCategory} - ` : ""}
+                      {item.major}
+                      {item.city ? ` - ${item.city}` : ""}
+                    </p>
+                  </div>
+
+                  <div
+                    style={{
+                      color: adminColors.muted,
+                      fontSize: "13px",
+                      lineHeight: 1.8,
+                      textAlign: "left",
+                    }}
+                  >
+                    <div>أضيف:</div>
+                    <strong style={{ color: adminColors.textSoft, fontWeight: "600" }}>
+                      {formatAdminDateTime(item.createdAt)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "8px",
+                    marginBottom: item.note ? "12px" : "14px",
+                  }}
+                >
+                  {(item.questions || []).map((question, index) => (
+                    <p
+                      key={`${item._id}-${index}`}
+                      style={{
+                        margin: 0,
+                        color: adminColors.text,
+                        lineHeight: 1.8,
+                        padding: "9px 10px",
+                        borderRadius: "10px",
+                        background: "rgba(125,219,205,0.06)",
+                        border: "1px solid rgba(125,219,205,0.14)",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {question}
+                    </p>
+                  ))}
+                </div>
+
+                {item.note && (
+                  <p
+                    style={{
+                      color: adminColors.textSoft,
+                      margin: "0 0 14px",
+                      lineHeight: 1.8,
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    ملاحظة: {item.note}
+                  </p>
+                )}
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    justifyContent: "flex-end",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {item.status !== "approved" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateInterviewQuestionStatus(item._id, "approved")
+                      }
+                      style={{
+                        background: adminColors.brand,
+                        color: "#061310",
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "9px 14px",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        fontWeight: "700",
+                      }}
+                    >
+                      قبول
+                    </button>
+                  )}
+                  {item.status !== "rejected" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateInterviewQuestionStatus(item._id, "rejected")
+                      }
+                      style={{
+                        background: "rgba(127,29,29,0.2)",
+                        color: "#fecaca",
+                        border: "1px solid rgba(248,113,113,0.35)",
+                        borderRadius: "10px",
+                        padding: "9px 14px",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      رفض
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => deleteInterviewQuestion(item._id)}
+                    style={{
+                      background: "transparent",
                       color: "#fecaca",
                       border: "1px solid rgba(248,113,113,0.35)",
                       borderRadius: "10px",

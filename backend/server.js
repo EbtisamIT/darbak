@@ -7,6 +7,7 @@ require('dotenv').config();
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
 const Opportunity = require('./models/Opportunity');
+const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
 const Subscription = require('./models/Subscription');
 
@@ -525,6 +526,15 @@ const normalizeInterviewQuestions = (value) => {
     })
     .slice(0, 20);
 };
+
+const sanitizeInterviewQuestionPayload = (body = {}) => ({
+  organizationName: (body.organizationName || "").toString().trim(),
+  city: (body.city || "").toString().trim(),
+  majorCategory: (body.majorCategory || "").toString().trim(),
+  major: (body.major || "").toString().trim(),
+  questions: normalizeInterviewQuestions(body.questions || body.interviewQuestions),
+  note: (body.note || "").toString().trim(),
+});
 
 const isGeneralSpecialtyValue = (value = "") =>
   GENERAL_SPECIALTY_MARKERS.some(
@@ -3678,6 +3688,66 @@ app.post('/api/suggestions', async (req, res) => {
   }
 });
 
+app.post('/api/interview-questions', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const payload = sanitizeInterviewQuestionPayload(req.body);
+
+    if (!payload.organizationName || !payload.major) {
+      return res.status(400).json({
+        error: "اسم الجهة والتخصص مطلوبة حتى نستفيد من الأسئلة بشكل صحيح.",
+      });
+    }
+
+    if (payload.questions.length === 0) {
+      return res.status(400).json({
+        error: "اكتب سؤال مقابلة واحدًا على الأقل.",
+      });
+    }
+
+    const fieldsToCheck = [
+      payload.organizationName,
+      payload.city,
+      payload.majorCategory,
+      payload.major,
+      payload.note,
+      ...payload.questions,
+    ];
+
+    if (fieldsToCheck.some(containsBlockedTerms)) {
+      return res.status(400).json({
+        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة ثم المحاولة مرة أخرى.",
+      });
+    }
+
+    if (
+      (payload.majorCategory && isUnclearMajorText(payload.majorCategory)) ||
+      isUnclearMajorText(payload.major)
+    ) {
+      return res.status(400).json({
+        error: "الرجاء اختيار تخصص واضح حتى تظهر الأسئلة للطلاب المناسبين.",
+      });
+    }
+
+    const interviewQuestion = await InterviewQuestion.create({
+      ...payload,
+      status: "pending",
+      sourceType: "direct",
+    });
+
+    res.json({
+      message: "وصلتنا أسئلة المقابلة، وبتظهر بعد المراجعة.",
+      data: interviewQuestion,
+    });
+  } catch (err) {
+    console.error("❌ Error saving interview questions:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/training-targets', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -4380,39 +4450,67 @@ app.get('/api/interviews', async (req, res) => {
     const majorFilter = (req.query.major || "").toString().trim();
     const cityFilter = (req.query.city || "").toString().trim();
 
-    const experiences = await Experience.find({
-      ...getApprovedExperiencesFilter(),
-      interviewQuestions: { $exists: true, $ne: [] },
-    })
-      .select(
-        "organizationName city major majorCategory interviewQuestions createdAt"
-      )
-      .sort({ createdAt: -1 })
-      .limit(1200)
-      .lean();
+    const [experiences, interviewQuestionSubmissions] = await Promise.all([
+      Experience.find({
+        ...getApprovedExperiencesFilter(),
+        interviewQuestions: { $exists: true, $ne: [] },
+      })
+        .select(
+          "organizationName city major majorCategory interviewQuestions createdAt"
+        )
+        .sort({ createdAt: -1 })
+        .limit(1200)
+        .lean(),
+      InterviewQuestion.find({ status: "approved" })
+        .select("organizationName city major majorCategory questions createdAt")
+        .sort({ createdAt: -1 })
+        .limit(1200)
+        .lean(),
+    ]);
 
-    const matchesFilter = (exp) => {
+    const interviewRows = [
+      ...experiences.map((exp) => ({
+        organizationName: exp.organizationName,
+        city: exp.city,
+        major: exp.major,
+        majorCategory: exp.majorCategory,
+        questions: exp.interviewQuestions,
+        createdAt: exp.createdAt,
+        kind: "experience",
+      })),
+      ...interviewQuestionSubmissions.map((item) => ({
+        organizationName: item.organizationName,
+        city: item.city,
+        major: item.major,
+        majorCategory: item.majorCategory,
+        questions: item.questions,
+        createdAt: item.createdAt,
+        kind: "interview_question",
+      })),
+    ];
+
+    const matchesFilter = (item) => {
       if (
         majorFilter &&
-        exp.major !== majorFilter &&
-        exp.majorCategory !== majorFilter
+        item.major !== majorFilter &&
+        item.majorCategory !== majorFilter
       ) {
         return false;
       }
 
       if (cityFilter) {
         const cityValues = getCityFilterValues(cityFilter);
-        if (!cityValues.includes(exp.city)) return false;
+        if (!cityValues.includes(item.city)) return false;
       }
 
       if (!query) return true;
 
       const searchableValues = [
-        exp.organizationName,
-        exp.city,
-        exp.major,
-        exp.majorCategory,
-        ...(Array.isArray(exp.interviewQuestions) ? exp.interviewQuestions : []),
+        item.organizationName,
+        item.city,
+        item.major,
+        item.majorCategory,
+        ...(Array.isArray(item.questions) ? item.questions : []),
       ]
         .filter(Boolean)
         .map(normalizeSearchText);
@@ -4422,10 +4520,10 @@ app.get('/api/interviews', async (req, res) => {
 
     const grouped = new Map();
 
-    experiences.filter(matchesFilter).forEach((exp) => {
-      const organizationName = (exp.organizationName || "").trim();
-      const major = (exp.major || "غير محدد").trim();
-      const majorCategory = (exp.majorCategory || "").trim();
+    interviewRows.filter(matchesFilter).forEach((item) => {
+      const organizationName = (item.organizationName || "").trim();
+      const major = (item.major || "غير محدد").trim();
+      const majorCategory = (item.majorCategory || "").trim();
       const key = `${normalizeSearchText(organizationName)}|${normalizeSearchText(
         major
       )}`;
@@ -4439,22 +4537,27 @@ app.get('/api/interviews', async (req, res) => {
           questions: [],
           questionKeys: new Set(),
           experiencesCount: 0,
-          latestCreatedAt: exp.createdAt,
+          interviewSubmissionsCount: 0,
+          latestCreatedAt: item.createdAt,
         });
       }
 
       const group = grouped.get(key);
-      group.experiencesCount += 1;
-      if (exp.city) group.cities.add(exp.city);
+      if (item.kind === "experience") {
+        group.experiencesCount += 1;
+      } else {
+        group.interviewSubmissionsCount += 1;
+      }
+      if (item.city) group.cities.add(item.city);
       if (
-        exp.createdAt &&
+        item.createdAt &&
         (!group.latestCreatedAt ||
-          new Date(exp.createdAt) > new Date(group.latestCreatedAt))
+          new Date(item.createdAt) > new Date(group.latestCreatedAt))
       ) {
-        group.latestCreatedAt = exp.createdAt;
+        group.latestCreatedAt = item.createdAt;
       }
 
-      normalizeInterviewQuestions(exp.interviewQuestions).forEach((question) => {
+      normalizeInterviewQuestions(item.questions).forEach((question) => {
         const questionKey = normalizeSearchText(question);
         if (!group.questionKeys.has(questionKey)) {
           group.questionKeys.add(questionKey);
@@ -4472,11 +4575,13 @@ app.get('/api/interviews', async (req, res) => {
         questions: group.questions.slice(0, 12),
         questionsCount: group.questions.length,
         experiencesCount: group.experiencesCount,
+        interviewSubmissionsCount: group.interviewSubmissionsCount,
+        sourcesCount: group.experiencesCount + group.interviewSubmissionsCount,
         latestCreatedAt: group.latestCreatedAt,
       }))
       .sort((a, b) => {
-        if (b.experiencesCount !== a.experiencesCount) {
-          return b.experiencesCount - a.experiencesCount;
+        if (b.sourcesCount !== a.sourcesCount) {
+          return b.sourcesCount - a.sourcesCount;
         }
         return (a.organizationName || "").localeCompare(
           b.organizationName || "",
@@ -4689,6 +4794,28 @@ app.get('/api/admin/opportunities', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/interview-questions', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const status = ["pending", "approved", "rejected"].includes(req.query.status)
+      ? req.query.status
+      : "pending";
+
+    const interviewQuestions = await InterviewQuestion.find({ status })
+      .sort({ createdAt: -1 })
+      .limit(150)
+      .lean();
+
+    res.json({ data: interviewQuestions });
+  } catch (err) {
+    console.error("❌ Admin interview questions fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/admin/opportunities', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -4810,6 +4937,35 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
     res.json(updated);
   } catch (err) {
     console.error("❌ Admin update error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/interview-questions/:id/status', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const { status } = req.body;
+
+    if (!["approved", "rejected", "pending"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+
+    const updated = await InterviewQuestion.findByIdAndUpdate(
+      req.params.id,
+      { status, reviewedAt: new Date() },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Interview questions not found" });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("❌ Admin interview questions status error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -4981,6 +5137,25 @@ app.delete('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
     res.json({ success: true, id: req.params.id });
   } catch (err) {
     console.error("❌ Admin opportunity delete error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/interview-questions/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const deleted = await InterviewQuestion.findByIdAndDelete(req.params.id).lean();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Interview questions not found" });
+    }
+
+    res.json({ success: true, id: req.params.id });
+  } catch (err) {
+    console.error("❌ Admin interview questions delete error:", err);
     res.status(500).json({ error: err.message });
   }
 });
