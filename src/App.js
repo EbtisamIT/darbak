@@ -10,6 +10,7 @@ import "./App.css";
 import Navbar from "./pages/Navbar";
 import HomePage from "./pages/HomePage";
 import ExperiencesPage from "./pages/ExperiencesPage";
+import InterviewsPage from "./pages/InterviewsPage";
 import TrainingFinderPage, {
   cityOptions as trainingCityOptions,
   specializationOptions,
@@ -1223,6 +1224,7 @@ function AppLayout({ theme, setTheme }) {
               element={<ExperiencesPage />}
             />
             <Route path="/experiences/:experienceId" element={<ExperiencesPage />} />
+            <Route path="/interviews" element={<InterviewsPage />} />
             <Route path="/where-to-train" element={<TrainingFinderPage />} />
             <Route
               path="/where-to-train/opportunity/:organizationSlug/:opportunityId"

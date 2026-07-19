@@ -499,6 +499,33 @@ const normalizeArrayField = (value) => {
   return [];
 };
 
+const normalizeInterviewQuestions = (value) => {
+  const rawItems = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/\n+|[؛;]+/)
+    : [];
+
+  const seen = new Set();
+
+  return rawItems
+    .map((item) =>
+      item
+        .toString()
+        .replace(/^[\s\d٠-٩.)(-]+/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter((item) => item.length >= 3)
+    .filter((item) => {
+      const key = normalizeSearchText(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 20);
+};
+
 const isGeneralSpecialtyValue = (value = "") =>
   GENERAL_SPECIALTY_MARKERS.some(
     (marker) => normalizeSearchText(marker) === normalizeSearchText(value)
@@ -4173,6 +4200,9 @@ app.post('/api/experiences', async (req, res) => {
       req.body.wouldRecommend,
       req.body.trainingMode,
       req.body.description,
+      ...(Array.isArray(req.body.interviewQuestions)
+        ? req.body.interviewQuestions
+        : [req.body.interviewQuestions]),
     ];
 
     if (fieldsToCheck.some(containsBlockedTerms)) {
@@ -4206,6 +4236,7 @@ app.post('/api/experiences', async (req, res) => {
 
     const newExp = new Experience({
       ...req.body,
+      interviewQuestions: normalizeInterviewQuestions(req.body.interviewQuestions),
       rewardAmount: req.body.hadReward === "yes" ? rewardAmount : "",
       ambassadorConsent,
       ambassadorLinkedInUrl,
@@ -4335,6 +4366,127 @@ app.get('/api/experiences', async (req, res) => {
     });
   } catch (err) {
     console.error("❌ FULL ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/interviews', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const query = normalizeSearchText(req.query.q || "");
+    const majorFilter = (req.query.major || "").toString().trim();
+    const cityFilter = (req.query.city || "").toString().trim();
+
+    const experiences = await Experience.find({
+      ...getApprovedExperiencesFilter(),
+      interviewQuestions: { $exists: true, $ne: [] },
+    })
+      .select(
+        "organizationName city major majorCategory interviewQuestions createdAt"
+      )
+      .sort({ createdAt: -1 })
+      .limit(1200)
+      .lean();
+
+    const matchesFilter = (exp) => {
+      if (
+        majorFilter &&
+        exp.major !== majorFilter &&
+        exp.majorCategory !== majorFilter
+      ) {
+        return false;
+      }
+
+      if (cityFilter) {
+        const cityValues = getCityFilterValues(cityFilter);
+        if (!cityValues.includes(exp.city)) return false;
+      }
+
+      if (!query) return true;
+
+      const searchableValues = [
+        exp.organizationName,
+        exp.city,
+        exp.major,
+        exp.majorCategory,
+        ...(Array.isArray(exp.interviewQuestions) ? exp.interviewQuestions : []),
+      ]
+        .filter(Boolean)
+        .map(normalizeSearchText);
+
+      return searchableValues.some((value) => value.includes(query));
+    };
+
+    const grouped = new Map();
+
+    experiences.filter(matchesFilter).forEach((exp) => {
+      const organizationName = (exp.organizationName || "").trim();
+      const major = (exp.major || "غير محدد").trim();
+      const majorCategory = (exp.majorCategory || "").trim();
+      const key = `${normalizeSearchText(organizationName)}|${normalizeSearchText(
+        major
+      )}`;
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          organizationName,
+          major,
+          majorCategory,
+          cities: new Set(),
+          questions: [],
+          questionKeys: new Set(),
+          experiencesCount: 0,
+          latestCreatedAt: exp.createdAt,
+        });
+      }
+
+      const group = grouped.get(key);
+      group.experiencesCount += 1;
+      if (exp.city) group.cities.add(exp.city);
+      if (
+        exp.createdAt &&
+        (!group.latestCreatedAt ||
+          new Date(exp.createdAt) > new Date(group.latestCreatedAt))
+      ) {
+        group.latestCreatedAt = exp.createdAt;
+      }
+
+      normalizeInterviewQuestions(exp.interviewQuestions).forEach((question) => {
+        const questionKey = normalizeSearchText(question);
+        if (!group.questionKeys.has(questionKey)) {
+          group.questionKeys.add(questionKey);
+          group.questions.push(question);
+        }
+      });
+    });
+
+    const data = Array.from(grouped.values())
+      .map((group) => ({
+        organizationName: group.organizationName,
+        major: group.major,
+        majorCategory: group.majorCategory,
+        cities: Array.from(group.cities),
+        questions: group.questions.slice(0, 12),
+        questionsCount: group.questions.length,
+        experiencesCount: group.experiencesCount,
+        latestCreatedAt: group.latestCreatedAt,
+      }))
+      .sort((a, b) => {
+        if (b.experiencesCount !== a.experiencesCount) {
+          return b.experiencesCount - a.experiencesCount;
+        }
+        return (a.organizationName || "").localeCompare(
+          b.organizationName || "",
+          "ar"
+        );
+      });
+
+    res.json({ data, total: data.length });
+  } catch (err) {
+    console.error("❌ Interviews fetch error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -4688,6 +4840,7 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
       "ambassadorProfileImageUrl",
       "starRating",
       "ratings",
+      "interviewQuestions",
       "sourceType",
       "description",
       "rejectionReason",
@@ -4703,6 +4856,12 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
 
     if (typeof updates.rewardAmount === "string") {
       updates.rewardAmount = updates.rewardAmount.trim();
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, "interviewQuestions")) {
+      updates.interviewQuestions = normalizeInterviewQuestions(
+        updates.interviewQuestions
+      );
     }
 
     if (

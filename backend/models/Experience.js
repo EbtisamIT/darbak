@@ -82,6 +82,10 @@ const experienceSchema = new mongoose.Schema(
         message: "يمكن اختيار تقييمين كحد أقصى",
       },
     },
+    interviewQuestions: {
+      type: [String],
+      default: [],
+    },
 
 
     description: {

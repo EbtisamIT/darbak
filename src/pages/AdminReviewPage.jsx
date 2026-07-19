@@ -45,6 +45,7 @@ const editableFields = [
   "ambassadorLinkedInUrl",
   "ambassadorProfileImageUrl",
   "starRating",
+  "interviewQuestions",
   "sourceType",
   "description",
   "rejectionReason",
@@ -853,7 +854,12 @@ export default function AdminReviewPage() {
     const nextForm = {};
 
     editableFields.forEach((field) => {
-      nextForm[field] = exp[field] ?? "";
+      nextForm[field] =
+        field === "interviewQuestions"
+          ? Array.isArray(exp[field])
+            ? exp[field].join("\n")
+            : ""
+          : exp[field] ?? "";
     });
 
     nextForm.starRating = String(exp.starRating || "");
@@ -879,6 +885,10 @@ export default function AdminReviewPage() {
       const payload = {
         ...editForm,
         starRating: Number(editForm.starRating) || 1,
+        interviewQuestions: (editForm.interviewQuestions || "")
+          .split("\n")
+          .map((question) => question.trim())
+          .filter(Boolean),
       };
 
       const { data } = await axios.patch(
@@ -2283,6 +2293,30 @@ export default function AdminReviewPage() {
                   </label>
 
                   <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                    أسئلة المقابلة
+                    <textarea
+                      value={editForm.interviewQuestions || ""}
+                      onChange={(e) =>
+                        updateEditField("interviewQuestions", e.target.value)
+                      }
+                      rows={4}
+                      placeholder="اكتبي كل سؤال في سطر مستقل"
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        marginTop: "5px",
+                        background: adminColors.inputBg,
+                        color: adminColors.text,
+                        border: `1px solid ${adminColors.inputBorder}`,
+                        borderRadius: "9px",
+                        padding: "10px",
+                        fontFamily: "inherit",
+                        lineHeight: 1.8,
+                      }}
+                    />
+                  </label>
+
+                  <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                     سبب الرفض
                     <textarea
                       value={editForm.rejectionReason || ""}
@@ -2306,16 +2340,55 @@ export default function AdminReviewPage() {
                   </label>
                 </div>
               ) : (
-                <p
-                  style={{
-                    color: adminColors.text,
-                    lineHeight: 1.9,
-                    whiteSpace: "pre-wrap",
-                    overflowWrap: "anywhere",
-                  }}
-                >
-                  {exp.description}
-                </p>
+                <>
+                  <p
+                    style={{
+                      color: adminColors.text,
+                      lineHeight: 1.9,
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {exp.description}
+                  </p>
+
+                  {Array.isArray(exp.interviewQuestions) &&
+                    exp.interviewQuestions.length > 0 && (
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          padding: "12px",
+                          borderRadius: "12px",
+                          background: "rgba(125,219,205,0.06)",
+                          border: "1px solid rgba(125,219,205,0.16)",
+                        }}
+                      >
+                        <strong
+                          style={{
+                            display: "block",
+                            color: adminColors.brandStrong,
+                            marginBottom: "8px",
+                          }}
+                        >
+                          أسئلة المقابلة
+                        </strong>
+                        <div style={{ display: "grid", gap: "7px" }}>
+                          {exp.interviewQuestions.map((question, index) => (
+                            <span
+                              key={`${exp._id}-question-${index}`}
+                              style={{
+                                color: adminColors.text,
+                                lineHeight: 1.7,
+                                overflowWrap: "anywhere",
+                              }}
+                            >
+                              {question}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                </>
               )}
 
               {exp.rejectionReason && (

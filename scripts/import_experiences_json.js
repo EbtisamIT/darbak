@@ -51,6 +51,9 @@ const normalizeRecord = (item) => ({
       ? item.starRating
       : 3,
   ratings: Array.isArray(item.ratings) ? item.ratings : [],
+  interviewQuestions: Array.isArray(item.interviewQuestions)
+    ? item.interviewQuestions.map((question) => question.toString().trim()).filter(Boolean)
+    : [],
   description: item.description,
   title: item.title,
   sourceType: allowedSourceTypes.has(item.sourceType)

@@ -140,11 +140,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     setFloatingMenuOpen(false);
   };
 
-  const openSmartAssistant = () => {
-    window.dispatchEvent(new Event("darbak:open-smart-assistant"));
-    setFloatingMenuOpen(false);
-  };
-
   const floatingLinkStyle = (path) => ({
     display: "flex",
     alignItems: "center",
@@ -366,13 +361,9 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             {isMobile ? "تشخيص" : "تشخيص التدريب"}
           </button>
 
-          <button
-            type="button"
-            onClick={openSmartAssistant}
-            style={quietActionButtonStyle}
-          >
-            {isMobile ? "مساعد" : "المساعد الذكي"}
-          </button>
+          <Link to="/interviews" style={linkStyle("/interviews")}>
+            {isMobile ? "مقابلات" : "💬 مقابلات"}
+          </Link>
 
           <div
             style={{
@@ -568,14 +559,10 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 <span aria-hidden="true">▣</span>
               </button>
 
-              <button
-                type="button"
-                onClick={openSmartAssistant}
-                style={floatingActionStyle}
-              >
-                <span>المساعد الذكي</span>
-                <span aria-hidden="true">؟</span>
-              </button>
+              <Link to="/interviews" style={floatingLinkStyle("/interviews")}>
+                <span>مقابلات</span>
+                <span aria-hidden="true">💬</span>
+              </Link>
 
               <button
                 type="button"
