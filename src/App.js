@@ -283,6 +283,27 @@ function PlatformUpdateNotice() {
     answers.hasCv === "no" ||
     answers.fear === "noCv" ||
     diagnosis.name.includes("CV");
+  const diagnosisPromo = shouldShowCvProduct
+    ? {
+        eventName: "diagnosis_cv_product_click",
+        source: "cv_design_product",
+        eyebrow: "تحتاج ترتيب السيرة؟",
+        title: "لا تؤجل التقديم بسبب السيرة الذاتية.",
+        description:
+          "ننشئ لك سيرة ذاتية احترافية من الصفر، جاهزة للتقديم ومتوافقة مع أنظمة ATS.",
+        buttonText: "أنشئ سيرتي الذاتية",
+        href: cvProductUrl,
+      }
+    : {
+        eventName: "diagnosis_store_click",
+        source: "training_guide_file",
+        eyebrow: "جاهز تبدأ بخطة أوضح؟",
+        title: "خذ دليل رحلة المتدرب وابدأ من قائمة مرتبة.",
+        description:
+          "ملف يساعدك تختصر البحث: جهات، روابط تقديم، إيميلات، متابعة الطلبات، وخطوات من البداية إلى التقرير.",
+        buttonText: "افتح دليل رحلة المتدرب",
+        href: guideUrl,
+      };
   const shareOrigin =
     typeof window !== "undefined" ? window.location.origin : "https://darbak.space";
   const shareText = `تشخيص دربك
@@ -319,8 +340,8 @@ function PlatformUpdateNotice() {
     navigate(`/where-to-train${params.toString() ? `?${params}` : ""}`);
   };
 
-  const trackGuideClick = () => {
-    trackEvent("diagnosis_store_click", {
+  const trackDiagnosisPromoClick = () => {
+    trackEvent(diagnosisPromo.eventName, {
       major: selectedMajorLabel,
       city: answers.city,
       resultsCount: diagnosis.percent,
@@ -334,21 +355,7 @@ function PlatformUpdateNotice() {
         priority: answers.priority,
         fear: answers.fear,
         guideTitle: guideRecommendation.title,
-      },
-    });
-    markPlatformUpdateNoticeSeen();
-  };
-
-  const trackCvProductClick = () => {
-    trackEvent("diagnosis_cv_product_click", {
-      major: selectedMajorLabel,
-      city: answers.city,
-      resultsCount: diagnosis.percent,
-      metadata: {
-        diagnosisName: diagnosis.name,
-        hasCv: answers.hasCv,
-        fear: answers.fear,
-        source: "diagnosis_result",
+        source: diagnosisPromo.source,
       },
     });
     markPlatformUpdateNoticeSeen();
@@ -651,75 +658,6 @@ function PlatformUpdateNotice() {
         </div>
       </div>
 
-      {shouldShowCvProduct && (
-        <div
-          style={{
-            border: "1px solid var(--app-brand-border)",
-            borderRadius: "18px",
-            background:
-              "linear-gradient(135deg, var(--app-brand-soft), transparent 72%), var(--app-card)",
-            padding: "14px",
-            display: "grid",
-            gap: "10px",
-          }}
-        >
-          <span
-            style={{
-              color: "var(--app-brand)",
-              fontSize: "13px",
-              fontWeight: "900",
-            }}
-          >
-            تحتاج ترتيب السيرة؟
-          </span>
-          <strong
-            style={{
-              color: "var(--app-text)",
-              fontSize: "17px",
-              lineHeight: 1.6,
-            }}
-          >
-            لا تؤجل التقديم بسبب السيرة الذاتية.
-          </strong>
-          <p
-            style={{
-              margin: 0,
-              color: "var(--app-text-soft)",
-              fontSize: "13.5px",
-              lineHeight: 1.85,
-              fontWeight: "700",
-            }}
-          >
-            ننشئ لك سيرة ذاتية احترافية من الصفر، جاهزة للتقديم ومتوافقة مع
-            أنظمة ATS.
-          </p>
-          <a
-            href={cvProductUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={trackCvProductClick}
-            style={{ textDecoration: "none", width: "fit-content" }}
-          >
-            <button
-              type="button"
-              style={{
-                border: "none",
-                borderRadius: "13px",
-                background: "var(--app-brand)",
-                color: "#07100e",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                fontSize: "13.5px",
-                fontWeight: "900",
-                padding: "10px 14px",
-              }}
-            >
-              أنشئ سيرتي الذاتية
-            </button>
-          </a>
-        </div>
-      )}
-
       <div
         style={{
           display: "flex",
@@ -914,20 +852,20 @@ function PlatformUpdateNotice() {
           </button>
 
           <a
-            href={guideUrl}
+            href={diagnosisPromo.href}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={trackGuideClick}
+            onClick={trackDiagnosisPromoClick}
             style={{ textDecoration: "none", minWidth: 0 }}
           >
-            <button
-              type="button"
+            <span
               style={{
                 width: "100%",
                 height: "100%",
                 display: "grid",
-                gap: "4px",
-                background: "var(--app-card)",
+                gap: "8px",
+                background:
+                  "linear-gradient(135deg, var(--app-brand-soft), transparent 72%), var(--app-card)",
                 color: "var(--app-text)",
                 border: "1px solid var(--app-brand-border)",
                 borderRadius: "14px",
@@ -935,16 +873,27 @@ function PlatformUpdateNotice() {
                 cursor: "pointer",
                 fontFamily: "inherit",
                 textAlign: "right",
+                boxSizing: "border-box",
               }}
             >
-              <strong
+              <span
                 style={{
                   color: "var(--app-brand)",
+                  fontSize: "12px",
+                  lineHeight: 1.5,
+                  fontWeight: "900",
+                }}
+              >
+                {diagnosisPromo.eyebrow}
+              </span>
+              <strong
+                style={{
+                  color: "var(--app-text)",
                   fontSize: "14px",
                   lineHeight: 1.5,
                 }}
               >
-                خذ خطة التدريب الجاهزة
+                {diagnosisPromo.title}
               </strong>
               <span
                 style={{
@@ -954,9 +903,23 @@ function PlatformUpdateNotice() {
                   fontWeight: "700",
                 }}
               >
-                رحلة المتدرب: جهات، روابط، متابعة، وتقرير بدون تشتت
+                {diagnosisPromo.description}
               </span>
-            </button>
+              <span
+                style={{
+                  width: "fit-content",
+                  borderRadius: "12px",
+                  background: "var(--app-brand)",
+                  color: "#07100e",
+                  fontSize: "12.5px",
+                  fontWeight: "900",
+                  lineHeight: 1.5,
+                  padding: "8px 11px",
+                }}
+              >
+                {diagnosisPromo.buttonText}
+              </span>
+            </span>
           </a>
         </div>
 
