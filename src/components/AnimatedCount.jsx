@@ -5,7 +5,7 @@ export default function AnimatedCount({
   duration = 800,
   prefix = "",
   suffix = "",
-  locale = "ar-SA",
+  locale = "en-US",
 }) {
   const safeValue = Math.max(0, Number(value) || 0);
   const [displayValue, setDisplayValue] = useState(0);
