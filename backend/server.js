@@ -3450,6 +3450,14 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       ...cleanMatch,
       eventName: "interviews_page_viewed",
     };
+    const shareMatch = {
+      ...cleanMatch,
+      eventName: "share_item_clicked",
+    };
+    const shareActionMatch = {
+      ...shareMatch,
+      "metadata.action": { $nin: [null, "", "menu_open"] },
+    };
     const activeWindowMinutes = 5;
     const activeVisitorsMatch = {
       createdAt: {
@@ -3490,6 +3498,18 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       guideFileAdClicks,
       cvProductAdClicks,
       topAdClicks,
+      shareMenuOpens,
+      shareActions,
+      experienceShareMenuOpens,
+      experienceShareActions,
+      opportunityShareMenuOpens,
+      opportunityShareActions,
+      trainingTargetShareMenuOpens,
+      trainingTargetShareActions,
+      topShareActions,
+      topSharedExperiences,
+      topSharedOpportunities,
+      topSharedTrainingTargets,
       hourlyActivity,
       recentEvents,
     ] = await Promise.all([
@@ -3689,6 +3709,121 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $sort: { count: -1, _id: 1 } },
         { $project: { _id: 0, label: "$_id", count: 1 } },
       ]),
+      AnalyticsEvent.countDocuments({
+        ...shareMatch,
+        "metadata.action": "menu_open",
+      }),
+      AnalyticsEvent.countDocuments(shareActionMatch),
+      AnalyticsEvent.countDocuments({
+        ...shareMatch,
+        "metadata.itemType": "experience",
+        "metadata.action": "menu_open",
+      }),
+      AnalyticsEvent.countDocuments({
+        ...shareActionMatch,
+        "metadata.itemType": "experience",
+      }),
+      AnalyticsEvent.countDocuments({
+        ...shareMatch,
+        "metadata.itemType": "opportunity",
+        "metadata.action": "menu_open",
+      }),
+      AnalyticsEvent.countDocuments({
+        ...shareActionMatch,
+        "metadata.itemType": "opportunity",
+      }),
+      AnalyticsEvent.countDocuments({
+        ...shareMatch,
+        "metadata.itemType": "training-target",
+        "metadata.action": "menu_open",
+      }),
+      AnalyticsEvent.countDocuments({
+        ...shareActionMatch,
+        "metadata.itemType": "training-target",
+      }),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...shareMatch,
+            "metadata.action": { $nin: [null, ""] },
+          },
+        },
+        { $group: { _id: "$metadata.action", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 8 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...shareActionMatch,
+            "metadata.itemType": "experience",
+            "metadata.organizationName": { $nin: [null, ""] },
+          },
+        },
+        {
+          $project: {
+            label: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$metadata.title", null] },
+                    { $ne: ["$metadata.title", ""] },
+                  ],
+                },
+                "$metadata.title",
+                "$metadata.organizationName",
+              ],
+            },
+          },
+        },
+        { $group: { _id: "$label", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...shareActionMatch,
+            "metadata.itemType": "opportunity",
+            "metadata.organizationName": { $nin: [null, ""] },
+          },
+        },
+        {
+          $project: {
+            label: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$metadata.opportunityTitle", null] },
+                    { $ne: ["$metadata.opportunityTitle", ""] },
+                  ],
+                },
+                "$metadata.opportunityTitle",
+                "$metadata.organizationName",
+              ],
+            },
+          },
+        },
+        { $group: { _id: "$label", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...shareActionMatch,
+            "metadata.itemType": "training-target",
+            "metadata.organizationName": { $nin: [null, ""] },
+          },
+        },
+        { $group: { _id: "$metadata.organizationName", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
       AnalyticsEvent.aggregate([
         { $match: cleanMatch },
         {
@@ -3746,6 +3881,18 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       guideFileAdClicks,
       cvProductAdClicks,
       topAdClicks,
+      shareMenuOpens,
+      shareActions,
+      experienceShareMenuOpens,
+      experienceShareActions,
+      opportunityShareMenuOpens,
+      opportunityShareActions,
+      trainingTargetShareMenuOpens,
+      trainingTargetShareActions,
+      topShareActions,
+      topSharedExperiences,
+      topSharedOpportunities,
+      topSharedTrainingTargets,
       hourlyActivity,
       recentEvents,
     });

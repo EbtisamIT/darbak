@@ -147,6 +147,18 @@ const emptyAnalytics = {
   guideFileAdClicks: 0,
   cvProductAdClicks: 0,
   topAdClicks: [],
+  shareMenuOpens: 0,
+  shareActions: 0,
+  experienceShareMenuOpens: 0,
+  experienceShareActions: 0,
+  opportunityShareMenuOpens: 0,
+  opportunityShareActions: 0,
+  trainingTargetShareMenuOpens: 0,
+  trainingTargetShareActions: 0,
+  topShareActions: [],
+  topSharedExperiences: [],
+  topSharedOpportunities: [],
+  topSharedTrainingTargets: [],
   hourlyActivity: [],
   recentEvents: [],
   rawEvents: 0,
@@ -176,6 +188,7 @@ const analyticsEventLabels = {
   training_guide_opportunities_banner_click: "ضغط إعلان ملف المتدرب",
   training_guide_banner_click: "ضغط إعلان ملف المتدرب",
   diagnosis_cv_product_click: "ضغط إعلان السيرة الذاتية",
+  share_item_clicked: "مشاركة عنصر",
   premium_gate_opened: "ظهور نافذة الاشتراك",
   premium_checkout_started: "بدء الدفع",
   premium_access_verified: "تفعيل اشتراك",
@@ -200,6 +213,15 @@ const diagnosisFearLabels = {
   rejection: "أخاف ما أنقبل",
   email: "ما أعرف أرسل إيميل",
   late: "البداية متأخرة",
+};
+
+const shareActionLabels = {
+  menu_open: "فتح قائمة المشاركة",
+  native: "مشاركة الجهاز / AirDrop",
+  copy: "نسخ الرابط",
+  whatsapp: "واتساب",
+  snapchat: "سناب",
+  instagram: "انستقرام",
 };
 
 const analyticsRangeOptions = [
@@ -1521,6 +1543,14 @@ export default function AdminReviewPage() {
               ["أرسلوا أسئلة مقابلة", analytics.interviewQuestionSubmissions || 0],
               ["ضغطوا إعلان الملف", analytics.guideFileAdClicks || 0],
               ["ضغطوا إعلان السيرة", analytics.cvProductAdClicks || 0],
+              ["فتحوا مشاركة تجربة", analytics.experienceShareMenuOpens || 0],
+              ["شاركوا تجربة فعليًا", analytics.experienceShareActions || 0],
+              ["فتحوا مشاركة فرصة", analytics.opportunityShareMenuOpens || 0],
+              ["شاركوا فرصة فعليًا", analytics.opportunityShareActions || 0],
+              ["فتحوا مشاركة جهة", analytics.trainingTargetShareMenuOpens || 0],
+              ["شاركوا جهة فعليًا", analytics.trainingTargetShareActions || 0],
+              ["إجمالي فتح المشاركة", analytics.shareMenuOpens || 0],
+              ["إجمالي المشاركات", analytics.shareActions || 0],
               ...(analytics.rawEvents > analytics.totalEvents
                 ? [["الأحداث الخام", analytics.rawEvents]]
                 : []),
@@ -1571,6 +1601,17 @@ export default function AdminReviewPage() {
               analytics.topAssistantQuestions
             )}
             {renderAnalyticsList("نقرات الإعلانات", analytics.topAdClicks)}
+            {renderAnalyticsList(
+              "طرق المشاركة",
+              analytics.topShareActions,
+              (label) => shareActionLabels[label] || label
+            )}
+            {renderAnalyticsList("أكثر التجارب مشاركة", analytics.topSharedExperiences)}
+            {renderAnalyticsList("أكثر الفرص مشاركة", analytics.topSharedOpportunities)}
+            {renderAnalyticsList(
+              "أكثر جهات وين أتدرب مشاركة",
+              analytics.topSharedTrainingTargets
+            )}
             {renderAnalyticsList(
               "جهات أسئلة المقابلات",
               analytics.topInterviewQuestionOrganizations

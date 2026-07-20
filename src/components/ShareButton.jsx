@@ -273,7 +273,11 @@ export default function ShareButton({
         onClick={(event) => {
           event.stopPropagation();
           setStatus("");
-          setIsOpen((current) => !current);
+          setIsOpen((current) => {
+            const nextIsOpen = !current;
+            if (nextIsOpen) reportAction("menu_open");
+            return nextIsOpen;
+          });
         }}
         aria-expanded={isOpen}
         aria-label={buttonLabel}
