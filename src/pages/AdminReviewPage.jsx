@@ -138,6 +138,15 @@ const emptyAnalytics = {
   assistantZeroResultQueries: 0,
   topAssistantIntents: [],
   topAssistantQuestions: [],
+  interviewPageViews: 0,
+  interviewVisitors: 0,
+  interviewSearches: 0,
+  interviewQuestionStarts: 0,
+  interviewQuestionSubmissions: 0,
+  topInterviewQuestionOrganizations: [],
+  guideFileAdClicks: 0,
+  cvProductAdClicks: 0,
+  topAdClicks: [],
   hourlyActivity: [],
   recentEvents: [],
   rawEvents: 0,
@@ -158,7 +167,15 @@ const analyticsEventLabels = {
   opportunity_submission_started: "بدء إرسال فرصة",
   opportunity_submitted: "إرسال فرصة للمراجعة",
   experience_card_opened: "فتح تجربة",
+  interviews_page_viewed: "زيارة صفحة المقابلات",
+  interviews_search: "بحث المقابلات",
+  interview_questions_started: "بدء إضافة أسئلة مقابلة",
+  interview_questions_submitted: "إرسال أسئلة مقابلة",
   smart_assistant_query: "سؤال دليل دربك",
+  diagnosis_store_click: "ضغط إعلان ملف المتدرب",
+  training_guide_opportunities_banner_click: "ضغط إعلان ملف المتدرب",
+  training_guide_banner_click: "ضغط إعلان ملف المتدرب",
+  diagnosis_cv_product_click: "ضغط إعلان السيرة الذاتية",
   premium_gate_opened: "ظهور نافذة الاشتراك",
   premium_checkout_started: "بدء الدفع",
   premium_access_verified: "تفعيل اشتراك",
@@ -1497,6 +1514,13 @@ export default function AdminReviewPage() {
               ["أسئلة دليل دربك", analytics.assistantQueries || 0],
               ["متابعات فهمها الدليل", analytics.assistantContextUses || 0],
               ["أسئلة بلا نتائج", analytics.assistantZeroResultQueries || 0],
+              ["زيارات صفحة المقابلات", analytics.interviewPageViews || 0],
+              ["زوار المقابلات", analytics.interviewVisitors || 0],
+              ["بحث المقابلات", analytics.interviewSearches || 0],
+              ["بدأوا إضافة أسئلة", analytics.interviewQuestionStarts || 0],
+              ["أرسلوا أسئلة مقابلة", analytics.interviewQuestionSubmissions || 0],
+              ["ضغطوا إعلان الملف", analytics.guideFileAdClicks || 0],
+              ["ضغطوا إعلان السيرة", analytics.cvProductAdClicks || 0],
               ...(analytics.rawEvents > analytics.totalEvents
                 ? [["الأحداث الخام", analytics.rawEvents]]
                 : []),
@@ -1545,6 +1569,11 @@ export default function AdminReviewPage() {
             {renderAnalyticsList(
               "أكثر أسئلة دليل دربك",
               analytics.topAssistantQuestions
+            )}
+            {renderAnalyticsList("نقرات الإعلانات", analytics.topAdClicks)}
+            {renderAnalyticsList(
+              "جهات أسئلة المقابلات",
+              analytics.topInterviewQuestionOrganizations
             )}
             {renderAnalyticsList("أكثر الصفحات", analytics.topPages)}
             {renderAnalyticsList(

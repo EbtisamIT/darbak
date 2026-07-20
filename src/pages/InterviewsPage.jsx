@@ -150,6 +150,15 @@ export default function InterviewsPage() {
     setShowQuestionModal(false);
   };
 
+  const openQuestionModal = () => {
+    setShowQuestionModal(true);
+    trackEvent("interview_questions_started", {
+      metadata: {
+        source: "interviews_page_cta",
+      },
+    });
+  };
+
   const submitQuestionForm = async (event) => {
     event.preventDefault();
 
@@ -184,6 +193,11 @@ export default function InterviewsPage() {
         major: questionForm.major,
         city: questionForm.city,
         questionsCount: questions.length,
+        metadata: {
+          organizationName: questionForm.organizationName.trim(),
+          questionsCount: questions.length,
+          source: "interviews_page_modal",
+        },
       });
 
       window.setTimeout(() => {
@@ -214,7 +228,7 @@ export default function InterviewsPage() {
         <p>
           زكاة العلم نشره، شارك الطلاب أسئلة المقابلة لمساعدتهم على الاستعداد.
         </p>
-        <button type="button" onClick={() => setShowQuestionModal(true)}>
+        <button type="button" onClick={openQuestionModal}>
           شارك أسئلة مقابلة
         </button>
       </section>

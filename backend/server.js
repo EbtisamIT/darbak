@@ -3440,6 +3440,16 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       ...cleanMatch,
       eventName: "smart_assistant_query",
     };
+    const guideAdEventNames = [
+      "diagnosis_store_click",
+      "training_guide_opportunities_banner_click",
+      "training_guide_banner_click",
+    ];
+    const cvAdEventNames = ["diagnosis_cv_product_click"];
+    const interviewPageMatch = {
+      ...cleanMatch,
+      eventName: "interviews_page_viewed",
+    };
     const activeWindowMinutes = 5;
     const activeVisitorsMatch = {
       createdAt: {
@@ -3471,6 +3481,15 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       assistantZeroResultQueries,
       topAssistantIntents,
       topAssistantQuestions,
+      interviewPageViews,
+      interviewVisitors,
+      interviewSearches,
+      interviewQuestionStarts,
+      interviewQuestionSubmissions,
+      topInterviewQuestionOrganizations,
+      guideFileAdClicks,
+      cvProductAdClicks,
+      topAdClicks,
       hourlyActivity,
       recentEvents,
     ] = await Promise.all([
@@ -3605,6 +3624,71 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $limit: 10 },
         { $project: { _id: 0, label: "$_id", count: 1 } },
       ]),
+      AnalyticsEvent.countDocuments(interviewPageMatch),
+      AnalyticsEvent.distinct("visitorId", interviewPageMatch),
+      AnalyticsEvent.countDocuments({
+        ...cleanMatch,
+        eventName: "interviews_search",
+      }),
+      AnalyticsEvent.countDocuments({
+        ...cleanMatch,
+        eventName: "interview_questions_started",
+      }),
+      AnalyticsEvent.countDocuments({
+        ...cleanMatch,
+        eventName: "interview_questions_submitted",
+      }),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...cleanMatch,
+            eventName: "interview_questions_submitted",
+            "metadata.organizationName": { $nin: [null, ""] },
+          },
+        },
+        { $group: { _id: "$metadata.organizationName", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 10 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
+      AnalyticsEvent.countDocuments({
+        ...cleanMatch,
+        eventName: { $in: guideAdEventNames },
+      }),
+      AnalyticsEvent.countDocuments({
+        ...cleanMatch,
+        eventName: { $in: cvAdEventNames },
+      }),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...cleanMatch,
+            eventName: { $in: [...guideAdEventNames, ...cvAdEventNames] },
+          },
+        },
+        {
+          $project: {
+            label: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $in: ["$eventName", guideAdEventNames] },
+                    then: "إعلان ملف رحلة المتدرب",
+                  },
+                  {
+                    case: { $in: ["$eventName", cvAdEventNames] },
+                    then: "إعلان السيرة الذاتية",
+                  },
+                ],
+                default: "$eventName",
+              },
+            },
+          },
+        },
+        { $group: { _id: "$label", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
       AnalyticsEvent.aggregate([
         { $match: cleanMatch },
         {
@@ -3653,6 +3737,15 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       assistantZeroResultQueries,
       topAssistantIntents,
       topAssistantQuestions,
+      interviewPageViews,
+      interviewVisitors: interviewVisitors.filter(Boolean).length,
+      interviewSearches,
+      interviewQuestionStarts,
+      interviewQuestionSubmissions,
+      topInterviewQuestionOrganizations,
+      guideFileAdClicks,
+      cvProductAdClicks,
+      topAdClicks,
       hourlyActivity,
       recentEvents,
     });
