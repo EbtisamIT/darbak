@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import API_BASE_URL from "../config/api";
+import AnimatedCount from "../components/AnimatedCount";
 import {
   suggestedOrganizationsByMajorCategory,
   suggestedOrganizationsByRegion,
@@ -185,12 +186,15 @@ const HomePage = () => {
 
   const homeStats = useMemo(
     () => [
-      { value: "+20", label: "مدينة رئيسية" },
-      { value: organizationsCount ? `+${organizationsCount}` : "+", label: "جهة تدريب" },
       {
-        value:
-          typeof experiencesCount === "number" ? `+${experiencesCount}` : "+",
+        value: typeof experiencesCount === "number" ? experiencesCount : null,
         label: "تجربة مشاركة",
+        to: "/experiences",
+      },
+      {
+        value: organizationsCount || null,
+        label: "جهة تدريب",
+        to: "/where-to-train",
       },
     ],
     [experiencesCount, organizationsCount]
@@ -341,22 +345,28 @@ const HomePage = () => {
         className="home-stats"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
           gap: "12px",
-          width: "min(100%, 560px)",
+          width: "min(100%, 430px)",
           marginTop: "30px",
         }}
       >
         {homeStats.map((stat) => (
-          <div
+          <Link
             key={stat.label}
+            to={stat.to}
             className="home-stat-card"
+            aria-label={`${stat.label} في دربك`}
             style={{
+              display: "block",
+              textDecoration: "none",
               border: "1px solid var(--app-brand-border)",
               borderRadius: "10px",
               padding: "14px 10px",
               backgroundColor: "var(--app-surface)",
               boxShadow: "0 8px 20px var(--app-shadow)",
+              transition: "transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease",
+              cursor: "pointer",
             }}
           >
             <strong
@@ -369,7 +379,11 @@ const HomePage = () => {
                 marginBottom: "6px",
               }}
             >
-              {stat.value}
+              {typeof stat.value === "number" ? (
+                <AnimatedCount value={stat.value} suffix="+" />
+              ) : (
+                "..."
+              )}
             </strong>
             <span
               style={{
@@ -381,11 +395,23 @@ const HomePage = () => {
             >
               {stat.label}
             </span>
-          </div>
+          </Link>
         ))}
       </div>
 
       <style>{`
+        .home-stat-card:hover,
+        .home-stat-card:focus-visible {
+          transform: translateY(-4px) scale(1.02);
+          border-color: var(--app-brand);
+          box-shadow: 0 14px 30px var(--app-shadow), 0 0 18px var(--app-brand-border) !important;
+          outline: none;
+        }
+
+        .home-stat-card:active {
+          transform: translateY(0) scale(0.98);
+        }
+
         @media (max-width: 768px) {
           .home-page {
             width: calc(100% + 40px) !important;
@@ -454,7 +480,7 @@ const HomePage = () => {
 
           .home-stats {
             width: min(100%, 340px) !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 8px !important;
             margin-top: 22px !important;
           }

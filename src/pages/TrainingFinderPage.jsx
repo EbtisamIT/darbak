@@ -9,6 +9,7 @@ import {
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
+import AnimatedCount from "../components/AnimatedCount";
 import ShareButton from "../components/ShareButton";
 import { guideUrl } from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
@@ -1011,6 +1012,12 @@ export default function TrainingFinderPage() {
     );
   }, [city, selectedMajorCategories, suggestionRegion, visibleTargetNames]);
   const showResultsPanel = opportunitiesLoading || opportunities.length > 0 || searched;
+  const totalVisibleResultsCount = useMemo(
+    () =>
+      opportunities.length +
+      (searched ? visibleTargets.length + suggestedOrganizations.length : 0),
+    [opportunities.length, searched, suggestedOrganizations.length, visibleTargets.length]
+  );
   const resultTabs = [
     { key: "opportunities", label: "فرص", count: opportunities.length },
     ...(searched
@@ -1675,13 +1682,6 @@ export default function TrainingFinderPage() {
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="المدن الرئيسية">
-                {cityOptions.map((cityName) => (
-                  <option key={cityName} value={cityName}>
-                    {cityName}
-                  </option>
-                ))}
-              </optgroup>
             </select>
           </label>
 
@@ -1775,24 +1775,47 @@ export default function TrainingFinderPage() {
         )}
 
         {showResultsPanel && (
-          <nav
-            className="training-results-tabs"
-            aria-label="تصنيف نتائج وين أتدرب"
-          >
-            {resultTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveResultsTab(tab.key)}
-                className={`training-results-tab${
-                  activeResultsTab === tab.key ? " is-active" : ""
-                }`}
-              >
-                <span>{tab.label}</span>
-                <strong>{opportunitiesLoading && tab.key === "opportunities" ? "..." : tab.count}</strong>
-              </button>
-            ))}
-          </nav>
+          <section className="training-results-overview" aria-label="عدد نتائج وين أتدرب">
+            <div>
+              <strong>
+                {opportunitiesLoading && !searched ? (
+                  "..."
+                ) : (
+                  <AnimatedCount value={totalVisibleResultsCount} suffix="+" />
+                )}
+              </strong>
+              <span>
+                {searched
+                  ? "نتيجة بين فرص وجهات وتجارب"
+                  : "فرصة معلنة متاحة للتصفح"}
+              </span>
+            </div>
+
+            <nav
+              className="training-results-tabs"
+              aria-label="تصنيف نتائج وين أتدرب"
+            >
+              {resultTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveResultsTab(tab.key)}
+                  className={`training-results-tab${
+                    activeResultsTab === tab.key ? " is-active" : ""
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <strong>
+                    {opportunitiesLoading && tab.key === "opportunities" ? (
+                      "..."
+                    ) : (
+                      <AnimatedCount value={tab.count} suffix="+" />
+                    )}
+                  </strong>
+                </button>
+              ))}
+            </nav>
+          </section>
         )}
 
         {showResultsPanel && activeResultsTab === "opportunities" && (
@@ -3426,6 +3449,39 @@ export default function TrainingFinderPage() {
           gap: 10px;
         }
 
+        .training-results-overview {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          align-items: center;
+          gap: 12px;
+          background: var(--app-card);
+          border: 1px solid var(--app-border);
+          border-radius: 16px;
+          padding: 10px 12px;
+        }
+
+        .training-results-overview > div {
+          min-width: 112px;
+          display: grid;
+          gap: 2px;
+          text-align: center;
+          padding-inline: 4px;
+        }
+
+        .training-results-overview > div strong {
+          color: var(--app-brand);
+          font-size: clamp(24px, 4vw, 34px);
+          line-height: 1;
+          font-weight: 900;
+        }
+
+        .training-results-overview > div span {
+          color: var(--app-text-soft);
+          font-size: 12px;
+          line-height: 1.6;
+          font-weight: 800;
+        }
+
         .training-results-tabs {
           display: flex;
           gap: 8px;
@@ -3806,6 +3862,16 @@ export default function TrainingFinderPage() {
 
           .opportunity-request-grid {
             grid-template-columns: 1fr !important;
+          }
+
+          .training-results-overview {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+            padding: 10px !important;
+          }
+
+          .training-results-overview > div {
+            min-width: 0 !important;
           }
 
           .training-results-tabs {
