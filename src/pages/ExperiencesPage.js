@@ -12,7 +12,7 @@ import {
   markSavedItemSeen,
   toggleSavedItem,
 } from "../utils/savedItems";
-import { formatRelativeArabicTime } from "../utils/dateDisplay";
+import { formatRelativeShortTime } from "../utils/dateDisplay";
 import {
   buildExperiencesSeoPath,
   getSeoCityBySlug,
@@ -1392,8 +1392,8 @@ const ExperiencesPage = () => {
     exp.updatedAt || exp.reviewedAt || exp.createdAt;
 
   const getExperienceAcceptedLabel = (exp = {}) => {
-    const relativeTime = formatRelativeArabicTime(getExperienceAcceptedAt(exp));
-    return relativeTime ? `اعتمدت ${relativeTime}` : "";
+    const relativeTime = formatRelativeShortTime(getExperienceAcceptedAt(exp));
+    return relativeTime || "";
   };
 
   const getExperienceSavedUpdate = (exp = {}) =>
