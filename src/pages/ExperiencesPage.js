@@ -2666,8 +2666,9 @@ const ExperiencesPage = () => {
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            zIndex: 1000,
+            zIndex: 5200,
             padding: "20px",
+            isolation: "isolate",
           }}
         >
           <div
