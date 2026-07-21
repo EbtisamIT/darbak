@@ -33,6 +33,11 @@ const uniqueSorted = (values = []) =>
     a.localeCompare(b, "ar")
   );
 
+const getOrganizationInitial = (name = "") => {
+  const firstLetter = name.trim().replace(/[^\u0600-\u06FFA-Za-z0-9]/g, "")[0];
+  return firstLetter || "م";
+};
+
 export default function InterviewsPage() {
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -295,15 +300,25 @@ export default function InterviewsPage() {
               key={`${item.organizationName}-${item.major}`}
             >
               <div className="interview-card-head">
-                <div>
-                  <span className="interview-card-label">الجهة</span>
-                  <h2>{item.organizationName}</h2>
-                </div>
-                <span className="interview-count">
-                  {item.experiencesCount > 0
-                    ? `${item.experiencesCount} تجربة`
-                    : `${item.interviewSubmissionsCount || 1} مشاركة`}
+                <span className="interview-organization-logo" aria-hidden="true">
+                  {getOrganizationInitial(item.organizationName)}
                 </span>
+                <div className="interview-card-main">
+                  <div className="interview-card-title-row">
+                    <div>
+                      <span className="interview-card-label">جهة المقابلة</span>
+                      <h2>{item.organizationName}</h2>
+                    </div>
+                    <span className="interview-count">
+                      {item.experiencesCount > 0
+                        ? `${item.experiencesCount} تجربة`
+                        : `${item.interviewSubmissionsCount || 1} مشاركة`}
+                    </span>
+                  </div>
+                  <p className="interview-card-subtitle">
+                    أسئلة مقابلة مرتبطة بالتخصص والجهة من تجارب دربك.
+                  </p>
+                </div>
               </div>
 
               <div className="interview-tags">
