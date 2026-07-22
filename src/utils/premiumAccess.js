@@ -175,6 +175,9 @@ export const requestPremiumAccess = (detail = {}, onGranted = () => {}) => {
         return;
       }
 
+      if (typeof detail.onLimited === "function") {
+        detail.onLimited(data);
+      }
       openPremiumGate(detail, onGranted, data);
     })
     .catch(() => {

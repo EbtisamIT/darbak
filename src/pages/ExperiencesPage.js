@@ -22,6 +22,8 @@ import { buildExperiencesSeoMeta, setPageSeo } from "../utils/seoMetadata";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
+const LOCKED_EXPERIENCE_PREVIEW =
+  "هذه معاينة مختصرة للتجربة. فعّل دربك+ لقراءة التفاصيل كاملة، المهام، الملاحظات، وأسئلة المقابلة إن وجدت.";
 const CITY_REGION_GROUPS = {
   "منطقة الرياض": [
     "الرياض",
@@ -889,6 +891,22 @@ const ExperiencesPage = () => {
           feature: "experience_details",
           source: "experience_direct_link",
           itemKey: `experience:${routeExperienceId}`,
+          onLimited: () => {
+            if (!isActive) return;
+            setSelectedExperience({
+              _id: routeExperienceId,
+              title: "تفاصيل تجربة تدريب",
+              organizationName: "تجربة تدريب",
+              city: "",
+              major: "",
+              duration: "غير ظاهر",
+              howApplied: "غير ظاهر",
+              starRating: 0,
+              description: LOCKED_EXPERIENCE_PREVIEW,
+              isPremiumPreviewLocked: true,
+            });
+            setCurrentStep(2);
+          },
         },
         async () => {
           try {
@@ -1369,6 +1387,14 @@ const ExperiencesPage = () => {
         title: exp.title || exp.organizationName || "",
         source: "experiences_page",
         itemKey: experienceId ? `experience:${experienceId}` : "",
+        onLimited: () => {
+          setSelectedExperience({
+            ...exp,
+            description: LOCKED_EXPERIENCE_PREVIEW,
+            isPremiumPreviewLocked: true,
+          });
+          setCurrentStep(2);
+        },
       },
       async () => {
         try {
@@ -1736,18 +1762,41 @@ const ExperiencesPage = () => {
             🧠 التجربة
           </div>
 
-          <p
-            style={{
-              color: "var(--app-text-soft)",
-              lineHeight: "1.9",
-              fontSize: "14px",
-              margin: 0,
-              whiteSpace: "pre-wrap",
-              overflowWrap: "anywhere",
-            }}
-          >
-            {exp.description}
-          </p>
+          <div style={{ position: "relative" }}>
+            <p
+              style={{
+                color: "var(--app-text-soft)",
+                lineHeight: "1.9",
+                fontSize: "14px",
+                margin: 0,
+                whiteSpace: "pre-wrap",
+                overflowWrap: "anywhere",
+                filter: exp.isPremiumPreviewLocked ? "blur(5px)" : "none",
+                userSelect: exp.isPremiumPreviewLocked ? "none" : "auto",
+                minHeight: exp.isPremiumPreviewLocked ? "96px" : "auto",
+              }}
+            >
+              {exp.description}
+            </p>
+            {exp.isPremiumPreviewLocked && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--app-brand)",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  pointerEvents: "none",
+                  textShadow: "0 1px 10px var(--app-bg)",
+                }}
+              >
+                المعاينة الكاملة متاحة عبر دربك+
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );

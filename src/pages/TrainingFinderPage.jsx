@@ -59,6 +59,8 @@ export const cityOptions = [
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_FINDER_FAQ = false;
+const LOCKED_OPPORTUNITY_PREVIEW =
+  "هذه معاينة مختصرة للفرصة. فعّل دربك+ للوصول إلى تفاصيل الفرصة وروابط التقديم المباشرة.";
 
 const emptyOpportunityRequest = {
   organizationName: "",
@@ -1164,6 +1166,16 @@ export default function TrainingFinderPage() {
           feature: "opportunity_details",
           source: "opportunity_direct_link",
           itemKey: `opportunity:${routeOpportunityId}`,
+          onLimited: () => {
+            if (!isActive) return;
+            setSelectedOpportunity({
+              _id: routeOpportunityId,
+              organizationName: "فرصة تدريب",
+              title: "تفاصيل فرصة تدريب",
+              note: LOCKED_OPPORTUNITY_PREVIEW,
+              isPremiumPreviewLocked: true,
+            });
+          },
         },
         async () => {
           try {
@@ -1375,6 +1387,15 @@ export default function TrainingFinderPage() {
         title: opportunity.title || opportunity.organizationName || "",
         source: "where_to_train",
         itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
+        onLimited: () => {
+          setSelectedOpportunity({
+            ...opportunity,
+            note: LOCKED_OPPORTUNITY_PREVIEW,
+            applicationUrl: "",
+            sourceUrl: "",
+            isPremiumPreviewLocked: true,
+          });
+        },
       },
       async () => {
         try {
@@ -1431,6 +1452,15 @@ export default function TrainingFinderPage() {
         title: opportunity.title || opportunity.organizationName || "",
         source: "where_to_train",
         itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
+        onLimited: () => {
+          setSelectedOpportunity({
+            ...opportunity,
+            note: LOCKED_OPPORTUNITY_PREVIEW,
+            applicationUrl: "",
+            sourceUrl: "",
+            isPremiumPreviewLocked: true,
+          });
+        },
       },
       async () => {
         try {
@@ -2999,10 +3029,23 @@ export default function TrainingFinderPage() {
               </div>
             )}
 
-            <p className="opportunity-detail-note">
-              {selectedOpportunity.note ||
-                "يتم عرض الفرص حسب المعلومات المتاحة وقت الإضافة، ويرجى التحقق من شروط الجهة قبل التقديم."}
-            </p>
+            <div className="premium-preview-blur-wrap">
+              <p
+                className={`opportunity-detail-note${
+                  selectedOpportunity.isPremiumPreviewLocked
+                    ? " is-premium-preview-blurred"
+                    : ""
+                }`}
+              >
+                {selectedOpportunity.note ||
+                  "يتم عرض الفرص حسب المعلومات المتاحة وقت الإضافة، ويرجى التحقق من شروط الجهة قبل التقديم."}
+              </p>
+              {selectedOpportunity.isPremiumPreviewLocked && (
+                <span className="premium-preview-blur-label">
+                  التفاصيل الكاملة متاحة عبر دربك+
+                </span>
+              )}
+            </div>
 
             <div className="opportunity-detail-links">
               {selectedOpportunity.sourceUrl && (
@@ -3809,6 +3852,30 @@ export default function TrainingFinderPage() {
           padding: 12px;
           font-size: 13px;
           line-height: 1.9;
+        }
+
+        .premium-preview-blur-wrap {
+          position: relative;
+        }
+
+        .is-premium-preview-blurred {
+          filter: blur(5px);
+          user-select: none;
+          min-height: 96px;
+        }
+
+        .premium-preview-blur-label {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--app-brand);
+          font-size: 13px;
+          font-weight: 800;
+          text-align: center;
+          pointer-events: none;
+          text-shadow: 0 1px 10px var(--app-bg);
         }
 
         .opportunity-detail-links {

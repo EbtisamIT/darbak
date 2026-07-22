@@ -37,6 +37,12 @@ const ONE_TIME_SUBSCRIPTION_DURATION_DAYS = Number(
 );
 const SUBSCRIPTION_CHECKOUT_URL = process.env.SUBSCRIPTION_CHECKOUT_URL || "";
 const FREE_DAILY_DETAIL_LIMIT = Number(process.env.FREE_DAILY_DETAIL_LIMIT || 1);
+const FREE_DAILY_EXPERIENCE_LIMIT = Number(
+  process.env.FREE_DAILY_EXPERIENCE_LIMIT || FREE_DAILY_DETAIL_LIMIT
+);
+const FREE_DAILY_OPPORTUNITY_LIMIT = Number(
+  process.env.FREE_DAILY_OPPORTUNITY_LIMIT || FREE_DAILY_DETAIL_LIMIT
+);
 const CONTENT_ACCESS_GATE_ENABLED =
   process.env.CONTENT_ACCESS_GATE_ENABLED === "true" ||
   process.env.PREMIUM_GATE_ENABLED === "true";
@@ -268,6 +274,18 @@ const sanitizeVisitorId = (value = "") =>
 const sanitizeAccessItemKey = (value = "") =>
   value.toString().trim().replace(/[^\w:.-]/g, "").slice(0, 140);
 
+const getAccessItemType = (itemKey = "") =>
+  sanitizeAccessItemKey(itemKey).split(":")[0] || "general";
+
+const getFreeDailyLimitForItem = (itemKey = "") => {
+  const itemType = getAccessItemType(itemKey);
+
+  if (itemType === "experience") return Math.max(0, FREE_DAILY_EXPERIENCE_LIMIT);
+  if (itemType === "opportunity") return Math.max(0, FREE_DAILY_OPPORTUNITY_LIMIT);
+
+  return Math.max(0, FREE_DAILY_DETAIL_LIMIT);
+};
+
 const ensureAccessUser = async ({ contact = "", accessCode = "", visitorId = "" } = {}) => {
   const normalizedContact = normalizeSubscriberContact(contact);
   const normalizedCode = normalizeAccessCode(accessCode);
@@ -459,14 +477,22 @@ const evaluateContentAccess = async ({
   }
 
   const todayKey = getRiyadhDateKey(now);
-  const dailyLimit = Math.max(0, FREE_DAILY_DETAIL_LIMIT);
+  const itemType = getAccessItemType(itemKey);
+  const dailyLimit = getFreeDailyLimitForItem(itemKey);
   const isSameDay = user.lastViewedDate === todayKey;
-  const currentCount = isSameDay ? Number(user.dailyViewsCount || 0) : 0;
   const dailyItemKeys = isSameDay
     ? Array.isArray(user.dailyViewItemKeys)
       ? user.dailyViewItemKeys
       : []
     : [];
+  const typeItemKeys = itemKey
+    ? dailyItemKeys.filter((key) => getAccessItemType(key) === itemType)
+    : [];
+  const currentCount = itemKey
+    ? new Set(typeItemKeys).size
+    : isSameDay
+      ? Number(user.dailyViewsCount || 0)
+      : 0;
   const hasSameItemAccess = Boolean(
     itemKey &&
       isSameDay &&
@@ -498,18 +524,21 @@ const evaluateContentAccess = async ({
       viewsUsed: currentCount,
       remainingViews: 0,
       message:
-        "استخدمت المشاهدة المجانية اليوم. فعّل دربك+ للوصول الكامل لبقية التفاصيل.",
+        "استخدمت المشاهدة المجانية لهذا القسم اليوم. فعّل دربك+ للوصول الكامل لبقية التفاصيل.",
     };
   }
 
   const nextItemKeys = itemKey
-    ? Array.from(new Set([...dailyItemKeys, itemKey])).slice(-dailyLimit)
+    ? Array.from(new Set([...dailyItemKeys, itemKey]))
     : dailyItemKeys;
+  const nextTypeCount = itemKey
+    ? nextItemKeys.filter((key) => getAccessItemType(key) === itemType).length
+    : currentCount + 1;
   const updatedUser = await User.findByIdAndUpdate(
     user._id,
     {
       lastViewedDate: todayKey,
-      dailyViewsCount: currentCount + 1,
+      dailyViewsCount: itemKey ? nextItemKeys.length : currentCount + 1,
       lastViewedItemKey: itemKey,
       dailyViewItemKeys: nextItemKeys,
     },
@@ -522,9 +551,9 @@ const evaluateContentAccess = async ({
     isAdmin: false,
     isPremium: false,
     dailyLimit,
-    viewsUsed: updatedUser?.dailyViewsCount || currentCount + 1,
+    viewsUsed: nextTypeCount,
     remainingViews: Math.max(
-      dailyLimit - (updatedUser?.dailyViewsCount || currentCount + 1),
+      dailyLimit - nextTypeCount,
       0
     ),
     itemKey,
