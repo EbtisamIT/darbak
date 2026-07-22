@@ -760,6 +760,11 @@ body {
   max-width: 700px;
 }
 
+.premium-title-price {
+  color: var(--app-brand);
+  white-space: nowrap;
+}
+
 .premium-access-lead {
   margin: 0;
   color: var(--app-text-soft);
@@ -914,6 +919,115 @@ body {
 
 .premium-example-lock-note svg {
   color: var(--app-brand);
+}
+
+.premium-benefits-panel {
+  display: grid;
+  gap: 14px;
+  border-radius: 22px;
+  border: 1px solid var(--app-border);
+  background:
+    radial-gradient(circle at top left, var(--app-brand-soft), transparent 58%),
+    var(--app-surface);
+  box-shadow: 0 18px 45px var(--app-shadow);
+  padding: 20px;
+}
+
+.premium-benefits-panel h3 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 23px;
+  line-height: 1.5;
+}
+
+.premium-benefits-panel ul {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.premium-benefits-panel li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--app-input-bg) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-border) 80%, transparent);
+}
+
+.premium-benefit-check {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--app-brand-soft);
+  border: 1px solid var(--app-brand-border);
+  color: var(--app-brand);
+}
+
+.premium-benefits-panel strong {
+  display: block;
+  color: var(--app-brand);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.premium-benefits-panel p {
+  margin: 2px 0 0;
+  color: var(--app-text-soft);
+  font-size: 12.5px;
+  line-height: 1.75;
+}
+
+.premium-discover-block {
+  width: min(620px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+  padding: 8px 0 2px;
+}
+
+.premium-discover-block span {
+  color: var(--app-text-soft);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.premium-discover-button {
+  min-height: 52px;
+  min-width: min(360px, 100%);
+  border: none;
+  border-radius: 16px;
+  background: var(--app-brand);
+  color: #07100e;
+  box-shadow: 0 16px 35px var(--app-brand-soft);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 900;
+  padding: 13px 26px;
+}
+
+.premium-plans-back {
+  justify-self: start;
+  min-height: 38px;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 999px;
+  background: var(--app-input-bg);
+  color: var(--app-brand);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 8px 14px;
 }
 
 .premium-section {
@@ -2840,8 +2954,40 @@ body {
     font-size: 30px;
   }
 
+  .premium-title-price {
+    display: inline-block;
+  }
+
   .premium-access-lead {
     font-size: 15px;
+  }
+
+  .premium-benefits-panel {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .premium-benefits-panel h3 {
+    font-size: 20px;
+  }
+
+  .premium-benefits-panel ul {
+    gap: 8px;
+  }
+
+  .premium-benefits-panel li {
+    grid-template-columns: 30px minmax(0, 1fr);
+    padding: 8px;
+  }
+
+  .premium-benefit-check {
+    width: 30px;
+    height: 30px;
+  }
+
+  .premium-discover-button {
+    min-height: 48px;
+    font-size: 16px;
   }
 
   .premium-plans-divider {

@@ -1,16 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import {
-  FiBookmark,
-  FiBarChart2,
   FiCheck,
   FiCreditCard,
-  FiLock,
-  FiMessageSquare,
-  FiSearch,
   FiShield,
   FiUnlock,
-  FiZap,
 } from "react-icons/fi";
 import API_BASE_URL from "../config/api";
 import {
@@ -28,44 +22,31 @@ const initialForm = {
 
 const PENDING_SUBSCRIPTION_KEY = "darbak_pending_subscription_v1";
 
-const premiumBenefits = [
+const premiumBenefitDetails = [
   {
-    icon: FiLock,
     title: "جميع تفاصيل التجارب",
-    description: "اقرأ التفاصيل الكاملة للتجارب بدون اختصار.",
+    description: "اقرأ التجارب كاملة بدون اختصار.",
   },
   {
-    icon: FiMessageSquare,
     title: "أسئلة المقابلات الحقيقية",
-    description: "اطلع على الأسئلة التي شاركها الطلاب حسب الجهة والتخصص.",
+    description: "اعرف الأسئلة التي واجهها الطلاب في الجهات التدريبية.",
   },
   {
-    icon: FiSearch,
-    title: "بحث وفلاتر متقدمة",
-    description: "ابحث بالتخصص، المدينة، الجهة، المكافأة، وبيئة التدريب.",
+    title: "ابحث بذكاء",
+    description: "حسب المدينة، التخصص، الجهة، المكافأة وغيرها.",
   },
   {
-    icon: FiBarChart2,
-    title: "مقارنة الجهات التدريبية",
-    description: "وازن بين الجهات من واقع التجارب والملاحظات المنشورة.",
+    title: "قارن بين الجهات",
+    description: "اعرف أي جهة تناسبك قبل التقديم.",
   },
   {
-    icon: FiBookmark,
-    title: "حفظ التجارب والجهات",
-    description: "ارجع لما يهمك لاحقًا من صفحة المتابعات.",
+    title: "احفظ التجارب",
+    description: "ارجع لها في أي وقت.",
   },
   {
-    icon: FiZap,
-    title: "المزايا الجديدة فور إطلاقها",
-    description: "أي تحسينات رقمية جديدة تصل لك طوال مدة الباقة.",
+    title: "كل المزايا الجديدة أولاً",
+    description: "أي ميزة جديدة داخل دربك ستكون متوفرة لك مباشرة.",
   },
-];
-
-const lockedExperienceDetails = [
-  "المكافأة",
-  "أسئلة المقابلة",
-  "طريقة التقديم",
-  "مدة الرد",
 ];
 
 const formatPlusStat = (value) =>
@@ -78,48 +59,24 @@ const PremiumStat = ({ value, label }) => (
   </div>
 );
 
-const LockedExperiencePreview = () => (
-  <aside className="premium-example-card" aria-label="مثال تجربة مقفلة">
-    <div className="premium-example-head">
-      <span>مثال من التجارب</span>
-      <strong>تجربة تدريب في شركة تقنية</strong>
-      <small>التخصص: علوم الحاسب · المدينة: الرياض</small>
-    </div>
-
-    <div className="premium-locked-list">
-      {lockedExperienceDetails.map((detail) => (
-        <div className="premium-locked-row" key={detail}>
-          <span className="premium-lock-icon" aria-hidden="true">
+const PremiumBenefitsPanel = () => (
+  <aside className="premium-benefits-panel" aria-label="مزايا دربك بلس">
+    <h3>✨ ماذا ستحصل؟</h3>
+    <ul>
+      {premiumBenefitDetails.map((benefit) => (
+        <li key={benefit.title}>
+          <span className="premium-benefit-check" aria-hidden="true">
             <FiUnlock />
           </span>
           <div>
-            <strong>{detail}</strong>
-            <small>للمشتركين فقط</small>
+            <strong>{benefit.title}</strong>
+            <p>{benefit.description}</p>
           </div>
-        </div>
+        </li>
       ))}
-    </div>
-
-    <div className="premium-example-lock-note">
-      <FiUnlock aria-hidden="true" />
-      <span>فعّل دربك+ لرؤية جميع التفاصيل.</span>
-    </div>
+    </ul>
   </aside>
 );
-
-const PremiumBenefitCard = ({ benefit }) => {
-  const Icon = benefit.icon;
-
-  return (
-    <article className="premium-benefit-card">
-      <span className="premium-benefit-icon" aria-hidden="true">
-        <Icon />
-      </span>
-      <h3>{benefit.title}</h3>
-      <p>{benefit.description}</p>
-    </article>
-  );
-};
 
 const PremiumPlanCard = ({
   plan,
@@ -251,6 +208,7 @@ export default function PremiumAccessGate() {
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
   const [isLoginOnly, setIsLoginOnly] = useState(false);
+  const [showPlans, setShowPlans] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState("one_time_90");
   const [platformStats, setPlatformStats] = useState({
     experiencesCount: null,
@@ -297,6 +255,7 @@ export default function PremiumAccessGate() {
       pendingActionRef.current = event.detail?.onGranted || null;
       setFeature(event.detail?.feature || "");
       setIsLoginOnly(Boolean(event.detail?.loginOnly));
+      setShowPlans(false);
       const accessStatus = event.detail?.accessStatus || {};
       setMessage(
         accessStatus.reason === "daily_limit"
@@ -335,6 +294,7 @@ export default function PremiumAccessGate() {
     setIsStartingCheckout(false);
     setIsRequestingHelp(false);
     setIsLoginOnly(false);
+    setShowPlans(false);
   };
 
   const updateField = (field, value) => {
@@ -674,6 +634,7 @@ export default function PremiumAccessGate() {
                   className="premium-login-back"
                   onClick={() => {
                     setIsLoginOnly(false);
+                    setShowPlans(true);
                     setMessage("");
                   }}
                 >
@@ -682,73 +643,18 @@ export default function PremiumAccessGate() {
               </div>
             </section>
           ) : (
-            <>
-              <section className="premium-landing-hero">
-                <div className="premium-hero-copy">
-                  <span className="premium-access-badge">
-                    <span className="premium-student-mark" aria-hidden="true">
-                      🎓
-                    </span>
-                    <span>دربك+</span>
-                  </span>
-                  <h2 id="premium-access-title">
-                    اعرف كل ما تحتاجه قبل التقديم على التدريب
-                  </h2>
-                  <p className="premium-access-lead">
-                    وصول كامل إلى تجارب المتدربين الحقيقية وأدوات ذكية تساعدك
-                    تتخذ قرارك بثقة.
-                  </p>
-
-                  <div className="premium-landing-stats" aria-label="أرقام دربك">
-                    <PremiumStat
-                      value={formatPlusStat(platformStats.experiencesCount)}
-                      label="تجربة منشورة"
-                    />
-                    <PremiumStat
-                      value={formatPlusStat(platformStats.organizationsCount)}
-                      label="جهة تدريبية"
-                    />
-                  </div>
-
-                  <p className="premium-free-note">
-                    <FiShield aria-hidden="true" />
-                    <span>
-                      دربك سيبقى مجانيًا للجميع، ودربك+ للمزايا الإضافية فقط.
-                    </span>
-                  </p>
-
-                  <button
-                    type="button"
-                    className="premium-login-switch"
-                    onClick={() => {
-                      setIsLoginOnly(true);
-                      setMessage("");
-                    }}
-                  >
-                    لديك دربك+؟ تسجيل دخول فقط
-                  </button>
-                </div>
-
-                <LockedExperiencePreview />
-              </section>
-
-              <section className="premium-section">
-                <div className="premium-section-heading">
-                  <span>مزايا رقمية</span>
-                  <h3>ماذا ستحصل مع دربك+؟</h3>
-                </div>
-                <div className="premium-benefits-grid">
-                  {premiumBenefits.map((benefit) => (
-                    <PremiumBenefitCard key={benefit.title} benefit={benefit} />
-                  ))}
-                </div>
-              </section>
-
-              <div className="premium-plans-divider" aria-hidden="true">
-                <span>اكتشف الباقات</span>
-              </div>
-
+            showPlans ? (
               <section className="premium-section premium-plans-section">
+                <button
+                  type="button"
+                  className="premium-plans-back"
+                  onClick={() => {
+                    setShowPlans(false);
+                    setMessage("");
+                  }}
+                >
+                  رجوع للمزايا
+                </button>
                 <div className="premium-section-heading">
                   <span>دربك+</span>
                   <h3>اختر الباقة المناسبة لك</h3>
@@ -839,7 +745,76 @@ export default function PremiumAccessGate() {
                   على اتخاذ قرارات أفضل.
                 </p>
               </section>
-            </>
+            ) : (
+              <>
+              <section className="premium-landing-hero">
+                <div className="premium-hero-copy">
+                  <span className="premium-access-badge">
+                    <span className="premium-student-mark" aria-hidden="true">
+                      🎓
+                    </span>
+                    <span>دربك+</span>
+                  </span>
+                  <h2 id="premium-access-title">
+                    اعرف كل ما تحتاجه قبل التقديم على التدريب{" "}
+                    <span className="premium-title-price">بـ 5.99 ريال فقط</span>
+                  </h2>
+                  <p className="premium-access-lead">
+                    وصول كامل إلى تجارب المتدربين الحقيقية وأدوات ذكية تساعدك
+                    تتخذ قرارك بثقة.
+                  </p>
+
+                  <div className="premium-landing-stats" aria-label="أرقام دربك">
+                    <PremiumStat
+                      value={formatPlusStat(platformStats.experiencesCount)}
+                      label="تجربة منشورة"
+                    />
+                    <PremiumStat
+                      value={formatPlusStat(platformStats.organizationsCount)}
+                      label="جهة تدريبية"
+                    />
+                  </div>
+
+                  <p className="premium-free-note">
+                    <FiShield aria-hidden="true" />
+                    <span>
+                      دربك سيبقى مجانيًا للجميع، ودربك+ للمزايا الإضافية فقط.
+                    </span>
+                  </p>
+
+                  <button
+                    type="button"
+                    className="premium-login-switch"
+                    onClick={() => {
+                      setIsLoginOnly(true);
+                      setMessage("");
+                    }}
+                  >
+                    لديك دربك+؟ تسجيل دخول فقط
+                  </button>
+                </div>
+
+                <PremiumBenefitsPanel />
+              </section>
+
+              <div className="premium-discover-block">
+                <span>جاهز تعرف الباقة الأنسب لك؟</span>
+                <button
+                  type="button"
+                  className="premium-discover-button"
+                  onClick={() => {
+                    setShowPlans(true);
+                    setMessage("");
+                    trackEvent("premium_discover_plans_clicked", {
+                      metadata: { feature },
+                    });
+                  }}
+                >
+                  اكتشف الباقات
+                </button>
+              </div>
+              </>
+            )
           )}
         </div>
 
