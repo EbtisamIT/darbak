@@ -9,6 +9,7 @@ import {
   FiMessageSquare,
   FiSearch,
   FiShield,
+  FiUnlock,
   FiZap,
 } from "react-icons/fi";
 import API_BASE_URL from "../config/api";
@@ -89,7 +90,7 @@ const LockedExperiencePreview = () => (
       {lockedExperienceDetails.map((detail) => (
         <div className="premium-locked-row" key={detail}>
           <span className="premium-lock-icon" aria-hidden="true">
-            <FiLock />
+            <FiUnlock />
           </span>
           <div>
             <strong>{detail}</strong>
@@ -100,7 +101,7 @@ const LockedExperiencePreview = () => (
     </div>
 
     <div className="premium-example-lock-note">
-      <FiLock aria-hidden="true" />
+      <FiUnlock aria-hidden="true" />
       <span>فعّل دربك+ لرؤية جميع التفاصيل.</span>
     </div>
   </aside>
@@ -684,7 +685,12 @@ export default function PremiumAccessGate() {
             <>
               <section className="premium-landing-hero">
                 <div className="premium-hero-copy">
-                  <span className="premium-access-badge">دربك+</span>
+                  <span className="premium-access-badge">
+                    <span className="premium-student-mark" aria-hidden="true">
+                      🎓
+                    </span>
+                    <span>دربك+</span>
+                  </span>
                   <h2 id="premium-access-title">
                     اعرف كل ما تحتاجه قبل التقديم على التدريب
                   </h2>
@@ -738,10 +744,14 @@ export default function PremiumAccessGate() {
                 </div>
               </section>
 
+              <div className="premium-plans-divider" aria-hidden="true">
+                <span>اكتشف الباقات</span>
+              </div>
+
               <section className="premium-section premium-plans-section">
                 <div className="premium-section-heading">
-                  <span>اختر الباقة</span>
-                  <h3>فعّل الوصول الكامل</h3>
+                  <span>دربك+</span>
+                  <h3>اختر الباقة المناسبة لك</h3>
                   <p>
                     استخدم بريد أو رقم جوال مع رمز دخول بسيط تحفظه لضمان وصولك
                     من أي جهاز طوال مدة الباقة.
