@@ -73,6 +73,10 @@ const ADMIN_CONTACTS = new Set(
     .map((contact) => contact.trim())
     .filter(Boolean)
 );
+const ADMIN_ACCESS_CODE = (process.env.ADMIN_ACCESS_CODE || "")
+  .toString()
+  .trim()
+  .replace(/\s+/g, "");
 const GENERAL_SPECIALTY_MARKERS = [
   "__all_specialties__",
   "جميع التخصصات",
@@ -205,14 +209,25 @@ const hashAccessCode = (contact = "", accessCode = "") =>
     )
     .digest("hex");
 
-const isAdminContact = (contact = "") => {
+const isAdminContact = (contact = "", accessCode = "") => {
   const normalizedContact = normalizeSubscriberContact(contact);
-  if (!normalizedContact) return false;
+  if (!normalizedContact || !ADMIN_ACCESS_CODE) return false;
 
-  return Array.from(ADMIN_CONTACTS).some(
-    (adminContact) => normalizeSubscriberContact(adminContact) === normalizedContact
+  return (
+    normalizeAccessCode(accessCode) === normalizeAccessCode(ADMIN_ACCESS_CODE) &&
+    Array.from(ADMIN_CONTACTS).some(
+      (adminContact) => normalizeSubscriberContact(adminContact) === normalizedContact
+    )
   );
 };
+
+const isAdminSubscriptionHash = (contact = "", accessCodeHash = "") =>
+  Boolean(
+    ADMIN_ACCESS_CODE &&
+      accessCodeHash &&
+      isAdminContact(contact, ADMIN_ACCESS_CODE) &&
+      hashAccessCode(contact, ADMIN_ACCESS_CODE) === accessCodeHash
+  );
 
 const getRiyadhDateKey = (value = new Date()) => {
   const parts = new Intl.DateTimeFormat("en", {
@@ -272,7 +287,9 @@ const ensureAccessUser = async ({ contact = "", accessCode = "", visitorId = "" 
         $set: {
           contact: normalizedContact,
           accessCodeHash,
-          ...(isAdminContact(normalizedContact) ? { isAdmin: true } : {}),
+          ...(isAdminContact(normalizedContact, normalizedCode)
+            ? { isAdmin: true }
+            : {}),
         },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
@@ -312,7 +329,10 @@ const syncSubscriptionUser = async (subscription = {}) => {
         contact: normalizeSubscriberContact(subscription.email),
         accessCodeHash: subscription.accessCodeHash,
         isPremium: Boolean(isActive),
-        isAdmin: isAdminContact(subscription.email),
+        isAdmin: isAdminSubscriptionHash(
+          subscription.email,
+          subscription.accessCodeHash
+        ),
         premiumExpiresAt: subscription.expiresAt,
       },
     },
@@ -411,7 +431,7 @@ const evaluateContentAccess = async ({
   }
 
   const now = new Date();
-  const isAdmin = Boolean(user?.isAdmin) || isAdminContact(contact);
+  const isAdmin = Boolean(user?.isAdmin) || isAdminContact(contact, accessCode);
   const hasManualPremium =
     user?.isPremium &&
     (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > now);
@@ -3391,7 +3411,7 @@ app.post('/api/subscriptions/verify', async (req, res) => {
     const accessCodeHash = hashAccessCode(contact, accessCode);
     const accessUser = await ensureAccessUser({ contact, accessCode });
 
-    if (accessUser?.isAdmin || isAdminContact(contact)) {
+    if (accessUser?.isAdmin || isAdminContact(contact, accessCode)) {
       const adminExpiresAt = addSubscriptionDays(3650);
       await User.findByIdAndUpdate(accessUser._id, {
         isAdmin: true,
@@ -3518,7 +3538,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     const accessCodeHash = hashAccessCode(contact, accessCode);
     const accessUser = await ensureAccessUser({ contact, accessCode });
 
-    if (accessUser?.isAdmin || isAdminContact(contact)) {
+    if (accessUser?.isAdmin || isAdminContact(contact, accessCode)) {
       const adminExpiresAt = addSubscriptionDays(3650);
       await User.findByIdAndUpdate(accessUser._id, {
         isAdmin: true,
