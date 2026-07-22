@@ -38,6 +38,8 @@ const subscriptionPlans = [
     duration: "شهر",
     description: "وصول كامل للمزايا الرقمية المتقدمة لمدة شهر.",
     badge: "شهري",
+    note: "مناسب للتجربة السريعة",
+    perks: ["وصول كامل", "مساعد دربك", "بحث متقدم"],
   },
   {
     id: "one_time_90",
@@ -45,7 +47,10 @@ const subscriptionPlans = [
     price: "15 ريال",
     duration: "3 أشهر",
     description: "نفس المزايا لمدة أطول تناسب موسم البحث والتقديم.",
-    badge: "مدة أطول",
+    badge: "الأفضل",
+    note: "الأفضل لموسم التدريب",
+    recommended: true,
+    perks: ["كل مزايا دربك+", "مدة أطول", "بدون تجديد تلقائي"],
   },
 ];
 
@@ -326,8 +331,8 @@ export default function PremiumAccessGate() {
 
         <div className="premium-access-layout">
           <section className="premium-access-main">
-            <div className="premium-access-badge">المزايا المتقدمة</div>
-            <h2 id="premium-access-title">✨ فعّل المزايا المتقدمة في منصة دربك</h2>
+            <div className="premium-access-badge">دربك+</div>
+            <h2 id="premium-access-title">فعّل المزايا المتقدمة في منصة دربك</h2>
             <p className="premium-access-lead">
               ساعدنا على تطوير المنصة واستمرارها، واحصل على وصول كامل إلى{" "}
               {featureCopy[feature] || "جميع المزايا الرقمية"} التي تساعدك
@@ -356,13 +361,22 @@ export default function PremiumAccessGate() {
                   aria-checked={selectedPlan.id === plan.id}
                   className={`premium-plan-option${
                     selectedPlan.id === plan.id ? " is-selected" : ""
-                  }`}
+                  }${plan.recommended ? " is-recommended" : ""}`}
                   onClick={() => setSelectedPlanId(plan.id)}
                 >
                   <span className="premium-plan-badge">{plan.badge}</span>
+                  <span className="premium-plan-note">{plan.note}</span>
                   <strong>{plan.price}</strong>
                   <em>{plan.title}</em>
                   <small>{plan.description}</small>
+                  <span className="premium-plan-duration">لمدة {plan.duration}</span>
+                  <span className="premium-plan-perks">
+                    {plan.perks.map((perk) => (
+                      <span className="premium-plan-perk" key={perk}>
+                        {perk}
+                      </span>
+                    ))}
+                  </span>
                 </button>
               ))}
             </div>
@@ -417,7 +431,7 @@ export default function PremiumAccessGate() {
             >
               {isStartingCheckout
                 ? "جاري تجهيز التفعيل..."
-                : `فعّل دربك+ - ${selectedPlan.price}`}
+                : `فعّل دربك+ ${selectedPlan.price}`}
             </button>
 
             <form

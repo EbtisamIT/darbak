@@ -3,6 +3,7 @@ import { getVisitorId } from "./analytics";
 
 export const PREMIUM_ACCESS_EVENT = "darbak:request-premium-access";
 export const ACCOUNT_MODAL_EVENT = "darbak:open-account";
+export const PREMIUM_STATUS_EVENT = "darbak:premium-status-changed";
 
 const PREMIUM_PASS_KEY = "darbak_premium_pass_v1";
 const PREMIUM_PREVIEW_KEY = "darbak_premium_gate_preview_v1";
@@ -92,17 +93,19 @@ export const saveAccessIdentity = ({ contact = "", email = "", accessCode = "" }
 export const savePremiumPass = (pass) => {
   if (typeof window === "undefined") return;
 
+  const storedPass = {
+    contact: pass.contact || pass.email,
+    email: pass.email,
+    expiresAt: pass.expiresAt,
+    isAdmin: Boolean(pass.isAdmin),
+    accessType: pass.accessType || "premium",
+    savedAt: new Date().toISOString(),
+  };
+
   try {
-    window.localStorage.setItem(
-      PREMIUM_PASS_KEY,
-      JSON.stringify({
-        contact: pass.contact || pass.email,
-        email: pass.email,
-        expiresAt: pass.expiresAt,
-        isAdmin: Boolean(pass.isAdmin),
-        accessType: pass.accessType || "premium",
-        savedAt: new Date().toISOString(),
-      })
+    window.localStorage.setItem(PREMIUM_PASS_KEY, JSON.stringify(storedPass));
+    window.dispatchEvent(
+      new CustomEvent(PREMIUM_STATUS_EVENT, { detail: { pass: storedPass } })
     );
   } catch {
     // Access remains server-verifiable even if local storage is unavailable.

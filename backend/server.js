@@ -63,13 +63,13 @@ const SUBSCRIPTION_SECRET =
 const SUBSCRIPTION_PLANS = {
   monthly: {
     id: "monthly",
-    label: "دربك+ - المزايا المتقدمة شهر",
+    label: "دربك+ المزايا المتقدمة شهر",
     priceSar: SUBSCRIPTION_PRICE_SAR,
     durationDays: SUBSCRIPTION_DURATION_DAYS,
   },
   one_time_90: {
     id: "one_time_90",
-    label: "دربك+ - المزايا المتقدمة 3 أشهر",
+    label: "دربك+ المزايا المتقدمة 3 أشهر",
     priceSar: ONE_TIME_SUBSCRIPTION_PRICE_SAR,
     durationDays: ONE_TIME_SUBSCRIPTION_DURATION_DAYS,
   },

@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from "react";
 
 import { Link, useLocation } from "react-router-dom";
-import { ACCOUNT_MODAL_EVENT } from "../utils/premiumAccess";
+import {
+  ACCOUNT_MODAL_EVENT,
+  PREMIUM_ACCESS_EVENT,
+  PREMIUM_STATUS_EVENT,
+  hasActivePremiumPass,
+} from "../utils/premiumAccess";
+import { trackEvent } from "../utils/analytics";
 import logo from "./logo.png";
 import AddExperienceModal from "./AddExperienceModal";
 
@@ -9,6 +15,9 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const [showModal, setShowModal] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 768 : false
+  );
+  const [isPremiumActive, setIsPremiumActive] = useState(() =>
+    typeof window !== "undefined" ? hasActivePremiumPass() : false
   );
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
   const [floatingMenuOpen, setFloatingMenuOpen] = useState(false);
@@ -50,6 +59,20 @@ const Navbar = ({ theme = "dark", setTheme }) => {
 
   useEffect(() => {
     setFloatingMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const refreshPremiumStatus = () => setIsPremiumActive(hasActivePremiumPass());
+
+    refreshPremiumStatus();
+    window.addEventListener(PREMIUM_STATUS_EVENT, refreshPremiumStatus);
+    window.addEventListener("storage", refreshPremiumStatus);
+    window.addEventListener("focus", refreshPremiumStatus);
+    return () => {
+      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshPremiumStatus);
+      window.removeEventListener("storage", refreshPremiumStatus);
+      window.removeEventListener("focus", refreshPremiumStatus);
+    };
   }, [location.pathname]);
 
   useEffect(() => {
@@ -98,6 +121,22 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     flex: isMobile ? "0 0 auto" : "initial",
   };
 
+  const premiumCtaButtonStyle = {
+    background:
+      "linear-gradient(135deg, var(--app-brand), color-mix(in srgb, var(--app-brand) 78%, #ffffff 22%))",
+    color: "#071814",
+    border: "1px solid transparent",
+    borderRadius: "999px",
+    padding: isMobile ? "7px 10px" : "9px 14px",
+    fontSize: isMobile ? "11px" : "13.5px",
+    cursor: "pointer",
+    boxShadow: "0 10px 24px var(--app-brand-soft)",
+    transition: "0.25s",
+    fontFamily: "inherit",
+    fontWeight: "900",
+    whiteSpace: "nowrap",
+  };
+
   const quietActionButtonStyle = {
     background: "transparent",
     color: "var(--app-text-soft)",
@@ -124,6 +163,25 @@ const Navbar = ({ theme = "dark", setTheme }) => {
 
   const openAccountModal = () => {
     window.dispatchEvent(new Event(ACCOUNT_MODAL_EVENT));
+    setFloatingMenuOpen(false);
+  };
+
+  const openPremiumGate = (source = "navbar_button") => {
+    trackEvent("premium_nav_cta_clicked", {
+      metadata: {
+        source,
+        path: location.pathname,
+      },
+    });
+    window.dispatchEvent(
+      new CustomEvent(PREMIUM_ACCESS_EVENT, {
+        detail: {
+          feature: "navigation_cta",
+          title: "دربك+",
+          source,
+        },
+      })
+    );
     setFloatingMenuOpen(false);
   };
 
@@ -289,6 +347,15 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             />
           </Link>
           {themeToggleButton}
+          {!isPremiumActive && (
+            <button
+              type="button"
+              onClick={() => openPremiumGate("navbar_top_cta")}
+              style={premiumCtaButtonStyle}
+            >
+              دربك+
+            </button>
+          )}
         </div>
 
         <div
@@ -440,6 +507,22 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 <span>حسابي</span>
                 <span aria-hidden="true">◎</span>
               </button>
+              {!isPremiumActive && (
+                <button
+                  type="button"
+                  onClick={() => openPremiumGate("floating_nav_cta")}
+                  style={{
+                    ...floatingActionStyle,
+                    background: "var(--app-brand)",
+                    color: "#071315",
+                    borderColor: "transparent",
+                    boxShadow: "0 10px 24px var(--app-brand-border)",
+                  }}
+                >
+                  <span>دربك+</span>
+                  <span aria-hidden="true">+</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={openAddExperienceModal}

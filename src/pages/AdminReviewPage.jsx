@@ -190,6 +190,7 @@ const analyticsEventLabels = {
   diagnosis_cv_product_click: "ضغط إعلان السيرة الذاتية",
   share_item_clicked: "مشاركة عنصر",
   premium_gate_opened: "ظهور نافذة الاشتراك",
+  premium_nav_cta_clicked: "ضغط زر دربك+",
   premium_checkout_started: "بدء الدفع",
   premium_access_verified: "تفعيل اشتراك",
 };
