@@ -3,6 +3,7 @@ import axios from "axios";
 import API_BASE_URL from "../config/api";
 import {
   PREMIUM_ACCESS_EVENT,
+  saveAccessIdentity,
   savePremiumPass,
 } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
@@ -93,7 +94,13 @@ export default function PremiumAccessGate() {
     const handlePremiumRequest = (event) => {
       pendingActionRef.current = event.detail?.onGranted || null;
       setFeature(event.detail?.feature || "");
-      setMessage("");
+      const accessStatus = event.detail?.accessStatus || {};
+      setMessage(
+        accessStatus.reason === "daily_limit"
+          ? accessStatus.message ||
+              "استخدمت المشاهدة المجانية اليوم. فعّل دربك+ للوصول الكامل لبقية التفاصيل."
+          : ""
+      );
       setIsOpen(true);
       trackEvent("premium_gate_opened", {
         metadata: {
@@ -163,6 +170,7 @@ export default function PremiumAccessGate() {
         email: contactValue,
         accessCode: normalizedCode,
       });
+      saveAccessIdentity({ contact: contactValue, accessCode: normalizedCode });
       grantAccess(data);
       return true;
     } catch (err) {
@@ -234,6 +242,10 @@ export default function PremiumAccessGate() {
     try {
       setIsStartingCheckout(true);
       setMessage("");
+      saveAccessIdentity({
+        contact: form.contact,
+        accessCode: normalizeAccessCode(form.accessCode),
+      });
       const { data } = await axios.post(
         `${API_BASE_URL}/api/subscriptions/start-checkout`,
         {

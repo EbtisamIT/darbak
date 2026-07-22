@@ -1,7 +1,11 @@
+import API_BASE_URL from "../config/api";
+import { getVisitorId } from "./analytics";
+
 export const PREMIUM_ACCESS_EVENT = "darbak:request-premium-access";
 
 const PREMIUM_PASS_KEY = "darbak_premium_pass_v1";
 const PREMIUM_PREVIEW_KEY = "darbak_premium_gate_preview_v1";
+const ACCESS_IDENTITY_KEY = "darbak_access_identity_v1";
 
 const getPremiumPreviewFlag = () => {
   if (typeof window === "undefined") return false;
@@ -53,6 +57,37 @@ export const getStoredPremiumPass = () => {
 
 export const hasActivePremiumPass = () => Boolean(getStoredPremiumPass());
 
+export const getStoredAccessIdentity = () => {
+  if (typeof window === "undefined") return {};
+
+  try {
+    return JSON.parse(window.localStorage.getItem(ACCESS_IDENTITY_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+export const saveAccessIdentity = ({ contact = "", email = "", accessCode = "" } = {}) => {
+  if (typeof window === "undefined") return;
+
+  const normalizedContact = (contact || email || "").toString().trim();
+  const normalizedCode = accessCode.toString().trim();
+  if (!normalizedContact || !normalizedCode) return;
+
+  try {
+    window.localStorage.setItem(
+      ACCESS_IDENTITY_KEY,
+      JSON.stringify({
+        contact: normalizedContact,
+        accessCode: normalizedCode,
+        savedAt: new Date().toISOString(),
+      })
+    );
+  } catch {
+    // The user can still enter the same data again if storage is blocked.
+  }
+};
+
 export const savePremiumPass = (pass) => {
   if (typeof window === "undefined") return;
 
@@ -63,12 +98,49 @@ export const savePremiumPass = (pass) => {
         contact: pass.contact || pass.email,
         email: pass.email,
         expiresAt: pass.expiresAt,
+        isAdmin: Boolean(pass.isAdmin),
+        accessType: pass.accessType || "premium",
         savedAt: new Date().toISOString(),
       })
     );
   } catch {
     // Access remains server-verifiable even if local storage is unavailable.
   }
+};
+
+export const getAccessPayload = (detail = {}) => {
+  const identity = getStoredAccessIdentity();
+  return {
+    contact: identity.contact || identity.email || "",
+    accessCode: identity.accessCode || "",
+    visitorId: getVisitorId(),
+    itemKey: detail.itemKey || "",
+  };
+};
+
+export const getAccessHeaders = (detail = {}) => {
+  const payload = getAccessPayload(detail);
+  return Object.entries({
+    "x-darbak-contact": payload.contact,
+    "x-darbak-access-code": payload.accessCode,
+    "x-darbak-visitor-id": payload.visitorId,
+    "x-darbak-item-key": payload.itemKey,
+  }).reduce((headers, [key, value]) => {
+    if (value) headers[key] = value;
+    return headers;
+  }, {});
+};
+
+const openPremiumGate = (detail, onGranted, accessStatus = {}) => {
+  window.dispatchEvent(
+    new CustomEvent(PREMIUM_ACCESS_EVENT, {
+      detail: {
+        ...detail,
+        accessStatus,
+        onGranted,
+      },
+    })
+  );
 };
 
 export const requestPremiumAccess = (detail = {}, onGranted = () => {}) => {
@@ -79,14 +151,34 @@ export const requestPremiumAccess = (detail = {}, onGranted = () => {}) => {
 
   if (typeof window === "undefined") return false;
 
-  window.dispatchEvent(
-    new CustomEvent(PREMIUM_ACCESS_EVENT, {
-      detail: {
-        ...detail,
-        onGranted,
-      },
+  fetch(`${API_BASE_URL}/api/access/check`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(getAccessPayload(detail)),
+  })
+    .then(async (response) => {
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.granted) {
+        if (data.isPremium || data.isAdmin) {
+          savePremiumPass({
+            ...data,
+            contact: getStoredAccessIdentity().contact,
+            email: getStoredAccessIdentity().contact,
+            expiresAt:
+              data.expiresAt ||
+              new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          });
+        }
+        onGranted();
+        return;
+      }
+
+      openPremiumGate(detail, onGranted, data);
     })
-  );
+    .catch(() => {
+      openPremiumGate(detail, onGranted, { reason: "check_failed" });
+    });
 
   return false;
 };

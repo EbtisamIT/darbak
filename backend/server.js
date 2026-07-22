@@ -10,11 +10,16 @@ const Opportunity = require('./models/Opportunity');
 const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
 const Subscription = require('./models/Subscription');
+const User = require('./models/User');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const DEFAULT_EXPERIENCES_LIMIT = 36;
 const MAX_EXPERIENCES_LIMIT = 60;
+const EXPERIENCE_PUBLIC_FIELDS =
+  "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
+const OPPORTUNITY_PUBLIC_FIELDS =
+  "organizationName title city cities majorCategories specialties trainingEnvironment trainingMode hasReward applicationMethod logoUrl deadline status sourceType featured createdAt updatedAt";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const SUBSCRIPTION_PRICE_SAR = Number(process.env.SUBSCRIPTION_PRICE_SAR || 5);
 const SUBSCRIPTION_DURATION_DAYS = Number(
@@ -31,6 +36,10 @@ const ONE_TIME_SUBSCRIPTION_DURATION_DAYS = Number(
     90
 );
 const SUBSCRIPTION_CHECKOUT_URL = process.env.SUBSCRIPTION_CHECKOUT_URL || "";
+const FREE_DAILY_DETAIL_LIMIT = Number(process.env.FREE_DAILY_DETAIL_LIMIT || 1);
+const CONTENT_ACCESS_GATE_ENABLED =
+  process.env.CONTENT_ACCESS_GATE_ENABLED === "true" ||
+  process.env.PREMIUM_GATE_ENABLED === "true";
 const MOYASAR_SECRET_KEY = process.env.MOYASAR_SECRET_KEY || "";
 const MOYASAR_API_BASE_URL =
   process.env.MOYASAR_API_BASE_URL || "https://api.moyasar.com/v1";
@@ -58,6 +67,12 @@ const SUBSCRIPTION_PLANS = {
     durationDays: ONE_TIME_SUBSCRIPTION_DURATION_DAYS,
   },
 };
+const ADMIN_CONTACTS = new Set(
+  (process.env.ADMIN_CONTACTS || "")
+    .split(",")
+    .map((contact) => contact.trim())
+    .filter(Boolean)
+);
 const GENERAL_SPECIALTY_MARKERS = [
   "__all_specialties__",
   "جميع التخصصات",
@@ -190,6 +205,26 @@ const hashAccessCode = (contact = "", accessCode = "") =>
     )
     .digest("hex");
 
+const isAdminContact = (contact = "") => {
+  const normalizedContact = normalizeSubscriberContact(contact);
+  if (!normalizedContact) return false;
+
+  return Array.from(ADMIN_CONTACTS).some(
+    (adminContact) => normalizeSubscriberContact(adminContact) === normalizedContact
+  );
+};
+
+const getRiyadhDateKey = (value = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Riyadh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const partMap = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${partMap.year}-${partMap.month}-${partMap.day}`;
+};
+
 const addSubscriptionDays = (days = SUBSCRIPTION_DURATION_DAYS) => {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + Number(days || 30));
@@ -204,6 +239,294 @@ const getSubscriptionDurationDays = (subscription = {}) =>
 
 const getSubscriptionPriceSar = (subscription = {}) =>
   Number(subscription.priceSar || SUBSCRIPTION_PRICE_SAR);
+
+const getActiveSubscriptionFilter = (contact, accessCodeHash) => ({
+  email: normalizeSubscriberContact(contact),
+  ...(accessCodeHash ? { accessCodeHash } : {}),
+  status: "active",
+  expiresAt: { $gt: new Date() },
+});
+
+const sanitizeVisitorId = (value = "") =>
+  value.toString().trim().replace(/[^\w:-]/g, "").slice(0, 90);
+
+const sanitizeAccessItemKey = (value = "") =>
+  value.toString().trim().replace(/[^\w:.-]/g, "").slice(0, 140);
+
+const ensureAccessUser = async ({ contact = "", accessCode = "", visitorId = "" } = {}) => {
+  const normalizedContact = normalizeSubscriberContact(contact);
+  const normalizedCode = normalizeAccessCode(accessCode);
+  const accessCodeHash =
+    normalizedContact && normalizedCode
+      ? hashAccessCode(normalizedContact, normalizedCode)
+      : "";
+  const cleanVisitorId = sanitizeVisitorId(visitorId);
+
+  const isContactIdentity =
+    isValidSubscriberContact(normalizedContact) && isValidAccessCode(normalizedCode);
+
+  if (isContactIdentity) {
+    return User.findOneAndUpdate(
+      { contact: normalizedContact, accessCodeHash },
+      {
+        $set: {
+          contact: normalizedContact,
+          accessCodeHash,
+          ...(isAdminContact(normalizedContact) ? { isAdmin: true } : {}),
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+  }
+
+  if (!cleanVisitorId) return null;
+
+  return User.findOneAndUpdate(
+    { visitorId: cleanVisitorId },
+    {
+      $setOnInsert: {
+        visitorId: cleanVisitorId,
+        contact: "",
+        accessCodeHash: "",
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+};
+
+const syncSubscriptionUser = async (subscription = {}) => {
+  if (!subscription?.email || !subscription?.accessCodeHash) return null;
+
+  const isActive =
+    subscription.status === "active" &&
+    subscription.expiresAt &&
+    new Date(subscription.expiresAt) > new Date();
+
+  return User.findOneAndUpdate(
+    {
+      contact: normalizeSubscriberContact(subscription.email),
+      accessCodeHash: subscription.accessCodeHash,
+    },
+    {
+      $set: {
+        contact: normalizeSubscriberContact(subscription.email),
+        accessCodeHash: subscription.accessCodeHash,
+        isPremium: Boolean(isActive),
+        isAdmin: isAdminContact(subscription.email),
+        premiumExpiresAt: subscription.expiresAt,
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+};
+
+const getAccessIdentityFromRequest = (req = {}) => ({
+  contact:
+    req.body?.email ||
+    req.body?.contact ||
+    req.query?.email ||
+    req.query?.contact ||
+    req.get?.("x-darbak-contact") ||
+    "",
+  accessCode:
+    req.body?.accessCode ||
+    req.query?.accessCode ||
+    req.get?.("x-darbak-access-code") ||
+    "",
+  visitorId:
+    req.body?.visitorId ||
+    req.query?.visitorId ||
+    req.get?.("x-darbak-visitor-id") ||
+    "",
+  itemKey:
+    req.body?.itemKey ||
+    req.query?.itemKey ||
+    req.get?.("x-darbak-item-key") ||
+    "",
+});
+
+const evaluateContentAccess = async ({
+  contact: rawContact = "",
+  accessCode: rawAccessCode = "",
+  visitorId: rawVisitorId = "",
+  itemKey: rawItemKey = "",
+  consumeFreeView = false,
+} = {}) => {
+  const accessCode = normalizeAccessCode(rawAccessCode || "");
+  const visitorId = sanitizeVisitorId(rawVisitorId || "");
+  const itemKey = sanitizeAccessItemKey(rawItemKey || "");
+  const hasContactIdentity = Boolean(rawContact || accessCode);
+
+  if (
+    hasContactIdentity &&
+    (!isValidSubscriberContact(rawContact) || !isValidAccessCode(accessCode))
+  ) {
+    return {
+      granted: false,
+      statusCode: 400,
+      reason: "invalid_identity",
+      error: "اكتب بريد أو رقم جوال صحيح، ورمز دخول من 4 إلى 12 رقم أو حرف.",
+    };
+  }
+
+  if (!hasContactIdentity && !visitorId) {
+    return {
+      granted: false,
+      statusCode: 400,
+      reason: "missing_identity",
+      error: "تعذر تحديد حسابك أو جهازك للتحقق من الوصول.",
+    };
+  }
+
+  const contact = normalizeSubscriberContact(rawContact);
+  const accessCodeHash =
+    hasContactIdentity ? hashAccessCode(contact, accessCode) : "";
+  let user = await ensureAccessUser({
+    contact,
+    accessCode,
+    visitorId,
+  });
+
+  if (!user) {
+    return {
+      granted: false,
+      statusCode: 400,
+      reason: "missing_user",
+      error: "تعذر تجهيز حساب الوصول.",
+    };
+  }
+
+  const activeSubscription =
+    hasContactIdentity && contact && accessCodeHash
+      ? await Subscription.findOne(
+          getActiveSubscriptionFilter(contact, accessCodeHash)
+        ).lean()
+      : null;
+
+  if (activeSubscription) {
+    user = await syncSubscriptionUser(activeSubscription);
+  }
+
+  const now = new Date();
+  const isAdmin = Boolean(user?.isAdmin) || isAdminContact(contact);
+  const hasManualPremium =
+    user?.isPremium &&
+    (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > now);
+  const isPremium = Boolean(activeSubscription) || hasManualPremium;
+
+  if (isAdmin) {
+    return {
+      granted: true,
+      accessType: "admin",
+      isAdmin: true,
+      isPremium: true,
+      dailyLimit: FREE_DAILY_DETAIL_LIMIT,
+    };
+  }
+
+  if (isPremium) {
+    return {
+      granted: true,
+      accessType: "premium",
+      isAdmin: false,
+      isPremium: true,
+      expiresAt: activeSubscription?.expiresAt || user.premiumExpiresAt,
+      dailyLimit: FREE_DAILY_DETAIL_LIMIT,
+    };
+  }
+
+  const todayKey = getRiyadhDateKey(now);
+  const dailyLimit = Math.max(0, FREE_DAILY_DETAIL_LIMIT);
+  const isSameDay = user.lastViewedDate === todayKey;
+  const currentCount = isSameDay ? Number(user.dailyViewsCount || 0) : 0;
+  const dailyItemKeys = isSameDay
+    ? Array.isArray(user.dailyViewItemKeys)
+      ? user.dailyViewItemKeys
+      : []
+    : [];
+  const hasSameItemAccess = Boolean(
+    itemKey &&
+      isSameDay &&
+      (dailyItemKeys.includes(itemKey) || user.lastViewedItemKey === itemKey)
+  );
+
+  if (hasSameItemAccess) {
+    return {
+      granted: true,
+      accessType: "free_daily",
+      isAdmin: false,
+      isPremium: false,
+      dailyLimit,
+      viewsUsed: currentCount,
+      remainingViews: Math.max(dailyLimit - currentCount, 0),
+      itemKey,
+    };
+  }
+
+  if (!consumeFreeView || currentCount >= dailyLimit) {
+    return {
+      granted: false,
+      statusCode: 402,
+      reason: "daily_limit",
+      accessType: "limited",
+      isAdmin: false,
+      isPremium: false,
+      dailyLimit,
+      viewsUsed: currentCount,
+      remainingViews: 0,
+      message:
+        "استخدمت المشاهدة المجانية اليوم. فعّل دربك+ للوصول الكامل لبقية التفاصيل.",
+    };
+  }
+
+  const nextItemKeys = itemKey
+    ? Array.from(new Set([...dailyItemKeys, itemKey])).slice(-dailyLimit)
+    : dailyItemKeys;
+  const updatedUser = await User.findByIdAndUpdate(
+    user._id,
+    {
+      lastViewedDate: todayKey,
+      dailyViewsCount: currentCount + 1,
+      lastViewedItemKey: itemKey,
+      dailyViewItemKeys: nextItemKeys,
+    },
+    { new: true }
+  ).lean();
+
+  return {
+    granted: true,
+    accessType: "free_daily",
+    isAdmin: false,
+    isPremium: false,
+    dailyLimit,
+    viewsUsed: updatedUser?.dailyViewsCount || currentCount + 1,
+    remainingViews: Math.max(
+      dailyLimit - (updatedUser?.dailyViewsCount || currentCount + 1),
+      0
+    ),
+    itemKey,
+  };
+};
+
+const sendAccessDeniedResponse = (res, accessDecision = {}) =>
+  res.status(accessDecision.statusCode || 402).json({
+    granted: false,
+    reason: accessDecision.reason || "daily_limit",
+    accessType: accessDecision.accessType || "limited",
+    isAdmin: Boolean(accessDecision.isAdmin),
+    isPremium: Boolean(accessDecision.isPremium),
+    dailyLimit: accessDecision.dailyLimit ?? FREE_DAILY_DETAIL_LIMIT,
+    viewsUsed: accessDecision.viewsUsed || 0,
+    remainingViews: accessDecision.remainingViews || 0,
+    message:
+      accessDecision.message ||
+      accessDecision.error ||
+      "فعّل دربك+ للوصول الكامل للتفاصيل.",
+    error:
+      accessDecision.error ||
+      accessDecision.message ||
+      "فعّل دربك+ للوصول الكامل للتفاصيل.",
+  });
 
 const getPublicApiUrl = (req) => {
   if (API_PUBLIC_URL) return API_PUBLIC_URL.replace(/\/$/, "");
@@ -3021,6 +3344,28 @@ app.post('/api/smart-assistant/query', async (req, res) => {
   }
 });
 
+app.post('/api/access/check', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const accessDecision = await evaluateContentAccess({
+      ...getAccessIdentityFromRequest(req),
+      consumeFreeView: true,
+    });
+
+    if (!accessDecision.granted) {
+      return sendAccessDeniedResponse(res, accessDecision);
+    }
+
+    res.json(accessDecision);
+  } catch (err) {
+    console.error("❌ Access check error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/subscriptions/verify', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -3040,17 +3385,38 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       });
     }
 
-    const subscription = await Subscription.findOne({
-      email: contact,
-      accessCodeHash: hashAccessCode(contact, accessCode),
-      status: "active",
-      expiresAt: { $gt: new Date() },
-    }).lean();
+    const accessCodeHash = hashAccessCode(contact, accessCode);
+    const accessUser = await ensureAccessUser({ contact, accessCode });
+
+    if (accessUser?.isAdmin || isAdminContact(contact)) {
+      const adminExpiresAt = addSubscriptionDays(3650);
+      await User.findByIdAndUpdate(accessUser._id, {
+        isAdmin: true,
+        isPremium: true,
+        premiumExpiresAt: adminExpiresAt,
+      });
+
+      return res.json({
+        active: true,
+        contact,
+        email: contact,
+        expiresAt: adminExpiresAt,
+        accessType: "admin",
+        isAdmin: true,
+        planId: "admin",
+        priceSar: 0,
+        durationDays: 3650,
+      });
+    }
+
+    const subscription = await Subscription.findOne(
+      getActiveSubscriptionFilter(contact, accessCodeHash)
+    ).lean();
 
     if (!subscription) {
       const pendingSubscription = await Subscription.findOne({
         email: contact,
-        accessCodeHash: hashAccessCode(contact, accessCode),
+        accessCodeHash,
         status: "pending",
         provider: "moyasar",
         providerPaymentId: { $ne: "" },
@@ -3070,6 +3436,8 @@ app.post('/api/subscriptions/verify', async (req, res) => {
             },
             { new: true }
           ).lean();
+
+          await syncSubscriptionUser(activated);
 
           return res.json({
             active: true,
@@ -3107,6 +3475,8 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       });
     }
 
+    await syncSubscriptionUser(subscription);
+
     res.json({
       active: true,
       contact: subscription.email,
@@ -3143,6 +3513,29 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     }
 
     const accessCodeHash = hashAccessCode(contact, accessCode);
+    const accessUser = await ensureAccessUser({ contact, accessCode });
+
+    if (accessUser?.isAdmin || isAdminContact(contact)) {
+      const adminExpiresAt = addSubscriptionDays(3650);
+      await User.findByIdAndUpdate(accessUser._id, {
+        isAdmin: true,
+        isPremium: true,
+        premiumExpiresAt: adminExpiresAt,
+      });
+
+      return res.json({
+        active: true,
+        contact,
+        email: contact,
+        expiresAt: adminExpiresAt,
+        accessType: "admin",
+        isAdmin: true,
+        planId: "admin",
+        priceSar: 0,
+        durationDays: 3650,
+      });
+    }
+
     const existingSubscription = await Subscription.findOne({
       email: contact,
       status: { $in: ["active", "pending"] },
@@ -3160,6 +3553,8 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       }
 
       if (existingSubscription.status === "active") {
+        await syncSubscriptionUser(existingSubscription);
+
         return res.json({
           active: true,
           contact: existingSubscription.email,
@@ -3192,6 +3587,8 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
             },
             { new: true }
           ).lean();
+
+          await syncSubscriptionUser(activated);
 
           return res.json({
             active: true,
@@ -3232,7 +3629,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         callbackUrl: successUrl,
       });
 
-      await Subscription.findOneAndUpdate(
+      const pendingSubscription = await Subscription.findOneAndUpdate(
         { email: contact, accessCodeHash },
         {
           email: contact,
@@ -3247,6 +3644,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         },
         { new: true, upsert: true, runValidators: true }
       );
+      await syncSubscriptionUser(pendingSubscription);
 
       return res.json({
         checkoutUrl: invoice.url,
@@ -3272,7 +3670,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         // Keep custom provider links as-is if they are not parseable URLs.
       }
 
-      await Subscription.findOneAndUpdate(
+      const pendingSubscription = await Subscription.findOneAndUpdate(
         { email: contact, accessCodeHash },
         {
           email: contact,
@@ -3287,6 +3685,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         },
         { new: true, upsert: true, runValidators: true }
       );
+      await syncSubscriptionUser(pendingSubscription);
 
       return res.json({
         checkoutUrl,
@@ -3368,6 +3767,8 @@ app.post('/api/subscriptions/moyasar/callback', async (req, res) => {
       return res.status(404).json({ error: "Subscription not found" });
     }
 
+    await syncSubscriptionUser(subscription);
+
     res.json({ ok: true, active: true });
   } catch (err) {
     console.error("❌ Moyasar callback error:", err);
@@ -3415,6 +3816,8 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
       },
       { new: true, upsert: true, runValidators: true }
     ).lean();
+
+    await syncSubscriptionUser(subscription);
 
     res.json({
       email: subscription.email,
@@ -4365,6 +4768,7 @@ app.get('/api/opportunities', async (req, res) => {
     }
 
     const opportunities = await Opportunity.find({ $and: andFilters })
+      .select(`${OPPORTUNITY_PUBLIC_FIELDS} applicationUrl`)
       .sort({ featured: -1, createdAt: -1 })
       .lean();
 
@@ -4393,7 +4797,15 @@ app.get('/api/opportunities', async (req, res) => {
     );
 
     res.json({
-      data: opportunitiesWithCounts,
+      data: opportunitiesWithCounts.map((opportunity = {}) => {
+        const { applicationUrl, sourceUrl, note, ...publicOpportunity } =
+          opportunity;
+
+        return {
+          ...publicOpportunity,
+          hasApplicationUrl: Boolean(applicationUrl),
+        };
+      }),
       total: opportunitiesWithCounts.length,
     });
   } catch (err) {
@@ -4410,6 +4822,19 @@ app.get('/api/opportunities/:id', async (req, res) => {
 
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: "Invalid opportunity id" });
+    }
+
+    if (CONTENT_ACCESS_GATE_ENABLED) {
+      const itemKey = `opportunity:${req.params.id}`;
+      const accessDecision = await evaluateContentAccess({
+        ...getAccessIdentityFromRequest(req),
+        itemKey,
+        consumeFreeView: false,
+      });
+
+      if (!accessDecision.granted) {
+        return sendAccessDeniedResponse(res, accessDecision);
+      }
     }
 
     const opportunity = await Opportunity.findOne({
@@ -4631,7 +5056,10 @@ app.get('/api/experiences', async (req, res) => {
     let total;
 
     if (searchTerms.length > 0) {
-      const candidates = await Experience.find(baseFilter).sort(sort).lean();
+      const candidates = await Experience.find(baseFilter)
+        .select(EXPERIENCE_PUBLIC_FIELDS)
+        .sort(sort)
+        .lean();
 
       const matchesSearch = (exp) => {
         const searchableValues = [
@@ -4653,7 +5081,12 @@ app.get('/api/experiences', async (req, res) => {
       experiences = filtered.slice(skip, skip + limit);
     } else {
       const [items, count] = await Promise.all([
-        Experience.find(baseFilter).sort(sort).skip(skip).limit(limit).lean(),
+        Experience.find(baseFilter)
+          .select(EXPERIENCE_PUBLIC_FIELDS)
+          .sort(sort)
+          .skip(skip)
+          .limit(limit)
+          .lean(),
         Experience.countDocuments(baseFilter),
       ]);
 
@@ -4874,6 +5307,7 @@ app.get('/api/experiences/:id/related', async (req, res) => {
     };
 
     let candidates = await Experience.find(relatedFilter)
+      .select(EXPERIENCE_PUBLIC_FIELDS)
       .sort({ starRating: -1, createdAt: -1 })
       .limit(120)
       .lean();
@@ -4885,6 +5319,7 @@ app.get('/api/experiences/:id/related', async (req, res) => {
           { _id: { $ne: currentExperience._id } },
         ],
       })
+        .select(EXPERIENCE_PUBLIC_FIELDS)
         .sort({ starRating: -1, createdAt: -1 })
         .limit(40)
         .lean();
@@ -4946,6 +5381,19 @@ app.get('/api/experiences/:id', async (req, res) => {
 
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: "Invalid experience id" });
+    }
+
+    if (CONTENT_ACCESS_GATE_ENABLED) {
+      const itemKey = `experience:${req.params.id}`;
+      const accessDecision = await evaluateContentAccess({
+        ...getAccessIdentityFromRequest(req),
+        itemKey,
+        consumeFreeView: false,
+      });
+
+      if (!accessDecision.granted) {
+        return sendAccessDeniedResponse(res, accessDecision);
+      }
     }
 
     const experience = await Experience.findOne({

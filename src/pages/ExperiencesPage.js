@@ -5,7 +5,7 @@ import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import ShareButton from "../components/ShareButton";
 import { trackEvent } from "../utils/analytics";
-import { requestPremiumAccess } from "../utils/premiumAccess";
+import { getAccessHeaders, requestPremiumAccess } from "../utils/premiumAccess";
 import {
   getSavedItemIds,
   getSavedItemUpdateState,
@@ -882,49 +882,53 @@ const ExperiencesPage = () => {
     handledRouteExperienceIdRef.current = routeExperienceId;
     let isActive = true;
 
-    const openRouteExperience = async () => {
-      try {
-        setFetchError("");
-        const { data } = await axios.get(
-          `${API_BASE_URL}/api/experiences/${routeExperienceId}`
-        );
-        const exp = data?.data || data;
+    const openRouteExperience = () => {
+      setFetchError("");
+      requestPremiumAccess(
+        {
+          feature: "experience_details",
+          source: "experience_direct_link",
+          itemKey: `experience:${routeExperienceId}`,
+        },
+        async () => {
+          try {
+            const { data } = await axios.get(
+              `${API_BASE_URL}/api/experiences/${routeExperienceId}`,
+              {
+                headers: getAccessHeaders({
+                  itemKey: `experience:${routeExperienceId}`,
+                }),
+              }
+            );
+            const exp = data?.data || data;
 
-        if (!isActive || !exp?._id) return;
+            if (!isActive || !exp?._id) return;
 
-        setExperiences((current) => {
-          const exists = current.some((item) => item._id === exp._id);
-          if (exists) {
-            return current.map((item) => (item._id === exp._id ? exp : item));
-          }
-          return [exp, ...current];
-        });
+            setExperiences((current) => {
+              const exists = current.some((item) => item._id === exp._id);
+              if (exists) {
+                return current.map((item) => (item._id === exp._id ? exp : item));
+              }
+              return [exp, ...current];
+            });
 
-        setPageSeo({
-          title: exp.title || `تجربة تدريب في ${exp.organizationName || "دربك"}`,
-          description: `تجربة تدريب في ${exp.organizationName || "جهة تدريب"}${
-            exp.city ? ` بمدينة ${exp.city}` : ""
-          } لتخصص ${getReadableMajor(exp) || "طلاب التدريب التعاوني"} على منصة دربك.`,
-          path: `/experiences/${exp._id}`,
-          keywords: [
-            "تجربة تدريب",
-            "تدريب تعاوني",
-            exp.organizationName,
-            exp.city,
-            getReadableMajor(exp),
-          ]
-            .filter(Boolean)
-            .join(", "),
-        });
+            setPageSeo({
+              title: exp.title || `تجربة تدريب في ${exp.organizationName || "دربك"}`,
+              description: `تجربة تدريب في ${exp.organizationName || "جهة تدريب"}${
+                exp.city ? ` بمدينة ${exp.city}` : ""
+              } لتخصص ${getReadableMajor(exp) || "طلاب التدريب التعاوني"} على منصة دربك.`,
+              path: `/experiences/${exp._id}`,
+              keywords: [
+                "تجربة تدريب",
+                "تدريب تعاوني",
+                exp.organizationName,
+                exp.city,
+                getReadableMajor(exp),
+              ]
+                .filter(Boolean)
+                .join(", "),
+            });
 
-        requestPremiumAccess(
-          {
-            feature: "experience_details",
-            title: exp.title || exp.organizationName || "",
-            source: "experience_direct_link",
-          },
-          () => {
-            if (!isActive) return;
             trackExperienceDetailView(exp);
             markSavedItemSeen(
               getExperienceSavedId(exp),
@@ -932,14 +936,14 @@ const ExperiencesPage = () => {
             );
             setSelectedExperience(exp);
             setCurrentStep(1);
+          } catch (err) {
+            console.error(err);
+            if (isActive) {
+              setFetchError("تعذر فتح رابط التجربة. قد تكون غير منشورة أو غير متاحة.");
+            }
           }
-        );
-      } catch (err) {
-        console.error(err);
-        if (isActive) {
-          setFetchError("تعذر فتح رابط التجربة. قد تكون غير منشورة أو غير متاحة.");
         }
-      }
+      );
     };
 
     openRouteExperience();
@@ -1345,12 +1349,14 @@ const ExperiencesPage = () => {
   };
 
   const openExperienceDetails = (exp) => {
+    const experienceId = exp._id || exp.id || "";
+
     trackEvent("experience_card_opened", {
       major: exp.major || exp.majorCategory || "",
       majorCategory: exp.majorCategory || "",
       city: exp.city || "",
       metadata: {
-        experienceId: exp._id || exp.id || "",
+        experienceId,
         title: exp.title || "",
         organizationName: exp.organizationName || exp.companyName || "",
         starRating: exp.starRating || 0,
@@ -1362,22 +1368,42 @@ const ExperiencesPage = () => {
         feature: "experience_details",
         title: exp.title || exp.organizationName || "",
         source: "experiences_page",
+        itemKey: experienceId ? `experience:${experienceId}` : "",
       },
-      () => {
-        const experienceId = exp._id || exp.id || "";
-        if (experienceId && routeExperienceId !== experienceId) {
-          handledRouteExperienceIdRef.current = experienceId;
-          navigate(`/experiences/${experienceId}`, {
-            state: { from: `${location.pathname}${location.search}` },
-          });
+      async () => {
+        try {
+          const { data } = experienceId
+            ? await axios.get(`${API_BASE_URL}/api/experiences/${experienceId}`, {
+                headers: getAccessHeaders({
+                  itemKey: `experience:${experienceId}`,
+                }),
+              })
+            : { data: { data: exp } };
+          const fullExperience = data?.data || data || exp;
+
+          if (experienceId && routeExperienceId !== experienceId) {
+            handledRouteExperienceIdRef.current = experienceId;
+            navigate(`/experiences/${experienceId}`, {
+              state: { from: `${location.pathname}${location.search}` },
+            });
+          }
+
+          setExperiences((current) =>
+            current.map((item) =>
+              item._id === fullExperience._id ? fullExperience : item
+            )
+          );
+          trackExperienceDetailView(fullExperience);
+          markSavedItemSeen(
+            getExperienceSavedId(fullExperience),
+            getExperienceUpdateTimestamp(fullExperience)
+          );
+          setSelectedExperience(fullExperience);
+          setCurrentStep(1);
+        } catch (err) {
+          console.error(err);
+          setFetchError("تعذر فتح تفاصيل التجربة حاليًا.");
         }
-        trackExperienceDetailView(exp);
-        markSavedItemSeen(
-          getExperienceSavedId(exp),
-          getExperienceUpdateTimestamp(exp)
-        );
-        setSelectedExperience(exp);
-        setCurrentStep(1);
       }
     );
   };

@@ -3,7 +3,7 @@ import API_BASE_URL from "../config/api";
 const VISITOR_ID_KEY = "darbak_visitor_id_v1";
 const SESSION_ID_KEY = "darbak_session_id_v1";
 
-const getVisitorId = () => {
+export const getVisitorId = () => {
   if (typeof window === "undefined") return "";
 
   try {
