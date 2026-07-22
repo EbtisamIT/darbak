@@ -35,7 +35,7 @@ const subscriptionPlans = [
   {
     id: "monthly",
     title: "دربك+",
-    price: "5 ريال",
+    price: "5.99 ريال",
     duration: "شهر",
     description: "وصول كامل للمزايا الرقمية المتقدمة لمدة شهر.",
     badge: "شهري",

@@ -22,7 +22,7 @@ const EXPERIENCE_PUBLIC_FIELDS =
 const OPPORTUNITY_PUBLIC_FIELDS =
   "organizationName title city cities majorCategories specialties trainingEnvironment trainingMode hasReward applicationMethod logoUrl deadline status sourceType featured createdAt updatedAt";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-const SUBSCRIPTION_PRICE_SAR = Number(process.env.SUBSCRIPTION_PRICE_SAR || 5);
+const SUBSCRIPTION_PRICE_SAR = Number(process.env.SUBSCRIPTION_PRICE_SAR || 5.99);
 const SUBSCRIPTION_DURATION_DAYS = Number(
   process.env.SUBSCRIPTION_DURATION_DAYS || 30
 );
