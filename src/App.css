@@ -686,6 +686,15 @@ body {
   align-items: stretch;
 }
 
+.premium-access-layout.is-login-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.premium-access-layout.is-login-only .premium-access-main {
+  width: min(460px, 100%);
+  margin: 0 auto;
+}
+
 .premium-access-main,
 .premium-access-benefits {
   border-radius: 20px;
@@ -749,6 +758,29 @@ body {
   color: var(--app-text-soft);
   font-size: 14.5px;
   line-height: 1.9;
+}
+
+.premium-login-switch,
+.premium-login-back {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 13px;
+  border: 1px solid var(--app-brand-border);
+  background: var(--app-input-bg);
+  color: var(--app-brand);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.premium-login-switch {
+  margin-top: 12px;
+}
+
+.premium-login-back {
+  margin-top: 10px;
+  background: transparent;
 }
 
 .premium-free-plan {
@@ -1346,6 +1378,78 @@ body {
   overflow-wrap: anywhere;
 }
 
+.account-login-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 13px;
+  border-radius: 17px;
+  border: 1px solid var(--app-brand-border);
+  background: var(--app-brand-soft);
+}
+
+.account-login-form > div {
+  display: grid;
+  gap: 3px;
+}
+
+.account-login-form > div span {
+  color: var(--app-brand);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.account-login-form > div p {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.account-login-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--app-text-soft);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.account-login-form input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 13px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+  color: var(--app-text);
+  box-sizing: border-box;
+  padding: 9px 11px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.account-login-form input:focus {
+  border-color: var(--app-brand-border);
+  box-shadow: 0 0 0 3px var(--app-brand-soft);
+}
+
+.account-login-form button {
+  min-height: 42px;
+  border: none;
+  border-radius: 13px;
+  background: var(--app-brand);
+  color: #071814;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.account-login-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .account-modal-actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1369,6 +1473,12 @@ body {
   background: transparent;
   color: var(--app-brand);
   border: 1px solid var(--app-brand-border);
+}
+
+.account-modal-actions button.danger {
+  background: var(--app-input-bg);
+  color: var(--app-text-soft);
+  border: 1px solid var(--app-border);
 }
 
 .account-modal-actions button:disabled {

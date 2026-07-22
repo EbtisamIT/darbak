@@ -4,9 +4,11 @@ import API_BASE_URL from "../config/api";
 import {
   ACCOUNT_MODAL_EVENT,
   PREMIUM_ACCESS_EVENT,
+  clearAccessSession,
   getStoredAccessIdentity,
   getStoredPremiumPass,
   isPremiumGateEnabled,
+  saveAccessIdentity,
   savePremiumPass,
 } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
@@ -29,6 +31,8 @@ export default function AccountModal() {
   const [pass, setPass] = useState(null);
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginForm, setLoginForm] = useState({ contact: "", accessCode: "" });
   const [premiumGateVisible, setPremiumGateVisible] = useState(false);
 
   const status = useMemo(() => {
@@ -38,8 +42,13 @@ export default function AccountModal() {
   }, [pass]);
 
   const openModal = () => {
-    setIdentity(getStoredAccessIdentity());
+    const storedIdentity = getStoredAccessIdentity();
+    setIdentity(storedIdentity);
     setPass(getStoredPremiumPass());
+    setLoginForm({
+      contact: storedIdentity.contact || storedIdentity.email || "",
+      accessCode: storedIdentity.accessCode || "",
+    });
     setPremiumGateVisible(isPremiumGateEnabled());
     setMessage("");
     setIsOpen(true);
@@ -74,7 +83,7 @@ export default function AccountModal() {
     const accessCode = identity.accessCode || "";
 
     if (!contact || !accessCode) {
-      setMessage("لا توجد بيانات دخول محفوظة. فعّل دربك+ أو ادخل بنفس بياناتك أولًا.");
+      setMessage("لا توجد بيانات دخول محفوظة. سجّل الدخول بنفس البريد أو رقم الجوال والرمز أولًا.");
       return;
     }
 
@@ -94,6 +103,53 @@ export default function AccountModal() {
     } finally {
       setChecking(false);
     }
+  };
+
+  const updateLoginField = (field, value) => {
+    setLoginForm((current) => ({ ...current, [field]: value }));
+    setMessage("");
+  };
+
+  const loginToAccount = async (event) => {
+    event.preventDefault();
+
+    const contact = loginForm.contact.trim();
+    const accessCode = loginForm.accessCode.trim();
+
+    if (!contact || !accessCode) {
+      setMessage("اكتب البريد أو رقم الجوال مع رمز الدخول.");
+      return;
+    }
+
+    try {
+      setLoggingIn(true);
+      setMessage("");
+      const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
+        email: contact,
+        accessCode,
+      });
+      saveAccessIdentity({ contact, accessCode });
+      savePremiumPass(data);
+      setIdentity(getStoredAccessIdentity());
+      setPass(getStoredPremiumPass());
+      setMessage("تم تسجيل الدخول وتفعيل مزايا حسابك.");
+      trackEvent("account_login_success");
+    } catch (err) {
+      setPass(null);
+      setMessage(err.response?.data?.error || "تعذر تسجيل الدخول بهذه البيانات.");
+      trackEvent("account_login_failed");
+    } finally {
+      setLoggingIn(false);
+    }
+  };
+
+  const logout = () => {
+    clearAccessSession();
+    setIdentity({});
+    setPass(null);
+    setLoginForm({ contact: "", accessCode: "" });
+    setMessage("تم تسجيل الخروج من هذا الجهاز.");
+    trackEvent("account_logout_clicked");
   };
 
   if (!isOpen) return null;
@@ -123,8 +179,8 @@ export default function AccountModal() {
           <span className="account-modal-kicker">حسابي</span>
           <h2 id="account-modal-title">معلومات حساب دربك</h2>
           <p>
-            من هنا تقدر تشوف حالة حسابك وتدخل بنفس البريد أو رقم الجوال
-            والرمز إذا كان لديك دربك+.
+            من هنا تقدر تدخل لحسابك، تشوف حالة دربك+، أو تسجل خروجك من هذا
+            الجهاز.
           </p>
         </div>
 
@@ -148,6 +204,38 @@ export default function AccountModal() {
           </div>
         </dl>
 
+        {!isActive && (
+          <form className="account-login-form" onSubmit={loginToAccount}>
+            <div>
+              <span>تسجيل الدخول</span>
+              <p>اكتب نفس البريد أو رقم الجوال والرمز المستخدم وقت التفعيل.</p>
+            </div>
+            <label>
+              <span>البريد أو رقم الجوال</span>
+              <input
+                type="text"
+                value={loginForm.contact}
+                onChange={(event) => updateLoginField("contact", event.target.value)}
+                placeholder="example@email.com أو 05xxxxxxxx"
+                autoComplete="email"
+              />
+            </label>
+            <label>
+              <span>رمز الدخول</span>
+              <input
+                value={loginForm.accessCode}
+                onChange={(event) => updateLoginField("accessCode", event.target.value)}
+                placeholder="رمز الدخول"
+                autoComplete="one-time-code"
+                maxLength={12}
+              />
+            </label>
+            <button type="submit" disabled={loggingIn}>
+              {loggingIn ? "جاري الدخول..." : "تسجيل الدخول"}
+            </button>
+          </form>
+        )}
+
         {message && <p className="account-modal-message">{message}</p>}
 
         <div className="account-modal-actions">
@@ -159,6 +247,11 @@ export default function AccountModal() {
           <button type="button" className="secondary" onClick={refreshSubscription} disabled={checking}>
             {checking ? "جاري التحديث..." : "تحديث حالة الحساب"}
           </button>
+          {(isActive || identity.contact || identity.email) && (
+            <button type="button" className="danger" onClick={logout}>
+              تسجيل خروج
+            </button>
+          )}
         </div>
       </section>
     </div>

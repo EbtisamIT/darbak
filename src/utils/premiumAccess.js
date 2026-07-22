@@ -112,6 +112,20 @@ export const savePremiumPass = (pass) => {
   }
 };
 
+export const clearAccessSession = () => {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.removeItem(PREMIUM_PASS_KEY);
+    window.localStorage.removeItem(ACCESS_IDENTITY_KEY);
+    window.dispatchEvent(
+      new CustomEvent(PREMIUM_STATUS_EVENT, { detail: { pass: null } })
+    );
+  } catch {
+    // Logging out should stay best-effort if storage is blocked.
+  }
+};
+
 export const getAccessPayload = (detail = {}) => {
   const identity = getStoredAccessIdentity();
   return {

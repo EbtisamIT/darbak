@@ -91,6 +91,7 @@ export default function PremiumAccessGate() {
   const [successNotice, setSuccessNotice] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+  const [isLoginOnly, setIsLoginOnly] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState("one_time_90");
   const pendingActionRef = useRef(null);
   const selectedPlan =
@@ -103,6 +104,7 @@ export default function PremiumAccessGate() {
 
       pendingActionRef.current = event.detail?.onGranted || null;
       setFeature(event.detail?.feature || "");
+      setIsLoginOnly(Boolean(event.detail?.loginOnly));
       const accessStatus = event.detail?.accessStatus || {};
       setMessage(
         accessStatus.reason === "daily_limit"
@@ -130,6 +132,7 @@ export default function PremiumAccessGate() {
     setMessage("");
     setIsVerifying(false);
     setIsStartingCheckout(false);
+    setIsLoginOnly(false);
   };
 
   const updateField = (field, value) => {
@@ -146,6 +149,7 @@ export default function PremiumAccessGate() {
     }
     setIsOpen(false);
     setMessage("");
+    setIsLoginOnly(false);
     setSuccessNotice("تم تفعيل دربك+ بنجاح. المزايا المتقدمة صارت مفتوحة لك الآن.");
     trackEvent("premium_access_verified", {
       metadata: { feature },
@@ -235,6 +239,7 @@ export default function PremiumAccessGate() {
       accessCode: pendingAccessCode,
     });
     setFeature("experience_details");
+    setIsLoginOnly(true);
     setIsOpen(true);
 
     params.delete("subscription");
@@ -359,16 +364,38 @@ export default function PremiumAccessGate() {
           ×
         </button>
 
-        <div className="premium-access-layout">
+        <div className={`premium-access-layout${isLoginOnly ? " is-login-only" : ""}`}>
           <section className="premium-access-main">
             <div className="premium-access-badge">دربك+</div>
-            <h2 id="premium-access-title">فعّل المزايا المتقدمة في منصة دربك</h2>
+            <h2 id="premium-access-title">
+              {isLoginOnly ? "تسجيل الدخول إلى دربك+" : "فعّل المزايا المتقدمة في منصة دربك"}
+            </h2>
             <p className="premium-access-lead">
-              ساعدنا على تطوير المنصة واستمرارها، واحصل على وصول كامل إلى{" "}
-              {featureCopy[feature] || "جميع المزايا الرقمية"} التي تساعدك
-              تستفيد من تجارب التدريب بشكل أسرع وأدق.
+              {isLoginOnly
+                ? "ادخل بنفس البريد أو رقم الجوال والرمز الذي استخدمته وقت التفعيل."
+                : (
+                    <>
+                      ساعدنا على تطوير المنصة واستمرارها، واحصل على وصول كامل إلى{" "}
+                      {featureCopy[feature] || "جميع المزايا الرقمية"} التي تساعدك
+                      تستفيد من تجارب التدريب بشكل أسرع وأدق.
+                    </>
+                  )}
             </p>
 
+            {!isLoginOnly && (
+              <button
+                type="button"
+                className="premium-login-switch"
+                onClick={() => {
+                  setIsLoginOnly(true);
+                  setMessage("");
+                }}
+              >
+                لديك دربك+؟ تسجيل دخول فقط
+              </button>
+            )}
+
+            {!isLoginOnly && (
             <div className="premium-free-plan" aria-label="المزايا المجانية">
               <div>
                 <span>مجاني</span>
@@ -381,7 +408,9 @@ export default function PremiumAccessGate() {
                 <li>حفظ المفضلة</li>
               </ul>
             </div>
+            )}
 
+            {!isLoginOnly && (
             <div className="premium-plan-options" role="radiogroup" aria-label="اختيار الباقة">
               {subscriptionPlans.map((plan) => (
                 <button
@@ -410,16 +439,20 @@ export default function PremiumAccessGate() {
                 </button>
               ))}
             </div>
+            )}
 
+            {!isLoginOnly && (
             <div className="premium-access-price">
               <strong>{selectedPlan.price}</strong>
               <span>دربك+ لمدة {selectedPlan.duration}</span>
             </div>
+            )}
 
             <div className="premium-access-form">
               <p>
-                استخدم بريد أو رقم جوال مع رمز دخول بسيط تحفظه. إذا كان لديك
-                دربك+ سابق، اكتب نفس البيانات واضغط دخول مستخدم دربك+.
+                {isLoginOnly
+                  ? "لا تحتاج تختار باقة من جديد. أدخل بياناتك فقط لفتح مزاياك."
+                  : "استخدم بريد أو رقم جوال مع رمز دخول بسيط تحفظه. إذا كان لديك دربك+ سابق، اكتب نفس البيانات واضغط دخول مستخدم دربك+."}
               </p>
               <div className="premium-access-fields">
                 <label className="premium-access-field">
@@ -453,6 +486,7 @@ export default function PremiumAccessGate() {
               </span>
             </div>
 
+            {!isLoginOnly && (
             <button
               type="button"
               className="premium-access-pay-button"
@@ -463,24 +497,49 @@ export default function PremiumAccessGate() {
                 ? "جاري تجهيز التفعيل..."
                 : `فعّل دربك+ ${selectedPlan.price}`}
             </button>
+            )}
 
             <form
               className="premium-access-verify-form"
               onSubmit={verifySubscription}
             >
-              <p>لديك دربك+؟ ادخل بنفس البريد/الجوال والرمز.</p>
+              <p>
+                {isLoginOnly
+                  ? "سيتم التحقق من حسابك وفتح المزايا مباشرة."
+                  : "لديك دربك+؟ ادخل بنفس البريد/الجوال والرمز."}
+              </p>
               <button type="submit" disabled={isVerifying}>
-                {isVerifying ? "جاري الدخول..." : "دخول مستخدم دربك+"}
+                {isVerifying
+                  ? "جاري الدخول..."
+                  : isLoginOnly
+                    ? "تسجيل الدخول"
+                    : "دخول مستخدم دربك+"}
               </button>
             </form>
 
+            {isLoginOnly && (
+              <button
+                type="button"
+                className="premium-login-back"
+                onClick={() => {
+                  setIsLoginOnly(false);
+                  setMessage("");
+                }}
+              >
+                عرض باقات دربك+
+              </button>
+            )}
+
+            {!isLoginOnly && (
             <p className="premium-access-security">
               يدعم تفعيلك تطوير منصة دربك وإضافة مزايا جديدة وتحسين تجربة
               المستخدم بشكل مستمر. الدفع آمن عبر ميسر، وكل باقة تعمل لمدة
               محددة بدون تجديد تلقائي داخل دربك.
             </p>
+            )}
           </section>
 
+          {!isLoginOnly && (
           <aside className="premium-access-benefits" aria-label="مزايا دربك بلس">
             <p className="premium-access-benefits-kicker">ماذا ستحصل عليه؟</p>
             <ul>
@@ -506,6 +565,7 @@ export default function PremiumAccessGate() {
               على اتخاذ قرارات أفضل.
             </p>
           </aside>
+          )}
         </div>
 
             {message && <p className="premium-access-message">{message}</p>}
