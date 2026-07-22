@@ -6,6 +6,7 @@ import {
   PREMIUM_ACCESS_EVENT,
   getStoredAccessIdentity,
   getStoredPremiumPass,
+  isPremiumGateEnabled,
   savePremiumPass,
 } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
@@ -28,6 +29,7 @@ export default function AccountModal() {
   const [pass, setPass] = useState(null);
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
+  const [premiumGateVisible, setPremiumGateVisible] = useState(false);
 
   const status = useMemo(() => {
     if (pass?.isAdmin) return "admin";
@@ -38,6 +40,7 @@ export default function AccountModal() {
   const openModal = () => {
     setIdentity(getStoredAccessIdentity());
     setPass(getStoredPremiumPass());
+    setPremiumGateVisible(isPremiumGateEnabled());
     setMessage("");
     setIsOpen(true);
     trackEvent("account_modal_opened");
@@ -120,8 +123,8 @@ export default function AccountModal() {
           <span className="account-modal-kicker">حسابي</span>
           <h2 id="account-modal-title">معلومات حساب دربك</h2>
           <p>
-            من هنا تقدر تشوف حالة دربك+ وتدخل أو تفعل المزايا المتقدمة بنفس
-            البريد أو رقم الجوال والرمز.
+            من هنا تقدر تشوف حالة حسابك وتدخل بنفس البريد أو رقم الجوال
+            والرمز إذا كان لديك دربك+.
           </p>
         </div>
 
@@ -148,9 +151,11 @@ export default function AccountModal() {
         {message && <p className="account-modal-message">{message}</p>}
 
         <div className="account-modal-actions">
-          <button type="button" onClick={openPremiumGate}>
-            {isActive ? "تجديد أو تغيير الباقة" : "تفعيل دربك+"}
-          </button>
+          {premiumGateVisible && (
+            <button type="button" onClick={openPremiumGate}>
+              {isActive ? "تجديد أو تغيير الباقة" : "تفعيل دربك+"}
+            </button>
+          )}
           <button type="button" className="secondary" onClick={refreshSubscription} disabled={checking}>
             {checking ? "جاري التحديث..." : "تحديث حالة الحساب"}
           </button>

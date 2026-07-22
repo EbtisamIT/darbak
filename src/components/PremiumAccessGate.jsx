@@ -3,6 +3,7 @@ import axios from "axios";
 import API_BASE_URL from "../config/api";
 import {
   PREMIUM_ACCESS_EVENT,
+  isPremiumGateEnabled,
   saveAccessIdentity,
   savePremiumPass,
 } from "../utils/premiumAccess";
@@ -97,6 +98,8 @@ export default function PremiumAccessGate() {
 
   useEffect(() => {
     const handlePremiumRequest = (event) => {
+      if (!isPremiumGateEnabled()) return;
+
       pendingActionRef.current = event.detail?.onGranted || null;
       setFeature(event.detail?.feature || "");
       const accessStatus = event.detail?.accessStatus || {};

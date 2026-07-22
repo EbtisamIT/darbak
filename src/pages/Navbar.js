@@ -6,6 +6,7 @@ import {
   PREMIUM_ACCESS_EVENT,
   PREMIUM_STATUS_EVENT,
   hasActivePremiumPass,
+  isPremiumGateEnabled,
 } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
 import logo from "./logo.png";
@@ -18,6 +19,9 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   );
   const [isPremiumActive, setIsPremiumActive] = useState(() =>
     typeof window !== "undefined" ? hasActivePremiumPass() : false
+  );
+  const [isPremiumGateVisible, setIsPremiumGateVisible] = useState(() =>
+    typeof window !== "undefined" ? isPremiumGateEnabled() : false
   );
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
   const [floatingMenuOpen, setFloatingMenuOpen] = useState(false);
@@ -62,7 +66,10 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   }, [location.pathname]);
 
   useEffect(() => {
-    const refreshPremiumStatus = () => setIsPremiumActive(hasActivePremiumPass());
+    const refreshPremiumStatus = () => {
+      setIsPremiumActive(hasActivePremiumPass());
+      setIsPremiumGateVisible(isPremiumGateEnabled());
+    };
 
     refreshPremiumStatus();
     window.addEventListener(PREMIUM_STATUS_EVENT, refreshPremiumStatus);
@@ -347,7 +354,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             />
           </Link>
           {themeToggleButton}
-          {!isPremiumActive && (
+          {isPremiumGateVisible && !isPremiumActive && (
             <button
               type="button"
               onClick={() => openPremiumGate("navbar_top_cta")}
@@ -507,7 +514,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 <span>حسابي</span>
                 <span aria-hidden="true">◎</span>
               </button>
-              {!isPremiumActive && (
+              {isPremiumGateVisible && !isPremiumActive && (
                 <button
                   type="button"
                   onClick={() => openPremiumGate("floating_nav_cta")}
