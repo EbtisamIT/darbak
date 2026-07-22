@@ -21,6 +21,7 @@ import AdminReviewPage from "./pages/AdminReviewPage";
 import Footer from "./pages/Footer";
 import { guideUrl } from "./components/TrainingGuideBanner";
 import PremiumAccessGate from "./components/PremiumAccessGate";
+import AccountModal from "./components/AccountModal";
 import SavedItemsDrawer from "./components/SavedItemsDrawer";
 import DarbakAssistant from "./components/DarbakAssistant";
 import { trackEvent } from "./utils/analytics";
@@ -1208,6 +1209,7 @@ function AppLayout({ theme, setTheme }) {
       <PageBanner />
       <PlatformUpdateNotice />
       <PremiumAccessGate />
+      <AccountModal />
       <SavedItemsDrawer />
       <DarbakAssistant />
 

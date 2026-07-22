@@ -681,6 +681,7 @@ export default function AdminReviewPage() {
   const [opportunityStatus, setOpportunityStatus] = useState("active");
   const [experiences, setExperiences] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [contactMessages, setContactMessages] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
   const [interviewQuestions, setInterviewQuestions] = useState([]);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
@@ -698,6 +699,8 @@ export default function AdminReviewPage() {
   const currentItemsCount =
     adminView === "suggestions"
       ? suggestions.length
+      : adminView === "contactMessages"
+      ? contactMessages.length
       : adminView === "interviewQuestions"
       ? interviewQuestions.length
       : adminView === "opportunities"
@@ -708,6 +711,8 @@ export default function AdminReviewPage() {
   const currentItemsLabel =
     adminView === "suggestions"
       ? "اقتراح"
+      : adminView === "contactMessages"
+      ? "رسالة تواصل"
       : adminView === "interviewQuestions"
       ? "أسئلة مقابلة"
       : adminView === "opportunities"
@@ -767,6 +772,34 @@ export default function AdminReviewPage() {
         err.response?.status === 401
           ? "كلمة المرور غير صحيحة."
           : "تعذر تحميل الاقتراحات."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchContactMessages = async () => {
+    if (!password) {
+      setMessage("اكتب كلمة المرور لعرض المحتوى.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      sessionStorage.setItem("darbak_admin_password", password);
+
+      const { data } = await axios.get(`${API_BASE_URL}/api/admin/contact-messages`, {
+        headers: authHeaders,
+      });
+
+      setContactMessages(Array.isArray(data.data) ? data.data : []);
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.status === 401
+          ? "كلمة المرور غير صحيحة."
+          : "تعذر تحميل رسائل التواصل."
       );
     } finally {
       setLoading(false);
@@ -868,6 +901,8 @@ export default function AdminReviewPage() {
 
     if (adminView === "suggestions") {
       fetchSuggestions();
+    } else if (adminView === "contactMessages") {
+      fetchContactMessages();
     } else if (adminView === "interviewQuestions") {
       fetchInterviewQuestions();
     } else if (adminView === "opportunities") {
@@ -883,6 +918,11 @@ export default function AdminReviewPage() {
   const refreshCurrentView = () => {
     if (adminView === "suggestions") {
       fetchSuggestions();
+      return;
+    }
+
+    if (adminView === "contactMessages") {
+      fetchContactMessages();
       return;
     }
 
@@ -1043,6 +1083,25 @@ export default function AdminReviewPage() {
     } catch (err) {
       console.error(err);
       setMessage("تعذر حذف الاقتراح.");
+    }
+  };
+
+  const deleteContactMessage = async (id) => {
+    const confirmed = window.confirm(
+      "هل أنت متأكد من حذف رسالة التواصل؟ لا يمكن التراجع عن الحذف."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setMessage("");
+      await axios.delete(`${API_BASE_URL}/api/admin/contact-messages/${id}`, {
+        headers: authHeaders,
+      });
+      setContactMessages((prev) => prev.filter((item) => item._id !== id));
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر حذف رسالة التواصل.");
     }
   };
 
@@ -1414,6 +1473,7 @@ export default function AdminReviewPage() {
         >
           <option value="experiences">التجارب</option>
           <option value="suggestions">الاقتراحات</option>
+          <option value="contactMessages">رسائل التواصل</option>
           <option value="opportunities">الفرص</option>
           <option value="interviewQuestions">أسئلة المقابلات</option>
           <option value="analytics">التحليلات</option>
@@ -1446,7 +1506,7 @@ export default function AdminReviewPage() {
                 ? setOpportunityStatus(e.target.value)
                 : setStatus(e.target.value)
             }
-            disabled={adminView === "suggestions"}
+            disabled={adminView === "suggestions" || adminView === "contactMessages"}
             style={{
               background: adminColors.inputBg,
               border: `1px solid ${adminColors.inputBorder}`,
@@ -1454,7 +1514,10 @@ export default function AdminReviewPage() {
               color: adminColors.text,
               padding: "11px 12px",
               fontFamily: "inherit",
-              opacity: adminView === "suggestions" ? 0.45 : 1,
+              opacity:
+                adminView === "suggestions" || adminView === "contactMessages"
+                  ? 0.45
+                  : 1,
             }}
           >
             {adminView === "opportunities" ? (
@@ -1742,6 +1805,117 @@ export default function AdminReviewPage() {
                   <button
                     type="button"
                     onClick={() => deleteSuggestion(suggestion._id)}
+                    style={{
+                      background: "rgba(127,29,29,0.2)",
+                      color: "#fecaca",
+                      border: "1px solid rgba(248,113,113,0.35)",
+                      borderRadius: "10px",
+                      padding: "9px 14px",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    حذف
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      ) : adminView === "contactMessages" ? (
+        <div style={{ display: "grid", gap: "12px" }}>
+          {contactMessages.length === 0 && !loading ? (
+            <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
+              لا توجد رسائل تواصل حاليًا.
+            </div>
+          ) : (
+            contactMessages.map((item) => (
+              <article key={item._id} style={cardStyle}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <div>
+                    <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                      {item.reason || "رسالة تواصل"}
+                    </h3>
+                    <p style={{ margin: 0, color: adminColors.textSoft, fontSize: "13px" }}>
+                      {item.contact ? `وسيلة الرد: ${item.contact}` : "بدون وسيلة رد"}
+                    </p>
+                  </div>
+                  <div
+                    style={{
+                      color: adminColors.muted,
+                      fontSize: "13px",
+                      lineHeight: 1.8,
+                      textAlign: "left",
+                    }}
+                  >
+                    <div>أضيفت:</div>
+                    <strong style={{ color: adminColors.textSoft, fontWeight: "600" }}>
+                      {formatAdminDateTime(item.createdAt)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    marginBottom: "12px",
+                    padding: "5px 9px",
+                    borderRadius: "999px",
+                    border: `1px solid ${adminColors.inputBorder}`,
+                    color:
+                      item.emailStatus === "sent"
+                        ? adminColors.brandStrong
+                        : adminColors.muted,
+                    fontSize: "12px",
+                    fontWeight: "700",
+                  }}
+                >
+                  حالة الإيميل:{" "}
+                  {item.emailStatus === "sent"
+                    ? "تم الإرسال"
+                    : item.emailStatus === "failed"
+                    ? "تعذر الإرسال"
+                    : "غير مفعل"}
+                </div>
+
+                <p
+                  style={{
+                    color: adminColors.text,
+                    lineHeight: 1.9,
+                    whiteSpace: "pre-wrap",
+                    overflowWrap: "anywhere",
+                    margin: "0 0 14px",
+                  }}
+                >
+                  {item.message}
+                </p>
+
+                {item.emailError && (
+                  <p
+                    style={{
+                      color: "#fca5a5",
+                      fontSize: "12px",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {item.emailError}
+                  </p>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() => deleteContactMessage(item._id)}
                     style={{
                       background: "rgba(127,29,29,0.2)",
                       color: "#fecaca",

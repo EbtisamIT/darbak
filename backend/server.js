@@ -6,6 +6,7 @@ require('dotenv').config();
 
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
+const ContactMessage = require('./models/ContactMessage');
 const Opportunity = require('./models/Opportunity');
 const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
@@ -83,6 +84,18 @@ const ADMIN_ACCESS_CODE = (process.env.ADMIN_ACCESS_CODE || "")
   .toString()
   .trim()
   .replace(/\s+/g, "");
+const CONTACT_EMAIL_TO = process.env.CONTACT_EMAIL_TO || "info@darbak.space";
+const CONTACT_EMAIL_FROM =
+  process.env.CONTACT_EMAIL_FROM || "Darbak <no-reply@darbak.space>";
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const CONTACT_REASONS = new Set([
+  "استفسار عام",
+  "مشكلة تقنية",
+  "اقتراح تطوير",
+  "بلاغ عن محتوى",
+  "تعاون أو إعلان",
+  "أخرى",
+]);
 const GENERAL_SPECIALTY_MARKERS = [
   "__all_specialties__",
   "جميع التخصصات",
@@ -198,6 +211,70 @@ const normalizeSubscriberContact = (value = "") => {
 
 const isValidSubscriberContact = (value = "") =>
   isValidEmail(value) || Boolean(normalizeSaudiMobile(value));
+
+const escapeHtml = (value = "") =>
+  value
+    .toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const sendContactEmail = async ({ reason = "", message = "", contact = "" } = {}) => {
+  if (!RESEND_API_KEY || typeof fetch !== "function") {
+    return { emailStatus: "not_configured", emailError: "" };
+  }
+
+  const text = [
+    "وصلت رسالة تواصل جديدة من منصة دربك.",
+    "",
+    `سبب التواصل: ${reason}`,
+    contact ? `وسيلة الرد: ${contact}` : "وسيلة الرد: غير مذكورة",
+    "",
+    "الرسالة:",
+    message,
+  ].join("\n");
+
+  const payload = {
+    from: CONTACT_EMAIL_FROM,
+    to: [CONTACT_EMAIL_TO],
+    subject: `رسالة تواصل من دربك - ${reason || "بدون سبب"}`,
+    text,
+    html: `
+      <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#111827">
+        <h2 style="margin:0 0 12px">رسالة تواصل جديدة من دربك</h2>
+        <p><strong>سبب التواصل:</strong> ${escapeHtml(reason)}</p>
+        <p><strong>وسيلة الرد:</strong> ${escapeHtml(contact || "غير مذكورة")}</p>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0" />
+        <p style="white-space:pre-wrap">${escapeHtml(message)}</p>
+      </div>
+    `,
+  };
+
+  if (isValidEmail(contact)) {
+    payload.reply_to = normalizeEmail(contact);
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    return {
+      emailStatus: "failed",
+      emailError: errorBody.slice(0, 600) || `Resend status ${response.status}`,
+    };
+  }
+
+  return { emailStatus: "sent", emailError: "" };
+};
 
 const normalizeAccessCode = (value = "") =>
   normalizeArabicDigits(value).trim().replace(/\s+/g, "");
@@ -4383,6 +4460,70 @@ app.post('/api/suggestions', async (req, res) => {
   }
 });
 
+app.post('/api/contact', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const requestedReason = (req.body.reason || "").toString().trim();
+    const reason = CONTACT_REASONS.has(requestedReason)
+      ? requestedReason
+      : "أخرى";
+    const contact = (req.body.contact || "").toString().trim().slice(0, 160);
+    const message = (req.body.message || "").toString().trim();
+
+    if (message.length < 5) {
+      return res.status(400).json({ error: "اكتب رسالتك بشكل أوضح قبل الإرسال." });
+    }
+
+    if (message.length > 1800) {
+      return res.status(400).json({ error: "الرسالة طويلة جدًا، اختصرها قليلًا." });
+    }
+
+    if (containsBlockedTerms(message) || containsBlockedTerms(contact)) {
+      return res.status(400).json({
+        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة ثم المحاولة مرة أخرى.",
+      });
+    }
+
+    const contactMessage = await ContactMessage.create({
+      reason,
+      message,
+      contact,
+      emailStatus: RESEND_API_KEY ? "failed" : "not_configured",
+    });
+
+    let emailResult;
+    try {
+      emailResult = await sendContactEmail({ reason, message, contact });
+    } catch (emailErr) {
+      emailResult = {
+        emailStatus: "failed",
+        emailError: emailErr.message || "Email delivery failed",
+      };
+    }
+
+    if (
+      emailResult.emailStatus !== contactMessage.emailStatus ||
+      emailResult.emailError
+    ) {
+      contactMessage.emailStatus = emailResult.emailStatus;
+      contactMessage.emailError = emailResult.emailError || "";
+      await contactMessage.save();
+    }
+
+    res.json({
+      success: true,
+      id: contactMessage._id,
+      emailStatus: contactMessage.emailStatus,
+    });
+  } catch (err) {
+    console.error("❌ Error saving contact message:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/interview-questions', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -5509,6 +5650,24 @@ app.get('/api/admin/suggestions', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/contact-messages', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const messages = await ContactMessage.find()
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    res.json({ data: messages });
+  } catch (err) {
+    console.error("❌ Admin contact messages fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/opportunities', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -5913,6 +6072,25 @@ app.delete('/api/admin/suggestions/:id', requireAdmin, async (req, res) => {
     res.json({ success: true, id: req.params.id });
   } catch (err) {
     console.error("❌ Admin suggestion delete error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/contact-messages/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const deleted = await ContactMessage.findByIdAndDelete(req.params.id).lean();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Contact message not found" });
+    }
+
+    res.json({ success: true, id: req.params.id });
+  } catch (err) {
+    console.error("❌ Admin contact message delete error:", err);
     res.status(500).json({ error: err.message });
   }
 });

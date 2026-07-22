@@ -1,17 +1,12 @@
 import React, { useEffect, useState } from "react";
 
 import { Link, useLocation } from "react-router-dom";
-import axios from "axios";
-import API_BASE_URL from "../config/api";
+import { ACCOUNT_MODAL_EVENT } from "../utils/premiumAccess";
 import logo from "./logo.png";
 import AddExperienceModal from "./AddExperienceModal";
 
 const Navbar = ({ theme = "dark", setTheme }) => {
   const [showModal, setShowModal] = useState(false);
-  const [showSuggestionBox, setShowSuggestionBox] = useState(false);
-  const [suggestionText, setSuggestionText] = useState("");
-  const [suggestionMessage, setSuggestionMessage] = useState("");
-  const [sendingSuggestion, setSendingSuggestion] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 768 : false
   );
@@ -31,9 +26,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const shouldHideHeader =
     shouldStickNavbar &&
     isNavbarCollapsed &&
-    !showModal &&
-    !showSuggestionBox &&
-    !suggestionMessage;
+    !showModal;
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -124,14 +117,13 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     if (setTheme) setTheme(theme === "dark" ? "light" : "dark");
   };
 
-  const toggleSuggestionBox = () => {
-    setShowSuggestionBox((prev) => !prev);
-    setSuggestionMessage("");
+  const openAddExperienceModal = () => {
+    setShowModal(true);
     setFloatingMenuOpen(false);
   };
 
-  const openAddExperienceModal = () => {
-    setShowModal(true);
+  const openAccountModal = () => {
+    window.dispatchEvent(new Event(ACCOUNT_MODAL_EVENT));
     setFloatingMenuOpen(false);
   };
 
@@ -175,32 +167,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     fontSize: "13px",
     fontWeight: "800",
     textAlign: "right",
-  };
-
-  const submitSuggestion = async (event) => {
-    event.preventDefault();
-
-    const text = suggestionText.trim();
-
-    if (text.length < 3) {
-      setSuggestionMessage("اكتب اقتراحًا واضحًا قبل الإرسال.");
-      return;
-    }
-
-    try {
-      setSendingSuggestion(true);
-      setSuggestionMessage("");
-      await axios.post(`${API_BASE_URL}/api/suggestions`, { text });
-      setSuggestionText("");
-      setShowSuggestionBox(false);
-      setSuggestionMessage("وصلنا اقتراحك، شكرًا لك.");
-    } catch (err) {
-      setSuggestionMessage(
-        err.response?.data?.error || "تعذر إرسال الاقتراح حاليًا."
-      );
-    } finally {
-      setSendingSuggestion(false);
-    }
   };
 
   const themeToggleButton = (
@@ -365,6 +331,14 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             {isMobile ? "مقابلات" : "💬 مقابلات"}
           </Link>
 
+          <button
+            type="button"
+            onClick={openAccountModal}
+            style={quietActionButtonStyle}
+          >
+            حسابي
+          </button>
+
           <div
             style={{
               display: "flex",
@@ -377,13 +351,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           >
             <button
               type="button"
-              onClick={toggleSuggestionBox}
-              style={quietActionButtonStyle}
-            >
-              {isMobile ? "اقتراح" : "اقتراحاتكم"}
-            </button>
-            <button
-              type="button"
               onClick={openAddExperienceModal}
               style={actionButtonStyle}
             >
@@ -393,105 +360,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
 
         </div>
       </nav>
-      {showSuggestionBox && (
-        <div
-          style={{
-            width: isNavbarCollapsed ? "min(560px, calc(100vw - 24px))" : "100%",
-            background: "var(--app-surface)",
-            border: isNavbarCollapsed ? "1px solid var(--app-border)" : "none",
-            borderBottom: "1px solid var(--app-border)",
-            borderRadius: isNavbarCollapsed ? "18px" : 0,
-            padding: "12px 16px",
-            boxSizing: "border-box",
-            position: isNavbarCollapsed ? "fixed" : "static",
-            top: isNavbarCollapsed ? (isMobile ? "12px" : "18px") : "auto",
-            left: isNavbarCollapsed ? "50%" : "auto",
-            transform: isNavbarCollapsed ? "translateX(-50%)" : "none",
-            zIndex: isNavbarCollapsed ? 2600 : "auto",
-            boxShadow: isNavbarCollapsed
-              ? "0 18px 50px var(--app-shadow)"
-              : "none",
-          }}
-        >
-          <form
-            onSubmit={submitSuggestion}
-            style={{
-              width: "min(100%, 560px)",
-              margin: "0 auto",
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) auto",
-              gap: "10px",
-              alignItems: "center",
-              direction: "rtl",
-            }}
-          >
-            <textarea
-              value={suggestionText}
-              onChange={(e) => setSuggestionText(e.target.value)}
-              placeholder="اكتب اقتراحك لدربك..."
-              rows={isMobile ? 3 : 2}
-              maxLength={1000}
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                resize: "vertical",
-                background: "var(--app-input-bg)",
-                color: "var(--app-text)",
-                border: "1px solid var(--app-border)",
-                borderRadius: "12px",
-                padding: "10px 12px",
-                fontFamily: "inherit",
-                lineHeight: 1.7,
-                textAlign: "right",
-              }}
-            />
-            <button
-              type="submit"
-              disabled={sendingSuggestion}
-              style={{
-                background: "var(--app-brand)",
-                color: "#101418",
-                border: "none",
-                borderRadius: "12px",
-                padding: "11px 18px",
-                cursor: sendingSuggestion ? "not-allowed" : "pointer",
-                fontFamily: "inherit",
-                fontWeight: "800",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {sendingSuggestion ? "إرسال..." : "إرسال"}
-            </button>
-          </form>
-        </div>
-      )}
-      {suggestionMessage && (
-        <p
-          style={{
-            margin: isNavbarCollapsed ? 0 : "8px auto 0",
-            padding: isNavbarCollapsed ? "9px 14px" : "0 16px",
-            textAlign: "center",
-            fontSize: "12px",
-            color: suggestionMessage.includes("وصلنا")
-              ? "var(--app-brand-strong)"
-              : "#fecdd3",
-            fontFamily: "'Cairo', sans-serif",
-            position: isNavbarCollapsed ? "fixed" : "static",
-            top: isNavbarCollapsed ? (isMobile ? "12px" : "18px") : "auto",
-            left: isNavbarCollapsed ? "50%" : "auto",
-            transform: isNavbarCollapsed ? "translateX(-50%)" : "none",
-            zIndex: isNavbarCollapsed ? 2650 : "auto",
-            width: isNavbarCollapsed ? "min(520px, calc(100vw - 24px))" : "auto",
-            boxSizing: "border-box",
-            background: isNavbarCollapsed ? "var(--app-surface)" : "transparent",
-            border: isNavbarCollapsed ? "1px solid var(--app-border)" : "none",
-            borderRadius: isNavbarCollapsed ? "999px" : 0,
-            boxShadow: isNavbarCollapsed ? "0 16px 42px var(--app-shadow)" : "none",
-          }}
-        >
-          {suggestionMessage}
-        </p>
-      )}
     </header>
 
       {showModal && (
@@ -566,11 +434,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
 
               <button
                 type="button"
-                onClick={toggleSuggestionBox}
+                onClick={openAccountModal}
                 style={floatingActionStyle}
               >
-                <span>اقتراحاتكم</span>
-                <span aria-hidden="true">✦</span>
+                <span>حسابي</span>
+                <span aria-hidden="true">◎</span>
               </button>
               <button
                 type="button"

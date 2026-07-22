@@ -2,6 +2,7 @@ import API_BASE_URL from "../config/api";
 import { getVisitorId } from "./analytics";
 
 export const PREMIUM_ACCESS_EVENT = "darbak:request-premium-access";
+export const ACCOUNT_MODAL_EVENT = "darbak:open-account";
 
 const PREMIUM_PASS_KEY = "darbak_premium_pass_v1";
 const PREMIUM_PREVIEW_KEY = "darbak_premium_gate_preview_v1";
