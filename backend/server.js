@@ -774,19 +774,24 @@ const createMoyasarInvoice = async ({
   amountHalalas,
   description,
   callbackUrl,
+  successUrl,
+  backUrl,
 }) => {
-  const body = new URLSearchParams();
-  body.set("amount", String(amountHalalas));
-  body.set("currency", "SAR");
-  body.set("description", description);
-  body.set("callback_url", callbackUrl);
+  const body = {
+    amount: amountHalalas,
+    currency: "SAR",
+    description,
+    callback_url: callbackUrl,
+    success_url: successUrl,
+    back_url: backUrl || successUrl,
+  };
 
   return callMoyasar("/invoices", {
     method: "POST",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/json",
     },
-    body,
+    body: JSON.stringify(body),
   });
 };
 
@@ -3573,6 +3578,7 @@ app.post('/api/subscriptions/verify', async (req, res) => {
             contact: activated.email,
             email: activated.email,
             expiresAt: activated.expiresAt,
+            accessType: "premium",
             planId: activated.planId || "monthly",
             priceSar: getSubscriptionPriceSar(activated),
             durationDays: getSubscriptionDurationDays(activated),
@@ -3611,12 +3617,94 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       contact: subscription.email,
       email: subscription.email,
       expiresAt: subscription.expiresAt,
+      accessType: "premium",
       planId: subscription.planId || "monthly",
       priceSar: getSubscriptionPriceSar(subscription),
       durationDays: getSubscriptionDurationDays(subscription),
     });
   } catch (err) {
     console.error("❌ Subscription verify error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/subscriptions/request-access-help', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const rawContact = (req.body.email || req.body.contact || "")
+      .toString()
+      .trim()
+      .slice(0, 160);
+
+    if (!isValidSubscriberContact(rawContact)) {
+      return res.status(400).json({
+        error: "اكتب البريد أو رقم الجوال المستخدم في دربك+ عشان نساعدك.",
+      });
+    }
+
+    const contact = normalizeSubscriberContact(rawContact);
+    const activeSubscription = await Subscription.findOne({
+      email: contact,
+      status: { $in: ["active", "pending"] },
+      expiresAt: { $gt: new Date() },
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
+    const message = [
+      "طلب مساعدة في رمز دخول دربك+.",
+      "",
+      `وسيلة الدخول: ${contact}`,
+      `حالة الاشتراك في النظام: ${activeSubscription ? activeSubscription.status : "غير موجود"}`,
+      activeSubscription?.planId ? `الباقة: ${activeSubscription.planId}` : "",
+      activeSubscription?.expiresAt
+        ? `تاريخ الانتهاء: ${activeSubscription.expiresAt.toISOString()}`
+        : "",
+      "",
+      "ملاحظة: لا يتم حفظ رموز الدخول كنص واضح، لذلك لا يمكن عرض الرمز القديم. الأفضل مساعدة المستخدم بإعادة تفعيل/تحديث بيانات الدخول يدويًا عند الحاجة.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const contactMessage = await ContactMessage.create({
+      reason: "مشكلة تقنية",
+      message,
+      contact,
+      emailStatus: RESEND_API_KEY ? "failed" : "not_configured",
+    });
+
+    let emailResult;
+    try {
+      emailResult = await sendContactEmail({
+        reason: "نسيان رمز دخول دربك+",
+        message,
+        contact,
+      });
+    } catch (emailErr) {
+      emailResult = {
+        emailStatus: "failed",
+        emailError: emailErr.message || "Email delivery failed",
+      };
+    }
+
+    if (
+      emailResult.emailStatus !== contactMessage.emailStatus ||
+      emailResult.emailError
+    ) {
+      contactMessage.emailStatus = emailResult.emailStatus;
+      contactMessage.emailError = emailResult.emailError || "";
+      await contactMessage.save();
+    }
+
+    res.json({
+      success: true,
+      message:
+        "وصلنا طلب المساعدة. إذا كان الاشتراك موجودًا، بنساعدك على استعادة الوصول.",
+    });
+  } catch (err) {
+    console.error("❌ Subscription access help error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -3689,6 +3777,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           contact: existingSubscription.email,
           email: existingSubscription.email,
           expiresAt: existingSubscription.expiresAt,
+          accessType: "premium",
           planId: existingSubscription.planId || "monthly",
           priceSar: getSubscriptionPriceSar(existingSubscription),
           durationDays: getSubscriptionDurationDays(existingSubscription),
@@ -3724,6 +3813,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
             contact: activated.email,
             email: activated.email,
             expiresAt: activated.expiresAt,
+            accessType: "premium",
             planId: activated.planId || "monthly",
             priceSar: getSubscriptionPriceSar(activated),
             durationDays: getSubscriptionDurationDays(activated),
@@ -3748,6 +3838,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     }
 
     const successUrl = getSafeSubscriptionReturnUrl(req.body.returnUrl);
+    const moyasarCallbackUrl = `${getPublicApiUrl(req)}/api/subscriptions/moyasar/callback`;
 
     const amountHalalas = Math.round(selectedPlan.priceSar * 100);
 
@@ -3755,7 +3846,9 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       const invoice = await createMoyasarInvoice({
         amountHalalas,
         description: `${selectedPlan.label} للوصول إلى المزايا الرقمية المتقدمة في منصة دربك`,
-        callbackUrl: successUrl,
+        callbackUrl: moyasarCallbackUrl,
+        successUrl,
+        backUrl: successUrl,
       });
 
       const pendingSubscription = await Subscription.findOneAndUpdate(

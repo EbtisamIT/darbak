@@ -32,6 +32,7 @@ export default function AccountModal() {
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
+  const [requestingHelp, setRequestingHelp] = useState(false);
   const [loginForm, setLoginForm] = useState({ contact: "", accessCode: "" });
   const [premiumGateVisible, setPremiumGateVisible] = useState(false);
 
@@ -152,6 +153,32 @@ export default function AccountModal() {
     trackEvent("account_logout_clicked");
   };
 
+  const requestAccessHelp = async () => {
+    const contact = loginForm.contact.trim();
+
+    if (!contact) {
+      setMessage("اكتب البريد أو رقم الجوال المستخدم في دربك+ أولًا.");
+      return;
+    }
+
+    try {
+      setRequestingHelp(true);
+      setMessage("");
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/subscriptions/request-access-help`,
+        { contact }
+      );
+      setMessage(data.message || "وصل طلب المساعدة. بنساعدك على استعادة الوصول.");
+      trackEvent("account_access_help_requested");
+    } catch (err) {
+      setMessage(
+        err.response?.data?.error || "تعذر إرسال طلب المساعدة حاليًا."
+      );
+    } finally {
+      setRequestingHelp(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const isActive = status === "active" || status === "admin";
@@ -232,6 +259,14 @@ export default function AccountModal() {
             </label>
             <button type="submit" disabled={loggingIn}>
               {loggingIn ? "جاري الدخول..." : "تسجيل الدخول"}
+            </button>
+            <button
+              type="button"
+              className="account-login-help"
+              onClick={requestAccessHelp}
+              disabled={requestingHelp}
+            >
+              {requestingHelp ? "جاري إرسال الطلب..." : "نسيت الرمز؟"}
             </button>
           </form>
         )}

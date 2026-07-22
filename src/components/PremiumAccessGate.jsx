@@ -91,6 +91,7 @@ export default function PremiumAccessGate() {
   const [successNotice, setSuccessNotice] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+  const [isRequestingHelp, setIsRequestingHelp] = useState(false);
   const [isLoginOnly, setIsLoginOnly] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState("one_time_90");
   const pendingActionRef = useRef(null);
@@ -132,6 +133,7 @@ export default function PremiumAccessGate() {
     setMessage("");
     setIsVerifying(false);
     setIsStartingCheckout(false);
+    setIsRequestingHelp(false);
     setIsLoginOnly(false);
   };
 
@@ -214,6 +216,32 @@ export default function PremiumAccessGate() {
   const verifySubscription = (event) => {
     event.preventDefault();
     verifyAccess();
+  };
+
+  const requestAccessHelp = async () => {
+    if (!isValidContact(form.contact)) {
+      setMessage("اكتب البريد أو رقم الجوال المستخدم في دربك+ أولًا.");
+      return;
+    }
+
+    try {
+      setIsRequestingHelp(true);
+      setMessage("");
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/subscriptions/request-access-help`,
+        { contact: form.contact }
+      );
+      setMessage(data.message || "وصل طلب المساعدة. بنساعدك على استعادة الوصول.");
+      trackEvent("premium_access_help_requested", {
+        metadata: { source: isLoginOnly ? "login_only" : "premium_gate" },
+      });
+    } catch (err) {
+      setMessage(
+        err.response?.data?.error || "تعذر إرسال طلب المساعدة حاليًا."
+      );
+    } finally {
+      setIsRequestingHelp(false);
+    }
   };
 
   useEffect(() => {
@@ -518,16 +546,26 @@ export default function PremiumAccessGate() {
             </form>
 
             {isLoginOnly && (
-              <button
-                type="button"
-                className="premium-login-back"
-                onClick={() => {
-                  setIsLoginOnly(false);
-                  setMessage("");
-                }}
-              >
-                عرض باقات دربك+
-              </button>
+              <div className="premium-login-actions">
+                <button
+                  type="button"
+                  className="premium-login-help"
+                  onClick={requestAccessHelp}
+                  disabled={isRequestingHelp}
+                >
+                  {isRequestingHelp ? "جاري إرسال الطلب..." : "نسيت الرمز؟"}
+                </button>
+                <button
+                  type="button"
+                  className="premium-login-back"
+                  onClick={() => {
+                    setIsLoginOnly(false);
+                    setMessage("");
+                  }}
+                >
+                  عرض باقات دربك+
+                </button>
+              </div>
             )}
 
             {!isLoginOnly && (
