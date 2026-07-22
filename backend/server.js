@@ -4366,7 +4366,6 @@ app.get('/api/opportunities', async (req, res) => {
 
     const opportunities = await Opportunity.find({ $and: andFilters })
       .sort({ featured: -1, createdAt: -1 })
-      .limit(100)
       .lean();
 
     const sortedOpportunities = opportunities
@@ -4386,8 +4385,7 @@ app.get('/api/opportunities', async (req, res) => {
         const aDeadline = a.deadline ? new Date(a.deadline).getTime() : Infinity;
         const bDeadline = b.deadline ? new Date(b.deadline).getTime() : Infinity;
         return aDeadline - bDeadline;
-      })
-      .slice(0, 60);
+      });
 
     const opportunitiesWithCounts = await attachItemInteractionCounts(
       "opportunity",

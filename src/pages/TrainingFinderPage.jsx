@@ -1575,17 +1575,6 @@ export default function TrainingFinderPage() {
           gap: "18px",
         }}
       >
-        <div className="training-opportunity-counter" aria-live="polite">
-          <strong>
-            {opportunitiesLoading && opportunities.length === 0 ? (
-              "..."
-            ) : (
-              <AnimatedCount value={opportunities.length} suffix="+" />
-            )}
-          </strong>
-          <span>فرصة معلنة</span>
-        </div>
-
         <header style={{ textAlign: "center" }}>
           <p
             style={{
@@ -3437,26 +3426,6 @@ export default function TrainingFinderPage() {
           gap: 10px;
         }
 
-        .training-opportunity-counter {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          width: fit-content;
-          margin: 0 auto -4px;
-          color: var(--app-text-soft);
-          font-size: 13px;
-          font-weight: 800;
-          line-height: 1.5;
-        }
-
-        .training-opportunity-counter strong {
-          color: var(--app-brand);
-          font-size: clamp(22px, 4vw, 32px);
-          line-height: 1;
-          font-weight: 900;
-        }
-
         .training-results-tabs {
           display: flex;
           gap: 8px;
@@ -3837,10 +3806,6 @@ export default function TrainingFinderPage() {
 
           .opportunity-request-grid {
             grid-template-columns: 1fr !important;
-          }
-
-          .training-opportunity-counter {
-            margin-bottom: -2px !important;
           }
 
           .training-results-tabs {
