@@ -88,6 +88,7 @@ export default function PremiumAccessGate() {
   const [feature, setFeature] = useState("");
   const [form, setForm] = useState(initialForm);
   const [message, setMessage] = useState("");
+  const [successNotice, setSuccessNotice] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState("one_time_90");
@@ -145,6 +146,7 @@ export default function PremiumAccessGate() {
     }
     setIsOpen(false);
     setMessage("");
+    setSuccessNotice("تم تفعيل دربك+ بنجاح. المزايا المتقدمة صارت مفتوحة لك الآن.");
     trackEvent("premium_access_verified", {
       metadata: { feature },
     });
@@ -153,6 +155,16 @@ export default function PremiumAccessGate() {
     pendingActionRef.current = null;
     if (typeof action === "function") action();
   }, [feature]);
+
+  useEffect(() => {
+    if (!successNotice) return undefined;
+
+    const noticeTimer = window.setTimeout(() => {
+      setSuccessNotice("");
+    }, 5200);
+
+    return () => window.clearTimeout(noticeTimer);
+  }, [successNotice]);
 
   const verifyAccess = useCallback(async (
     contactValue = form.contact,
@@ -173,7 +185,11 @@ export default function PremiumAccessGate() {
 
     try {
       setIsVerifying(true);
-      setMessage(options.auto ? "جاري تفعيل دربك+..." : "");
+      setMessage(
+        options.auto
+          ? "تم الدفع بنجاح. نؤكد اشتراكك الآن ونفتح لك المزايا..."
+          : ""
+      );
       const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
         email: contactValue,
         accessCode: normalizedCode,
@@ -233,7 +249,9 @@ export default function PremiumAccessGate() {
       return;
     }
 
-    setMessage("تم الرجوع من صفحة الدفع. اكتب بيانات دربك+ لتفعيل المزايا.");
+    setMessage(
+      "تم الرجوع من صفحة الدفع. اكتب نفس البريد أو رقم الجوال والرمز لتفعيل دربك+."
+    );
   }, [verifyAccess]);
 
   const startCheckout = async () => {
@@ -308,21 +326,30 @@ export default function PremiumAccessGate() {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !successNotice) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="premium-access-title"
-      onClick={closeGate}
-      className="premium-access-overlay"
-      dir="rtl"
-    >
-      <div
-        className="premium-access-card"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <>
+      {successNotice && (
+        <div className="premium-success-toast" role="status" dir="rtl">
+          <strong>دربك+ فعال الآن</strong>
+          <span>{successNotice}</span>
+        </div>
+      )}
+
+      {isOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="premium-access-title"
+          onClick={closeGate}
+          className="premium-access-overlay"
+          dir="rtl"
+        >
+          <div
+            className="premium-access-card"
+            onClick={(event) => event.stopPropagation()}
+          >
         <button
           type="button"
           className="premium-access-close"
@@ -481,8 +508,10 @@ export default function PremiumAccessGate() {
           </aside>
         </div>
 
-        {message && <p className="premium-access-message">{message}</p>}
-      </div>
-    </div>
+            {message && <p className="premium-access-message">{message}</p>}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

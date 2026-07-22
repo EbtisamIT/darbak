@@ -1173,6 +1173,36 @@ body {
   line-height: 1.7;
 }
 
+.premium-success-toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7600;
+  width: min(420px, calc(100vw - 28px));
+  display: grid;
+  gap: 4px;
+  padding: 13px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--app-brand-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 18px 50px var(--app-shadow);
+  text-align: right;
+}
+
+.premium-success-toast strong {
+  color: var(--app-brand);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.premium-success-toast span {
+  color: var(--app-text-soft);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
 .premium-access-platform-note {
   margin: 0;
   padding: 12px;
