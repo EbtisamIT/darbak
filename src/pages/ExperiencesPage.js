@@ -572,6 +572,7 @@ const ExperiencesPage = () => {
   const [relatedLoading, setRelatedLoading] = useState(false);
   const lastTrackedExperienceSearchRef = useRef("");
   const handledRouteExperienceIdRef = useRef("");
+  const selectedExperienceIsLoading = Boolean(selectedExperience?.isLoadingDetails);
   const selectedExperienceId =
     selectedExperience?._id || selectedExperience?.id || "";
 
@@ -614,7 +615,7 @@ const ExperiencesPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!selectedExperienceId) {
+    if (!selectedExperienceId || selectedExperienceIsLoading) {
       setRelatedExperiences([]);
       setRelatedLoading(false);
       return undefined;
@@ -622,24 +623,40 @@ const ExperiencesPage = () => {
 
     let isActive = true;
     setRelatedLoading(true);
-
-    axios
-      .get(`${API_BASE_URL}/api/experiences/${selectedExperienceId}/related`)
-      .then(({ data }) => {
-        if (!isActive) return;
-        setRelatedExperiences(Array.isArray(data?.data) ? data.data : []);
-      })
-      .catch(() => {
-        if (isActive) setRelatedExperiences([]);
-      })
-      .finally(() => {
-        if (isActive) setRelatedLoading(false);
-      });
+    const relatedTimer = window.setTimeout(() => {
+      axios
+        .get(`${API_BASE_URL}/api/experiences/${selectedExperienceId}/related`)
+        .then(({ data }) => {
+          if (!isActive) return;
+          setRelatedExperiences(Array.isArray(data?.data) ? data.data : []);
+        })
+        .catch(() => {
+          if (isActive) setRelatedExperiences([]);
+        })
+        .finally(() => {
+          if (isActive) setRelatedLoading(false);
+        });
+    }, 250);
 
     return () => {
       isActive = false;
+      window.clearTimeout(relatedTimer);
     };
-  }, [selectedExperienceId]);
+  }, [selectedExperienceId, selectedExperienceIsLoading]);
+
+  useEffect(() => {
+    if (!selectedExperience) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "contain";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
+    };
+  }, [selectedExperience]);
 
   const clearCompanySearch = () => {
     setCompanySearch("");
@@ -1368,6 +1385,12 @@ const ExperiencesPage = () => {
 
   const openExperienceDetails = (exp) => {
     const experienceId = exp._id || exp.id || "";
+    setSelectedExperience({
+      ...exp,
+      description: "جاري تحميل تفاصيل التجربة...",
+      isLoadingDetails: true,
+    });
+    setCurrentStep(1);
 
     trackEvent("experience_card_opened", {
       major: exp.major || exp.majorCategory || "",
@@ -1414,11 +1437,6 @@ const ExperiencesPage = () => {
             });
           }
 
-          setExperiences((current) =>
-            current.map((item) =>
-              item._id === fullExperience._id ? fullExperience : item
-            )
-          );
           trackExperienceDetailView(fullExperience);
           markSavedItemSeen(
             getExperienceSavedId(fullExperience),
@@ -1428,6 +1446,7 @@ const ExperiencesPage = () => {
           setCurrentStep(1);
         } catch (err) {
           console.error(err);
+          setSelectedExperience(null);
           setFetchError("تعذر فتح تفاصيل التجربة حاليًا.");
         }
       }
@@ -1577,6 +1596,21 @@ const ExperiencesPage = () => {
   const renderStepContent = () => {
     const exp = selectedExperience;
     if (!exp) return null;
+
+    if (exp.isLoadingDetails) {
+      return (
+        <div
+          style={{
+            padding: "34px 16px",
+            color: "var(--app-text-soft)",
+            fontSize: "14px",
+            lineHeight: 1.8,
+          }}
+        >
+          جاري تحميل تفاصيل التجربة...
+        </div>
+      );
+    }
 
     if (currentStep === 1) {
       return (
@@ -2744,6 +2778,7 @@ const ExperiencesPage = () => {
             zIndex: 5200,
             padding: "20px",
             isolation: "isolate",
+            overscrollBehavior: "contain",
           }}
         >
           <div
@@ -2757,6 +2792,8 @@ const ExperiencesPage = () => {
               maxWidth: "760px",
               maxHeight: "calc(100vh - 48px)",
               overflowY: "auto",
+              overscrollBehavior: "contain",
+              WebkitOverflowScrolling: "touch",
               boxSizing: "border-box",
               scrollbarGutter: "stable",
               border: "1px solid var(--app-border)",
@@ -2965,8 +3002,7 @@ const ExperiencesPage = () => {
           position: sticky;
           top: 0;
           z-index: 50;
-          background: color-mix(in srgb, var(--app-bg) 94%, transparent);
-          backdrop-filter: blur(12px);
+          background: var(--app-bg);
           border-bottom: 1px solid var(--app-border-soft);
           margin: -15px -12px 18px;
           padding: 8px 12px 4px;

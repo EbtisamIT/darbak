@@ -653,12 +653,12 @@ body {
 .premium-access-overlay {
   position: fixed;
   inset: 0;
-  z-index: 5000;
+  z-index: 7000;
   display: grid;
   place-items: center;
   padding: 18px;
   background: var(--app-overlay);
-  backdrop-filter: blur(10px);
+  overscroll-behavior: contain;
   box-sizing: border-box;
 }
 

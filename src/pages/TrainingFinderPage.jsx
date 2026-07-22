@@ -903,6 +903,20 @@ export default function TrainingFinderPage() {
       window.removeEventListener("darbak:saved-items-updated", updateSavedItems);
   }, []);
 
+  useEffect(() => {
+    if (!selectedOpportunity) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "contain";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
+    };
+  }, [selectedOpportunity]);
+
   const selectedSpecialtyOption = useMemo(
     () =>
       specializationOptions.find(
@@ -1380,6 +1394,11 @@ export default function TrainingFinderPage() {
   const openOpportunityDetails = (opportunity) => {
     const opportunityId = opportunity._id || opportunity.id || "";
     const opportunityPath = buildOpportunityDetailPath(opportunity);
+    setSelectedOpportunity({
+      ...opportunity,
+      note: "جاري تحميل تفاصيل الفرصة...",
+      isLoadingDetails: true,
+    });
 
     requestPremiumAccess(
       {
@@ -1421,12 +1440,10 @@ export default function TrainingFinderPage() {
             `opportunity:${opportunityId}`,
             getOpportunityUpdateTimestamp(fullOpportunity)
           );
-          setOpportunities((current) =>
-            current.map((item) =>
-              item._id === fullOpportunity._id ? fullOpportunity : item
-            )
-          );
-          setSelectedOpportunity(fullOpportunity);
+          setSelectedOpportunity({
+            ...fullOpportunity,
+            isLoadingDetails: false,
+          });
 
           if (opportunityId && location.pathname !== opportunityPath) {
             handledRouteOpportunityIdRef.current = opportunityId;
@@ -1436,6 +1453,7 @@ export default function TrainingFinderPage() {
           }
         } catch (err) {
           console.error(err);
+          setSelectedOpportunity(null);
           setError("تعذر فتح تفاصيل الفرصة حاليًا.");
         }
       }
@@ -3773,13 +3791,15 @@ export default function TrainingFinderPage() {
           justify-content: center;
           padding: 18px;
           background: var(--app-overlay);
-          backdrop-filter: blur(8px);
+          overscroll-behavior: contain;
         }
 
         .opportunity-detail-modal {
           width: min(620px, 100%);
           max-height: 88vh;
           overflow-y: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
           display: grid;
           gap: 13px;
           background: var(--app-surface);
