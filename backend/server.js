@@ -4071,6 +4071,22 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       "training_guide_banner_click",
     ];
     const cvAdEventNames = ["diagnosis_cv_product_click"];
+    const premiumEventNames = [
+      "premium_gate_opened",
+      "premium_gate_closed",
+      "premium_nav_cta_clicked",
+      "premium_plan_selected",
+      "premium_checkout_started",
+      "premium_checkout_failed",
+      "premium_payment_returned",
+      "premium_access_verified",
+      "premium_access_help_requested",
+      "account_modal_opened",
+      "account_login_success",
+      "account_login_failed",
+      "account_logout_clicked",
+      "account_access_help_requested",
+    ];
     const interviewPageMatch = {
       ...cleanMatch,
       eventName: "interviews_page_viewed",
@@ -4123,6 +4139,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       guideFileAdClicks,
       cvProductAdClicks,
       topAdClicks,
+      premiumEventCounts,
+      topPremiumPlans,
       shareMenuOpens,
       shareActions,
       experienceShareMenuOpens,
@@ -4334,6 +4352,32 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $sort: { count: -1, _id: 1 } },
         { $project: { _id: 0, label: "$_id", count: 1 } },
       ]),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...cleanMatch,
+            eventName: { $in: premiumEventNames },
+          },
+        },
+        { $group: { _id: "$eventName", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
+      AnalyticsEvent.aggregate([
+        {
+          $match: {
+            ...cleanMatch,
+            eventName: {
+              $in: ["premium_plan_selected", "premium_checkout_started"],
+            },
+            "metadata.planId": { $nin: [null, ""] },
+          },
+        },
+        { $group: { _id: "$metadata.planId", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 6 },
+        { $project: { _id: 0, label: "$_id", count: 1 } },
+      ]),
       AnalyticsEvent.countDocuments({
         ...shareMatch,
         "metadata.action": "menu_open",
@@ -4506,6 +4550,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       guideFileAdClicks,
       cvProductAdClicks,
       topAdClicks,
+      premiumEventCounts,
+      topPremiumPlans,
       shareMenuOpens,
       shareActions,
       experienceShareMenuOpens,

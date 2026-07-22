@@ -147,6 +147,8 @@ const emptyAnalytics = {
   guideFileAdClicks: 0,
   cvProductAdClicks: 0,
   topAdClicks: [],
+  premiumEventCounts: [],
+  topPremiumPlans: [],
   shareMenuOpens: 0,
   shareActions: 0,
   experienceShareMenuOpens: 0,
@@ -190,9 +192,42 @@ const analyticsEventLabels = {
   diagnosis_cv_product_click: "ضغط إعلان السيرة الذاتية",
   share_item_clicked: "مشاركة عنصر",
   premium_gate_opened: "ظهور نافذة الاشتراك",
+  premium_gate_closed: "إغلاق نافذة الاشتراك",
   premium_nav_cta_clicked: "ضغط زر دربك+",
+  premium_plan_selected: "اختيار باقة دربك+",
   premium_checkout_started: "بدء الدفع",
+  premium_checkout_failed: "تعذر بدء الدفع",
+  premium_payment_returned: "رجوع من ميسر",
   premium_access_verified: "تفعيل اشتراك",
+  premium_access_help_requested: "نسيان رمز دربك+",
+  account_modal_opened: "فتح حسابي",
+  account_login_success: "دخول حساب ناجح",
+  account_login_failed: "دخول حساب فاشل",
+  account_logout_clicked: "تسجيل خروج",
+  account_access_help_requested: "نسيان الرمز من حسابي",
+};
+
+const premiumFunnelSteps = [
+  ["premium_gate_opened", "ظهرت نافذة دربك+"],
+  ["premium_nav_cta_clicked", "ضغطوا زر دربك+"],
+  ["premium_plan_selected", "اختاروا باقة"],
+  ["premium_checkout_started", "بدأوا الدفع"],
+  ["premium_payment_returned", "رجعوا من ميسر"],
+  ["premium_access_verified", "تفعل اشتراكهم"],
+];
+
+const premiumSupportSteps = [
+  ["premium_gate_closed", "أغلقوا النافذة"],
+  ["premium_checkout_failed", "تعذر بدء الدفع"],
+  ["account_login_success", "دخول مشترك ناجح"],
+  ["account_login_failed", "محاولة دخول فاشلة"],
+  ["premium_access_help_requested", "طلب نسيت الرمز"],
+  ["account_access_help_requested", "نسيت الرمز من حسابي"],
+];
+
+const premiumPlanLabels = {
+  monthly: "دربك+ شهري",
+  one_time_90: "دربك+ 3 أشهر",
 };
 
 const assistantIntentLabels = {
@@ -1162,6 +1197,46 @@ export default function AdminReviewPage() {
     </section>
   );
 
+  const getPremiumEventCount = (eventName) =>
+    (analytics.premiumEventCounts || []).find((item) => item.label === eventName)
+      ?.count || 0;
+
+  const renderPremiumStep = ([eventName, label], index) => {
+    const count = getPremiumEventCount(eventName);
+
+    return (
+      <article
+        key={eventName}
+        style={{
+          background: "rgba(102,208,195,0.055)",
+          border: "1px solid rgba(102,208,195,0.14)",
+          borderRadius: "14px",
+          padding: "14px",
+          minHeight: "92px",
+          display: "grid",
+          gap: "8px",
+          alignContent: "space-between",
+        }}
+      >
+        <span
+          style={{
+            color: adminColors.muted,
+            fontSize: 12,
+            fontWeight: 800,
+          }}
+        >
+          خطوة {index + 1}
+        </span>
+        <strong style={{ color: adminColors.brand, fontSize: 28 }}>
+          {count}
+        </strong>
+        <span style={{ color: adminColors.text, fontSize: 13, lineHeight: 1.7 }}>
+          {label}
+        </span>
+      </article>
+    );
+  };
+
   const updateOpportunityField = (field, value) => {
     if (field === "cities") {
       const selectedCities = normalizeFormArray(value);
@@ -1637,6 +1712,80 @@ export default function AdminReviewPage() {
                 </strong>
               </div>
             ))}
+          </section>
+
+          <section style={cardStyle}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "12px",
+                alignItems: "flex-start",
+                flexWrap: "wrap",
+                marginBottom: "14px",
+              }}
+            >
+              <div>
+                <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                  مسار دربك+
+                </h3>
+                <p
+                  style={{
+                    color: adminColors.muted,
+                    margin: 0,
+                    fontSize: 13,
+                    lineHeight: 1.7,
+                  }}
+                >
+                  يوضح لك أين يتوقف الطالب: هل شاهد العرض، بدأ الدفع، رجع من ميسر،
+                  أو تفعل اشتراكه.
+                </p>
+              </div>
+              <strong
+                style={{
+                  color: adminColors.text,
+                  background: "rgba(102,208,195,0.12)",
+                  border: "1px solid rgba(102,208,195,0.2)",
+                  borderRadius: "999px",
+                  padding: "8px 12px",
+                  fontSize: 13,
+                }}
+              >
+                {analytics.rangeLabel || `${analytics.days} يوم`}
+              </strong>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: "10px",
+                marginBottom: "14px",
+              }}
+            >
+              {premiumFunnelSteps.map(renderPremiumStep)}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "12px",
+              }}
+            >
+              {renderAnalyticsList(
+                "تفاصيل إضافية لدربك+",
+                premiumSupportSteps.map(([eventName, label]) => ({
+                  label,
+                  count: getPremiumEventCount(eventName),
+                }))
+              )}
+              {renderAnalyticsList(
+                "الباقات الأكثر اختيارًا",
+                analytics.topPremiumPlans || [],
+                (label) => premiumPlanLabels[label] || label
+              )}
+            </div>
           </section>
 
           <section

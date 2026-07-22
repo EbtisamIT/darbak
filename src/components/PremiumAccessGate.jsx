@@ -129,6 +129,15 @@ export default function PremiumAccessGate() {
   }, []);
 
   const closeGate = () => {
+    if (isOpen) {
+      trackEvent("premium_gate_closed", {
+        metadata: {
+          feature,
+          source: isLoginOnly ? "login_only" : "premium_gate",
+          planId: selectedPlan.id,
+        },
+      });
+    }
     setIsOpen(false);
     setMessage("");
     setIsVerifying(false);
@@ -250,6 +259,10 @@ export default function PremiumAccessGate() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("subscription") !== "success") return;
 
+    trackEvent("premium_payment_returned", {
+      metadata: { source: "moyasar_return" },
+    });
+
     let pending = {};
     try {
       pending = JSON.parse(
@@ -343,6 +356,13 @@ export default function PremiumAccessGate() {
       }
 
       if (!data.checkoutUrl) {
+        trackEvent("premium_checkout_failed", {
+          metadata: {
+            feature,
+            planId: selectedPlan.id,
+            reason: "missing_checkout_url",
+          },
+        });
         setMessage("تعذر فتح رابط الدفع. جرّب مرة ثانية بعد لحظات.");
         return;
       }
@@ -350,6 +370,13 @@ export default function PremiumAccessGate() {
       setMessage("بنقلك الآن لصفحة التفعيل الآمنة...");
       window.location.assign(data.checkoutUrl);
     } catch (err) {
+      trackEvent("premium_checkout_failed", {
+        metadata: {
+          feature,
+          planId: selectedPlan.id,
+          reason: err.response?.data?.error || err.message || "unknown",
+        },
+      });
       setMessage(
         err.response?.data?.error ||
           "الدفع غير مفعّل حاليًا. جهّزي رابط الدفع من ميسر أو تاب ثم نفعّله."
@@ -449,7 +476,12 @@ export default function PremiumAccessGate() {
                   className={`premium-plan-option${
                     selectedPlan.id === plan.id ? " is-selected" : ""
                   }${plan.recommended ? " is-recommended" : ""}`}
-                  onClick={() => setSelectedPlanId(plan.id)}
+                  onClick={() => {
+                    setSelectedPlanId(plan.id);
+                    trackEvent("premium_plan_selected", {
+                      metadata: { feature, planId: plan.id },
+                    });
+                  }}
                 >
                   <span className="premium-plan-badge">{plan.badge}</span>
                   <span className="premium-plan-note">{plan.note}</span>
