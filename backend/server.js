@@ -4052,6 +4052,252 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const now = new Date();
+    const search = (req.query.search || "").toString().trim().slice(0, 120);
+    const status = (req.query.status || "all").toString();
+    const escapeRegex = (value = "") =>
+      value.toString().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const userClauses = [];
+
+    if (search) {
+      const normalizedSearch = normalizeSubscriberContact(search) || search;
+      const regex = new RegExp(escapeRegex(normalizedSearch), "i");
+      userClauses.push({ $or: [{ contact: regex }, { visitorId: regex }] });
+    }
+
+    if (status === "premium") {
+      userClauses.push({
+        $or: [
+          { isAdmin: true },
+          {
+            isPremium: true,
+            $or: [
+              { premiumExpiresAt: { $exists: false } },
+              { premiumExpiresAt: null },
+              { premiumExpiresAt: { $gt: now } },
+            ],
+          },
+        ],
+      });
+    } else if (status === "admin") {
+      userClauses.push({ isAdmin: true });
+    } else if (status === "free") {
+      userClauses.push({
+        contact: { $ne: "" },
+        isAdmin: { $ne: true },
+        $or: [
+          { isPremium: { $ne: true } },
+          { premiumExpiresAt: { $lte: now } },
+        ],
+      });
+    } else if (status === "visitor") {
+      userClauses.push({ contact: "" });
+    }
+
+    const userFilter = userClauses.length > 0 ? { $and: userClauses } : {};
+
+    const [
+      totalUsers,
+      contactUsers,
+      visitorOnlyUsers,
+      adminUsers,
+      premiumUsers,
+      totalSubscriptions,
+      activeSubscriptions,
+      pendingSubscriptions,
+      expiredSubscriptions,
+      cancelledSubscriptions,
+      paidRevenueStats,
+      activeRevenueStats,
+      planBreakdown,
+      users,
+      subscriptions,
+    ] = await Promise.all([
+      User.countDocuments({}),
+      User.countDocuments({ contact: { $ne: "" } }),
+      User.countDocuments({ contact: "" }),
+      User.countDocuments({ isAdmin: true }),
+      User.countDocuments({
+        $or: [
+          { isAdmin: true },
+          {
+            isPremium: true,
+            $or: [
+              { premiumExpiresAt: { $exists: false } },
+              { premiumExpiresAt: null },
+              { premiumExpiresAt: { $gt: now } },
+            ],
+          },
+        ],
+      }),
+      Subscription.countDocuments({}),
+      Subscription.countDocuments({ status: "active", expiresAt: { $gt: now } }),
+      Subscription.countDocuments({ status: "pending" }),
+      Subscription.countDocuments({
+        $or: [
+          { status: "expired" },
+          { status: "active", expiresAt: { $lte: now } },
+        ],
+      }),
+      Subscription.countDocuments({ status: "cancelled" }),
+      Subscription.aggregate([
+        { $match: { status: { $in: ["active", "expired"] } } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: "$priceSar" },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Subscription.aggregate([
+        { $match: { status: "active", expiresAt: { $gt: now } } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: "$priceSar" },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Subscription.aggregate([
+        { $match: { status: { $in: ["active", "expired", "pending"] } } },
+        {
+          $group: {
+            _id: "$planId",
+            count: { $sum: 1 },
+            revenue: {
+              $sum: {
+                $cond: [
+                  { $in: ["$status", ["active", "expired"]] },
+                  "$priceSar",
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        { $sort: { count: -1, _id: 1 } },
+        { $project: { _id: 0, planId: "$_id", count: 1, revenue: 1 } },
+      ]),
+      User.find(userFilter)
+        .sort({ updatedAt: -1 })
+        .limit(180)
+        .select(
+          "contact visitorId accessCodeHash isPremium isAdmin premiumExpiresAt lastViewedDate dailyViewsCount dailyViewItemKeys createdAt updatedAt"
+        )
+        .lean(),
+      Subscription.find(search ? { email: new RegExp(escapeRegex(normalizeSubscriberContact(search) || search), "i") } : {})
+        .sort({ updatedAt: -1 })
+        .limit(120)
+        .select(
+          "email status planId priceSar durationDays expiresAt provider providerPaymentId createdAt updatedAt accessCodeHash"
+        )
+        .lean(),
+    ]);
+
+    const subscriptionKeyMap = new Map();
+    subscriptions.forEach((subscription) => {
+      subscriptionKeyMap.set(
+        `${subscription.email}:${subscription.accessCodeHash}`,
+        subscription
+      );
+    });
+
+    const sanitizeSubscription = (subscription = {}) => {
+      const isExpired =
+        subscription.expiresAt && new Date(subscription.expiresAt) <= now;
+
+      return {
+        id: subscription._id,
+        email: subscription.email || "",
+        status:
+          subscription.status === "active" && isExpired
+            ? "expired"
+            : subscription.status || "",
+        planId: subscription.planId || "",
+        priceSar: subscription.priceSar || 0,
+        durationDays: subscription.durationDays || 0,
+        expiresAt: subscription.expiresAt || null,
+        provider: subscription.provider || "",
+        providerPaymentId: subscription.providerPaymentId || "",
+        createdAt: subscription.createdAt,
+        updatedAt: subscription.updatedAt,
+      };
+    };
+
+    const safeUsers = users.map((user) => {
+      const linkedSubscription = subscriptionKeyMap.get(
+        `${user.contact}:${user.accessCodeHash}`
+      );
+      const hasActivePremium =
+        Boolean(user.isAdmin) ||
+        (Boolean(user.isPremium) &&
+          (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > now));
+
+      return {
+        id: user._id,
+        contact: user.contact || "",
+        visitorId: user.visitorId || "",
+        accessType: user.isAdmin
+          ? "admin"
+          : hasActivePremium
+          ? "premium"
+          : user.contact
+          ? "free"
+          : "visitor",
+        isPremium: hasActivePremium,
+        isAdmin: Boolean(user.isAdmin),
+        premiumExpiresAt: user.premiumExpiresAt || null,
+        lastViewedDate: user.lastViewedDate || "",
+        dailyViewsCount: user.dailyViewsCount || 0,
+        dailyItemsCount: Array.isArray(user.dailyViewItemKeys)
+          ? user.dailyViewItemKeys.length
+          : 0,
+        hasAccessCode: Boolean(user.accessCodeHash),
+        subscription: linkedSubscription
+          ? sanitizeSubscription(linkedSubscription)
+          : null,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
+    });
+
+    res.json({
+      summary: {
+        totalUsers,
+        contactUsers,
+        visitorOnlyUsers,
+        adminUsers,
+        premiumUsers,
+        freeUsers: Math.max(contactUsers - premiumUsers, 0),
+        totalSubscriptions,
+        activeSubscriptions,
+        pendingSubscriptions,
+        expiredSubscriptions,
+        cancelledSubscriptions,
+        paidSubscriptions: paidRevenueStats[0]?.count || 0,
+        totalPaidRevenueSar: Number(paidRevenueStats[0]?.total || 0),
+        activeRevenueSar: Number(activeRevenueStats[0]?.total || 0),
+      },
+      planBreakdown,
+      users: safeUsers,
+      subscriptions: subscriptions.map(sanitizeSubscription),
+      returnedUsers: safeUsers.length,
+      returnedSubscriptions: subscriptions.length,
+    });
+  } catch (err) {
+    console.error("❌ Admin users error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {

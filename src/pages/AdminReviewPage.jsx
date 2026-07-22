@@ -167,6 +167,30 @@ const emptyAnalytics = {
   rangeLabel: "آخر 30 يوم",
 };
 
+const emptyUserManagement = {
+  summary: {
+    totalUsers: 0,
+    contactUsers: 0,
+    visitorOnlyUsers: 0,
+    adminUsers: 0,
+    premiumUsers: 0,
+    freeUsers: 0,
+    totalSubscriptions: 0,
+    activeSubscriptions: 0,
+    pendingSubscriptions: 0,
+    expiredSubscriptions: 0,
+    cancelledSubscriptions: 0,
+    paidSubscriptions: 0,
+    totalPaidRevenueSar: 0,
+    activeRevenueSar: 0,
+  },
+  planBreakdown: [],
+  users: [],
+  subscriptions: [],
+  returnedUsers: 0,
+  returnedSubscriptions: 0,
+};
+
 const analyticsEventLabels = {
   page_view: "زيارة صفحة",
   where_to_train_search: "بحث وين أتدرب",
@@ -228,6 +252,29 @@ const premiumSupportSteps = [
 const premiumPlanLabels = {
   monthly: "دربك+ شهري",
   one_time_90: "دربك+ 3 أشهر",
+  admin: "حساب إدارة",
+};
+
+const userStatusOptions = [
+  ["all", "كل المستخدمين"],
+  ["premium", "المشتركين"],
+  ["free", "حسابات مجانية"],
+  ["visitor", "زوار بدون حساب"],
+  ["admin", "الإدارة"],
+];
+
+const accessTypeLabels = {
+  admin: "إدارة",
+  premium: "مشترك",
+  free: "مجاني",
+  visitor: "زائر",
+};
+
+const subscriptionStatusLabels = {
+  active: "نشط",
+  pending: "بانتظار الدفع",
+  expired: "منتهي",
+  cancelled: "ملغي",
 };
 
 const assistantIntentLabels = {
@@ -697,6 +744,22 @@ const formatDuration = (seconds = 0) => {
   return `${remainingSeconds}ث`;
 };
 
+const formatAdminCurrency = (value = 0) =>
+  `${Number(value || 0).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  })} ريال`;
+
+const getSubscriptionStatusLabel = (subscription = {}) =>
+  subscriptionStatusLabels[subscription.status] ||
+  subscription.status ||
+  "غير محدد";
+
+const getAccessTypeLabel = (accessType = "") =>
+  accessTypeLabels[accessType] || accessType || "غير محدد";
+
+const getSubscriptionPlanLabel = (planId = "") =>
+  premiumPlanLabels[planId] || planId || "غير محدد";
+
 const isUnclearMajorText = (value = "") => {
   const text = value.toString().trim();
   if (!text) return true;
@@ -722,6 +785,9 @@ export default function AdminReviewPage() {
   const [interviewQuestions, setInterviewQuestions] = useState([]);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
   const [analyticsDays, setAnalyticsDays] = useState("30");
+  const [userManagement, setUserManagement] = useState(emptyUserManagement);
+  const [userStatus, setUserStatus] = useState("all");
+  const [userSearch, setUserSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -743,6 +809,8 @@ export default function AdminReviewPage() {
       ? opportunities.length
       : adminView === "analytics"
       ? analytics.totalEvents
+      : adminView === "users"
+      ? userManagement.returnedUsers || userManagement.users.length
       : experiences.length;
   const currentItemsLabel =
     adminView === "suggestions"
@@ -755,6 +823,8 @@ export default function AdminReviewPage() {
       ? "فرصة"
       : adminView === "analytics"
       ? "حدث"
+      : adminView === "users"
+      ? "مستخدم"
       : "تجربة";
 
   const fetchExperiences = async () => {
@@ -932,6 +1002,47 @@ export default function AdminReviewPage() {
     }
   };
 
+  const fetchUserManagement = async () => {
+    if (!password) {
+      setMessage("اكتب كلمة المرور لعرض المحتوى.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      sessionStorage.setItem("darbak_admin_password", password);
+
+      const { data } = await axios.get(`${API_BASE_URL}/api/admin/users`, {
+        params: {
+          status: userStatus,
+          search: userSearch.trim(),
+        },
+        headers: authHeaders,
+      });
+
+      setUserManagement({
+        ...emptyUserManagement,
+        ...data,
+        summary: { ...emptyUserManagement.summary, ...(data.summary || {}) },
+        planBreakdown: Array.isArray(data.planBreakdown) ? data.planBreakdown : [],
+        users: Array.isArray(data.users) ? data.users : [],
+        subscriptions: Array.isArray(data.subscriptions)
+          ? data.subscriptions
+          : [],
+      });
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.status === 401
+          ? "كلمة المرور غير صحيحة."
+          : "تعذر تحميل المستخدمين والاشتراكات."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!password) return;
 
@@ -945,11 +1056,13 @@ export default function AdminReviewPage() {
       fetchOpportunities();
     } else if (adminView === "analytics") {
       fetchAnalytics();
+    } else if (adminView === "users") {
+      fetchUserManagement();
     } else {
       fetchExperiences();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, opportunityStatus, analyticsDays, adminView]);
+  }, [status, opportunityStatus, analyticsDays, userStatus, adminView]);
 
   const refreshCurrentView = () => {
     if (adminView === "suggestions") {
@@ -974,6 +1087,11 @@ export default function AdminReviewPage() {
 
     if (adminView === "analytics") {
       fetchAnalytics();
+      return;
+    }
+
+    if (adminView === "users") {
+      fetchUserManagement();
       return;
     }
 
@@ -1430,6 +1548,336 @@ export default function AdminReviewPage() {
     }
   };
 
+  const renderAdminMetricCard = ([label, value, hint]) => (
+    <div key={label} style={cardStyle}>
+      <p style={{ color: adminColors.muted, margin: "0 0 8px", fontSize: 13 }}>
+        {label}
+      </p>
+      <strong style={{ color: adminColors.brand, fontSize: 28, lineHeight: 1.2 }}>
+        {value}
+      </strong>
+      {hint ? (
+        <small
+          style={{
+            display: "block",
+            color: adminColors.textSoft,
+            marginTop: 8,
+            lineHeight: 1.6,
+          }}
+        >
+          {hint}
+        </small>
+      ) : null}
+    </div>
+  );
+
+  const renderStatusBadge = (label, tone = "neutral") => {
+    const toneColors = {
+      active: ["rgba(52,211,153,0.12)", "rgba(52,211,153,0.28)", "#86efac"],
+      pending: ["rgba(250,204,21,0.12)", "rgba(250,204,21,0.28)", "#fde68a"],
+      expired: ["rgba(248,113,113,0.12)", "rgba(248,113,113,0.28)", "#fecaca"],
+      neutral: [
+        "rgba(102,208,195,0.12)",
+        "rgba(102,208,195,0.22)",
+        adminColors.brand,
+      ],
+    };
+    const [background, border, color] = toneColors[tone] || toneColors.neutral;
+
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: 28,
+          padding: "4px 10px",
+          borderRadius: "999px",
+          background,
+          border: `1px solid ${border}`,
+          color,
+          fontSize: 12,
+          fontWeight: 900,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </span>
+    );
+  };
+
+  const renderUserManagement = () => {
+    const summary = {
+      ...emptyUserManagement.summary,
+      ...(userManagement.summary || {}),
+    };
+    const users = userManagement.users || [];
+    const subscriptions = userManagement.subscriptions || [];
+    const planBreakdown = userManagement.planBreakdown || [];
+
+    return (
+      <div style={{ display: "grid", gap: "12px" }}>
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+            gap: "12px",
+          }}
+        >
+          {[
+            ["إجمالي المستخدمين", summary.totalUsers],
+            ["حسابات ببريد/جوال", summary.contactUsers],
+            ["مشتركين نشطين", summary.activeSubscriptions],
+            ["بانتظار الدفع", summary.pendingSubscriptions],
+            ["اشتراكات منتهية", summary.expiredSubscriptions],
+            ["حسابات الإدارة", summary.adminUsers],
+            [
+              "إجمالي مدفوعات مسجلة",
+              formatAdminCurrency(summary.totalPaidRevenueSar),
+              "حسب الاشتراكات النشطة أو المنتهية، بدون طلبات الدفع المعلقة.",
+            ],
+            [
+              "قيمة الاشتراكات النشطة",
+              formatAdminCurrency(summary.activeRevenueSar),
+            ],
+          ].map(renderAdminMetricCard)}
+        </section>
+
+        <section style={cardStyle}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "12px",
+              flexWrap: "wrap",
+              marginBottom: "12px",
+            }}
+          >
+            <div>
+              <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                توزيع الباقات
+              </h3>
+              <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.7 }}>
+                يوضح أكثر الباقات استخدامًا وقيمة المدفوعات المسجلة لكل باقة.
+              </p>
+            </div>
+            {renderStatusBadge(`${summary.totalSubscriptions} اشتراك`, "neutral")}
+          </div>
+
+          {planBreakdown.length === 0 ? (
+            <p style={{ color: adminColors.muted, margin: 0 }}>
+              لا توجد اشتراكات مسجلة بعد.
+            </p>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              {planBreakdown.map((plan) => (
+                <article
+                  key={plan.planId || "unknown"}
+                  style={{
+                    border: `1px solid ${adminColors.inputBorder}`,
+                    borderRadius: "12px",
+                    padding: "12px",
+                    background: "rgba(255,255,255,0.025)",
+                  }}
+                >
+                  <strong style={{ color: adminColors.text }}>
+                    {getSubscriptionPlanLabel(plan.planId)}
+                  </strong>
+                  <p style={{ color: adminColors.brand, margin: "8px 0 4px" }}>
+                    {plan.count || 0} اشتراك
+                  </p>
+                  <small style={{ color: adminColors.muted }}>
+                    {formatAdminCurrency(plan.revenue)}
+                  </small>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section style={cardStyle}>
+          <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+            الاشتراكات
+          </h3>
+          <p style={{ color: adminColors.muted, margin: "0 0 12px", lineHeight: 1.7 }}>
+            آخر الاشتراكات وحالتها. لا يتم عرض رمز الدخول لأنه محفوظ بطريقة مشفرة.
+          </p>
+
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                minWidth: 760,
+                borderCollapse: "collapse",
+                color: adminColors.text,
+              }}
+            >
+              <thead>
+                <tr style={{ color: adminColors.muted, fontSize: 12 }}>
+                  <th style={{ textAlign: "right", padding: "10px" }}>الحساب</th>
+                  <th style={{ textAlign: "right", padding: "10px" }}>الحالة</th>
+                  <th style={{ textAlign: "right", padding: "10px" }}>الباقة</th>
+                  <th style={{ textAlign: "right", padding: "10px" }}>القيمة</th>
+                  <th style={{ textAlign: "right", padding: "10px" }}>ينتهي في</th>
+                  <th style={{ textAlign: "right", padding: "10px" }}>مزود الدفع</th>
+                  <th style={{ textAlign: "right", padding: "10px" }}>آخر تحديث</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subscriptions.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" style={{ padding: "14px", color: adminColors.muted }}>
+                      لا توجد اشتراكات في هذا العرض.
+                    </td>
+                  </tr>
+                ) : (
+                  subscriptions.map((subscription) => {
+                    const statusTone =
+                      subscription.status === "active"
+                        ? "active"
+                        : subscription.status === "pending"
+                        ? "pending"
+                        : subscription.status === "expired"
+                        ? "expired"
+                        : "neutral";
+
+                    return (
+                      <tr
+                        key={subscription.id}
+                        style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+                      >
+                        <td style={{ padding: "10px", whiteSpace: "nowrap" }}>
+                          {subscription.email || "-"}
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          {renderStatusBadge(
+                            getSubscriptionStatusLabel(subscription),
+                            statusTone
+                          )}
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          {getSubscriptionPlanLabel(subscription.planId)}
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          {formatAdminCurrency(subscription.priceSar)}
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          {formatAdminDateTime(subscription.expiresAt)}
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          {subscription.provider || "-"}
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          {formatAdminDateTime(subscription.updatedAt)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+            المستخدمين
+          </h3>
+          <p style={{ color: adminColors.muted, margin: "0 0 12px", lineHeight: 1.7 }}>
+            يعرض الحسابات التي دخلت أو استخدمت الوصول المجاني أو دربك+.
+          </p>
+
+          <div style={{ display: "grid", gap: "10px" }}>
+            {users.length === 0 ? (
+              <p style={{ color: adminColors.muted, margin: 0 }}>
+                لا يوجد مستخدمين مطابقين للبحث الحالي.
+              </p>
+            ) : (
+              users.map((user) => {
+                const statusTone =
+                  user.accessType === "premium" || user.accessType === "admin"
+                    ? "active"
+                    : user.accessType === "free"
+                    ? "neutral"
+                    : "pending";
+
+                return (
+                  <article
+                    key={user.id}
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: "12px",
+                      padding: "12px",
+                      display: "grid",
+                      gap: "10px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div>
+                        <strong style={{ color: adminColors.text }}>
+                          {user.contact || "زائر بدون حساب"}
+                        </strong>
+                        <p
+                          style={{
+                            margin: "5px 0 0",
+                            color: adminColors.muted,
+                            fontSize: 12,
+                            lineHeight: 1.7,
+                          }}
+                        >
+                          {user.visitorId ? `Visitor ID: ${user.visitorId}` : "حساب دخول"}
+                        </p>
+                      </div>
+                      {renderStatusBadge(getAccessTypeLabel(user.accessType), statusTone)}
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                        gap: "8px",
+                        color: adminColors.textSoft,
+                        fontSize: 13,
+                      }}
+                    >
+                      <span>ينتهي: {formatAdminDateTime(user.premiumExpiresAt)}</span>
+                      <span>مشاهدات اليوم: {user.dailyViewsCount || 0}</span>
+                      <span>عناصر اليوم: {user.dailyItemsCount || 0}</span>
+                      <span>آخر يوم مشاهدة: {user.lastViewedDate || "-"}</span>
+                      <span>رمز دخول: {user.hasAccessCode ? "موجود" : "غير موجود"}</span>
+                      <span>آخر تحديث: {formatAdminDateTime(user.updatedAt)}</span>
+                    </div>
+
+                    {user.subscription ? (
+                      <small style={{ color: adminColors.brand, lineHeight: 1.7 }}>
+                        الاشتراك المرتبط: {getSubscriptionPlanLabel(user.subscription.planId)} ·{" "}
+                        {getSubscriptionStatusLabel(user.subscription)} ·{" "}
+                        {formatAdminCurrency(user.subscription.priceSar)}
+                      </small>
+                    ) : null}
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </section>
+      </div>
+    );
+  };
+
   return (
     <main
       style={{
@@ -1528,7 +1976,7 @@ export default function AdminReviewPage() {
         style={{
           ...cardStyle,
           display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0, max-content))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(170px, max-content))",
           gap: "10px",
           alignItems: "center",
           justifyContent: "start",
@@ -1552,6 +2000,7 @@ export default function AdminReviewPage() {
           <option value="contactMessages">رسائل التواصل</option>
           <option value="opportunities">الفرص</option>
           <option value="interviewQuestions">أسئلة المقابلات</option>
+          <option value="users">المستخدمين والاشتراكات</option>
           <option value="analytics">التحليلات</option>
         </select>
 
@@ -1574,6 +2023,47 @@ export default function AdminReviewPage() {
               </option>
             ))}
           </select>
+        ) : adminView === "users" ? (
+          <>
+            <select
+              value={userStatus}
+              onChange={(e) => setUserStatus(e.target.value)}
+              style={{
+                background: adminColors.inputBg,
+                border: `1px solid ${adminColors.inputBorder}`,
+                borderRadius: "10px",
+                color: adminColors.text,
+                padding: "11px 12px",
+                fontFamily: "inherit",
+              }}
+            >
+              {userStatusOptions.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <input
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  fetchUserManagement();
+                }
+              }}
+              placeholder="بحث بالبريد أو الجوال"
+              style={{
+                minWidth: "220px",
+                background: adminColors.inputBg,
+                border: `1px solid ${adminColors.inputBorder}`,
+                borderRadius: "10px",
+                color: adminColors.text,
+                padding: "11px 12px",
+                fontFamily: "inherit",
+              }}
+            />
+          </>
         ) : (
           <select
             value={adminView === "opportunities" ? opportunityStatus : status}
@@ -1905,6 +2395,8 @@ export default function AdminReviewPage() {
             )}
           </section>
         </div>
+      ) : adminView === "users" ? (
+        renderUserManagement()
       ) : adminView === "suggestions" ? (
         <div style={{ display: "grid", gap: "12px" }}>
           {suggestions.length === 0 && !loading ? (
