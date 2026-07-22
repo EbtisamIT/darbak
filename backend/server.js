@@ -345,6 +345,9 @@ const getAccessIdentityFromRequest = (req = {}) => ({
     "",
 });
 
+const shouldEnforceContentAccess = (req = {}) =>
+  CONTENT_ACCESS_GATE_ENABLED || req.get?.("x-darbak-access-gate") === "true";
+
 const evaluateContentAccess = async ({
   contact: rawContact = "",
   accessCode: rawAccessCode = "",
@@ -4824,7 +4827,7 @@ app.get('/api/opportunities/:id', async (req, res) => {
       return res.status(400).json({ error: "Invalid opportunity id" });
     }
 
-    if (CONTENT_ACCESS_GATE_ENABLED) {
+    if (shouldEnforceContentAccess(req)) {
       const itemKey = `opportunity:${req.params.id}`;
       const accessDecision = await evaluateContentAccess({
         ...getAccessIdentityFromRequest(req),
@@ -5383,7 +5386,7 @@ app.get('/api/experiences/:id', async (req, res) => {
       return res.status(400).json({ error: "Invalid experience id" });
     }
 
-    if (CONTENT_ACCESS_GATE_ENABLED) {
+    if (shouldEnforceContentAccess(req)) {
       const itemKey = `experience:${req.params.id}`;
       const accessDecision = await evaluateContentAccess({
         ...getAccessIdentityFromRequest(req),

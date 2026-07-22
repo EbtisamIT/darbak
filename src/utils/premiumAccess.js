@@ -125,6 +125,7 @@ export const getAccessHeaders = (detail = {}) => {
     "x-darbak-access-code": payload.accessCode,
     "x-darbak-visitor-id": payload.visitorId,
     "x-darbak-item-key": payload.itemKey,
+    "x-darbak-access-gate": isPremiumGateEnabled() ? "true" : "",
   }).reduce((headers, [key, value]) => {
     if (value) headers[key] = value;
     return headers;
