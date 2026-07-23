@@ -255,6 +255,30 @@ const premiumPlanLabels = {
   admin: "حساب إدارة",
 };
 
+const manualSubscriptionPlanOptions = [
+  {
+    id: "monthly",
+    label: "دربك+ شهري",
+    days: "30",
+    priceSar: "5.99",
+  },
+  {
+    id: "one_time_90",
+    label: "دربك+ 3 أشهر",
+    days: "90",
+    priceSar: "15",
+  },
+];
+
+const defaultManualSubscriptionForm = {
+  contact: "",
+  accessCode: "",
+  planId: "one_time_90",
+  days: "90",
+  priceSar: "15",
+  providerPaymentId: "",
+};
+
 const userStatusOptions = [
   ["all", "كل المستخدمين"],
   ["premium", "المشتركين"],
@@ -788,6 +812,10 @@ export default function AdminReviewPage() {
   const [userManagement, setUserManagement] = useState(emptyUserManagement);
   const [userStatus, setUserStatus] = useState("all");
   const [userSearch, setUserSearch] = useState("");
+  const [manualSubscriptionForm, setManualSubscriptionForm] = useState(
+    defaultManualSubscriptionForm
+  );
+  const [savingManualSubscription, setSavingManualSubscription] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -1096,6 +1124,92 @@ export default function AdminReviewPage() {
     }
 
     fetchExperiences();
+  };
+
+  const updateManualSubscriptionField = (field, value) => {
+    setManualSubscriptionForm((prev) => {
+      if (field === "planId") {
+        const selectedPlan = manualSubscriptionPlanOptions.find(
+          (plan) => plan.id === value
+        );
+
+        return {
+          ...prev,
+          planId: value,
+          days: selectedPlan?.days || prev.days,
+          priceSar: selectedPlan?.priceSar || prev.priceSar,
+        };
+      }
+
+      return { ...prev, [field]: value };
+    });
+    setMessage("");
+  };
+
+  const prefillManualSubscriptionContact = (contact = "") => {
+    if (!contact) return;
+
+    setManualSubscriptionForm((prev) => ({
+      ...prev,
+      contact,
+      accessCode: "",
+    }));
+    setMessage(
+      "تم تعبئة وسيلة الدخول. اكتب رمز دخول جديد ثم فعّل الاشتراك بعد التحقق من الدفع."
+    );
+  };
+
+  const saveManualSubscription = async (event) => {
+    event.preventDefault();
+
+    const contact = manualSubscriptionForm.contact.trim();
+    const accessCode = manualSubscriptionForm.accessCode.trim();
+
+    if (!contact) {
+      setMessage("اكتب البريد أو رقم الجوال لتفعيل الاشتراك.");
+      return;
+    }
+
+    if (accessCode.length < 4) {
+      setMessage("اكتب رمز دخول جديد من 4 خانات أو أكثر.");
+      return;
+    }
+
+    try {
+      setSavingManualSubscription(true);
+      setMessage("");
+
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/subscriptions`,
+        {
+          contact,
+          accessCode,
+          planId: manualSubscriptionForm.planId,
+          days: Number(manualSubscriptionForm.days) || undefined,
+          priceSar: Number(manualSubscriptionForm.priceSar) || undefined,
+          provider: "manual",
+          providerPaymentId: manualSubscriptionForm.providerPaymentId.trim(),
+        },
+        { headers: authHeaders }
+      );
+
+      setMessage(
+        `تم تفعيل دربك+ لـ ${data.email || contact}. أرسل للمستخدم نفس الرمز الجديد الذي كتبته الآن، لأنه لا يمكن عرضه لاحقًا.`
+      );
+      setManualSubscriptionForm((prev) => ({
+        ...defaultManualSubscriptionForm,
+        contact: data.email || contact,
+      }));
+      fetchUserManagement();
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.data?.error ||
+          "تعذر تفعيل الاشتراك يدويًا. تأكدي من كلمة مرور الإدارة والبيانات."
+      );
+    } finally {
+      setSavingManualSubscription(false);
+    }
   };
 
   const updateStatus = async (id, nextStatus, rejectionReason = "") => {
@@ -1614,6 +1728,16 @@ export default function AdminReviewPage() {
     const users = userManagement.users || [];
     const subscriptions = userManagement.subscriptions || [];
     const planBreakdown = userManagement.planBreakdown || [];
+    const manualSubscriptionInputStyle = {
+      width: "100%",
+      boxSizing: "border-box",
+      background: adminColors.inputBg,
+      border: `1px solid ${adminColors.inputBorder}`,
+      borderRadius: "10px",
+      color: adminColors.text,
+      padding: "11px 12px",
+      fontFamily: "inherit",
+    };
 
     return (
       <div style={{ display: "grid", gap: "12px" }}>
@@ -1641,6 +1765,156 @@ export default function AdminReviewPage() {
               formatAdminCurrency(summary.activeRevenueSar),
             ],
           ].map(renderAdminMetricCard)}
+        </section>
+
+        <section
+          style={{
+            ...cardStyle,
+            borderColor: "rgba(102,208,195,0.22)",
+            background:
+              "linear-gradient(135deg, rgba(102,208,195,0.08), rgba(255,255,255,0.025))",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "12px",
+              flexWrap: "wrap",
+              marginBottom: "14px",
+            }}
+          >
+            <div>
+              <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                تفعيل أو تحديث اشتراك يدوي
+              </h3>
+              <p
+                style={{
+                  color: adminColors.textSoft,
+                  margin: 0,
+                  lineHeight: 1.8,
+                  fontSize: 13,
+                  maxWidth: 720,
+                }}
+              >
+                استخدمها بعد التأكد من الدفع في ميسر أو عند مساعدة مستخدم نسي
+                الرمز. اكتب رمزًا جديدًا وأرسله له مباشرة، لأن دربك لا يعرض
+                الرموز القديمة.
+              </p>
+            </div>
+            {renderStatusBadge("لا يعرض الرمز القديم", "neutral")}
+          </div>
+
+          <form
+            onSubmit={saveManualSubscription}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+              gap: "10px",
+              alignItems: "end",
+            }}
+          >
+            <label style={{ display: "grid", gap: "6px", color: adminColors.muted }}>
+              <span style={{ fontSize: 12, fontWeight: 800 }}>وسيلة الدخول</span>
+              <input
+                value={manualSubscriptionForm.contact}
+                onChange={(e) =>
+                  updateManualSubscriptionField("contact", e.target.value)
+                }
+                placeholder="+9665xxxxxxxx أو email@example.com"
+                style={manualSubscriptionInputStyle}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: "6px", color: adminColors.muted }}>
+              <span style={{ fontSize: 12, fontWeight: 800 }}>رمز دخول جديد</span>
+              <input
+                value={manualSubscriptionForm.accessCode}
+                onChange={(e) =>
+                  updateManualSubscriptionField("accessCode", e.target.value)
+                }
+                placeholder="مثال: Darbak872"
+                autoComplete="off"
+                style={manualSubscriptionInputStyle}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: "6px", color: adminColors.muted }}>
+              <span style={{ fontSize: 12, fontWeight: 800 }}>الباقة</span>
+              <select
+                value={manualSubscriptionForm.planId}
+                onChange={(e) =>
+                  updateManualSubscriptionField("planId", e.target.value)
+                }
+                style={manualSubscriptionInputStyle}
+              >
+                {manualSubscriptionPlanOptions.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{ display: "grid", gap: "6px", color: adminColors.muted }}>
+              <span style={{ fontSize: 12, fontWeight: 800 }}>عدد الأيام</span>
+              <input
+                type="number"
+                min="1"
+                value={manualSubscriptionForm.days}
+                onChange={(e) =>
+                  updateManualSubscriptionField("days", e.target.value)
+                }
+                style={manualSubscriptionInputStyle}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: "6px", color: adminColors.muted }}>
+              <span style={{ fontSize: 12, fontWeight: 800 }}>القيمة</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={manualSubscriptionForm.priceSar}
+                onChange={(e) =>
+                  updateManualSubscriptionField("priceSar", e.target.value)
+                }
+                style={manualSubscriptionInputStyle}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: "6px", color: adminColors.muted }}>
+              <span style={{ fontSize: 12, fontWeight: 800 }}>
+                رقم عملية ميسر اختياري
+              </span>
+              <input
+                value={manualSubscriptionForm.providerPaymentId}
+                onChange={(e) =>
+                  updateManualSubscriptionField("providerPaymentId", e.target.value)
+                }
+                placeholder="pay_..."
+                style={manualSubscriptionInputStyle}
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={savingManualSubscription}
+              style={{
+                background: adminColors.brand,
+                color: "#061312",
+                border: "none",
+                borderRadius: "10px",
+                padding: "12px 16px",
+                cursor: savingManualSubscription ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+                fontWeight: 900,
+                minHeight: 45,
+              }}
+            >
+              {savingManualSubscription ? "جار التفعيل..." : "تفعيل دربك+"}
+            </button>
+          </form>
         </section>
 
         <section style={cardStyle}>
@@ -1727,12 +2001,13 @@ export default function AdminReviewPage() {
                   <th style={{ textAlign: "right", padding: "10px" }}>ينتهي في</th>
                   <th style={{ textAlign: "right", padding: "10px" }}>مزود الدفع</th>
                   <th style={{ textAlign: "right", padding: "10px" }}>آخر تحديث</th>
+                  <th style={{ textAlign: "right", padding: "10px" }}>إجراء</th>
                 </tr>
               </thead>
               <tbody>
                 {subscriptions.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ padding: "14px", color: adminColors.muted }}>
+                    <td colSpan="8" style={{ padding: "14px", color: adminColors.muted }}>
                       لا توجد اشتراكات في هذا العرض.
                     </td>
                   </tr>
@@ -1775,6 +2050,28 @@ export default function AdminReviewPage() {
                         </td>
                         <td style={{ padding: "10px" }}>
                           {formatAdminDateTime(subscription.updatedAt)}
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              prefillManualSubscriptionContact(subscription.email)
+                            }
+                            style={{
+                              background: "rgba(102,208,195,0.1)",
+                              border: `1px solid ${adminColors.inputBorder}`,
+                              borderRadius: "999px",
+                              color: adminColors.brand,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              fontSize: 12,
+                              fontWeight: 800,
+                              padding: "7px 10px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            استخدم الحساب
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1841,7 +2138,37 @@ export default function AdminReviewPage() {
                           {user.visitorId ? `Visitor ID: ${user.visitorId}` : "حساب دخول"}
                         </p>
                       </div>
-                      {renderStatusBadge(getAccessTypeLabel(user.accessType), statusTone)}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {renderStatusBadge(getAccessTypeLabel(user.accessType), statusTone)}
+                        {user.contact ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              prefillManualSubscriptionContact(user.contact)
+                            }
+                            style={{
+                              background: "rgba(102,208,195,0.1)",
+                              border: `1px solid ${adminColors.inputBorder}`,
+                              borderRadius: "999px",
+                              color: adminColors.brand,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              fontSize: 12,
+                              fontWeight: 800,
+                              padding: "7px 10px",
+                            }}
+                          >
+                            تفعيل/تحديث
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
 
                     <div
