@@ -3138,6 +3138,127 @@ body {
   color: var(--app-brand);
 }
 
+.premium-inline-notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+  gap: 14px;
+  align-items: stretch;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(125, 219, 205, 0.18), transparent 38%),
+    var(--app-card);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12);
+  text-align: right;
+}
+
+.premium-inline-copy {
+  min-width: 0;
+}
+
+.premium-inline-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: var(--app-brand-soft);
+  border: 1px solid var(--app-brand-border);
+  color: var(--app-brand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.premium-inline-notice h3 {
+  margin: 10px 0 6px;
+  color: var(--app-text);
+  font-size: clamp(18px, 2.5vw, 24px);
+  line-height: 1.5;
+}
+
+.premium-inline-notice p {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 13.5px;
+  line-height: 1.9;
+}
+
+.premium-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.premium-inline-actions button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: var(--app-brand);
+  color: #07100e;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.premium-inline-actions .premium-inline-skip {
+  background: transparent;
+  color: var(--app-muted);
+  border: 1px solid var(--app-border);
+  padding-inline: 14px;
+}
+
+.premium-inline-locked-list {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+}
+
+.premium-inline-locked-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+  color: var(--app-text-soft);
+}
+
+.premium-inline-locked-card span {
+  flex: 0 0 auto;
+  color: var(--app-brand);
+}
+
+.premium-inline-locked-card strong {
+  min-width: 0;
+  color: var(--app-text);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .premium-inline-notice {
+    grid-template-columns: 1fr;
+    padding: 14px;
+    margin: 14px 0;
+  }
+
+  .premium-inline-actions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+
+  .premium-inline-actions button {
+    padding: 10px 12px;
+  }
+}
+
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);

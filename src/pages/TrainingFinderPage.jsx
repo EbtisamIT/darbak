@@ -11,6 +11,7 @@ import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
 import ShareButton from "../components/ShareButton";
+import PremiumInlineNotice from "../components/PremiumInlineNotice";
 import { guideUrl } from "../components/TrainingGuideBanner";
 import { trackEvent } from "../utils/analytics";
 import { getAccessHeaders, requestPremiumAccess } from "../utils/premiumAccess";
@@ -1180,6 +1181,7 @@ export default function TrainingFinderPage() {
           feature: "opportunity_details",
           source: "opportunity_direct_link",
           itemKey: `opportunity:${routeOpportunityId}`,
+          deferGateOnLimited: true,
           onLimited: () => {
             if (!isActive) return;
             setSelectedOpportunity({
@@ -1188,6 +1190,7 @@ export default function TrainingFinderPage() {
               title: "تفاصيل فرصة تدريب",
               note: LOCKED_OPPORTUNITY_PREVIEW,
               isPremiumPreviewLocked: true,
+              isPremiumUpsellHidden: false,
             });
           },
         },
@@ -1406,6 +1409,7 @@ export default function TrainingFinderPage() {
         title: opportunity.title || opportunity.organizationName || "",
         source: "where_to_train",
         itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
+        deferGateOnLimited: true,
         onLimited: () => {
           setSelectedOpportunity({
             ...opportunity,
@@ -1413,6 +1417,8 @@ export default function TrainingFinderPage() {
             applicationUrl: "",
             sourceUrl: "",
             isPremiumPreviewLocked: true,
+            isPremiumUpsellHidden: false,
+            premiumRequestedAction: "details",
           });
         },
       },
@@ -1470,6 +1476,7 @@ export default function TrainingFinderPage() {
         title: opportunity.title || opportunity.organizationName || "",
         source: "where_to_train",
         itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
+        deferGateOnLimited: true,
         onLimited: () => {
           setSelectedOpportunity({
             ...opportunity,
@@ -1477,6 +1484,8 @@ export default function TrainingFinderPage() {
             applicationUrl: "",
             sourceUrl: "",
             isPremiumPreviewLocked: true,
+            isPremiumUpsellHidden: false,
+            premiumRequestedAction: "apply",
           });
         },
       },
@@ -1512,6 +1521,48 @@ export default function TrainingFinderPage() {
           setError("تعذر فتح رابط التقديم حاليًا.");
         }
       }
+    );
+  };
+
+  const getOpportunityPremiumLockedItems = (opportunity = {}) => {
+    const organization = opportunity.organizationName || "جهة تدريب";
+    const cityText = getOpportunityCityText(opportunity) || city || "مدينتك";
+    const title = opportunity.title || "فرصة تدريب";
+
+    return [
+      `${title} في ${organization}`,
+      `تجارب طلاب في ${organization}`,
+      `فرص مناسبة في ${cityText}`,
+      "طريقة التقديم وأسئلة مقابلات محتملة",
+    ];
+  };
+
+  const openPremiumFromLockedOpportunity = (opportunity = {}) => {
+    const opportunityId = opportunity._id || opportunity.id || "";
+    requestPremiumAccess(
+      {
+        feature:
+          opportunity.premiumRequestedAction === "apply"
+            ? "opportunity_apply"
+            : "opportunity_details",
+        title: opportunity.title || opportunity.organizationName || "",
+        source: "opportunity_inline_notice",
+        itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
+      },
+      () => {
+        if (opportunity.premiumRequestedAction === "apply") {
+          openOpportunityApplication(opportunity);
+          return;
+        }
+
+        openOpportunityDetails(opportunity);
+      }
+    );
+  };
+
+  const skipOpportunityPremiumNotice = () => {
+    setSelectedOpportunity((current) =>
+      current ? { ...current, isPremiumUpsellHidden: true } : current
     );
   };
 
@@ -3046,6 +3097,17 @@ export default function TrainingFinderPage() {
                 ))}
               </div>
             )}
+
+            {selectedOpportunity.isPremiumPreviewLocked &&
+              !selectedOpportunity.isPremiumUpsellHidden && (
+                <PremiumInlineNotice
+                  lockedItems={getOpportunityPremiumLockedItems(selectedOpportunity)}
+                  onUnlock={() =>
+                    openPremiumFromLockedOpportunity(selectedOpportunity)
+                  }
+                  onSkip={skipOpportunityPremiumNotice}
+                />
+              )}
 
             <div className="premium-preview-blur-wrap">
               <p

@@ -4,6 +4,7 @@ import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import ShareButton from "../components/ShareButton";
+import PremiumInlineNotice from "../components/PremiumInlineNotice";
 import { trackEvent } from "../utils/analytics";
 import { getAccessHeaders, requestPremiumAccess } from "../utils/premiumAccess";
 import {
@@ -908,6 +909,7 @@ const ExperiencesPage = () => {
           feature: "experience_details",
           source: "experience_direct_link",
           itemKey: `experience:${routeExperienceId}`,
+          deferGateOnLimited: true,
           onLimited: () => {
             if (!isActive) return;
             setSelectedExperience({
@@ -921,6 +923,7 @@ const ExperiencesPage = () => {
               starRating: 0,
               description: LOCKED_EXPERIENCE_PREVIEW,
               isPremiumPreviewLocked: true,
+              isPremiumUpsellHidden: false,
             });
             setCurrentStep(2);
           },
@@ -1410,11 +1413,13 @@ const ExperiencesPage = () => {
         title: exp.title || exp.organizationName || "",
         source: "experiences_page",
         itemKey: experienceId ? `experience:${experienceId}` : "",
+        deferGateOnLimited: true,
         onLimited: () => {
           setSelectedExperience({
             ...exp,
             description: LOCKED_EXPERIENCE_PREVIEW,
             isPremiumPreviewLocked: true,
+            isPremiumUpsellHidden: false,
           });
           setCurrentStep(2);
         },
@@ -1450,6 +1455,38 @@ const ExperiencesPage = () => {
           setFetchError("تعذر فتح تفاصيل التجربة حاليًا.");
         }
       }
+    );
+  };
+
+  const getExperiencePremiumLockedItems = (exp = {}) => {
+    const organization = exp.organizationName || exp.companyName || "جهة تدريب";
+    const majorText = exp.major || exp.majorCategory || "مناسبة لتخصصك";
+    const cityText = exp.city || "مدينتك";
+
+    return [
+      `تجربة في ${organization} - ${majorText}`,
+      `تجربة مشابهة في ${cityText}`,
+      "أسئلة مقابلة أو ملاحظات متدربين",
+      "فرصة تدريب مفتوحة حاليًا",
+    ];
+  };
+
+  const openPremiumFromLockedExperience = (exp = {}) => {
+    const experienceId = exp._id || exp.id || "";
+    requestPremiumAccess(
+      {
+        feature: "experience_details",
+        title: exp.title || exp.organizationName || exp.companyName || "",
+        source: "experience_inline_notice",
+        itemKey: experienceId ? `experience:${experienceId}` : "",
+      },
+      () => openExperienceDetails(exp)
+    );
+  };
+
+  const skipExperiencePremiumNotice = () => {
+    setSelectedExperience((current) =>
+      current ? { ...current, isPremiumUpsellHidden: true } : current
     );
   };
 
@@ -1774,6 +1811,14 @@ const ExperiencesPage = () => {
               ))}
             </div>
           </div>
+        )}
+
+        {exp.isPremiumPreviewLocked && !exp.isPremiumUpsellHidden && (
+          <PremiumInlineNotice
+            lockedItems={getExperiencePremiumLockedItems(exp)}
+            onUnlock={() => openPremiumFromLockedExperience(exp)}
+            onSkip={skipExperiencePremiumNotice}
+          />
         )}
 
         <div

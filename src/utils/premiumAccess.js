@@ -196,9 +196,16 @@ export const requestPremiumAccess = (detail = {}, onGranted = () => {}) => {
       if (typeof detail.onLimited === "function") {
         detail.onLimited(data);
       }
+      if (detail.deferGateOnLimited) {
+        return;
+      }
       openPremiumGate(detail, onGranted, data);
     })
     .catch(() => {
+      if (detail.deferGateOnLimited && typeof detail.onLimited === "function") {
+        detail.onLimited({ reason: "check_failed" });
+        return;
+      }
       openPremiumGate(detail, onGranted, { reason: "check_failed" });
     });
 
