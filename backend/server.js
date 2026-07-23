@@ -3441,15 +3441,28 @@ app.get('/api/home-stats', async (req, res) => {
     const approvedFilter = {
       $or: [{ status: "approved" }, { status: { $exists: false } }],
     };
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const currentOpportunitiesFilter = {
+      status: "active",
+      $or: [
+        { deadline: { $exists: false } },
+        { deadline: null },
+        { deadline: { $gte: startOfToday } },
+      ],
+    };
 
-    const [experiencesCount, organizationNames] = await Promise.all([
-      Experience.countDocuments(approvedFilter),
-      Experience.distinct("organizationName", approvedFilter),
-    ]);
+    const [experiencesCount, organizationNames, currentProgramsCount] =
+      await Promise.all([
+        Experience.countDocuments(approvedFilter),
+        Experience.distinct("organizationName", approvedFilter),
+        Opportunity.countDocuments(currentOpportunitiesFilter),
+      ]);
 
     res.json({
       experiencesCount,
       organizationNames: organizationNames.filter(Boolean),
+      currentProgramsCount,
     });
   } catch (err) {
     console.error("❌ Home stats error:", err);

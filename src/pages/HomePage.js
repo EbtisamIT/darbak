@@ -151,6 +151,7 @@ const MovingGreenPath = () => {
 
 const HomePage = () => {
   const [experiencesCount, setExperiencesCount] = useState(null);
+  const [currentProgramsCount, setCurrentProgramsCount] = useState(null);
   const [experienceOrganizationNames, setExperienceOrganizationNames] =
     useState([]);
 
@@ -162,6 +163,10 @@ const HomePage = () => {
 
         if (typeof data.experiencesCount === "number") {
           setExperiencesCount(data.experiencesCount);
+        }
+
+        if (typeof data.currentProgramsCount === "number") {
+          setCurrentProgramsCount(data.currentProgramsCount);
         }
 
         if (Array.isArray(data.organizationNames)) {
@@ -196,8 +201,17 @@ const HomePage = () => {
         label: "جهة تدريب",
         to: "/where-to-train",
       },
+      {
+        value:
+          typeof currentProgramsCount === "number"
+            ? currentProgramsCount
+            : null,
+        label: "برنامج حالي",
+        caption: "جهات حكومية وشركات",
+        to: "/where-to-train",
+      },
     ],
-    [experiencesCount, organizationsCount]
+    [currentProgramsCount, experiencesCount, organizationsCount]
   );
 
   const openAddExperienceModal = () => {
@@ -345,9 +359,9 @@ const HomePage = () => {
         className="home-stats"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gap: "12px",
-          width: "min(100%, 430px)",
+          width: "min(100%, 620px)",
           marginTop: "30px",
         }}
       >
@@ -395,6 +409,19 @@ const HomePage = () => {
             >
               {stat.label}
             </span>
+            {stat.caption && (
+              <small
+                style={{
+                  display: "block",
+                  color: "var(--app-muted)",
+                  fontSize: "11px",
+                  lineHeight: 1.45,
+                  marginTop: "2px",
+                }}
+              >
+                {stat.caption}
+              </small>
+            )}
           </Link>
         ))}
       </div>
@@ -480,7 +507,7 @@ const HomePage = () => {
 
           .home-stats {
             width: min(100%, 340px) !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
             gap: 8px !important;
             margin-top: 22px !important;
           }
@@ -495,6 +522,10 @@ const HomePage = () => {
 
           .home-stat-card span {
             font-size: 11px !important;
+          }
+
+          .home-stat-card small {
+            font-size: 10px !important;
           }
 
         }
