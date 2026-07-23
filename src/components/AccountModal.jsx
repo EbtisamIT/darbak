@@ -28,6 +28,26 @@ const formatDate = (value) => {
 const isValidEmail = (value = "") =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
 
+const normalizeArabicDigits = (value = "") =>
+  value
+    .toString()
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+
+const isValidSaudiMobile = (value = "") => {
+  const digits = normalizeArabicDigits(value).replace(/[^\d+]/g, "");
+  const number = digits.startsWith("+") ? digits : digits.replace(/^\+?/, "");
+
+  return (
+    /^\+9665\d{8}$/.test(digits) ||
+    /^9665\d{8}$/.test(number) ||
+    /^05\d{8}$/.test(number) ||
+    /^5\d{8}$/.test(number)
+  );
+};
+
+const isValidContact = (value = "") => isValidEmail(value) || isValidSaudiMobile(value);
+
 export default function AccountModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [identity, setIdentity] = useState({});
@@ -51,7 +71,7 @@ export default function AccountModal() {
     setIdentity(storedIdentity);
     setPass(getStoredPremiumPass());
     setLoginForm({
-      contact: isValidEmail(storedContact) ? storedContact : "",
+      contact: isValidContact(storedContact) ? storedContact : "",
       accessCode: storedIdentity.accessCode || "",
     });
     setPremiumGateVisible(isPremiumGateEnabled());
@@ -88,12 +108,12 @@ export default function AccountModal() {
     const accessCode = identity.accessCode || "";
 
     if (!contact || !accessCode) {
-      setMessage("لا توجد بيانات دخول محفوظة. سجّل الدخول بنفس البريد الإلكتروني والرمز أولًا.");
+      setMessage("لا توجد بيانات دخول محفوظة. سجّل الدخول بنفس البريد الإلكتروني أو رقم الجوال القديم والرمز أولًا.");
       return;
     }
 
-    if (!isValidEmail(contact)) {
-      setMessage("سجّل الدخول ببريد إلكتروني صحيح لتحديث حالة حسابك.");
+    if (!isValidContact(contact)) {
+      setMessage("سجّل الدخول ببريد إلكتروني صحيح، أو رقم الجوال المستخدم لحساب سابق.");
       return;
     }
 
@@ -127,12 +147,12 @@ export default function AccountModal() {
     const accessCode = loginForm.accessCode.trim();
 
     if (!contact || !accessCode) {
-      setMessage("اكتب البريد الإلكتروني مع رمز الدخول.");
+      setMessage("اكتب البريد الإلكتروني أو رقم الجوال القديم مع رمز الدخول.");
       return;
     }
 
-    if (!isValidEmail(contact)) {
-      setMessage("اكتب بريدًا إلكترونيًا صحيحًا.");
+    if (!isValidContact(contact)) {
+      setMessage("اكتب بريدًا إلكترونيًا صحيحًا، أو رقم الجوال المستخدم لحساب سابق.");
       return;
     }
 
@@ -171,12 +191,12 @@ export default function AccountModal() {
     const contact = loginForm.contact.trim();
 
     if (!contact) {
-      setMessage("اكتب البريد الإلكتروني المستخدم في دربك+ أولًا.");
+      setMessage("اكتب البريد الإلكتروني أو رقم الجوال القديم المستخدم في دربك+ أولًا.");
       return;
     }
 
-    if (!isValidEmail(contact)) {
-      setMessage("اكتب بريدًا إلكترونيًا صحيحًا عشان نساعدك.");
+    if (!isValidContact(contact)) {
+      setMessage("اكتب بريدًا إلكترونيًا صحيحًا، أو رقم الجوال المستخدم لحساب سابق.");
       return;
     }
 
@@ -254,16 +274,16 @@ export default function AccountModal() {
           <form className="account-login-form" onSubmit={loginToAccount}>
             <div>
               <span>تسجيل الدخول</span>
-              <p>اكتب نفس البريد الإلكتروني والرمز المستخدم وقت التفعيل.</p>
+              <p>اكتب نفس البريد الإلكتروني، أو رقم الجوال للحسابات السابقة، مع رمز الدخول.</p>
             </div>
             <label>
-              <span>البريد الإلكتروني</span>
+              <span>البريد الإلكتروني أو رقم جوال لحساب سابق</span>
               <input
-                type="email"
-                inputMode="email"
+                type="text"
+                inputMode="text"
                 value={loginForm.contact}
                 onChange={(event) => updateLoginField("contact", event.target.value)}
-                placeholder="example@email.com"
+                placeholder="example@email.com أو 05xxxxxxxx"
                 autoComplete="email"
               />
             </label>

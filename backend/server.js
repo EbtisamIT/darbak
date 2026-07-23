@@ -192,12 +192,28 @@ const normalizeEmail = (value = "") => value.toString().trim().toLowerCase();
 const isValidEmail = (value = "") =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 
-const normalizeSubscriberContact = (value = "") => {
-  if (isValidEmail(value)) return normalizeEmail(value);
-  return normalizeArabicDigits(value).trim().toLowerCase();
+const normalizeSaudiMobile = (value = "") => {
+  const digits = normalizeArabicDigits(value).replace(/[^\d+]/g, "");
+  const number = digits.startsWith("+") ? digits : digits.replace(/^\+?/, "");
+
+  if (/^\+9665\d{8}$/.test(digits)) return digits;
+  if (/^9665\d{8}$/.test(number)) return `+${number}`;
+  if (/^05\d{8}$/.test(number)) return `+966${number.slice(1)}`;
+  if (/^5\d{8}$/.test(number)) return `+966${number}`;
+
+  return "";
 };
 
-const isValidSubscriberContact = (value = "") => isValidEmail(value);
+const normalizeSubscriberContact = (value = "") => {
+  if (isValidEmail(value)) return normalizeEmail(value);
+  return normalizeSaudiMobile(value) || normalizeArabicDigits(value).trim().toLowerCase();
+};
+
+const isValidSubscriberContact = (value = "") =>
+  isValidEmail(value) || Boolean(normalizeSaudiMobile(value));
+
+const isLegacyMobileSubscriberContact = (value = "") =>
+  !isValidEmail(value) && Boolean(normalizeSaudiMobile(value));
 
 const escapeHtml = (value = "") =>
   value
@@ -470,7 +486,8 @@ const evaluateContentAccess = async ({
       granted: false,
       statusCode: 400,
       reason: "invalid_identity",
-      error: "اكتب بريدًا إلكترونيًا صحيحًا، ورمز دخول من 4 إلى 12 رقم أو حرف.",
+      error:
+        "اكتب بريدًا إلكترونيًا صحيحًا، أو رقم الجوال المستخدم في حساب سابق، مع رمز دخول من 4 إلى 12 رقم أو حرف.",
     };
   }
 
@@ -3659,7 +3676,8 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       !isValidAccessCode(accessCode)
     ) {
       return res.status(400).json({
-        error: "اكتب بريدًا إلكترونيًا صحيحًا، ورمز دخول من 4 إلى 12 رقم أو حرف.",
+        error:
+          "اكتب بريدًا إلكترونيًا صحيحًا، أو رقم الجوال المستخدم في حساب سابق، مع رمز دخول من 4 إلى 12 رقم أو حرف.",
       });
     }
 
@@ -3752,12 +3770,14 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       if (existingContact) {
         return res.status(401).json({
           error:
-            "هذا البريد مسجل مسبقًا. استخدم رمز الدخول الصحيح بدل إنشاء اشتراك جديد.",
+            "هذه البيانات مسجلة مسبقًا. استخدم رمز الدخول الصحيح بدل إنشاء اشتراك جديد.",
         });
       }
 
       return res.status(404).json({
-        error: "ما لقينا اشتراك نشط بهذا البريد والرمز.",
+        error: isLegacyMobileSubscriberContact(rawContact)
+          ? "ما لقينا اشتراك سابق نشط بهذا الرقم والرمز. الاشتراكات الجديدة الآن بالبريد الإلكتروني."
+          : "ما لقينا اشتراك نشط بهذا البريد والرمز.",
       });
     }
 
@@ -3799,7 +3819,8 @@ app.post('/api/subscriptions/request-access-help', async (req, res) => {
 
     if (!isValidSubscriberContact(rawContact)) {
       return res.status(400).json({
-        error: "اكتب البريد الإلكتروني المستخدم في دربك+ عشان نساعدك.",
+        error:
+          "اكتب البريد الإلكتروني، أو رقم الجوال إذا كان حسابك قديمًا، عشان نساعدك.",
       });
     }
 
@@ -3884,11 +3905,28 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       !isValidAccessCode(accessCode)
     ) {
       return res.status(400).json({
-        error: "اكتب بريدًا إلكترونيًا صحيحًا، ورمز دخول من 4 إلى 12 رقم أو حرف قبل تفعيل دربك+.",
+        error:
+          "اكتب بريدًا إلكترونيًا صحيحًا، أو رقم الجوال المستخدم في حساب سابق، مع رمز دخول من 4 إلى 12 رقم أو حرف قبل تفعيل دربك+.",
       });
     }
 
     const accessCodeHash = hashAccessCode(contact, accessCode);
+
+    if (isLegacyMobileSubscriberContact(rawContact)) {
+      const existingLegacySubscription = await Subscription.findOne({
+        email: contact,
+      })
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      if (!existingLegacySubscription) {
+        return res.status(400).json({
+          error:
+            "الاشتراكات الجديدة أصبحت بالبريد الإلكتروني فقط. استخدم إيميلك، أو ادخل برقمك إذا كان لديك اشتراك سابق.",
+        });
+      }
+    }
+
     const accessUser = await ensureAccessUser({ contact, accessCode });
 
     if (accessUser?.isAdmin || isAdminContact(contact, accessCode)) {
@@ -3924,7 +3962,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       if (existingSubscription.accessCodeHash !== accessCodeHash) {
         return res.status(409).json({
           error:
-            "هذا البريد مسجل مسبقًا. إذا أنت مشترك سابق، استخدم رمز الدخول الصحيح واضغط دخول مشترك سابق.",
+            "هذه البيانات مسجلة مسبقًا. إذا أنت مشترك سابق، استخدم رمز الدخول الصحيح واضغط دخول مشترك سابق.",
         });
       }
 
@@ -4195,7 +4233,8 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
       !isValidAccessCode(accessCode)
     ) {
       return res.status(400).json({
-        error: "اكتب بريدًا إلكترونيًا صحيحًا، ورمز دخول من 4 إلى 12 رقم أو حرف.",
+        error:
+          "اكتب بريدًا إلكترونيًا صحيحًا، أو رقم الجوال المستخدم في حساب سابق، مع رمز دخول من 4 إلى 12 رقم أو حرف.",
       });
     }
 
@@ -4207,8 +4246,27 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
     })
       .sort({ updatedAt: -1 })
       .lean();
-    const subscriptionQuery = existingSubscription
-      ? { _id: existingSubscription._id }
+
+    const existingAnySubscription =
+      existingSubscription ||
+      (isLegacyMobileSubscriberContact(req.body.email || req.body.contact)
+        ? await Subscription.findOne({ email: contact })
+            .sort({ updatedAt: -1 })
+            .lean()
+        : null);
+
+    if (
+      isLegacyMobileSubscriberContact(req.body.email || req.body.contact) &&
+      !existingAnySubscription
+    ) {
+      return res.status(400).json({
+        error:
+          "لا يمكن إنشاء اشتراك جديد برقم الجوال. استخدم البريد الإلكتروني، أو حدّث حسابًا قديمًا موجودًا.",
+      });
+    }
+
+    const subscriptionQuery = existingAnySubscription
+      ? { _id: existingAnySubscription._id }
       : { email: contact, accessCodeHash };
     const subscription = await Subscription.findOneAndUpdate(
       subscriptionQuery,
@@ -4232,7 +4290,7 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
       email: subscription.email,
       status: subscription.status,
       expiresAt: subscription.expiresAt,
-      resetAccessCode: Boolean(existingSubscription),
+      resetAccessCode: Boolean(existingAnySubscription),
     });
   } catch (err) {
     console.error("❌ Admin subscription create error:", err);

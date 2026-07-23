@@ -26,6 +26,30 @@ const cardStyle = {
 const defaultRejectionReason =
   "لم يتم قبول التجربة بسبب وجود عبارات شخصية أو صياغة قد تُفهم كتجريح أو تشهير. يمكنك إعادة إرسالها بصياغة تركّز على الوقائع والتجربة بدون وصف أشخاص أو هويات.";
 
+const normalizeArabicDigits = (value = "") =>
+  value
+    .toString()
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+
+const isValidEmailContact = (value = "") =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
+
+const isValidSaudiMobileContact = (value = "") => {
+  const digits = normalizeArabicDigits(value).replace(/[^\d+]/g, "");
+  const number = digits.startsWith("+") ? digits : digits.replace(/^\+?/, "");
+
+  return (
+    /^\+9665\d{8}$/.test(digits) ||
+    /^9665\d{8}$/.test(number) ||
+    /^05\d{8}$/.test(number) ||
+    /^5\d{8}$/.test(number)
+  );
+};
+
+const isValidSubscriptionContact = (value = "") =>
+  isValidEmailContact(value) || isValidSaudiMobileContact(value);
+
 const editableFields = [
   "organizationName",
   "city",
@@ -1180,15 +1204,14 @@ export default function AdminReviewPage() {
 
     const contact = manualSubscriptionForm.contact.trim();
     const accessCode = manualSubscriptionForm.accessCode.trim();
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.toLowerCase());
 
     if (!contact) {
-      setMessage("اكتب البريد الإلكتروني لتفعيل الاشتراك.");
+      setMessage("اكتب البريد الإلكتروني، أو رقم الجوال لحساب قديم، لتفعيل الاشتراك.");
       return;
     }
 
-    if (!isEmail) {
-      setMessage("اكتب بريدًا إلكترونيًا صحيحًا لتفعيل الاشتراك.");
+    if (!isValidSubscriptionContact(contact)) {
+      setMessage("اكتب بريدًا إلكترونيًا صحيحًا، أو رقم جوال سعودي لحساب قديم.");
       return;
     }
 
@@ -1782,7 +1805,7 @@ export default function AdminReviewPage() {
         >
           {[
             ["إجمالي المستخدمين", summary.totalUsers],
-            ["حسابات ببريد", summary.contactUsers],
+            ["حسابات ببيانات دخول", summary.contactUsers],
             ["مشتركين نشطين", summary.activeSubscriptions],
             ["بانتظار الدفع", summary.pendingSubscriptions],
             ["اشتراكات منتهية", summary.expiredSubscriptions],
@@ -1847,15 +1870,17 @@ export default function AdminReviewPage() {
             }}
           >
             <label style={{ display: "grid", gap: "6px", color: adminColors.muted }}>
-              <span style={{ fontSize: 12, fontWeight: 800 }}>البريد الإلكتروني</span>
+              <span style={{ fontSize: 12, fontWeight: 800 }}>
+                البريد الإلكتروني أو رقم حساب قديم
+              </span>
               <input
-                type="email"
-                inputMode="email"
+                type="text"
+                inputMode="text"
                 value={manualSubscriptionForm.contact}
                 onChange={(e) =>
                   updateManualSubscriptionField("contact", e.target.value)
                 }
-                placeholder="email@example.com"
+                placeholder="email@example.com أو 05xxxxxxxx"
                 style={manualSubscriptionInputStyle}
               />
             </label>
