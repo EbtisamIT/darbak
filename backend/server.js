@@ -4213,8 +4213,18 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
     }
 
     const accessCodeHash = hashAccessCode(contact, accessCode);
+    const existingSubscription = await Subscription.findOne({
+      email: contact,
+      status: { $in: ["active", "pending"] },
+      expiresAt: { $gt: new Date() },
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
+    const subscriptionQuery = existingSubscription
+      ? { _id: existingSubscription._id }
+      : { email: contact, accessCodeHash };
     const subscription = await Subscription.findOneAndUpdate(
-      { email: contact, accessCodeHash },
+      subscriptionQuery,
       {
         email: contact,
         accessCodeHash,
@@ -4235,6 +4245,7 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
       email: subscription.email,
       status: subscription.status,
       expiresAt: subscription.expiresAt,
+      resetAccessCode: Boolean(existingSubscription),
     });
   } catch (err) {
     console.error("❌ Admin subscription create error:", err);
