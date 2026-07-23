@@ -2,6 +2,7 @@ import API_BASE_URL from "../config/api";
 
 const VISITOR_ID_KEY = "darbak_visitor_id_v1";
 const SESSION_ID_KEY = "darbak_session_id_v1";
+const LOCAL_DEDUPE_KEY = "darbak_analytics_dedupe_v1";
 
 export const getVisitorId = () => {
   if (typeof window === "undefined") return "";
@@ -70,4 +71,49 @@ export const trackEvent = (eventName, payload = {}) => {
   }).catch(() => {
     // Analytics should never interrupt the user experience.
   });
+};
+
+const getDedupeStorageKey = (eventName, dedupeKey = "default") =>
+  `darbak_analytics_once_${eventName}_${dedupeKey}`;
+
+export const trackEventOncePerSession = (
+  eventName,
+  payload = {},
+  dedupeKey = "default"
+) => {
+  if (!eventName || typeof window === "undefined") return;
+
+  try {
+    const storageKey = getDedupeStorageKey(eventName, dedupeKey);
+    if (window.sessionStorage.getItem(storageKey)) return;
+    window.sessionStorage.setItem(storageKey, "1");
+  } catch {
+    // If storage is blocked, fall back to normal analytics.
+  }
+
+  trackEvent(eventName, payload);
+};
+
+export const trackEventOnceLocal = (
+  eventName,
+  payload = {},
+  dedupeKey = "default"
+) => {
+  if (!eventName || typeof window === "undefined") return;
+
+  try {
+    const storedKeys = JSON.parse(
+      window.localStorage.getItem(LOCAL_DEDUPE_KEY) || "[]"
+    );
+    const safeKeys = Array.isArray(storedKeys) ? storedKeys : [];
+    const nextKey = `${eventName}:${dedupeKey}`;
+    if (safeKeys.includes(nextKey)) return;
+
+    const nextKeys = [...safeKeys.slice(-120), nextKey];
+    window.localStorage.setItem(LOCAL_DEDUPE_KEY, JSON.stringify(nextKeys));
+  } catch {
+    // If storage is blocked, fall back to normal analytics.
+  }
+
+  trackEvent(eventName, payload);
 };

@@ -1125,6 +1125,57 @@ const sanitizeAnalyticsMetadata = (metadata = {}) => {
   }, {});
 };
 
+const recordPremiumAccessVerifiedEvent = async ({
+  subscription,
+  visitorId = "",
+  source = "",
+} = {}) => {
+  const providerPaymentId = subscription?.providerPaymentId || "";
+
+  if (
+    !subscription ||
+    subscription.provider !== "moyasar" ||
+    !providerPaymentId ||
+    subscription.status !== "active"
+  ) {
+    return null;
+  }
+
+  const cleanVisitorId = sanitizeAnalyticsText(visitorId, 90);
+  const existingEvent = await AnalyticsEvent.findOne({
+    eventName: "premium_access_verified",
+    "metadata.providerPaymentId": providerPaymentId,
+  });
+
+  if (existingEvent) {
+    if (cleanVisitorId && !existingEvent.visitorId) {
+      existingEvent.visitorId = cleanVisitorId;
+      existingEvent.metadata = {
+        ...(existingEvent.metadata || {}),
+        source: source || existingEvent.metadata?.source || "",
+      };
+      await existingEvent.save();
+    }
+
+    return existingEvent;
+  }
+
+  return AnalyticsEvent.create({
+    eventName: "premium_access_verified",
+    visitorId: cleanVisitorId,
+    page: "/subscriptions/moyasar",
+    deviceType: "unknown",
+    metadata: sanitizeAnalyticsMetadata({
+      provider: "moyasar",
+      providerPaymentId,
+      planId: subscription.planId || "monthly",
+      priceSar: getSubscriptionPriceSar(subscription),
+      durationDays: getSubscriptionDurationDays(subscription),
+      source,
+    }),
+  });
+};
+
 const getAnalyticsGroup = async (match, field, limit = 10) => {
   const fieldFilter =
     field === "eventName"
@@ -1400,6 +1451,111 @@ const getCleanAnalyticsMatch = (match) => ({
     },
   ],
 });
+
+const getPremiumEventAnalytics = (match, premiumEventNames = []) =>
+  AnalyticsEvent.aggregate([
+    {
+      $match: {
+        $and: [
+          {
+            ...match,
+            eventName: { $in: premiumEventNames },
+          },
+          {
+            $or: [
+              {
+                eventName: {
+                  $nin: [
+                    "premium_checkout_started",
+                    "premium_payment_returned",
+                    "premium_access_verified",
+                  ],
+                },
+              },
+              {
+                $and: [
+                  {
+                    eventName: {
+                      $in: [
+                        "premium_checkout_started",
+                        "premium_payment_returned",
+                        "premium_access_verified",
+                      ],
+                    },
+                  },
+                  { "metadata.providerPaymentId": { $exists: true, $ne: "" } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      $addFields: {
+        analyticsDedupeKey: {
+          $cond: [
+            {
+              $and: [
+                {
+                  $in: [
+                    "$eventName",
+                    [
+                      "premium_checkout_started",
+                      "premium_payment_returned",
+                      "premium_access_verified",
+                    ],
+                  ],
+                },
+                { $ne: ["$metadata.providerPaymentId", null] },
+                { $ne: ["$metadata.providerPaymentId", ""] },
+              ],
+            },
+            "$metadata.providerPaymentId",
+            { $toString: "$_id" },
+          ],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          eventName: "$eventName",
+          dedupeKey: "$analyticsDedupeKey",
+        },
+        visitorId: { $first: "$visitorId" },
+      },
+    },
+    {
+      $group: {
+        _id: "$_id.eventName",
+        count: { $sum: 1 },
+        uniqueVisitorIds: { $addToSet: "$visitorId" },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        label: "$_id",
+        count: 1,
+        uniqueVisitors: {
+          $size: {
+            $filter: {
+              input: "$uniqueVisitorIds",
+              as: "visitorId",
+              cond: {
+                $and: [
+                  { $ne: ["$$visitorId", null] },
+                  { $ne: ["$$visitorId", ""] },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+    { $sort: { count: -1, label: 1 } },
+  ]);
 
 const SMART_ASSISTANT_MAX_CANDIDATES = 1200;
 
@@ -3509,6 +3665,7 @@ app.post('/api/subscriptions/verify', async (req, res) => {
     const rawContact = req.body.email || req.body.contact;
     const contact = normalizeSubscriberContact(rawContact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
+    const visitorId = sanitizeAnalyticsText(req.body.visitorId, 90);
 
     if (
       !isValidSubscriberContact(rawContact) ||
@@ -3572,6 +3729,11 @@ app.post('/api/subscriptions/verify', async (req, res) => {
           ).lean();
 
           await syncSubscriptionUser(activated);
+          await recordPremiumAccessVerifiedEvent({
+            subscription: activated,
+            visitorId,
+            source: "verify_pending_paid",
+          });
 
           return res.json({
             active: true,
@@ -3582,6 +3744,8 @@ app.post('/api/subscriptions/verify', async (req, res) => {
             planId: activated.planId || "monthly",
             priceSar: getSubscriptionPriceSar(activated),
             durationDays: getSubscriptionDurationDays(activated),
+            provider: activated.provider || "",
+            providerPaymentId: activated.providerPaymentId || "",
           });
         }
 
@@ -3611,6 +3775,11 @@ app.post('/api/subscriptions/verify', async (req, res) => {
     }
 
     await syncSubscriptionUser(subscription);
+    await recordPremiumAccessVerifiedEvent({
+      subscription,
+      visitorId,
+      source: "verify_active",
+    });
 
     res.json({
       active: true,
@@ -3621,6 +3790,8 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       planId: subscription.planId || "monthly",
       priceSar: getSubscriptionPriceSar(subscription),
       durationDays: getSubscriptionDurationDays(subscription),
+      provider: subscription.provider || "",
+      providerPaymentId: subscription.providerPaymentId || "",
     });
   } catch (err) {
     console.error("❌ Subscription verify error:", err);
@@ -3719,6 +3890,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     const contact = normalizeSubscriberContact(rawContact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
     const selectedPlan = getSubscriptionPlan(req.body.planId);
+    const visitorId = sanitizeAnalyticsText(req.body.visitorId, 90);
 
     if (
       !isValidSubscriberContact(rawContact) ||
@@ -3771,6 +3943,11 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
 
       if (existingSubscription.status === "active") {
         await syncSubscriptionUser(existingSubscription);
+        await recordPremiumAccessVerifiedEvent({
+          subscription: existingSubscription,
+          visitorId,
+          source: "start_checkout_active",
+        });
 
         return res.json({
           active: true,
@@ -3781,6 +3958,8 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           planId: existingSubscription.planId || "monthly",
           priceSar: getSubscriptionPriceSar(existingSubscription),
           durationDays: getSubscriptionDurationDays(existingSubscription),
+          provider: existingSubscription.provider || "",
+          providerPaymentId: existingSubscription.providerPaymentId || "",
         });
       }
 
@@ -3807,6 +3986,11 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           ).lean();
 
           await syncSubscriptionUser(activated);
+          await recordPremiumAccessVerifiedEvent({
+            subscription: activated,
+            visitorId,
+            source: "start_checkout_pending_paid",
+          });
 
           return res.json({
             active: true,
@@ -3817,6 +4001,8 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
             planId: activated.planId || "monthly",
             priceSar: getSubscriptionPriceSar(activated),
             durationDays: getSubscriptionDurationDays(activated),
+            provider: activated.provider || "",
+            providerPaymentId: activated.providerPaymentId || "",
           });
         }
 
@@ -3990,6 +4176,10 @@ app.post('/api/subscriptions/moyasar/callback', async (req, res) => {
     }
 
     await syncSubscriptionUser(subscription);
+    await recordPremiumAccessVerifiedEvent({
+      subscription,
+      source: "moyasar_callback",
+    });
 
     res.json({ ok: true, active: true });
   } catch (err) {
@@ -4352,6 +4542,9 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       },
       visitorId: { $nin: [null, ""] },
     };
+    const subscriptionDateMatch = match.createdAt
+      ? { updatedAt: match.createdAt }
+      : {};
 
     const [
       rawEvents,
@@ -4387,6 +4580,9 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       topAdClicks,
       premiumEventCounts,
       topPremiumPlans,
+      paidMoyasarSubscriptions,
+      manualActiveSubscriptions,
+      adminAccessUsers,
       shareMenuOpens,
       shareActions,
       experienceShareMenuOpens,
@@ -4598,17 +4794,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $sort: { count: -1, _id: 1 } },
         { $project: { _id: 0, label: "$_id", count: 1 } },
       ]),
-      AnalyticsEvent.aggregate([
-        {
-          $match: {
-            ...cleanMatch,
-            eventName: { $in: premiumEventNames },
-          },
-        },
-        { $group: { _id: "$eventName", count: { $sum: 1 } } },
-        { $sort: { count: -1, _id: 1 } },
-        { $project: { _id: 0, label: "$_id", count: 1 } },
-      ]),
+      getPremiumEventAnalytics(cleanMatch, premiumEventNames),
       AnalyticsEvent.aggregate([
         {
           $match: {
@@ -4624,6 +4810,20 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $limit: 6 },
         { $project: { _id: 0, label: "$_id", count: 1 } },
       ]),
+      Subscription.countDocuments({
+        ...subscriptionDateMatch,
+        provider: "moyasar",
+        status: "active",
+        providerPaymentId: { $nin: [null, ""] },
+      }),
+      Subscription.countDocuments({
+        ...subscriptionDateMatch,
+        provider: "manual",
+        status: "active",
+      }),
+      User.countDocuments({
+        isAdmin: true,
+      }),
       AnalyticsEvent.countDocuments({
         ...shareMatch,
         "metadata.action": "menu_open",
@@ -4759,6 +4959,17 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         .lean(),
     ]);
 
+    const getPremiumEventSummary = (eventName) => {
+      const item = (premiumEventCounts || []).find(
+        (event) => event.label === eventName
+      );
+
+      return {
+        events: item?.count || 0,
+        uniqueVisitors: item?.uniqueVisitors || 0,
+      };
+    };
+
     res.json({
       days,
       rangeLabel,
@@ -4797,6 +5008,19 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       cvProductAdClicks,
       topAdClicks,
       premiumEventCounts,
+      premiumFunnelSummary: {
+        gateOpened: getPremiumEventSummary("premium_gate_opened"),
+        planSelected: getPremiumEventSummary("premium_plan_selected"),
+        checkoutStarted: getPremiumEventSummary("premium_checkout_started"),
+        paymentReturned: getPremiumEventSummary("premium_payment_returned"),
+        paymentSuccessful: {
+          events: paidMoyasarSubscriptions,
+          uniqueVisitors:
+            getPremiumEventSummary("premium_access_verified").uniqueVisitors,
+        },
+        manualActiveSubscriptions,
+        adminAccessUsers,
+      },
       topPremiumPlans,
       shareMenuOpens,
       shareActions,

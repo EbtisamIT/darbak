@@ -13,7 +13,12 @@ import {
   saveAccessIdentity,
   savePremiumPass,
 } from "../utils/premiumAccess";
-import { trackEvent } from "../utils/analytics";
+import {
+  getVisitorId,
+  trackEvent,
+  trackEventOnceLocal,
+  trackEventOncePerSession,
+} from "../utils/analytics";
 
 const initialForm = {
   contact: "",
@@ -264,13 +269,21 @@ export default function PremiumAccessGate() {
           : ""
       );
       setIsOpen(true);
-      trackEvent("premium_gate_opened", {
-        metadata: {
-          feature: event.detail?.feature || "",
-          title: event.detail?.title || "",
-          source: event.detail?.source || "",
-        },
-      });
+      const gateType = event.detail?.loginOnly ? "login_only" : "premium_gate";
+      if (gateType === "premium_gate") {
+        trackEventOncePerSession(
+          "premium_gate_opened",
+          {
+            metadata: {
+              feature: event.detail?.feature || "",
+              title: event.detail?.title || "",
+              source: event.detail?.source || "",
+              gateType,
+            },
+          },
+          gateType
+        );
+      }
     };
 
     window.addEventListener(PREMIUM_ACCESS_EVENT, handlePremiumRequest);
@@ -313,14 +326,11 @@ export default function PremiumAccessGate() {
     setMessage("");
     setIsLoginOnly(false);
     setSuccessNotice("تم تفعيل دربك+ بنجاح. المزايا المتقدمة صارت مفتوحة لك الآن.");
-    trackEvent("premium_access_verified", {
-      metadata: { feature },
-    });
 
     const action = pendingActionRef.current;
     pendingActionRef.current = null;
     if (typeof action === "function") action();
-  }, [feature]);
+  }, []);
 
   useEffect(() => {
     if (!successNotice) return undefined;
@@ -359,6 +369,7 @@ export default function PremiumAccessGate() {
       const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
         email: contactValue,
         accessCode: normalizedCode,
+        visitorId: getVisitorId(),
       });
       saveAccessIdentity({ contact: contactValue, accessCode: normalizedCode });
       grantAccess(data);
@@ -410,10 +421,6 @@ export default function PremiumAccessGate() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("subscription") !== "success") return;
 
-    trackEvent("premium_payment_returned", {
-      metadata: { source: "moyasar_return" },
-    });
-
     let pending = {};
     try {
       pending = JSON.parse(
@@ -422,6 +429,18 @@ export default function PremiumAccessGate() {
     } catch {
       // Ignore malformed pending checkout data.
     }
+
+    trackEventOnceLocal(
+      "premium_payment_returned",
+      {
+        metadata: {
+          source: "moyasar_return",
+          planId: pending.planId || "",
+          providerPaymentId: pending.invoiceId || pending.providerPaymentId || "",
+        },
+      },
+      pending.invoiceId || pending.providerPaymentId || "moyasar_return"
+    );
 
     const pendingContact = pending.contact || pending.email || "";
     const pendingAccessCode = pending.accessCode || "";
@@ -477,34 +496,13 @@ export default function PremiumAccessGate() {
           accessCode: normalizeAccessCode(form.accessCode),
           planId: checkoutPlan.id,
           returnUrl: window.location.href,
+          visitorId: getVisitorId(),
         }
       );
 
       if (data.active) {
         grantAccess(data);
         return;
-      }
-
-      trackEvent("premium_checkout_started", {
-        metadata: {
-          feature,
-          hasContact: Boolean(form.contact.trim()),
-          planId: checkoutPlan.id,
-        },
-      });
-
-      try {
-        window.localStorage.setItem(
-          PENDING_SUBSCRIPTION_KEY,
-          JSON.stringify({
-            contact: form.contact,
-            accessCode: normalizeAccessCode(form.accessCode),
-            planId: checkoutPlan.id,
-            startedAt: new Date().toISOString(),
-          })
-        );
-      } catch {
-        // The user can still enter the same contact and code manually.
       }
 
       if (!data.checkoutUrl) {
@@ -517,6 +515,38 @@ export default function PremiumAccessGate() {
         });
         setMessage("تعذر فتح رابط الدفع. جرّب مرة ثانية بعد لحظات.");
         return;
+      }
+
+      const checkoutDedupeKey =
+        data.invoiceId || data.providerPaymentId || `${checkoutPlan.id}:${Date.now()}`;
+      trackEventOnceLocal(
+        "premium_checkout_started",
+        {
+          metadata: {
+            feature,
+            hasContact: Boolean(form.contact.trim()),
+            planId: checkoutPlan.id,
+            provider: data.provider || "",
+            providerPaymentId: data.invoiceId || data.providerPaymentId || "",
+          },
+        },
+        checkoutDedupeKey
+      );
+
+      try {
+        window.localStorage.setItem(
+          PENDING_SUBSCRIPTION_KEY,
+          JSON.stringify({
+            contact: form.contact,
+            accessCode: normalizeAccessCode(form.accessCode),
+            planId: checkoutPlan.id,
+            invoiceId: data.invoiceId || data.providerPaymentId || "",
+            provider: data.provider || "",
+            startedAt: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // The user can still enter the same contact and code manually.
       }
 
       setMessage("بنقلك الآن لصفحة التفعيل الآمنة...");
@@ -706,9 +736,13 @@ export default function PremiumAccessGate() {
                       loading={isStartingCheckout && selectedPlan.id === plan.id}
                       onSelect={() => {
                         setSelectedPlanId(plan.id);
-                        trackEvent("premium_plan_selected", {
-                          metadata: { feature, planId: plan.id },
-                        });
+                        trackEventOncePerSession(
+                          "premium_plan_selected",
+                          {
+                            metadata: { feature, planId: plan.id },
+                          },
+                          plan.id
+                        );
                       }}
                       onCheckout={startCheckout}
                     />

@@ -148,6 +148,15 @@ const emptyAnalytics = {
   cvProductAdClicks: 0,
   topAdClicks: [],
   premiumEventCounts: [],
+  premiumFunnelSummary: {
+    gateOpened: { events: 0, uniqueVisitors: 0 },
+    planSelected: { events: 0, uniqueVisitors: 0 },
+    checkoutStarted: { events: 0, uniqueVisitors: 0 },
+    paymentReturned: { events: 0, uniqueVisitors: 0 },
+    paymentSuccessful: { events: 0, uniqueVisitors: 0 },
+    manualActiveSubscriptions: 0,
+    adminAccessUsers: 0,
+  },
   topPremiumPlans: [],
   shareMenuOpens: 0,
   shareActions: 0,
@@ -237,7 +246,7 @@ const premiumFunnelSteps = [
   ["premium_plan_selected", "اختاروا باقة"],
   ["premium_checkout_started", "بدأوا الدفع"],
   ["premium_payment_returned", "رجعوا من ميسر"],
-  ["premium_access_verified", "تفعل اشتراكهم"],
+  ["premium_access_verified", "مدفوعات ميسر ناجحة"],
 ];
 
 const premiumSupportSteps = [
@@ -1017,7 +1026,14 @@ export default function AdminReviewPage() {
         headers: authHeaders,
       });
 
-      setAnalytics({ ...emptyAnalytics, ...data });
+      setAnalytics({
+        ...emptyAnalytics,
+        ...data,
+        premiumFunnelSummary: {
+          ...emptyAnalytics.premiumFunnelSummary,
+          ...(data.premiumFunnelSummary || {}),
+        },
+      });
     } catch (err) {
       console.error(err);
       setMessage(
@@ -1429,12 +1445,19 @@ export default function AdminReviewPage() {
     </section>
   );
 
-  const getPremiumEventCount = (eventName) =>
-    (analytics.premiumEventCounts || []).find((item) => item.label === eventName)
-      ?.count || 0;
+  const getPremiumEventStats = (eventName) => {
+    const item = (analytics.premiumEventCounts || []).find(
+      (event) => event.label === eventName
+    );
+
+    return {
+      count: item?.count || 0,
+      uniqueVisitors: item?.uniqueVisitors || 0,
+    };
+  };
 
   const renderPremiumStep = ([eventName, label], index) => {
-    const count = getPremiumEventCount(eventName);
+    const stats = getPremiumEventStats(eventName);
 
     return (
       <article
@@ -1460,11 +1483,14 @@ export default function AdminReviewPage() {
           خطوة {index + 1}
         </span>
         <strong style={{ color: adminColors.brand, fontSize: 28 }}>
-          {count}
+          {stats.count}
         </strong>
         <span style={{ color: adminColors.text, fontSize: 13, lineHeight: 1.7 }}>
           {label}
         </span>
+        <small style={{ color: adminColors.muted, lineHeight: 1.6 }}>
+          {stats.uniqueVisitors} مستخدم فريد
+        </small>
       </article>
     );
   };
@@ -2575,6 +2601,43 @@ export default function AdminReviewPage() {
             <div
               style={{
                 display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: "10px",
+                marginBottom: "14px",
+              }}
+            >
+              {[
+                [
+                  "شاهدوا نافذة الاشتراك",
+                  analytics.premiumFunnelSummary?.gateOpened?.events || 0,
+                  `${analytics.premiumFunnelSummary?.gateOpened?.uniqueVisitors || 0} مستخدم فريد`,
+                ],
+                [
+                  "بدأوا الدفع",
+                  analytics.premiumFunnelSummary?.checkoutStarted?.events || 0,
+                  `${analytics.premiumFunnelSummary?.checkoutStarted?.uniqueVisitors || 0} مستخدم فريد`,
+                ],
+                [
+                  "مدفوعات ميسر ناجحة",
+                  analytics.premiumFunnelSummary?.paymentSuccessful?.events || 0,
+                  "مشتركين حقيقيين فقط",
+                ],
+                [
+                  "تفعيلات يدوية",
+                  analytics.premiumFunnelSummary?.manualActiveSubscriptions || 0,
+                  "منفصلة عن ميسر",
+                ],
+                [
+                  "حسابات إدارة/تجربة",
+                  analytics.premiumFunnelSummary?.adminAccessUsers || 0,
+                  "لا تدخل في المدفوعات",
+                ],
+              ].map(([label, value, hint]) => renderAdminMetricCard([label, value, hint]))}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
                 gap: "10px",
                 marginBottom: "14px",
@@ -2594,7 +2657,7 @@ export default function AdminReviewPage() {
                 "تفاصيل إضافية لدربك+",
                 premiumSupportSteps.map(([eventName, label]) => ({
                   label,
-                  count: getPremiumEventCount(eventName),
+                  count: getPremiumEventStats(eventName).count,
                 }))
               )}
               {renderAnalyticsList(
