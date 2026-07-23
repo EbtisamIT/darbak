@@ -184,19 +184,10 @@ const normalizeArabicDigits = (value = "") =>
 const normalizeAccessCode = (value = "") =>
   normalizeArabicDigits(value).trim().replace(/\s+/g, "");
 
-const isValidContact = (value = "") => {
-  const trimmed = normalizeArabicDigits(value).trim();
-  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed.toLowerCase());
-  const digits = trimmed.replace(/[^\d+]/g, "");
-  const number = digits.startsWith("+") ? digits : digits.replace(/^\+?/, "");
-  const isSaudiMobile =
-    /^\+9665\d{8}$/.test(digits) ||
-    /^9665\d{8}$/.test(number) ||
-    /^05\d{8}$/.test(number) ||
-    /^5\d{8}$/.test(number);
-
-  return isEmail || isSaudiMobile;
-};
+const isValidContact = (value = "") =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    normalizeArabicDigits(value).trim().toLowerCase()
+  );
 
 const isValidAccessCode = (value = "") => {
   const accessCode = normalizeAccessCode(value);
@@ -350,7 +341,7 @@ export default function PremiumAccessGate() {
     const normalizedCode = normalizeAccessCode(accessCodeValue);
 
     if (!isValidContact(contactValue)) {
-      setMessage("اكتب بريد إلكتروني صحيح أو رقم جوال سعودي قبل التحقق.");
+      setMessage("اكتب بريدًا إلكترونيًا صحيحًا قبل التحقق.");
       return false;
     }
 
@@ -391,7 +382,7 @@ export default function PremiumAccessGate() {
 
   const requestAccessHelp = async () => {
     if (!isValidContact(form.contact)) {
-      setMessage("اكتب البريد أو رقم الجوال المستخدم في دربك+ أولًا.");
+      setMessage("اكتب البريد الإلكتروني المستخدم في دربك+ أولًا.");
       return;
     }
 
@@ -466,13 +457,13 @@ export default function PremiumAccessGate() {
     }
 
     setMessage(
-      "تم الرجوع من صفحة الدفع. اكتب نفس البريد أو رقم الجوال والرمز لتفعيل دربك+."
+      "تم الرجوع من صفحة الدفع. اكتب نفس البريد الإلكتروني والرمز لتفعيل دربك+."
     );
   }, [verifyAccess]);
 
   const startCheckout = async (checkoutPlan = selectedPlan) => {
     if (!isValidContact(form.contact)) {
-      setMessage("اكتب بريد إلكتروني صحيح أو رقم جوال سعودي عشان نحفظ وصولك لدربك+.");
+      setMessage("اكتب بريدًا إلكترونيًا صحيحًا عشان نحفظ وصولك لدربك+.");
       return;
     }
 
@@ -607,21 +598,21 @@ export default function PremiumAccessGate() {
               <div className="premium-access-badge">دربك+</div>
               <h2 id="premium-access-title">تسجيل الدخول إلى دربك+</h2>
               <p className="premium-access-lead">
-                ادخل بنفس البريد أو رقم الجوال والرمز الذي استخدمته وقت التفعيل.
+                ادخل بنفس البريد الإلكتروني والرمز الذي استخدمته وقت التفعيل.
               </p>
 
               <div className="premium-access-form">
                 <div className="premium-access-fields">
                   <label className="premium-access-field">
-                    <span>البريد أو رقم الجوال</span>
+                    <span>البريد الإلكتروني</span>
                     <input
-                      type="text"
-                      inputMode="text"
+                      type="email"
+                      inputMode="email"
                       value={form.contact}
                       onChange={(event) =>
                         updateField("contact", event.target.value)
                       }
-                      placeholder="example@email.com أو 05xxxxxxxx"
+                      placeholder="example@email.com"
                       autoComplete="email"
                     />
                   </label>
@@ -689,7 +680,7 @@ export default function PremiumAccessGate() {
                   <span>دربك+</span>
                   <h3>اختر الباقة المناسبة لك</h3>
                   <p>
-                    استخدم بريد أو رقم جوال مع رمز دخول بسيط تحفظه لضمان وصولك
+                    استخدم بريدًا إلكترونيًا مع رمز دخول بسيط تحفظه لضمان وصولك
                     من أي جهاز طوال مدة الباقة.
                   </p>
                 </div>
@@ -697,15 +688,15 @@ export default function PremiumAccessGate() {
                 <div className="premium-access-form">
                   <div className="premium-access-fields">
                     <label className="premium-access-field">
-                      <span>البريد أو رقم الجوال</span>
+                      <span>البريد الإلكتروني</span>
                       <input
-                        type="text"
-                        inputMode="text"
+                        type="email"
+                        inputMode="email"
                         value={form.contact}
                         onChange={(event) =>
                           updateField("contact", event.target.value)
                         }
-                        placeholder="example@email.com أو 05xxxxxxxx"
+                        placeholder="example@email.com"
                         autoComplete="email"
                       />
                     </label>
@@ -766,7 +757,7 @@ export default function PremiumAccessGate() {
                   className="premium-access-verify-form"
                   onSubmit={verifySubscription}
                 >
-                  <p>لديك دربك+؟ ادخل بنفس البريد/الجوال والرمز.</p>
+                  <p>لديك دربك+؟ ادخل بنفس البريد الإلكتروني والرمز.</p>
                   <button type="submit" disabled={isVerifying}>
                     {isVerifying ? "جاري الدخول..." : "دخول مستخدم دربك+"}
                   </button>

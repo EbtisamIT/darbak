@@ -1180,9 +1180,15 @@ export default function AdminReviewPage() {
 
     const contact = manualSubscriptionForm.contact.trim();
     const accessCode = manualSubscriptionForm.accessCode.trim();
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.toLowerCase());
 
     if (!contact) {
-      setMessage("اكتب البريد أو رقم الجوال لتفعيل الاشتراك.");
+      setMessage("اكتب البريد الإلكتروني لتفعيل الاشتراك.");
+      return;
+    }
+
+    if (!isEmail) {
+      setMessage("اكتب بريدًا إلكترونيًا صحيحًا لتفعيل الاشتراك.");
       return;
     }
 
@@ -1776,7 +1782,7 @@ export default function AdminReviewPage() {
         >
           {[
             ["إجمالي المستخدمين", summary.totalUsers],
-            ["حسابات ببريد/جوال", summary.contactUsers],
+            ["حسابات ببريد", summary.contactUsers],
             ["مشتركين نشطين", summary.activeSubscriptions],
             ["بانتظار الدفع", summary.pendingSubscriptions],
             ["اشتراكات منتهية", summary.expiredSubscriptions],
@@ -1841,13 +1847,15 @@ export default function AdminReviewPage() {
             }}
           >
             <label style={{ display: "grid", gap: "6px", color: adminColors.muted }}>
-              <span style={{ fontSize: 12, fontWeight: 800 }}>وسيلة الدخول</span>
+              <span style={{ fontSize: 12, fontWeight: 800 }}>البريد الإلكتروني</span>
               <input
+                type="email"
+                inputMode="email"
                 value={manualSubscriptionForm.contact}
                 onChange={(e) =>
                   updateManualSubscriptionField("contact", e.target.value)
                 }
-                placeholder="+9665xxxxxxxx أو email@example.com"
+                placeholder="email@example.com"
                 style={manualSubscriptionInputStyle}
               />
             </label>
@@ -2405,7 +2413,7 @@ export default function AdminReviewPage() {
                   fetchUserManagement();
                 }
               }}
-              placeholder="بحث بالبريد أو الجوال"
+              placeholder="بحث بالبريد"
               style={{
                 minWidth: "220px",
                 background: adminColors.inputBg,

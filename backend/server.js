@@ -192,25 +192,12 @@ const normalizeEmail = (value = "") => value.toString().trim().toLowerCase();
 const isValidEmail = (value = "") =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 
-const normalizeSaudiMobile = (value = "") => {
-  const digits = normalizeArabicDigits(value).replace(/[^\d+]/g, "");
-  const number = digits.startsWith("+") ? digits : digits.replace(/^\+?/, "");
-
-  if (/^\+9665\d{8}$/.test(digits)) return digits;
-  if (/^9665\d{8}$/.test(number)) return `+${number}`;
-  if (/^05\d{8}$/.test(number)) return `+966${number.slice(1)}`;
-  if (/^5\d{8}$/.test(number)) return `+966${number}`;
-
-  return "";
-};
-
 const normalizeSubscriberContact = (value = "") => {
   if (isValidEmail(value)) return normalizeEmail(value);
-  return normalizeSaudiMobile(value) || normalizeArabicDigits(value).trim();
+  return normalizeArabicDigits(value).trim().toLowerCase();
 };
 
-const isValidSubscriberContact = (value = "") =>
-  isValidEmail(value) || Boolean(normalizeSaudiMobile(value));
+const isValidSubscriberContact = (value = "") => isValidEmail(value);
 
 const escapeHtml = (value = "") =>
   value
@@ -483,7 +470,7 @@ const evaluateContentAccess = async ({
       granted: false,
       statusCode: 400,
       reason: "invalid_identity",
-      error: "اكتب بريد أو رقم جوال صحيح، ورمز دخول من 4 إلى 12 رقم أو حرف.",
+      error: "اكتب بريدًا إلكترونيًا صحيحًا، ورمز دخول من 4 إلى 12 رقم أو حرف.",
     };
   }
 
@@ -3672,7 +3659,7 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       !isValidAccessCode(accessCode)
     ) {
       return res.status(400).json({
-        error: "اكتب بريد أو رقم جوال صحيح، ورمز دخول من 4 إلى 12 رقم أو حرف.",
+        error: "اكتب بريدًا إلكترونيًا صحيحًا، ورمز دخول من 4 إلى 12 رقم أو حرف.",
       });
     }
 
@@ -3765,7 +3752,7 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       if (existingContact) {
         return res.status(401).json({
           error:
-            "هذا البريد أو الجوال مسجل مسبقًا. استخدم رمز الدخول الصحيح بدل إنشاء اشتراك جديد.",
+            "هذا البريد مسجل مسبقًا. استخدم رمز الدخول الصحيح بدل إنشاء اشتراك جديد.",
         });
       }
 
@@ -3812,7 +3799,7 @@ app.post('/api/subscriptions/request-access-help', async (req, res) => {
 
     if (!isValidSubscriberContact(rawContact)) {
       return res.status(400).json({
-        error: "اكتب البريد أو رقم الجوال المستخدم في دربك+ عشان نساعدك.",
+        error: "اكتب البريد الإلكتروني المستخدم في دربك+ عشان نساعدك.",
       });
     }
 
@@ -3897,7 +3884,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       !isValidAccessCode(accessCode)
     ) {
       return res.status(400).json({
-        error: "اكتب بريد أو رقم جوال صحيح، ورمز دخول من 4 إلى 12 رقم أو حرف قبل تفعيل دربك+.",
+        error: "اكتب بريدًا إلكترونيًا صحيحًا، ورمز دخول من 4 إلى 12 رقم أو حرف قبل تفعيل دربك+.",
       });
     }
 
@@ -3937,7 +3924,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       if (existingSubscription.accessCodeHash !== accessCodeHash) {
         return res.status(409).json({
           error:
-            "هذا البريد أو الجوال مسجل مسبقًا. إذا أنت مشترك سابق، استخدم رمز الدخول الصحيح واضغط دخول مشترك سابق.",
+            "هذا البريد مسجل مسبقًا. إذا أنت مشترك سابق، استخدم رمز الدخول الصحيح واضغط دخول مشترك سابق.",
         });
       }
 
@@ -4208,7 +4195,7 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
       !isValidAccessCode(accessCode)
     ) {
       return res.status(400).json({
-        error: "اكتب بريد أو رقم جوال صحيح، ورمز دخول من 4 إلى 12 رقم أو حرف.",
+        error: "اكتب بريدًا إلكترونيًا صحيحًا، ورمز دخول من 4 إلى 12 رقم أو حرف.",
       });
     }
 

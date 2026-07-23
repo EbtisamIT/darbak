@@ -25,6 +25,9 @@ const formatDate = (value) => {
   }).format(date);
 };
 
+const isValidEmail = (value = "") =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
+
 export default function AccountModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [identity, setIdentity] = useState({});
@@ -44,10 +47,11 @@ export default function AccountModal() {
 
   const openModal = () => {
     const storedIdentity = getStoredAccessIdentity();
+    const storedContact = storedIdentity.contact || storedIdentity.email || "";
     setIdentity(storedIdentity);
     setPass(getStoredPremiumPass());
     setLoginForm({
-      contact: storedIdentity.contact || storedIdentity.email || "",
+      contact: isValidEmail(storedContact) ? storedContact : "",
       accessCode: storedIdentity.accessCode || "",
     });
     setPremiumGateVisible(isPremiumGateEnabled());
@@ -84,7 +88,12 @@ export default function AccountModal() {
     const accessCode = identity.accessCode || "";
 
     if (!contact || !accessCode) {
-      setMessage("لا توجد بيانات دخول محفوظة. سجّل الدخول بنفس البريد أو رقم الجوال والرمز أولًا.");
+      setMessage("لا توجد بيانات دخول محفوظة. سجّل الدخول بنفس البريد الإلكتروني والرمز أولًا.");
+      return;
+    }
+
+    if (!isValidEmail(contact)) {
+      setMessage("سجّل الدخول ببريد إلكتروني صحيح لتحديث حالة حسابك.");
       return;
     }
 
@@ -118,7 +127,12 @@ export default function AccountModal() {
     const accessCode = loginForm.accessCode.trim();
 
     if (!contact || !accessCode) {
-      setMessage("اكتب البريد أو رقم الجوال مع رمز الدخول.");
+      setMessage("اكتب البريد الإلكتروني مع رمز الدخول.");
+      return;
+    }
+
+    if (!isValidEmail(contact)) {
+      setMessage("اكتب بريدًا إلكترونيًا صحيحًا.");
       return;
     }
 
@@ -157,7 +171,12 @@ export default function AccountModal() {
     const contact = loginForm.contact.trim();
 
     if (!contact) {
-      setMessage("اكتب البريد أو رقم الجوال المستخدم في دربك+ أولًا.");
+      setMessage("اكتب البريد الإلكتروني المستخدم في دربك+ أولًا.");
+      return;
+    }
+
+    if (!isValidEmail(contact)) {
+      setMessage("اكتب بريدًا إلكترونيًا صحيحًا عشان نساعدك.");
       return;
     }
 
@@ -235,15 +254,16 @@ export default function AccountModal() {
           <form className="account-login-form" onSubmit={loginToAccount}>
             <div>
               <span>تسجيل الدخول</span>
-              <p>اكتب نفس البريد أو رقم الجوال والرمز المستخدم وقت التفعيل.</p>
+              <p>اكتب نفس البريد الإلكتروني والرمز المستخدم وقت التفعيل.</p>
             </div>
             <label>
-              <span>البريد أو رقم الجوال</span>
+              <span>البريد الإلكتروني</span>
               <input
-                type="text"
+                type="email"
+                inputMode="email"
                 value={loginForm.contact}
                 onChange={(event) => updateLoginField("contact", event.target.value)}
-                placeholder="example@email.com أو 05xxxxxxxx"
+                placeholder="example@email.com"
                 autoComplete="email"
               />
             </label>
