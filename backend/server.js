@@ -12,6 +12,7 @@ const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
 const Subscription = require('./models/Subscription');
 const User = require('./models/User');
+const Portfolio = require('./models/Portfolio');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1069,6 +1070,170 @@ const sanitizeOpportunityPayload = (body = {}) => {
       : { deadline: undefined }),
   };
 };
+
+const sanitizePortfolioText = (value = "", maxLength = 120) =>
+  value
+    .toString()
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, maxLength);
+
+const sanitizePortfolioLongText = (value = "", maxLength = 460) =>
+  value
+    .toString()
+    .trim()
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .slice(0, maxLength);
+
+const sanitizePortfolioUrl = (value = "", maxLength = 260) => {
+  const raw = value.toString().trim().slice(0, maxLength);
+  if (!raw) return "";
+
+  try {
+    const url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+    if (!["http:", "https:"].includes(url.protocol)) return "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+};
+
+const normalizePortfolioSlug = (value = "") =>
+  value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+
+const buildDefaultPortfolioSlug = (contact = "") => {
+  const emailName = normalizeSubscriberContact(contact).split("@")[0] || "student";
+  return normalizePortfolioSlug(emailName) || `student-${Date.now().toString(36)}`;
+};
+
+const normalizePortfolioList = (value, maxItems = 8, maxLength = 48) =>
+  normalizeArrayField(value)
+    .map((item) => sanitizePortfolioText(item, maxLength))
+    .filter(Boolean)
+    .slice(0, maxItems);
+
+const sanitizePortfolioProjects = (projects = []) => {
+  const rawProjects = Array.isArray(projects) ? projects : [];
+
+  return rawProjects
+    .map((project = {}) => ({
+      title: sanitizePortfolioText(project.title, 90),
+      description: sanitizePortfolioLongText(project.description, 240),
+      url: sanitizePortfolioUrl(project.url, 260),
+    }))
+    .filter((project) => project.title || project.description || project.url)
+    .slice(0, 6);
+};
+
+const sanitizePortfolioPayload = (body = {}, contact = "") => {
+  const slug = normalizePortfolioSlug(body.slug) || buildDefaultPortfolioSlug(contact);
+  const normalizedContact = normalizeSubscriberContact(contact);
+  const rawEmail = body.email || (isValidEmail(normalizedContact) ? normalizedContact : "");
+
+  return {
+    slug,
+    fullName: sanitizePortfolioText(body.fullName, 90),
+    major: sanitizePortfolioText(body.major, 90),
+    university: sanitizePortfolioText(body.university, 110),
+    city: sanitizePortfolioText(body.city, 60),
+    readinessStatus:
+      sanitizePortfolioText(body.readinessStatus, 110) ||
+      "مستعد ومؤهل للمقابلات الشخصية",
+    targetOrganizations: normalizePortfolioList(
+      body.targetOrganizations,
+      8,
+      55
+    ),
+    bio: sanitizePortfolioLongText(body.bio, 500),
+    skills: normalizePortfolioList(body.skills, 12, 36),
+    projects: sanitizePortfolioProjects(body.projects),
+    cvUrl: sanitizePortfolioUrl(body.cvUrl, 260),
+    linkedinUrl: sanitizePortfolioUrl(body.linkedinUrl, 260),
+    email: isValidEmail(rawEmail) ? normalizeEmail(rawEmail) : "",
+    avatarUrl: sanitizePortfolioUrl(body.avatarUrl, 260),
+    isPublished: Boolean(body.isPublished),
+  };
+};
+
+const getPortfolioIdentity = (req = {}) => {
+  const identity = getAccessIdentityFromRequest(req);
+  const contact = normalizeSubscriberContact(identity.contact);
+  const accessCode = normalizeAccessCode(identity.accessCode);
+
+  return {
+    contact,
+    accessCode,
+    accessCodeHash:
+      contact && accessCode ? hashAccessCode(contact, accessCode) : "",
+  };
+};
+
+const getPortfolioAccessStatus = async (portfolio = {}) => {
+  if (!portfolio?.contact || !portfolio?.accessCodeHash) {
+    return { isActive: false, isPremium: false, isAdmin: false };
+  }
+
+  const [user, activeSubscription] = await Promise.all([
+    User.findOne({
+      contact: portfolio.contact,
+      accessCodeHash: portfolio.accessCodeHash,
+    }).lean(),
+    Subscription.findOne(
+      getActiveSubscriptionFilter(portfolio.contact, portfolio.accessCodeHash)
+    ).lean(),
+  ]);
+
+  const now = new Date();
+  const isAdmin =
+    Boolean(user?.isAdmin) ||
+    isAdminSubscriptionHash(portfolio.contact, portfolio.accessCodeHash);
+  const hasManualPremium =
+    user?.isPremium &&
+    (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > now);
+  const isPremium = Boolean(activeSubscription) || Boolean(hasManualPremium);
+
+  return {
+    isActive: Boolean(portfolio.isPublished && (isAdmin || isPremium)),
+    isPremium,
+    isAdmin,
+    expiresAt: activeSubscription?.expiresAt || user?.premiumExpiresAt || null,
+  };
+};
+
+const serializePortfolio = (portfolio = {}, accessStatus = {}) => ({
+  id: portfolio._id?.toString?.() || portfolio.id || "",
+  slug: portfolio.slug || "",
+  fullName: portfolio.fullName || "",
+  major: portfolio.major || "",
+  university: portfolio.university || "",
+  city: portfolio.city || "",
+  readinessStatus: portfolio.readinessStatus || "",
+  targetOrganizations: Array.isArray(portfolio.targetOrganizations)
+    ? portfolio.targetOrganizations
+    : [],
+  bio: portfolio.bio || "",
+  skills: Array.isArray(portfolio.skills) ? portfolio.skills : [],
+  projects: Array.isArray(portfolio.projects) ? portfolio.projects : [],
+  cvUrl: portfolio.cvUrl || "",
+  linkedinUrl: portfolio.linkedinUrl || "",
+  email: portfolio.email || "",
+  avatarUrl: portfolio.avatarUrl || "",
+  isPublished: Boolean(portfolio.isPublished),
+  viewCount: Number(portfolio.viewCount || 0),
+  publicActive: Boolean(accessStatus.isActive),
+  isPremium: Boolean(accessStatus.isPremium),
+  isAdmin: Boolean(accessStatus.isAdmin),
+  expiresAt: accessStatus.expiresAt || null,
+  createdAt: portfolio.createdAt,
+  updatedAt: portfolio.updatedAt,
+});
 
 const getCityFilterValues = (city = "") => {
   if (!city) return [];
@@ -3669,6 +3834,200 @@ app.post('/api/access/check', async (req, res) => {
     res.json(accessDecision);
   } catch (err) {
     console.error("❌ Access check error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/portfolio/me', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
+
+    if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+      return res.status(400).json({
+        error: "اكتب بريدًا إلكترونيًا صحيحًا أو حساب سابق مع رمز دخول صحيح.",
+      });
+    }
+
+    await ensureAccessUser({ contact, accessCode });
+
+    const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
+    const fallbackPortfolio = {
+      contact,
+      accessCodeHash,
+      slug: buildDefaultPortfolioSlug(contact),
+      readinessStatus: "مستعد ومؤهل للمقابلات الشخصية",
+      email: isValidEmail(contact) ? contact : "",
+      targetOrganizations: [],
+      skills: [],
+      projects: [],
+      isPublished: false,
+      viewCount: 0,
+    };
+    const accessStatus = await getPortfolioAccessStatus(
+      portfolio || fallbackPortfolio
+    );
+    const cleanPortfolio = serializePortfolio(
+      portfolio || fallbackPortfolio,
+      accessStatus
+    );
+
+    res.json({
+      exists: Boolean(portfolio),
+      portfolio: cleanPortfolio,
+      publicUrl: `${getFrontendUrl()}/p/${cleanPortfolio.slug}`,
+    });
+  } catch (err) {
+    console.error("❌ Portfolio fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/portfolio/me', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
+
+    if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+      return res.status(400).json({
+        error: "اكتب بريدًا إلكترونيًا صحيحًا أو حساب سابق مع رمز دخول صحيح.",
+      });
+    }
+
+    const payload = sanitizePortfolioPayload(req.body, contact);
+
+    if (!payload.fullName || !payload.major) {
+      return res.status(400).json({
+        error: "اسم الطالب والتخصص مطلوبة لملف الأعمال.",
+      });
+    }
+
+    if (payload.slug.length < 3) {
+      return res.status(400).json({
+        error: "الرابط المختصر لازم يكون 3 أحرف على الأقل.",
+      });
+    }
+
+    const duplicateSlug = await Portfolio.findOne({ slug: payload.slug }).lean();
+    if (
+      duplicateSlug &&
+      (duplicateSlug.contact !== contact ||
+        duplicateSlug.accessCodeHash !== accessCodeHash)
+    ) {
+      return res.status(409).json({
+        error: "هذا الرابط مستخدم مسبقًا. جرّب اسمًا مختلفًا.",
+      });
+    }
+
+    await ensureAccessUser({ contact, accessCode });
+
+    const portfolio = await Portfolio.findOneAndUpdate(
+      { contact, accessCodeHash },
+      {
+        $set: {
+          contact,
+          accessCodeHash,
+          ...payload,
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    const accessStatus = await getPortfolioAccessStatus(portfolio);
+    const cleanPortfolio = serializePortfolio(portfolio, accessStatus);
+
+    await AnalyticsEvent.create({
+      eventName: "portfolio_saved",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/account",
+      deviceType: sanitizeAnalyticsText(req.body.deviceType, 24),
+      metadata: {
+        isPublished: cleanPortfolio.isPublished,
+        publicActive: cleanPortfolio.publicActive,
+      },
+    }).catch(() => null);
+
+    res.json({
+      portfolio: cleanPortfolio,
+      publicUrl: `${getFrontendUrl()}/p/${cleanPortfolio.slug}`,
+      message: cleanPortfolio.publicActive
+        ? "تم حفظ ملف الأعمال والرابط العام أصبح جاهزًا للمشاركة."
+        : "تم حفظ ملف الأعمال. الرابط العام يحتاج دربك+ فعال حتى يظهر للآخرين.",
+    });
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({
+        error: "هذا الرابط مستخدم مسبقًا. جرّب اسمًا مختلفًا.",
+      });
+    }
+
+    console.error("❌ Portfolio save error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/portfolios/:slug', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const slug = normalizePortfolioSlug(req.params.slug || "");
+    if (!slug) {
+      return res.status(404).json({ error: "Portfolio not found" });
+    }
+
+    const portfolio = await Portfolio.findOne({ slug }).lean();
+    if (!portfolio) {
+      return res.status(404).json({ error: "Portfolio not found" });
+    }
+
+    const accessStatus = await getPortfolioAccessStatus(portfolio);
+
+    if (!accessStatus.isActive) {
+      await AnalyticsEvent.create({
+        eventName: "portfolio_inactive_opened",
+        visitorId: sanitizeAnalyticsText(req.query.visitorId, 90),
+        page: `/p/${slug}`,
+        deviceType: sanitizeAnalyticsText(req.query.deviceType, 24),
+        metadata: { slug },
+      }).catch(() => null);
+
+      return res.status(402).json({
+        requiresActivation: true,
+        error: "ملف الأعمال محفوظ، لكنه يحتاج تفعيل دربك+ حتى يكون ظاهرًا للعامة.",
+        portfolio: {
+          slug: portfolio.slug,
+          fullName: portfolio.fullName || "",
+        },
+      });
+    }
+
+    const updatedPortfolio = await Portfolio.findByIdAndUpdate(
+      portfolio._id,
+      { $inc: { viewCount: 1 } },
+      { new: true }
+    ).lean();
+
+    await AnalyticsEvent.create({
+      eventName: "portfolio_public_viewed",
+      visitorId: sanitizeAnalyticsText(req.query.visitorId, 90),
+      page: `/p/${slug}`,
+      deviceType: sanitizeAnalyticsText(req.query.deviceType, 24),
+      metadata: { slug },
+    }).catch(() => null);
+
+    res.json({
+      portfolio: serializePortfolio(updatedPortfolio, accessStatus),
+    });
+  } catch (err) {
+    console.error("❌ Public portfolio error:", err);
     res.status(500).json({ error: err.message });
   }
 });

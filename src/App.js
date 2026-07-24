@@ -18,6 +18,7 @@ import TrainingFinderPage, {
 import AddExperienceModal from "./pages/AddExperienceModal";
 import LegalPage from "./pages/LegalPage";
 import AdminReviewPage from "./pages/AdminReviewPage";
+import PortfolioPage from "./pages/PortfolioPage";
 import Footer from "./pages/Footer";
 import { guideUrl } from "./components/TrainingGuideBanner";
 import PremiumAccessGate from "./components/PremiumAccessGate";
@@ -1056,6 +1057,7 @@ function PlatformUpdateNotice() {
 function AppLayout({ theme, setTheme }) {
   const location = useLocation();
   const isAdminPage = location.pathname === ADMIN_REVIEW_PATH;
+  const isPublicPortfolioPage = location.pathname.startsWith("/p/");
   const appStyle = {
     minHeight: "100vh",
     backgroundColor: "var(--app-bg)",
@@ -1207,11 +1209,11 @@ function AppLayout({ theme, setTheme }) {
       <Navbar theme={theme} setTheme={setTheme} />
 
       <PageBanner />
-      <PlatformUpdateNotice />
-      <PremiumAccessGate />
-      <AccountModal />
-      <SavedItemsDrawer />
-      <DarbakAssistant />
+      {!isPublicPortfolioPage && <PlatformUpdateNotice />}
+      {!isPublicPortfolioPage && <PremiumAccessGate />}
+      {!isPublicPortfolioPage && <AccountModal />}
+      {!isPublicPortfolioPage && <SavedItemsDrawer />}
+      {!isPublicPortfolioPage && <DarbakAssistant />}
 
       {/* المحتوى */}
       <div style={contentContainer}>
@@ -1248,6 +1250,7 @@ function AppLayout({ theme, setTheme }) {
               path="/where-to-train/city/:citySlug/major/:majorSlug"
               element={<TrainingFinderPage />}
             />
+            <Route path="/p/:slug" element={<PortfolioPage />} />
             <Route path="/legal" element={<LegalPage />} />
             <Route path="/terms" element={<LegalPage />} />
             <Route path="/privacy" element={<LegalPage />} />

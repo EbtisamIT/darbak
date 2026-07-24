@@ -1554,7 +1554,7 @@ body {
 
 .account-modal-card {
   position: relative;
-  width: min(520px, 100%);
+  width: min(860px, 100%);
   max-height: 90vh;
   overflow-y: auto;
   border: 1px solid var(--app-brand-border);
@@ -1795,6 +1795,666 @@ body {
   font-size: 12.5px;
   font-weight: 800;
   line-height: 1.7;
+}
+
+.account-portfolio-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 15px;
+  border-radius: 20px;
+  border: 1px solid var(--app-border);
+  background:
+    linear-gradient(135deg, var(--app-brand-soft), transparent 58%),
+    var(--app-card);
+}
+
+.account-portfolio-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-portfolio-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.account-portfolio-head span,
+.account-portfolio-subhead strong,
+.account-portfolio-public span {
+  color: var(--app-brand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.account-portfolio-head h3 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+.account-portfolio-head a,
+.account-portfolio-actions a {
+  width: fit-content;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 13px;
+  border-radius: 13px;
+  border: 1px solid var(--app-brand-border);
+  color: var(--app-brand);
+  text-decoration: none;
+  font-size: 12.5px;
+  font-weight: 900;
+}
+
+.account-portfolio-note,
+.account-portfolio-loading {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 12.8px;
+  line-height: 1.8;
+}
+
+.account-portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.account-portfolio-field,
+.account-portfolio-project label {
+  display: grid;
+  gap: 6px;
+  color: var(--app-text-soft);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.account-portfolio-field.is-full {
+  grid-column: 1 / -1;
+}
+
+.account-portfolio-field input,
+.account-portfolio-field textarea,
+.account-portfolio-project input,
+.account-portfolio-project textarea {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 13px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+  color: var(--app-text);
+  box-sizing: border-box;
+  padding: 9px 11px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.account-portfolio-field textarea,
+.account-portfolio-project textarea {
+  min-height: 86px;
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.account-portfolio-field input:focus,
+.account-portfolio-field textarea:focus,
+.account-portfolio-project input:focus,
+.account-portfolio-project textarea:focus {
+  border-color: var(--app-brand-border);
+  box-shadow: 0 0 0 3px var(--app-brand-soft);
+}
+
+.account-portfolio-projects {
+  display: grid;
+  gap: 10px;
+}
+
+.account-portfolio-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.account-portfolio-subhead button,
+.account-portfolio-remove {
+  min-height: 34px;
+  border-radius: 12px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+  color: var(--app-text-soft);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.account-portfolio-subhead button {
+  color: var(--app-brand);
+  border-color: var(--app-brand-border);
+  padding: 7px 11px;
+}
+
+.account-portfolio-project {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr auto;
+  gap: 9px;
+  align-items: end;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+}
+
+.account-portfolio-remove {
+  padding: 0 12px;
+  color: #ef4444;
+}
+
+.account-portfolio-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
+  color: var(--app-text-soft);
+  font-size: 12.5px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.account-portfolio-toggle input {
+  accent-color: var(--app-brand);
+}
+
+.account-portfolio-public {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 15px;
+  border: 1px solid var(--app-brand-border);
+  background: var(--app-brand-soft);
+}
+
+.account-portfolio-public a {
+  color: var(--app-text);
+  font-size: 12.5px;
+  font-weight: 800;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  direction: ltr;
+  text-align: left;
+}
+
+.account-portfolio-preview {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(125, 219, 205, 0.24);
+  background:
+    radial-gradient(circle at top left, rgba(125, 219, 205, 0.16), transparent 42%),
+    #101720;
+  color: #f8fafc;
+}
+
+.account-portfolio-preview > span {
+  color: #7ddbcd;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.account-portfolio-preview > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-portfolio-preview-avatar {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(125, 219, 205, 0.58);
+  background: rgba(255, 255, 255, 0.06);
+  color: #7ddbcd;
+}
+
+.account-portfolio-preview-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-portfolio-preview strong {
+  color: #ffffff;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.account-portfolio-preview p,
+.account-portfolio-preview small {
+  margin: 0;
+  color: rgba(248, 250, 252, 0.72);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.account-portfolio-preview > p {
+  color: #9ef2e5;
+  font-weight: 900;
+}
+
+.account-portfolio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.account-portfolio-actions button {
+  min-height: 42px;
+  border: none;
+  border-radius: 14px;
+  background: var(--app-brand);
+  color: #071814;
+  padding: 10px 15px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.account-portfolio-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.portfolio-page {
+  width: 100%;
+  min-height: 72vh;
+  color: #f8fafc;
+  font-family: "Aniq", "Cairo", sans-serif;
+  text-align: right;
+}
+
+.portfolio-shell {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.portfolio-identity-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 18px;
+  min-height: 560px;
+  padding: 24px;
+  border-radius: 28px;
+  border: 1px solid rgba(125, 219, 205, 0.22);
+  background:
+    radial-gradient(circle at top left, rgba(125, 219, 205, 0.18), transparent 34%),
+    linear-gradient(135deg, #0d1419 0%, #141c27 100%);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+.portfolio-identity-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -70px -80px auto;
+  width: 210px;
+  height: 210px;
+  border-radius: 50%;
+  background: rgba(125, 219, 205, 0.08);
+  pointer-events: none;
+}
+
+.portfolio-card-head,
+.portfolio-card-foot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.portfolio-card-head img {
+  width: 82px;
+  height: auto;
+  object-fit: contain;
+}
+
+.portfolio-card-head span {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 219, 205, 0.24);
+  background: rgba(125, 219, 205, 0.09);
+  color: #7ddbcd;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.portfolio-avatar {
+  position: relative;
+  z-index: 1;
+  width: 104px;
+  height: 104px;
+  display: grid;
+  place-items: center;
+  margin: 4px auto 0;
+  overflow: hidden;
+  border-radius: 32px;
+  border: 2px solid rgba(125, 219, 205, 0.78);
+  background: rgba(255, 255, 255, 0.07);
+  color: #7ddbcd;
+  box-shadow: 0 12px 30px rgba(125, 219, 205, 0.12);
+}
+
+.portfolio-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portfolio-avatar strong {
+  font-size: 32px;
+}
+
+.portfolio-student-info {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+  text-align: center;
+}
+
+.portfolio-student-info h1 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 28px;
+  line-height: 1.35;
+}
+
+.portfolio-student-info p {
+  margin: 0;
+  color: #7ddbcd;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.portfolio-student-info small {
+  color: rgba(248, 250, 252, 0.66);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.portfolio-card-section {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.portfolio-card-section span {
+  color: rgba(248, 250, 252, 0.58);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.portfolio-card-section strong {
+  color: #8ee9da;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.portfolio-card-section p {
+  margin: 0;
+  color: rgba(248, 250, 252, 0.82);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.portfolio-card-foot {
+  margin-top: auto;
+  padding: 12px;
+  border-radius: 17px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.portfolio-card-foot span {
+  color: #7ddbcd;
+  font-weight: 900;
+}
+
+.portfolio-card-foot small {
+  color: rgba(248, 250, 252, 0.64);
+  font-weight: 800;
+}
+
+.portfolio-content {
+  display: grid;
+  gap: 16px;
+}
+
+.portfolio-hero-copy,
+.portfolio-section,
+.portfolio-state-card {
+  border: 1px solid var(--app-border);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, var(--app-brand-soft), transparent 62%),
+    var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 20px 50px var(--app-shadow);
+}
+
+.portfolio-hero-copy {
+  display: grid;
+  gap: 10px;
+  padding: 25px;
+}
+
+.portfolio-hero-copy span {
+  width: fit-content;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--app-brand-border);
+  background: var(--app-brand-soft);
+  color: var(--app-brand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.portfolio-hero-copy h2 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: clamp(26px, 4vw, 40px);
+  line-height: 1.35;
+}
+
+.portfolio-hero-copy p {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+.portfolio-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.portfolio-action {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 15px;
+  border: 1px solid var(--app-border);
+  background: var(--app-card);
+  color: var(--app-text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.portfolio-action.is-primary {
+  border-color: transparent;
+  background: var(--app-brand);
+  color: #071814;
+}
+
+.portfolio-action.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.portfolio-section {
+  padding: 22px;
+}
+
+.portfolio-section h3 {
+  margin: 0 0 10px;
+  color: var(--app-text);
+  font-size: 22px;
+  line-height: 1.4;
+}
+
+.portfolio-section h3::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 22px;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: var(--app-brand);
+  vertical-align: -5px;
+}
+
+.portfolio-section p {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.portfolio-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.portfolio-skills span {
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--app-brand-border);
+  background: var(--app-brand-soft);
+  color: var(--app-brand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.portfolio-projects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.portfolio-project-card {
+  display: grid;
+  gap: 8px;
+  padding: 15px;
+  border-radius: 18px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+}
+
+.portfolio-project-card h4 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.portfolio-project-card p {
+  font-size: 13px;
+}
+
+.portfolio-project-card a {
+  width: fit-content;
+  color: var(--app-brand);
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.portfolio-state-card {
+  width: min(620px, 100%);
+  margin: 34px auto;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+}
+
+.portfolio-state-card img {
+  width: 86px;
+  height: auto;
+}
+
+.portfolio-state-card span {
+  color: var(--app-brand);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.portfolio-state-card h1 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 30px;
+  line-height: 1.45;
+}
+
+.portfolio-state-card p {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.portfolio-state-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: var(--app-brand);
+  color: #071814;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .save-item-button {
@@ -3061,6 +3721,58 @@ body {
   .account-modal-card {
     border-radius: 22px;
     padding: 18px 14px;
+  }
+
+  .account-portfolio-head {
+    display: grid;
+  }
+
+  .account-portfolio-grid,
+  .account-portfolio-project,
+  .portfolio-shell,
+  .portfolio-actions,
+  .portfolio-projects {
+    grid-template-columns: 1fr;
+  }
+
+  .account-portfolio-project {
+    align-items: stretch;
+  }
+
+  .account-portfolio-actions {
+    display: grid;
+  }
+
+  .portfolio-page {
+    padding-bottom: 10px;
+  }
+
+  .portfolio-identity-card {
+    min-height: auto;
+    border-radius: 24px;
+    padding: 20px;
+  }
+
+  .portfolio-hero-copy,
+  .portfolio-section,
+  .portfolio-state-card {
+    border-radius: 20px;
+  }
+
+  .portfolio-hero-copy {
+    padding: 20px;
+  }
+
+  .portfolio-section {
+    padding: 18px;
+  }
+
+  .portfolio-student-info h1 {
+    font-size: 24px;
+  }
+
+  .portfolio-state-card {
+    padding: 24px 16px;
   }
 
   .account-modal-actions {
