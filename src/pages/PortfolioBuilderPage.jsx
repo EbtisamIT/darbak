@@ -311,6 +311,45 @@ const writeWrappedCanvasText = (
   return Math.min(lines.length, maxLines) * lineHeight;
 };
 
+const loadCanvasImage = (source = "") =>
+  new Promise((resolve) => {
+    if (!source) {
+      resolve(null);
+      return;
+    }
+
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = source;
+  });
+
+const drawCircularImage = (context, image, x, y, size) => {
+  context.save();
+  context.beginPath();
+  context.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+  context.clip();
+
+  const imageRatio = image.width / image.height;
+  const boxRatio = 1;
+  let drawWidth = size;
+  let drawHeight = size;
+  let offsetX = x;
+  let offsetY = y;
+
+  if (imageRatio > boxRatio) {
+    drawWidth = size * imageRatio;
+    offsetX = x - (drawWidth - size) / 2;
+  } else {
+    drawHeight = size / imageRatio;
+    offsetY = y - (drawHeight - size) / 2;
+  }
+
+  context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+  context.restore();
+};
+
 export default function PortfolioBuilderPage() {
   const [identity, setIdentity] = useState(() => getStoredAccessIdentity());
   const [authForm, setAuthForm] = useState(() => {
@@ -326,6 +365,7 @@ export default function PortfolioBuilderPage() {
   const [avatarPreview, setAvatarPreview] = useState("");
   const [cvFile, setCvFile] = useState(null);
   const [savedCvLabel, setSavedCvLabel] = useState("");
+  const [badgeTheme, setBadgeTheme] = useState("dark");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -647,27 +687,70 @@ export default function PortfolioBuilderPage() {
     }
   };
 
-  const downloadDigitalBadge = () => {
+  const downloadDigitalBadge = async () => {
     if (typeof document === "undefined") return;
 
     const canvas = document.createElement("canvas");
-    const width = 1200;
-    const height = 1500;
+    const width = 1080;
+    const height = 1350;
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext("2d");
     if (!context) return;
 
-    const brand = "#7ddbcd";
-    const brandSoft = "rgba(125, 219, 205, 0.12)";
-    const text = "#f8fafc";
-    const muted = "#a8b3bf";
+    const isLight = badgeTheme === "light";
+    const palette = isLight
+      ? {
+          bg: "#eef8f6",
+          bg2: "#ffffff",
+          card: "#ffffff",
+          cardAlt: "#f3fbf9",
+          text: "#11201e",
+          muted: "#5d706d",
+          subtle: "#71817e",
+          accent: "#2f9f91",
+          accentSoft: "rgba(125, 219, 205, 0.22)",
+          success: "#178f74",
+          border: "rgba(28, 88, 78, 0.16)",
+          footer: "#e8faf6",
+          shadow: "rgba(20, 53, 47, 0.16)",
+        }
+      : {
+          bg: "#0f172a",
+          bg2: "#1e293b",
+          card: "#111827",
+          cardAlt: "rgba(255,255,255,0.055)",
+          text: "#f8fafc",
+          muted: "#a8b3bf",
+          subtle: "#7d8b96",
+          accent: "#7ddbcd",
+          accentSoft: "rgba(125, 219, 205, 0.14)",
+          success: "#8ee9da",
+          border: "rgba(255,255,255,0.10)",
+          footer: "rgba(0,0,0,0.24)",
+          shadow: "rgba(0, 0, 0, 0.38)",
+        };
 
-    context.fillStyle = "#0f172a";
+    const avatarImage = await loadCanvasImage(avatarPreview);
+    const brandLogo = await loadCanvasImage(logo);
+    const fullName = form.fullName || "اسم الطالب";
+    const locationText = [cityValue || "المدينة", "السعودية"]
+      .filter(Boolean)
+      .join("، ");
+    const targetText =
+      form.targetOrganizations ||
+      "قطاعات وجهات تدريبية يطمح لها الطالب عبر دربك";
+    const badgeSkills = skillItems.slice(0, 3);
+    const currentYear = new Date().getFullYear();
+
+    const background = context.createLinearGradient(0, 0, width, height);
+    background.addColorStop(0, palette.bg);
+    background.addColorStop(1, palette.bg2);
+    context.fillStyle = background;
     context.fillRect(0, 0, width, height);
 
-    const gradient = context.createRadialGradient(860, 190, 80, 860, 190, 780);
-    gradient.addColorStop(0, "rgba(125, 219, 205, 0.24)");
+    const gradient = context.createRadialGradient(780, 190, 60, 780, 190, 620);
+    gradient.addColorStop(0, palette.accentSoft);
     gradient.addColorStop(1, "rgba(125, 219, 205, 0)");
     context.fillStyle = gradient;
     context.fillRect(0, 0, width, height);
@@ -676,122 +759,180 @@ export default function PortfolioBuilderPage() {
     context.textAlign = "right";
     context.textBaseline = "top";
 
-    context.strokeStyle = "rgba(125, 219, 205, 0.34)";
-    context.lineWidth = 4;
+    context.shadowColor = palette.shadow;
+    context.shadowBlur = 46;
+    context.shadowOffsetY = 24;
+    context.fillStyle = palette.card;
     context.beginPath();
-    drawCanvasRoundRect(context, 76, 76, width - 152, height - 152, 48);
+    drawCanvasRoundRect(context, 92, 76, 896, 1198, 58);
+    context.fill();
+    context.shadowColor = "transparent";
+
+    context.strokeStyle = palette.border;
+    context.lineWidth = 3;
+    context.beginPath();
+    drawCanvasRoundRect(context, 92, 76, 896, 1198, 58);
     context.stroke();
 
-    context.fillStyle = brandSoft;
+    if (brandLogo) {
+      const logoHeight = 48;
+      const logoWidth = Math.min(132, (brandLogo.width / brandLogo.height) * logoHeight);
+      context.drawImage(brandLogo, 786, 132, logoWidth, logoHeight);
+    } else {
+      context.fillStyle = palette.accent;
+      context.font = "900 45px Cairo, Arial, sans-serif";
+      context.fillText("دربك", 918, 132);
+    }
+
+    context.fillStyle = palette.accentSoft;
     context.beginPath();
-    drawCanvasRoundRect(context, 820, 122, 226, 58, 29);
+    drawCanvasRoundRect(context, 150, 132, 150, 48, 24);
     context.fill();
-    context.fillStyle = brand;
-    context.font = "700 30px Cairo, Arial, sans-serif";
-    context.fillText("جاهز مع دربك", 1016, 137);
-
-    context.fillStyle = brand;
-    context.font = "900 44px Cairo, Arial, sans-serif";
-    context.fillText("دربك", 236, 126);
-
-    context.fillStyle = "rgba(255,255,255,0.06)";
-    context.beginPath();
-    drawCanvasRoundRect(context, 458, 230, 284, 284, 72);
-    context.fill();
-    context.strokeStyle = "rgba(125, 219, 205, 0.74)";
-    context.lineWidth = 6;
-    context.stroke();
-
-    context.fillStyle = brand;
+    context.fillStyle = palette.accent;
     context.textAlign = "center";
-    context.font = "900 110px Cairo, Arial, sans-serif";
-    context.fillText((form.fullName.trim()[0] || "د").toUpperCase(), width / 2, 303);
+    context.font = "800 24px Cairo, Arial, sans-serif";
+    context.fillText(String(currentYear), 225, 143);
 
-    context.fillStyle = text;
-    context.font = "900 62px Cairo, Arial, sans-serif";
+    context.fillStyle = palette.accentSoft;
+    context.beginPath();
+    drawCanvasRoundRect(context, 363, 212, 354, 56, 28);
+    context.fill();
+    context.fillStyle = palette.accent;
+    context.font = "900 25px Cairo, Arial, sans-serif";
+    context.fillText("جاهزية التدريب التعاوني", width / 2, 226);
+
+    context.shadowColor = isLight ? "rgba(47, 159, 145, 0.22)" : "rgba(125, 219, 205, 0.24)";
+    context.shadowBlur = 24;
+    context.fillStyle = palette.cardAlt;
+    context.beginPath();
+    context.arc(width / 2, 392, 112, 0, Math.PI * 2);
+    context.fill();
+    context.shadowColor = "transparent";
+    context.strokeStyle = palette.accent;
+    context.lineWidth = 5;
+    context.beginPath();
+    context.arc(width / 2, 392, 112, 0, Math.PI * 2);
+    context.stroke();
+
+    if (avatarImage) {
+      drawCircularImage(context, avatarImage, width / 2 - 102, 290, 204);
+    } else {
+      context.fillStyle = palette.accent;
+      context.textAlign = "center";
+      context.font = "900 92px Cairo, Arial, sans-serif";
+      context.fillText((fullName.trim()[0] || "د").toUpperCase(), width / 2, 336);
+    }
+
+    context.fillStyle = palette.text;
+    context.textAlign = "center";
+    context.font = "900 50px Cairo, Arial, sans-serif";
     writeWrappedCanvasText(
       context,
-      form.fullName || "اسم الطالب",
+      fullName,
       width / 2,
-      568,
-      900,
-      78,
+      548,
+      720,
+      62,
       2
     );
 
-    context.fillStyle = brand;
-    context.font = "800 38px Cairo, Arial, sans-serif";
+    context.fillStyle = palette.muted;
+    context.font = "800 28px Cairo, Arial, sans-serif";
     writeWrappedCanvasText(
       context,
-      majorValue || "التخصص",
+      `💻 ${majorValue || "التخصص"}`,
       width / 2,
-      735,
-      860,
-      50,
-      2
-    );
-
-    context.fillStyle = muted;
-    context.font = "700 30px Cairo, Arial, sans-serif";
-    writeWrappedCanvasText(
-      context,
-      [universityValue || "الجامعة", cityValue || "المدينة"].join(" - "),
-      width / 2,
-      855,
-      820,
+      682,
+      720,
       42,
       2
     );
 
-    context.textAlign = "right";
-    context.fillStyle = "rgba(255,255,255,0.045)";
-    context.beginPath();
-    drawCanvasRoundRect(context, 142, 990, 916, 134, 28);
-    context.fill();
-    context.fillStyle = muted;
-    context.font = "800 25px Cairo, Arial, sans-serif";
-    context.fillText("حالة الجاهزية", 1000, 1024);
-    context.fillStyle = text;
-    context.font = "900 36px Cairo, Arial, sans-serif";
-    writeWrappedCanvasText(
-      context,
-      readinessValue || "مستعد ومؤهل للمقابلات الشخصية",
-      1000,
-      1062,
-      780,
-      46,
-      1
-    );
+    context.fillStyle = palette.subtle;
+    context.font = "700 24px Cairo, Arial, sans-serif";
+    context.fillText(`📍 ${locationText}`, width / 2, 782);
 
-    const badgeSkills = skillItems.slice(0, 4);
-    const skillLabels = badgeSkills.length ? badgeSkills : ["ملف أعمال رقمي", "جاهز للتدريب"];
-    context.font = "800 25px Cairo, Arial, sans-serif";
-    let chipX = 1000;
-    let chipY = 1178;
-    skillLabels.forEach((skill) => {
-      const chipWidth = Math.min(260, context.measureText(skill).width + 50);
-      if (chipX - chipWidth < 142) {
-        chipX = 1000;
-        chipY += 58;
-      }
-      context.fillStyle = "rgba(125, 219, 205, 0.12)";
+    context.strokeStyle = palette.border;
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(170, 862);
+    context.lineTo(910, 862);
+    context.stroke();
+
+    const infoBoxes = [
+      {
+        label: "حالة الجاهزية",
+        value: readinessValue || "مستعد ومؤهل للمقابلات الشخصية",
+        y: 912,
+      },
+      {
+        label: "الوجهات المستهدفة",
+        value: targetText,
+        y: 1056,
+      },
+    ];
+
+    context.textAlign = "right";
+    infoBoxes.forEach((box) => {
+      context.fillStyle = palette.cardAlt;
       context.beginPath();
-      drawCanvasRoundRect(context, chipX - chipWidth, chipY, chipWidth, 42, 21);
+      drawCanvasRoundRect(context, 170, box.y, 740, 104, 24);
       context.fill();
-      context.fillStyle = brand;
-      context.fillText(skill, chipX - 24, chipY + 6);
-      chipX -= chipWidth + 14;
+
+      context.fillStyle = palette.subtle;
+      context.font = "800 22px Cairo, Arial, sans-serif";
+      context.fillText(box.label, 870, box.y + 18);
+
+      context.fillStyle = box.label === "حالة الجاهزية" ? palette.success : palette.text;
+      context.font = "900 27px Cairo, Arial, sans-serif";
+      writeWrappedCanvasText(context, box.value, 870, box.y + 52, 640, 34, 1);
     });
 
-    context.textAlign = "center";
-    context.fillStyle = "rgba(248, 250, 252, 0.78)";
-    context.font = "800 27px Cairo, Arial, sans-serif";
-    context.fillText("darbak.space  |  #جاهز_مع_دربك", width / 2, 1350);
+    if (badgeSkills.length > 0) {
+      context.font = "800 21px Cairo, Arial, sans-serif";
+      let chipX = 870;
+      const chipY = 1196;
+      badgeSkills.forEach((skill) => {
+        const chipWidth = Math.min(218, context.measureText(skill).width + 42);
+        context.fillStyle = palette.accentSoft;
+        context.beginPath();
+        drawCanvasRoundRect(context, chipX - chipWidth, chipY, chipWidth, 40, 20);
+        context.fill();
+        context.fillStyle = palette.accent;
+        context.fillText(skill, chipX - 22, chipY + 8);
+        chipX -= chipWidth + 12;
+      });
+    }
+
+    context.fillStyle = palette.footer;
+    context.beginPath();
+    drawCanvasRoundRect(context, 170, 1238, 740, 72, 24);
+    context.fill();
+    context.textAlign = "right";
+    context.fillStyle = palette.accent;
+    context.font = "900 26px Cairo, Arial, sans-serif";
+    context.fillText("darbak.space", 850, 1260);
+
+    context.fillStyle = palette.text;
+    context.font = "800 20px Cairo, Arial, sans-serif";
+    context.fillText("#جاهز_مع_دربك", 850, 1288);
+
+    context.fillStyle = isLight ? "#ffffff" : "#f8fafc";
+    context.beginPath();
+    drawCanvasRoundRect(context, 190, 1250, 46, 46, 9);
+    context.fill();
+    context.fillStyle = palette.accent;
+    for (let row = 0; row < 3; row += 1) {
+      for (let col = 0; col < 3; col += 1) {
+        if ((row === 1 && col === 1) || (row === 2 && col === 0)) continue;
+        context.fillRect(200 + col * 12, 1260 + row * 12, 7, 7);
+      }
+    }
 
     const download = (url) => {
       const link = document.createElement("a");
       link.href = url;
-      link.download = "darbak-portfolio-badge.png";
+      link.download = `darbak-portfolio-badge-${badgeTheme}.png`;
       link.click();
     };
 
@@ -811,6 +952,8 @@ export default function PortfolioBuilderPage() {
       metadata: {
         hasPublicUrl: Boolean(publicUrl),
         hasSkills: skillItems.length > 0,
+        hasAvatar: Boolean(avatarImage),
+        badgeTheme,
       },
     });
   };
@@ -1242,6 +1385,26 @@ export default function PortfolioBuilderPage() {
                 ظهورك المهني بشكل مرتب يساعد مسؤولي التوظيف على فهم جاهزيتك بسرعة.
                 شارك بطاقتك الرقمية ورابط ملفك في LinkedIn بطريقة جاهزة واحترافية.
               </p>
+            </div>
+
+            <div className="portfolio-badge-theme-picker" role="group" aria-label="نمط البطاقة">
+              <span>نمط البطاقة</span>
+              <div>
+                <button
+                  type="button"
+                  className={badgeTheme === "dark" ? "is-active" : ""}
+                  onClick={() => setBadgeTheme("dark")}
+                >
+                  ليلي
+                </button>
+                <button
+                  type="button"
+                  className={badgeTheme === "light" ? "is-active" : ""}
+                  onClick={() => setBadgeTheme("light")}
+                >
+                  نهاري
+                </button>
+              </div>
             </div>
 
             <div className="portfolio-growth-actions">

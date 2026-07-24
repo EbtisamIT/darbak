@@ -2943,6 +2943,50 @@ body {
   line-height: 1.85;
 }
 
+.portfolio-badge-theme-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 17px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+}
+
+.portfolio-badge-theme-picker > span {
+  color: var(--app-text-soft);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.portfolio-badge-theme-picker > div {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.portfolio-badge-theme-picker button {
+  min-height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--app-text-soft);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 7px 13px;
+}
+
+.portfolio-badge-theme-picker button.is-active {
+  background: var(--app-brand);
+  color: #071814;
+}
+
 .portfolio-growth-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4556,6 +4600,16 @@ body {
 
   .portfolio-growth-copy h2 {
     font-size: 18px;
+  }
+
+  .portfolio-badge-theme-picker {
+    display: grid;
+  }
+
+  .portfolio-badge-theme-picker > div {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .portfolio-growth-actions,
