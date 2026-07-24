@@ -47,6 +47,18 @@ const ActionLink = ({ href, className = "", children, disabled = false }) => {
   );
 };
 
+const formatDate = (value = "") => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("ar-SA", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date);
+};
+
 export default function PortfolioPage() {
   const { slug = "" } = useParams();
   const [portfolio, setPortfolio] = useState(null);
@@ -104,6 +116,31 @@ export default function PortfolioPage() {
   }, [portfolio]);
 
   const mailHref = portfolio?.email ? `mailto:${portfolio.email}` : "";
+  const avatarSrc = portfolio?.avatarAssetUrl || portfolio?.avatarUrl || "";
+  const cvHref = portfolio?.cvAssetUrl || portfolio?.cvUrl || "";
+
+  const sharePortfolio = async () => {
+    const shareUrl =
+      typeof window !== "undefined"
+        ? window.location.href
+        : `https://darbak.space/p/${slug}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `ملف أعمال ${portfolio.fullName}`,
+          text: "ملف أعمال رقمي من دربك",
+          url: shareUrl,
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(shareUrl);
+      setMessage("تم نسخ رابط ملف الأعمال.");
+    } catch {
+      setMessage("انسخ الرابط من المتصفح إذا لم تظهر المشاركة.");
+    }
+  };
 
   if (status === "loading") {
     return (
@@ -146,8 +183,8 @@ export default function PortfolioPage() {
           </div>
 
           <div className="portfolio-avatar">
-            {portfolio.avatarUrl ? (
-              <img src={portfolio.avatarUrl} alt={portfolio.fullName} />
+            {avatarSrc ? (
+              <img src={avatarSrc} alt={portfolio.fullName} />
             ) : (
               <strong>{initialsFromName(portfolio.fullName) || "د"}</strong>
             )}
@@ -164,6 +201,15 @@ export default function PortfolioPage() {
           <div className="portfolio-card-section">
             <span>حالة الجاهزية</span>
             <strong>{portfolio.readinessStatus}</strong>
+          </div>
+
+          <div className="portfolio-card-section">
+            <span>البيانات الأكاديمية</span>
+            <p>
+              {[portfolio.degreeLevel, portfolio.dateOfBirth && `الميلاد: ${formatDate(portfolio.dateOfBirth)}`]
+                .filter(Boolean)
+                .join(" | ") || "لم تكتمل بعد"}
+            </p>
           </div>
 
           <div className="portfolio-card-section">
@@ -188,12 +234,23 @@ export default function PortfolioPage() {
           </div>
 
           <div className="portfolio-actions">
-            <ActionLink href={portfolio.cvUrl} className="is-primary">
+            <ActionLink href={cvHref} className="is-primary">
               تحميل السيرة الذاتية PDF
             </ActionLink>
             <ActionLink href={portfolio.linkedinUrl}>بروفايل LinkedIn</ActionLink>
             <ActionLink href={mailHref}>تواصل عبر البريد</ActionLink>
+            <button
+              type="button"
+              className="portfolio-action"
+              onClick={sharePortfolio}
+            >
+              مشاركة البطاقة
+            </button>
           </div>
+
+          {message && status === "ready" && (
+            <p className="portfolio-share-message">{message}</p>
+          )}
 
           <section className="portfolio-section">
             <h3>نبذة شخصية</h3>
@@ -209,6 +266,24 @@ export default function PortfolioPage() {
               <div className="portfolio-skills">
                 {portfolio.skills.map((skill) => (
                   <span key={skill}>{skill}</span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {portfolio.certifications?.length > 0 && (
+            <section className="portfolio-section">
+              <h3>الشهادات والدورات التدريبية</h3>
+              <div className="portfolio-certifications">
+                {portfolio.certifications.map((certification, index) => (
+                  <article key={`${certification.title}-${index}`}>
+                    <strong>{certification.title || "شهادة تدريبية"}</strong>
+                    <span>
+                      {[certification.provider, certification.year]
+                        .filter(Boolean)
+                        .join(" - ")}
+                    </span>
+                  </article>
                 ))}
               </div>
             </section>

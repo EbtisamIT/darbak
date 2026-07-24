@@ -405,6 +405,10 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             {isMobile ? "مقابلات" : "💬 مقابلات"}
           </Link>
 
+          <Link to="/portofoili" style={linkStyle("/portofoili")}>
+            {isMobile ? "Portfolio" : "portofoili"}
+          </Link>
+
           <button
             type="button"
             onClick={openAccountModal}
@@ -504,6 +508,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               <Link to="/interviews" style={floatingLinkStyle("/interviews")}>
                 <span>مقابلات</span>
                 <span aria-hidden="true">💬</span>
+              </Link>
+
+              <Link to="/portofoili" style={floatingLinkStyle("/portofoili")}>
+                <span>portofoili</span>
+                <span aria-hidden="true">▤</span>
               </Link>
 
               <button

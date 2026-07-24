@@ -21,6 +21,27 @@ const portfolioProjectSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const portfolioCertificationSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    provider: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    year: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
 const portfolioSchema = new mongoose.Schema(
   {
     contact: {
@@ -63,6 +84,16 @@ const portfolioSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    dateOfBirth: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    degreeLevel: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     readinessStatus: {
       type: String,
       default: "مستعد ومؤهل للمقابلات الشخصية",
@@ -85,6 +116,15 @@ const portfolioSchema = new mongoose.Schema(
       type: [portfolioProjectSchema],
       default: [],
     },
+    certifications: {
+      type: [portfolioCertificationSchema],
+      default: [],
+    },
+    cvAssetId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "portfolio_assets",
+      default: null,
+    },
     cvUrl: {
       type: String,
       default: "",
@@ -100,6 +140,11 @@ const portfolioSchema = new mongoose.Schema(
       default: "",
       trim: true,
       lowercase: true,
+    },
+    avatarAssetId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "portfolio_assets",
+      default: null,
     },
     avatarUrl: {
       type: String,

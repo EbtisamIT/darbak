@@ -19,6 +19,7 @@ import AddExperienceModal from "./pages/AddExperienceModal";
 import LegalPage from "./pages/LegalPage";
 import AdminReviewPage from "./pages/AdminReviewPage";
 import PortfolioPage from "./pages/PortfolioPage";
+import PortfolioBuilderPage from "./pages/PortfolioBuilderPage";
 import Footer from "./pages/Footer";
 import { guideUrl } from "./components/TrainingGuideBanner";
 import PremiumAccessGate from "./components/PremiumAccessGate";
@@ -1230,6 +1231,8 @@ function AppLayout({ theme, setTheme }) {
             <Route path="/experiences/:experienceId" element={<ExperiencesPage />} />
             <Route path="/interviews" element={<InterviewsPage />} />
             <Route path="/where-to-train" element={<TrainingFinderPage />} />
+            <Route path="/portofoili" element={<PortfolioBuilderPage />} />
+            <Route path="/portfolio" element={<PortfolioBuilderPage />} />
             <Route
               path="/where-to-train/opportunity/:organizationSlug/:opportunityId"
               element={<TrainingFinderPage />}

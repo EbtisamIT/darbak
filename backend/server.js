@@ -13,6 +13,7 @@ const AnalyticsEvent = require('./models/AnalyticsEvent');
 const Subscription = require('./models/Subscription');
 const User = require('./models/User');
 const Portfolio = require('./models/Portfolio');
+const PortfolioAsset = require('./models/PortfolioAsset');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1132,6 +1133,35 @@ const sanitizePortfolioProjects = (projects = []) => {
     .slice(0, 6);
 };
 
+const sanitizePortfolioCertifications = (certifications = []) => {
+  const rawCertifications = Array.isArray(certifications) ? certifications : [];
+
+  return rawCertifications
+    .map((certification = {}) => ({
+      title: sanitizePortfolioText(certification.title, 100),
+      provider: sanitizePortfolioText(certification.provider, 90),
+      year: sanitizePortfolioText(certification.year, 20),
+    }))
+    .filter(
+      (certification) =>
+        certification.title || certification.provider || certification.year
+    )
+    .slice(0, 8);
+};
+
+const sanitizePortfolioDate = (value = "") => {
+  const raw = value.toString().trim();
+  if (!raw) return "";
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toISOString().slice(0, 10);
+};
+
+const getPortfolioAssetUrl = (req, assetId = "") =>
+  assetId ? `${getPublicApiUrl(req)}/api/portfolio-assets/${assetId}` : "";
+
 const sanitizePortfolioPayload = (body = {}, contact = "") => {
   const slug = normalizePortfolioSlug(body.slug) || buildDefaultPortfolioSlug(contact);
   const normalizedContact = normalizeSubscriberContact(contact);
@@ -1143,6 +1173,8 @@ const sanitizePortfolioPayload = (body = {}, contact = "") => {
     major: sanitizePortfolioText(body.major, 90),
     university: sanitizePortfolioText(body.university, 110),
     city: sanitizePortfolioText(body.city, 60),
+    dateOfBirth: sanitizePortfolioDate(body.dateOfBirth),
+    degreeLevel: sanitizePortfolioText(body.degreeLevel, 70),
     readinessStatus:
       sanitizePortfolioText(body.readinessStatus, 110) ||
       "مستعد ومؤهل للمقابلات الشخصية",
@@ -1154,6 +1186,7 @@ const sanitizePortfolioPayload = (body = {}, contact = "") => {
     bio: sanitizePortfolioLongText(body.bio, 500),
     skills: normalizePortfolioList(body.skills, 12, 36),
     projects: sanitizePortfolioProjects(body.projects),
+    certifications: sanitizePortfolioCertifications(body.certifications),
     cvUrl: sanitizePortfolioUrl(body.cvUrl, 260),
     linkedinUrl: sanitizePortfolioUrl(body.linkedinUrl, 260),
     email: isValidEmail(rawEmail) ? normalizeEmail(rawEmail) : "",
@@ -1207,13 +1240,15 @@ const getPortfolioAccessStatus = async (portfolio = {}) => {
   };
 };
 
-const serializePortfolio = (portfolio = {}, accessStatus = {}) => ({
+const serializePortfolio = (portfolio = {}, accessStatus = {}, req = null) => ({
   id: portfolio._id?.toString?.() || portfolio.id || "",
   slug: portfolio.slug || "",
   fullName: portfolio.fullName || "",
   major: portfolio.major || "",
   university: portfolio.university || "",
   city: portfolio.city || "",
+  dateOfBirth: portfolio.dateOfBirth || "",
+  degreeLevel: portfolio.degreeLevel || "",
   readinessStatus: portfolio.readinessStatus || "",
   targetOrganizations: Array.isArray(portfolio.targetOrganizations)
     ? portfolio.targetOrganizations
@@ -1221,9 +1256,21 @@ const serializePortfolio = (portfolio = {}, accessStatus = {}) => ({
   bio: portfolio.bio || "",
   skills: Array.isArray(portfolio.skills) ? portfolio.skills : [],
   projects: Array.isArray(portfolio.projects) ? portfolio.projects : [],
+  certifications: Array.isArray(portfolio.certifications)
+    ? portfolio.certifications
+    : [],
+  cvAssetId: portfolio.cvAssetId?.toString?.() || portfolio.cvAssetId || "",
+  cvAssetUrl:
+    req && portfolio.cvAssetId ? getPortfolioAssetUrl(req, portfolio.cvAssetId) : "",
   cvUrl: portfolio.cvUrl || "",
   linkedinUrl: portfolio.linkedinUrl || "",
   email: portfolio.email || "",
+  avatarAssetId:
+    portfolio.avatarAssetId?.toString?.() || portfolio.avatarAssetId || "",
+  avatarAssetUrl:
+    req && portfolio.avatarAssetId
+      ? getPortfolioAssetUrl(req, portfolio.avatarAssetId)
+      : "",
   avatarUrl: portfolio.avatarUrl || "",
   isPublished: Boolean(portfolio.isPublished),
   viewCount: Number(portfolio.viewCount || 0),
@@ -3864,6 +3911,7 @@ app.get('/api/portfolio/me', async (req, res) => {
       targetOrganizations: [],
       skills: [],
       projects: [],
+      certifications: [],
       isPublished: false,
       viewCount: 0,
     };
@@ -3872,7 +3920,8 @@ app.get('/api/portfolio/me', async (req, res) => {
     );
     const cleanPortfolio = serializePortfolio(
       portfolio || fallbackPortfolio,
-      accessStatus
+      accessStatus,
+      req
     );
 
     res.json({
@@ -3940,7 +3989,7 @@ app.post('/api/portfolio/me', async (req, res) => {
     ).lean();
 
     const accessStatus = await getPortfolioAccessStatus(portfolio);
-    const cleanPortfolio = serializePortfolio(portfolio, accessStatus);
+    const cleanPortfolio = serializePortfolio(portfolio, accessStatus, req);
 
     await AnalyticsEvent.create({
       eventName: "portfolio_saved",
@@ -3969,6 +4018,172 @@ app.post('/api/portfolio/me', async (req, res) => {
 
     console.error("❌ Portfolio save error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+const portfolioAssetParser = express.raw({
+  type: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+  limit: "4mb",
+});
+
+app.put('/api/portfolio/me/assets/:type', portfolioAssetParser, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const type = (req.params.type || "").toString().trim();
+    if (!["avatar", "cv"].includes(type)) {
+      return res.status(400).json({ error: "نوع الملف غير مدعوم." });
+    }
+
+    const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
+
+    if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+      return res.status(400).json({
+        error: "سجّل الدخول بالبريد أو حسابك السابق مع رمز دخول صحيح.",
+      });
+    }
+
+    const fileBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
+    const contentType = (req.headers["content-type"] || "").split(";")[0].trim();
+    const filename = sanitizePortfolioText(
+      decodeURIComponent(req.headers["x-file-name"] || ""),
+      120
+    );
+
+    if (!fileBuffer.length) {
+      return res.status(400).json({ error: "لم يصل ملف صالح." });
+    }
+
+    if (type === "avatar") {
+      const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+      if (!allowedImageTypes.has(contentType)) {
+        return res.status(400).json({ error: "الصورة يجب أن تكون JPG أو PNG أو WEBP." });
+      }
+
+      if (fileBuffer.length > 800 * 1024) {
+        return res.status(413).json({
+          error: "حجم الصورة كبير. جرّب صورة أصغر أو مضغوطة.",
+        });
+      }
+    }
+
+    if (type === "cv") {
+      if (contentType !== "application/pdf") {
+        return res.status(400).json({ error: "ملف السيرة الذاتية يجب أن يكون PDF." });
+      }
+
+      if (fileBuffer.length > 3 * 1024 * 1024) {
+        return res.status(413).json({
+          error: "حجم ملف السيرة كبير. الحد الأقصى 3MB.",
+        });
+      }
+    }
+
+    await ensureAccessUser({ contact, accessCode });
+
+    const portfolio = await Portfolio.findOneAndUpdate(
+      { contact, accessCodeHash },
+      {
+        $setOnInsert: {
+          contact,
+          accessCodeHash,
+          slug: `${buildDefaultPortfolioSlug(contact)}-${Date.now().toString(36)}`,
+          email: isValidEmail(contact) ? contact : "",
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    const asset = await PortfolioAsset.create({
+      contact,
+      accessCodeHash,
+      portfolioId: portfolio._id,
+      type,
+      filename,
+      contentType,
+      size: fileBuffer.length,
+      data: fileBuffer,
+    });
+
+    await PortfolioAsset.deleteMany({
+      _id: { $ne: asset._id },
+      portfolioId: portfolio._id,
+      type,
+    });
+
+    const assetField =
+      type === "avatar"
+        ? { avatarAssetId: asset._id, avatarUrl: "" }
+        : { cvAssetId: asset._id, cvUrl: "" };
+
+    const updatedPortfolio = await Portfolio.findByIdAndUpdate(
+      portfolio._id,
+      { $set: assetField },
+      { new: true }
+    ).lean();
+
+    const accessStatus = await getPortfolioAccessStatus(updatedPortfolio);
+
+    await AnalyticsEvent.create({
+      eventName: "portfolio_file_uploaded",
+      visitorId: sanitizeAnalyticsText(req.headers["x-darbak-visitor-id"], 90),
+      page: "/portofoili",
+      deviceType: sanitizeAnalyticsText(req.headers["x-darbak-device-type"], 24),
+      metadata: { type, size: fileBuffer.length },
+    }).catch(() => null);
+
+    res.json({
+      assetId: asset._id.toString(),
+      assetUrl: getPortfolioAssetUrl(req, asset._id),
+      portfolio: serializePortfolio(updatedPortfolio, accessStatus, req),
+    });
+  } catch (err) {
+    console.error("❌ Portfolio asset upload error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/portfolio-assets/:assetId', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const assetId = req.params.assetId || "";
+    if (!mongoose.Types.ObjectId.isValid(assetId)) {
+      return res.status(404).send("Not found");
+    }
+
+    const asset = await PortfolioAsset.findById(assetId);
+    if (!asset) {
+      return res.status(404).send("Not found");
+    }
+
+    const portfolio = await Portfolio.findById(asset.portfolioId).lean();
+    if (!portfolio) {
+      return res.status(404).send("Not found");
+    }
+
+    const accessStatus = await getPortfolioAccessStatus(portfolio);
+    if (!accessStatus.isActive) {
+      return res.status(403).send("Portfolio is not active");
+    }
+
+    res.setHeader("Content-Type", asset.contentType);
+    res.setHeader("Content-Length", asset.size);
+    res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    res.setHeader(
+      "Content-Disposition",
+      asset.type === "cv"
+        ? `inline; filename="${encodeURIComponent(asset.filename || "cv.pdf")}"`
+        : "inline"
+    );
+    res.end(asset.data);
+  } catch (err) {
+    console.error("❌ Portfolio asset fetch error:", err);
+    res.status(500).send("Server error");
   }
 });
 
@@ -4024,7 +4239,7 @@ app.get('/api/portfolios/:slug', async (req, res) => {
     }).catch(() => null);
 
     res.json({
-      portfolio: serializePortfolio(updatedPortfolio, accessStatus),
+      portfolio: serializePortfolio(updatedPortfolio, accessStatus, req),
     });
   } catch (err) {
     console.error("❌ Public portfolio error:", err);
