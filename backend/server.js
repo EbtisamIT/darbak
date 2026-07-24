@@ -1773,6 +1773,54 @@ const getPremiumEventAnalytics = (match, premiumEventNames = []) =>
     { $sort: { count: -1, label: 1 } },
   ]);
 
+const getSimpleEventAnalytics = (match, eventNames = []) =>
+  AnalyticsEvent.aggregate([
+    {
+      $match: {
+        ...match,
+        eventName: { $in: eventNames },
+      },
+    },
+    {
+      $group: {
+        _id: "$eventName",
+        count: { $sum: 1 },
+        uniqueVisitorIds: { $addToSet: "$visitorId" },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        label: "$_id",
+        count: 1,
+        uniqueVisitors: {
+          $size: {
+            $filter: {
+              input: "$uniqueVisitorIds",
+              as: "visitorId",
+              cond: {
+                $and: [
+                  { $ne: ["$$visitorId", null] },
+                  { $ne: ["$$visitorId", ""] },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+    { $sort: { count: -1, label: 1 } },
+  ]);
+
+const getPortfolioFieldGroup = (field, limit = 10) =>
+  Portfolio.aggregate([
+    { $match: { [field]: { $nin: [null, ""] } } },
+    { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+    { $sort: { count: -1, _id: 1 } },
+    { $limit: limit },
+    { $project: { _id: 0, label: "$_id", count: 1 } },
+  ]);
+
 const SMART_ASSISTANT_MAX_CANDIDATES = 1200;
 
 const SMART_ASSISTANT_ORG_ALIASES = [
@@ -5166,6 +5214,21 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       "account_logout_clicked",
       "account_access_help_requested",
     ];
+    const portfolioEventNames = [
+      "portfolio_announcement_viewed",
+      "portfolio_announcement_cta_clicked",
+      "portfolio_builder_opened",
+      "portfolio_saved_from_page",
+      "portfolio_saved",
+      "portfolio_file_uploaded",
+      "portfolio_public_viewed",
+      "portfolio_inactive_opened",
+      "portfolio_native_share_clicked",
+      "portfolio_link_copied",
+      "portfolio_linkedin_share_clicked",
+      "portfolio_referral_link_copied",
+      "portfolio_badge_downloaded",
+    ];
     const interviewPageMatch = {
       ...cleanMatch,
       eventName: "interviews_page_viewed",
@@ -5187,6 +5250,9 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     };
     const subscriptionDateMatch = match.createdAt
       ? { updatedAt: match.createdAt }
+      : {};
+    const portfolioDateMatch = match.createdAt
+      ? { createdAt: match.createdAt }
       : {};
 
     const [
@@ -5238,6 +5304,21 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       topSharedExperiences,
       topSharedOpportunities,
       topSharedTrainingTargets,
+      portfolioEventCounts,
+      totalPortfolios,
+      publishedPortfolios,
+      recentPortfoliosCreated,
+      portfoliosWithCv,
+      portfoliosWithAvatar,
+      portfoliosWithProjects,
+      portfoliosWithCertifications,
+      portfolioViewStats,
+      topPortfolioMajors,
+      topPortfolioCities,
+      topPortfolioUniversities,
+      topPortfolioReadiness,
+      recentPortfolios,
+      topViewedPortfolios,
       hourlyActivity,
       recentEvents,
     ] = await Promise.all([
@@ -5582,6 +5663,46 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $limit: 10 },
         { $project: { _id: 0, label: "$_id", count: 1 } },
       ]),
+      getSimpleEventAnalytics(cleanMatch, portfolioEventNames),
+      Portfolio.countDocuments({}),
+      Portfolio.countDocuments({ isPublished: true }),
+      Portfolio.countDocuments(portfolioDateMatch),
+      Portfolio.countDocuments({ cvAssetId: { $ne: null } }),
+      Portfolio.countDocuments({ avatarAssetId: { $ne: null } }),
+      Portfolio.countDocuments({ "projects.0": { $exists: true } }),
+      Portfolio.countDocuments({ "certifications.0": { $exists: true } }),
+      Portfolio.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalViews: { $sum: { $ifNull: ["$viewCount", 0] } },
+            averageViews: { $avg: { $ifNull: ["$viewCount", 0] } },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            totalViews: 1,
+            averageViews: { $round: ["$averageViews", 1] },
+          },
+        },
+      ]),
+      getPortfolioFieldGroup("major", 10),
+      getPortfolioFieldGroup("city", 10),
+      getPortfolioFieldGroup("university", 10),
+      getPortfolioFieldGroup("readinessStatus", 10),
+      Portfolio.find({})
+        .sort({ updatedAt: -1 })
+        .limit(12)
+        .select(
+          "fullName major university city degreeLevel readinessStatus email slug isPublished viewCount cvAssetId avatarAssetId projects certifications linkedinUrl createdAt updatedAt"
+        )
+        .lean(),
+      Portfolio.find({ viewCount: { $gt: 0 } })
+        .sort({ viewCount: -1, updatedAt: -1 })
+        .limit(10)
+        .select("fullName major city slug viewCount")
+        .lean(),
       AnalyticsEvent.aggregate([
         { $match: cleanMatch },
         {
@@ -5612,6 +5733,41 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         uniqueVisitors: item?.uniqueVisitors || 0,
       };
     };
+    const getPortfolioEventSummary = (eventName) => {
+      const item = (portfolioEventCounts || []).find(
+        (event) => event.label === eventName
+      );
+
+      return {
+        events: item?.count || 0,
+        uniqueVisitors: item?.uniqueVisitors || 0,
+      };
+    };
+
+    const sanitizeAdminPortfolio = (portfolio = {}) => ({
+      id: portfolio._id?.toString?.() || "",
+      fullName: portfolio.fullName || "بدون اسم",
+      major: portfolio.major || "",
+      university: portfolio.university || "",
+      city: portfolio.city || "",
+      degreeLevel: portfolio.degreeLevel || "",
+      readinessStatus: portfolio.readinessStatus || "",
+      email: portfolio.email || "",
+      slug: portfolio.slug || "",
+      isPublished: Boolean(portfolio.isPublished),
+      viewCount: Number(portfolio.viewCount || 0),
+      hasCv: Boolean(portfolio.cvAssetId),
+      hasAvatar: Boolean(portfolio.avatarAssetId),
+      projectsCount: Array.isArray(portfolio.projects)
+        ? portfolio.projects.length
+        : 0,
+      certificationsCount: Array.isArray(portfolio.certifications)
+        ? portfolio.certifications.length
+        : 0,
+      hasLinkedIn: Boolean(portfolio.linkedinUrl),
+      createdAt: portfolio.createdAt,
+      updatedAt: portfolio.updatedAt,
+    });
 
     res.json({
       days,
@@ -5677,6 +5833,46 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       topSharedExperiences,
       topSharedOpportunities,
       topSharedTrainingTargets,
+      portfolioEventCounts,
+      portfolioSummary: {
+        totalPortfolios,
+        publishedPortfolios,
+        recentPortfoliosCreated,
+        portfoliosWithCv,
+        portfoliosWithAvatar,
+        portfoliosWithProjects,
+        portfoliosWithCertifications,
+        totalPublicViews: portfolioViewStats[0]?.totalViews || 0,
+        averagePublicViews: portfolioViewStats[0]?.averageViews || 0,
+        builderOpened: getPortfolioEventSummary("portfolio_builder_opened"),
+        saved: getPortfolioEventSummary("portfolio_saved"),
+        savedFromPage: getPortfolioEventSummary("portfolio_saved_from_page"),
+        fileUploaded: getPortfolioEventSummary("portfolio_file_uploaded"),
+        publicViewed: getPortfolioEventSummary("portfolio_public_viewed"),
+        linkedInShared: getPortfolioEventSummary(
+          "portfolio_linkedin_share_clicked"
+        ),
+        referralCopied: getPortfolioEventSummary(
+          "portfolio_referral_link_copied"
+        ),
+        badgeDownloaded: getPortfolioEventSummary("portfolio_badge_downloaded"),
+        nativeShared: getPortfolioEventSummary("portfolio_native_share_clicked"),
+        linkCopied: getPortfolioEventSummary("portfolio_link_copied"),
+      },
+      topPortfolioMajors,
+      topPortfolioCities,
+      topPortfolioUniversities,
+      topPortfolioReadiness,
+      recentPortfolios: recentPortfolios.map(sanitizeAdminPortfolio),
+      topViewedPortfolios: topViewedPortfolios.map((portfolio) => ({
+        id: portfolio._id?.toString?.() || "",
+        label:
+          portfolio.fullName ||
+          portfolio.slug ||
+          [portfolio.major, portfolio.city].filter(Boolean).join(" - ") ||
+          "ملف أعمال",
+        count: Number(portfolio.viewCount || 0),
+      })),
       hourlyActivity,
       recentEvents,
     });

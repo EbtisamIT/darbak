@@ -194,6 +194,34 @@ const emptyAnalytics = {
   topSharedExperiences: [],
   topSharedOpportunities: [],
   topSharedTrainingTargets: [],
+  portfolioEventCounts: [],
+  portfolioSummary: {
+    totalPortfolios: 0,
+    publishedPortfolios: 0,
+    recentPortfoliosCreated: 0,
+    portfoliosWithCv: 0,
+    portfoliosWithAvatar: 0,
+    portfoliosWithProjects: 0,
+    portfoliosWithCertifications: 0,
+    totalPublicViews: 0,
+    averagePublicViews: 0,
+    builderOpened: { events: 0, uniqueVisitors: 0 },
+    saved: { events: 0, uniqueVisitors: 0 },
+    savedFromPage: { events: 0, uniqueVisitors: 0 },
+    fileUploaded: { events: 0, uniqueVisitors: 0 },
+    publicViewed: { events: 0, uniqueVisitors: 0 },
+    linkedInShared: { events: 0, uniqueVisitors: 0 },
+    referralCopied: { events: 0, uniqueVisitors: 0 },
+    badgeDownloaded: { events: 0, uniqueVisitors: 0 },
+    nativeShared: { events: 0, uniqueVisitors: 0 },
+    linkCopied: { events: 0, uniqueVisitors: 0 },
+  },
+  topPortfolioMajors: [],
+  topPortfolioCities: [],
+  topPortfolioUniversities: [],
+  topPortfolioReadiness: [],
+  recentPortfolios: [],
+  topViewedPortfolios: [],
   hourlyActivity: [],
   recentEvents: [],
   rawEvents: 0,
@@ -262,6 +290,19 @@ const analyticsEventLabels = {
   account_login_failed: "دخول حساب فاشل",
   account_logout_clicked: "تسجيل خروج",
   account_access_help_requested: "نسيان الرمز من حسابي",
+  portfolio_announcement_viewed: "ظهور إعلان ملف الأعمال",
+  portfolio_announcement_cta_clicked: "ضغط إعلان ملف الأعمال",
+  portfolio_builder_opened: "فتح بناء ملف الأعمال",
+  portfolio_saved_from_page: "حفظ ملف الأعمال من الصفحة",
+  portfolio_saved: "حفظ ملف الأعمال",
+  portfolio_file_uploaded: "رفع ملف أعمال",
+  portfolio_public_viewed: "مشاهدة ملف أعمال عام",
+  portfolio_inactive_opened: "فتح ملف غير مفعل",
+  portfolio_native_share_clicked: "مشاركة ملف الأعمال",
+  portfolio_link_copied: "نسخ رابط ملف الأعمال",
+  portfolio_linkedin_share_clicked: "مشاركة LinkedIn للملف",
+  portfolio_referral_link_copied: "نسخ رابط إحالة الملف",
+  portfolio_badge_downloaded: "تحميل بطاقة ملف الأعمال",
 };
 
 const premiumFunnelSteps = [
@@ -280,6 +321,18 @@ const premiumSupportSteps = [
   ["account_login_failed", "محاولة دخول فاشلة"],
   ["premium_access_help_requested", "طلب نسيت الرمز"],
   ["account_access_help_requested", "نسيت الرمز من حسابي"],
+];
+
+const portfolioFunnelSteps = [
+  ["portfolio_announcement_viewed", "شاهدوا إعلان الميزة"],
+  ["portfolio_announcement_cta_clicked", "ضغطوا إعلان الميزة"],
+  ["portfolio_builder_opened", "فتحوا صفحة البناء"],
+  ["portfolio_saved", "حفظوا ملف أعمال"],
+  ["portfolio_file_uploaded", "رفعوا ملف أو صورة"],
+  ["portfolio_public_viewed", "مشاهدات الرابط العام"],
+  ["portfolio_linkedin_share_clicked", "شاركوا في LinkedIn"],
+  ["portfolio_badge_downloaded", "حمّلوا البطاقة"],
+  ["portfolio_referral_link_copied", "نسخوا رابط الإحالة"],
 ];
 
 const premiumPlanLabels = {
@@ -1057,6 +1110,10 @@ export default function AdminReviewPage() {
           ...emptyAnalytics.premiumFunnelSummary,
           ...(data.premiumFunnelSummary || {}),
         },
+        portfolioSummary: {
+          ...emptyAnalytics.portfolioSummary,
+          ...(data.portfolioSummary || {}),
+        },
       });
     } catch (err) {
       console.error(err);
@@ -1485,6 +1542,17 @@ export default function AdminReviewPage() {
     };
   };
 
+  const getPortfolioEventStats = (eventName) => {
+    const item = (analytics.portfolioEventCounts || []).find(
+      (event) => event.label === eventName
+    );
+
+    return {
+      count: item?.count || 0,
+      uniqueVisitors: item?.uniqueVisitors || 0,
+    };
+  };
+
   const renderPremiumStep = ([eventName, label], index) => {
     const stats = getPremiumEventStats(eventName);
 
@@ -1518,6 +1586,34 @@ export default function AdminReviewPage() {
           {label}
         </span>
         <small style={{ color: adminColors.muted, lineHeight: 1.6 }}>
+          {stats.uniqueVisitors} مستخدم فريد
+        </small>
+      </article>
+    );
+  };
+
+  const renderPortfolioStep = ([eventName, label]) => {
+    const stats = getPortfolioEventStats(eventName);
+
+    return (
+      <article
+        key={eventName}
+        style={{
+          background: "rgba(102,208,195,0.055)",
+          border: "1px solid rgba(102,208,195,0.14)",
+          borderRadius: "14px",
+          padding: "12px",
+          display: "grid",
+          gap: "7px",
+        }}
+      >
+        <span style={{ color: adminColors.textSoft, fontSize: 12, fontWeight: 800 }}>
+          {label}
+        </span>
+        <strong style={{ color: adminColors.brand, fontSize: 24 }}>
+          {stats.count}
+        </strong>
+        <small style={{ color: adminColors.muted }}>
           {stats.uniqueVisitors} مستخدم فريد
         </small>
       </article>
@@ -2698,6 +2794,219 @@ export default function AdminReviewPage() {
                 analytics.topPremiumPlans || [],
                 (label) => premiumPlanLabels[label] || label
               )}
+            </div>
+          </section>
+
+          <section style={cardStyle}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "12px",
+                alignItems: "flex-start",
+                flexWrap: "wrap",
+                marginBottom: "14px",
+              }}
+            >
+              <div>
+                <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                  ملفات الأعمال Portfolio
+                </h3>
+                <p
+                  style={{
+                    color: adminColors.muted,
+                    margin: 0,
+                    fontSize: 13,
+                    lineHeight: 1.7,
+                  }}
+                >
+                  متابعة بناء الملفات، الطلاب، التخصصات، الملفات المرفوعة،
+                  ومشاركة LinkedIn والبطاقة الرقمية.
+                </p>
+              </div>
+              <strong
+                style={{
+                  color: adminColors.text,
+                  background: "rgba(102,208,195,0.12)",
+                  border: "1px solid rgba(102,208,195,0.2)",
+                  borderRadius: "999px",
+                  padding: "8px 12px",
+                  fontSize: 13,
+                }}
+              >
+                {analytics.portfolioSummary?.totalPortfolios || 0} ملف
+              </strong>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: "10px",
+                marginBottom: "14px",
+              }}
+            >
+              {[
+                [
+                  "إجمالي ملفات الأعمال",
+                  analytics.portfolioSummary?.totalPortfolios || 0,
+                  "كل الملفات المحفوظة",
+                ],
+                [
+                  "ملفات منشورة",
+                  analytics.portfolioSummary?.publishedPortfolios || 0,
+                  "اختاروا نشر الرابط",
+                ],
+                [
+                  "ملفات جديدة في الفترة",
+                  analytics.portfolioSummary?.recentPortfoliosCreated || 0,
+                  analytics.rangeLabel || `${analytics.days} يوم`,
+                ],
+                [
+                  "مع سيرة ذاتية",
+                  analytics.portfolioSummary?.portfoliosWithCv || 0,
+                  "PDF مرفوع",
+                ],
+                [
+                  "مع صورة شخصية",
+                  analytics.portfolioSummary?.portfoliosWithAvatar || 0,
+                  "صورة مضغوطة",
+                ],
+                [
+                  "مع مشاريع",
+                  analytics.portfolioSummary?.portfoliosWithProjects || 0,
+                  "فيها مشروع واحد على الأقل",
+                ],
+                [
+                  "مع شهادات",
+                  analytics.portfolioSummary?.portfoliosWithCertifications || 0,
+                  "دورات أو شهادات",
+                ],
+                [
+                  "مشاهدات الروابط العامة",
+                  analytics.portfolioSummary?.totalPublicViews || 0,
+                  `متوسط ${analytics.portfolioSummary?.averagePublicViews || 0}`,
+                ],
+              ].map(renderAdminMetricCard)}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: "10px",
+                marginBottom: "14px",
+              }}
+            >
+              {portfolioFunnelSteps.map(renderPortfolioStep)}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "12px",
+                marginBottom: "14px",
+              }}
+            >
+              {renderAnalyticsList("تخصصات ملفات الأعمال", analytics.topPortfolioMajors)}
+              {renderAnalyticsList("مدن ملفات الأعمال", analytics.topPortfolioCities)}
+              {renderAnalyticsList(
+                "جامعات ملفات الأعمال",
+                analytics.topPortfolioUniversities
+              )}
+              {renderAnalyticsList(
+                "حالات الجاهزية",
+                analytics.topPortfolioReadiness
+              )}
+              {renderAnalyticsList(
+                "أكثر ملفات الأعمال مشاهدة",
+                analytics.topViewedPortfolios
+              )}
+            </div>
+
+            <div
+              style={{
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: "14px",
+                overflowX: "auto",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "minmax(160px, 1.2fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(150px, 1fr)",
+                  gap: "10px",
+                  padding: "10px 12px",
+                  color: adminColors.muted,
+                  fontSize: 12,
+                  fontWeight: 900,
+                  borderBottom: "1px solid rgba(255,255,255,0.07)",
+                  minWidth: "760px",
+                }}
+              >
+                <span>الطالب</span>
+                <span>التخصص</span>
+                <span>المدينة / الجامعة</span>
+                <span>الملفات والمحتوى</span>
+                <span>الحالة</span>
+              </div>
+              <div>
+                {(analytics.recentPortfolios || []).length === 0 ? (
+                  <p style={{ color: adminColors.muted, margin: 0, padding: "14px" }}>
+                    لا توجد ملفات أعمال بعد.
+                  </p>
+                ) : (
+                  analytics.recentPortfolios.map((portfolio) => (
+                    <article
+                      key={portfolio.id || portfolio.slug}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "minmax(160px, 1.2fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(150px, 1fr)",
+                        gap: "10px",
+                        minWidth: "760px",
+                        padding: "12px",
+                        borderBottom: "1px solid rgba(255,255,255,0.06)",
+                        color: adminColors.text,
+                        alignItems: "start",
+                      }}
+                    >
+                      <div style={{ display: "grid", gap: "4px" }}>
+                        <strong style={{ color: adminColors.brand }}>
+                          {portfolio.fullName || "بدون اسم"}
+                        </strong>
+                        <small style={{ color: adminColors.muted, direction: "ltr" }}>
+                          {portfolio.email || portfolio.slug || "-"}
+                        </small>
+                      </div>
+                      <span style={{ lineHeight: 1.7 }}>
+                        {portfolio.major || "-"}
+                        {portfolio.degreeLevel ? ` · ${portfolio.degreeLevel}` : ""}
+                      </span>
+                      <span style={{ lineHeight: 1.7 }}>
+                        {[portfolio.city, portfolio.university].filter(Boolean).join(" · ") ||
+                          "-"}
+                      </span>
+                      <span style={{ lineHeight: 1.8, color: adminColors.textSoft }}>
+                        {portfolio.hasCv ? "CV" : "بدون CV"} ·{" "}
+                        {portfolio.hasAvatar ? "صورة" : "بدون صورة"} ·{" "}
+                        {portfolio.projectsCount || 0} مشاريع ·{" "}
+                        {portfolio.certificationsCount || 0} شهادات
+                      </span>
+                      <span style={{ lineHeight: 1.8, color: adminColors.textSoft }}>
+                        {portfolio.isPublished ? "منشور" : "غير منشور"} ·{" "}
+                        {portfolio.viewCount || 0} مشاهدة
+                        <br />
+                        <small style={{ color: adminColors.muted }}>
+                          {formatAdminDateTime(portfolio.updatedAt)}
+                        </small>
+                      </span>
+                    </article>
+                  ))
+                )}
+              </div>
             </div>
           </section>
 
