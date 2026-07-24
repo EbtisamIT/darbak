@@ -23,23 +23,34 @@
 }
 
 :root[data-theme="light"] {
-  --app-bg: #f4faf8;
+  --app-bg: #f7faf8;
   --app-surface: #ffffff;
-  --app-surface-2: #f8fcfb;
+  --app-surface-2: #f1f6f4;
   --app-card: #ffffff;
-  --app-text: #071814;
-  --app-text-soft: #1b2f2b;
-  --app-muted: #536761;
-  --app-muted-2: #3e514d;
-  --app-brand: #2f9f91;
-  --app-brand-strong: #176f64;
-  --app-brand-soft: rgba(47, 159, 145, 0.1);
-  --app-brand-border: rgba(31, 126, 115, 0.34);
-  --app-border: rgba(7, 24, 20, 0.13);
-  --app-border-soft: rgba(7, 24, 20, 0.08);
-  --app-input-bg: rgba(7, 24, 20, 0.045);
-  --app-shadow: rgba(20, 70, 63, 0.12);
-  --app-overlay: rgba(7, 18, 16, 0.42);
+  --app-text: #0c1f1b;
+  --app-text-soft: #203b36;
+  --app-muted: #586b66;
+  --app-muted-2: #344c47;
+  --app-brand: #238f82;
+  --app-brand-strong: #0f645b;
+  --app-brand-soft: rgba(35, 143, 130, 0.08);
+  --app-brand-border: rgba(15, 100, 91, 0.28);
+  --app-border: rgba(12, 31, 27, 0.14);
+  --app-border-soft: rgba(12, 31, 27, 0.09);
+  --app-input-bg: #ffffff;
+  --app-shadow: rgba(20, 70, 63, 0.1);
+  --app-overlay: rgba(7, 18, 16, 0.38);
+}
+
+:root[data-theme="light"] input,
+:root[data-theme="light"] select,
+:root[data-theme="light"] textarea {
+  color: var(--app-text);
+}
+
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder {
+  color: #6b7c78;
 }
 
 html,
