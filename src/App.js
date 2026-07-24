@@ -28,7 +28,7 @@ import SavedItemsDrawer from "./components/SavedItemsDrawer";
 import DarbakAssistant from "./components/DarbakAssistant";
 import { trackEvent } from "./utils/analytics";
 
-const PLATFORM_UPDATE_NOTICE_KEY = "darbak_training_diagnosis_quiz_seen_v1";
+const PLATFORM_UPDATE_NOTICE_KEY = "darbak_portfolio_announcement_seen_v1";
 const ADMIN_REVIEW_PATH = "/darbak-owner-review-2026";
 const cvProductUrl =
   "https://darbakk.com/%D8%B3%D9%8A%D8%B1%D8%A9-%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8-%D8%A7%D9%84%D8%AA%D8%B9%D8%A7%D9%88%D9%86%D9%8A/p1027158085";
@@ -234,14 +234,18 @@ function PlatformUpdateNotice() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showNotice, setShowNotice] = useState(false);
+  const [noticeMode, setNoticeMode] = useState("portfolio");
   const [step, setStep] = useState("intro");
   const [answers, setAnswers] = useState(diagnosisDefaultAnswers);
   const [shareStatus, setShareStatus] = useState("");
+  const portfolioAnnouncementTrackedRef = useRef(false);
 
   useEffect(() => {
     const isAdminPage = location.pathname === ADMIN_REVIEW_PATH;
     const isTrainingFinderPage = location.pathname.startsWith("/where-to-train");
 
+    setNoticeMode("portfolio");
+    setStep("intro");
     setShowNotice(
       !isAdminPage && !isTrainingFinderPage && !hasSeenPlatformUpdateNotice()
     );
@@ -249,6 +253,7 @@ function PlatformUpdateNotice() {
 
   useEffect(() => {
     const openDiagnosisCard = () => {
+      setNoticeMode("diagnosis");
       setStep("intro");
       setAnswers(diagnosisDefaultAnswers);
       setShareStatus("");
@@ -263,6 +268,22 @@ function PlatformUpdateNotice() {
       );
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      !showNotice ||
+      noticeMode !== "portfolio" ||
+      portfolioAnnouncementTrackedRef.current
+    ) {
+      return;
+    }
+
+    portfolioAnnouncementTrackedRef.current = true;
+    trackEvent("portfolio_announcement_viewed", {
+      page: location.pathname,
+      metadata: { source: "first_visit_popup" },
+    });
+  }, [location.pathname, noticeMode, showNotice]);
 
   const diagnosis = useMemo(
     () => buildTrainingDiagnosis(answers),
@@ -322,8 +343,38 @@ function PlatformUpdateNotice() {
 ابدأ من دربك: ${shareOrigin}/where-to-train`;
 
   const closeNotice = () => {
+    if (noticeMode === "portfolio") {
+      markPlatformUpdateNoticeSeen();
+    }
+    setShowNotice(false);
+  };
+
+  const goToPortfolioBuilder = () => {
     markPlatformUpdateNoticeSeen();
     setShowNotice(false);
+    trackEvent("portfolio_announcement_cta_clicked", {
+      page: location.pathname,
+      metadata: { action: "create_portfolio" },
+    });
+    navigate("/portofoili");
+  };
+
+  const browsePlatformFirst = () => {
+    markPlatformUpdateNoticeSeen();
+    setShowNotice(false);
+    trackEvent("portfolio_announcement_cta_clicked", {
+      page: location.pathname,
+      metadata: { action: "browse_platform" },
+    });
+    navigate("/");
+  };
+
+  const openTraineeGuide = () => {
+    markPlatformUpdateNoticeSeen();
+    trackEvent("portfolio_announcement_cta_clicked", {
+      page: location.pathname,
+      metadata: { action: "trainee_guide" },
+    });
   };
 
   const updateAnswer = (field, value) => {
@@ -401,6 +452,55 @@ function PlatformUpdateNotice() {
       setShareStatus("انسخ التشخيص يدويًا إذا ما ظهرت المشاركة.");
     }
   };
+
+  const renderPortfolioAnnouncement = () => (
+    <>
+      <div className="portfolio-announcement-badge">ميزة جديدة ⚡</div>
+      <div className="portfolio-announcement-icon" aria-hidden="true">
+        ▤
+      </div>
+      <h2 id="portfolio-announcement-title" className="portfolio-announcement-title">
+        أطلقنا ملف الأعمال الرقمي الخاص بك
+      </h2>
+      <p className="portfolio-announcement-text">
+        الآن في <strong>دربك</strong> تقدر تبني هويتك المهنية في رابط مستقل:
+        بطاقة رقمية، جاهزيتك للمقابلات، مشاريعك، وسيرتك الذاتية بشكل مرتب
+        ومناسب للمشاركة مع جهات التدريب.
+      </p>
+
+      <div className="portfolio-announcement-features">
+        <div>✨ رابط مخصص باسمك ومشاركته سريعة.</div>
+        <div>🪪 بطاقة رقمية تعرض جاهزيتك ومعلوماتك المهنية.</div>
+        <div>📁 مساحة مرتبة لمشاريعك وشهاداتك وسيرتك الذاتية.</div>
+      </div>
+
+      <div className="portfolio-announcement-actions">
+        <button
+          type="button"
+          className="portfolio-announcement-primary"
+          onClick={goToPortfolioBuilder}
+        >
+          استكشف الميزة
+        </button>
+        <button
+          type="button"
+          className="portfolio-announcement-secondary"
+          onClick={browsePlatformFirst}
+        >
+          منصة دربك
+        </button>
+        <a
+          className="portfolio-announcement-link"
+          href={guideUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={openTraineeGuide}
+        >
+          رحلة المتدرب
+        </a>
+      </div>
+    </>
+  );
 
   const optionButtonStyle = (active) => ({
     border: `1px solid ${
@@ -991,65 +1091,49 @@ function PlatformUpdateNotice() {
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="platform-update-title"
+      aria-labelledby={
+        noticeMode === "portfolio"
+          ? "portfolio-announcement-title"
+          : "platform-update-title"
+      }
       onClick={closeNotice}
       aria-live="polite"
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "18px",
-        background: "var(--app-overlay)",
-        backdropFilter: "blur(8px)",
-        zIndex: 2500,
-        direction: "rtl",
-        fontFamily: "'Aniq', 'Cairo', sans-serif",
-      }}
+      className={
+        noticeMode === "portfolio"
+          ? "portfolio-announcement-overlay"
+          : "platform-update-overlay"
+      }
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        style={{
-          position: "relative",
-          width:
-            step === "questions" ? "min(680px, 100%)" : "min(540px, 100%)",
-          maxHeight: "88vh",
-          overflowY: "auto",
-          background: "var(--app-surface)",
-          border: "1px solid var(--app-brand-border)",
-          borderRadius: "22px",
-          boxShadow: "0 24px 70px var(--app-shadow)",
-          color: "var(--app-text)",
-          padding: "28px 24px 22px",
-          textAlign: "center",
-        }}
+        className={
+          noticeMode === "portfolio"
+            ? "portfolio-announcement-card"
+            : "platform-update-card"
+        }
+        style={
+          noticeMode === "diagnosis" && step === "questions"
+            ? { width: "min(680px, 100%)" }
+            : undefined
+        }
       >
         <button
           type="button"
           onClick={closeNotice}
-          aria-label="إغلاق بطاقة التشخيص"
-          style={{
-            position: "absolute",
-            top: "12px",
-            left: "12px",
-            width: "32px",
-            height: "32px",
-            borderRadius: "50%",
-            border: "1px solid var(--app-border)",
-            background: "var(--app-input-bg)",
-            color: "var(--app-text-soft)",
-            cursor: "pointer",
-            fontSize: "19px",
-            lineHeight: 1,
-          }}
+          aria-label={noticeMode === "portfolio" ? "إغلاق إعلان ملف الأعمال" : "إغلاق بطاقة التشخيص"}
+          className={
+            noticeMode === "portfolio"
+              ? "portfolio-announcement-close"
+              : "platform-update-close"
+          }
         >
           ×
         </button>
 
-        {step === "intro" && renderIntro()}
-        {step === "questions" && renderQuestions()}
-        {step === "result" && renderResult()}
+        {noticeMode === "portfolio" && renderPortfolioAnnouncement()}
+        {noticeMode === "diagnosis" && step === "intro" && renderIntro()}
+        {noticeMode === "diagnosis" && step === "questions" && renderQuestions()}
+        {noticeMode === "diagnosis" && step === "result" && renderResult()}
       </div>
     </div>
   );
