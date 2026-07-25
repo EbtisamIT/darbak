@@ -279,6 +279,7 @@ const analyticsEventLabels = {
   premium_gate_opened: "ظهور نافذة الاشتراك",
   premium_gate_closed: "إغلاق نافذة الاشتراك",
   premium_nav_cta_clicked: "ضغط زر دربك+",
+  premium_experiences_banner_clicked: "ضغط بنر دربك+ في التجارب",
   premium_plan_selected: "اختيار باقة دربك+",
   premium_checkout_started: "بدء الدفع",
   premium_checkout_failed: "تعذر بدء الدفع",

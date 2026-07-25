@@ -1484,6 +1484,21 @@ const ExperiencesPage = () => {
     );
   };
 
+  const openExperiencesPlusBanner = () => {
+    trackEvent("premium_experiences_banner_clicked", {
+      page: location.pathname,
+      metadata: {
+        source: "experiences_plus_banner",
+      },
+    });
+
+    requestPremiumAccess({
+      feature: "darbak_plus",
+      title: "دربك+",
+      source: "experiences_plus_banner",
+    });
+  };
+
   const skipExperiencePremiumNotice = () => {
     setSelectedExperience((current) =>
       current ? { ...current, isPremiumUpsellHidden: true } : current
@@ -1935,6 +1950,17 @@ const ExperiencesPage = () => {
             </p>
           </section>
         )}
+
+        <section className="experiences-plus-banner" aria-label="إعلان دربك بلس">
+          <div className="experiences-plus-banner-copy">
+            <span>دربك+</span>
+            <strong>استعرض أكثر من 700 تجربة تدريب وتقييم موثّقة</strong>
+            <p>وجميع مزايا دربك+ بـ 5 ريال فقط.</p>
+          </div>
+          <button type="button" onClick={openExperiencesPlusBanner}>
+            فعّل دربك+
+          </button>
+        </section>
 
         <div
           className={`experience-controls-sticky${
@@ -3043,6 +3069,71 @@ const ExperiencesPage = () => {
           min-width: 0;
         }
 
+        .experiences-plus-banner {
+          max-width: 980px;
+          margin: 0 auto 18px;
+          padding: 14px 16px;
+          border-radius: 20px;
+          border: 1px solid var(--app-brand-border);
+          background:
+            radial-gradient(circle at 12% 20%, rgba(125,219,205,0.18), transparent 34%),
+            linear-gradient(135deg, color-mix(in srgb, var(--app-brand) 13%, var(--app-surface)), var(--app-surface-2));
+          box-shadow: 0 18px 42px var(--app-shadow);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 14px;
+          overflow: hidden;
+        }
+
+        .experiences-plus-banner-copy {
+          min-width: 0;
+          display: grid;
+          gap: 4px;
+          text-align: right;
+        }
+
+        .experiences-plus-banner-copy span {
+          width: fit-content;
+          color: #071315;
+          background: var(--app-brand);
+          border-radius: 999px;
+          padding: 4px 11px;
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .experiences-plus-banner-copy strong {
+          color: var(--app-text);
+          font-size: clamp(16px, 2vw, 21px);
+          line-height: 1.55;
+        }
+
+        .experiences-plus-banner-copy p {
+          margin: 0;
+          color: var(--app-text-soft);
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .experiences-plus-banner button {
+          border: none;
+          border-radius: 999px;
+          background: var(--app-brand);
+          color: #071315;
+          cursor: pointer;
+          font-family: inherit;
+          font-size: 13px;
+          font-weight: 900;
+          padding: 11px 18px;
+          white-space: nowrap;
+          box-shadow: 0 10px 24px rgba(125,219,205,0.22);
+        }
+
+        .experiences-plus-banner button:hover {
+          transform: translateY(-1px);
+        }
+
         .experience-controls-sticky {
           position: sticky;
           top: 0;
@@ -3183,6 +3274,27 @@ const ExperiencesPage = () => {
           .experiences-shell {
             margin-top: 18px !important;
             padding: 10px 10px 24px !important;
+          }
+
+          .experiences-plus-banner {
+            margin: 0 auto 10px;
+            padding: 12px;
+            border-radius: 17px;
+            display: grid;
+            gap: 10px;
+          }
+
+          .experiences-plus-banner-copy strong {
+            font-size: 15px;
+          }
+
+          .experiences-plus-banner-copy p {
+            font-size: 12px;
+          }
+
+          .experiences-plus-banner button {
+            width: 100%;
+            justify-content: center;
           }
 
           .experience-controls-sticky {

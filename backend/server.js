@@ -5202,6 +5202,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       "premium_gate_opened",
       "premium_gate_closed",
       "premium_nav_cta_clicked",
+      "premium_experiences_banner_clicked",
       "premium_plan_selected",
       "premium_checkout_started",
       "premium_checkout_failed",
