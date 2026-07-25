@@ -340,13 +340,13 @@ export default function AccountModal() {
           <strong>ابنِ بطاقة مهنية مستقلة، واحفظها أو عاينها قبل مشاركتها.</strong>
           <p>الصور والسيرة الذاتية تُرفع كملفات خفيفة داخل دربك بدل الروابط الخارجية.</p>
           <Link
-            to="/portofoili"
+            to="/portfolio"
             onClick={() => {
               trackEvent("portfolio_account_cta_clicked");
               closeModal();
             }}
           >
-            فتح portofoili
+            فتح portfolio
           </Link>
         </div>
 

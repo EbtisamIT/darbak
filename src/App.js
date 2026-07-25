@@ -356,7 +356,7 @@ function PlatformUpdateNotice() {
       page: location.pathname,
       metadata: { action: "create_portfolio" },
     });
-    navigate("/portofoili");
+    navigate("/portfolio");
   };
 
   const browsePlatformFirst = () => {

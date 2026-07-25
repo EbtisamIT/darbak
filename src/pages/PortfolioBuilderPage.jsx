@@ -961,7 +961,7 @@ export default function PortfolioBuilderPage() {
   return (
     <main className="portfolio-builder-page" dir="rtl">
       <section className="portfolio-builder-hero">
-        <span>portofoili</span>
+        <span>portfolio</span>
         <h1>ملف أعمال رقمي يليق بتقديمك على التدريب.</h1>
         <p>
           اكتب بياناتك، ارفع سيرتك وصورتك، وشاهد البطاقة قبل الحفظ. الرابط العام

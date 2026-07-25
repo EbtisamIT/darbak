@@ -405,8 +405,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             {isMobile ? "مقابلات" : "💬 مقابلات"}
           </Link>
 
-          <Link to="/portofoili" style={linkStyle("/portofoili")}>
-            {isMobile ? "Portfolio" : "portofoili"}
+          <Link to="/portfolio" style={linkStyle("/portfolio")}>
+            portfolio
           </Link>
 
           <button
@@ -510,8 +510,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 <span aria-hidden="true">💬</span>
               </Link>
 
-              <Link to="/portofoili" style={floatingLinkStyle("/portofoili")}>
-                <span>portofoili</span>
+              <Link to="/portfolio" style={floatingLinkStyle("/portfolio")}>
+                <span>portfolio</span>
                 <span aria-hidden="true">▤</span>
               </Link>
 
