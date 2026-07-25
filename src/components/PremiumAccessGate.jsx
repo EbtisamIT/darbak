@@ -4,7 +4,6 @@ import {
   FiCheck,
   FiCreditCard,
   FiShield,
-  FiUnlock,
 } from "react-icons/fi";
 import API_BASE_URL from "../config/api";
 import {
@@ -27,33 +26,6 @@ const initialForm = {
 
 const PENDING_SUBSCRIPTION_KEY = "darbak_pending_subscription_v1";
 
-const premiumBenefitDetails = [
-  {
-    title: "جميع تفاصيل التجارب",
-    description: "اقرأ التجارب كاملة بدون اختصار.",
-  },
-  {
-    title: "أسئلة المقابلات الحقيقية",
-    description: "اعرف الأسئلة التي واجهها الطلاب في الجهات التدريبية.",
-  },
-  {
-    title: "ابحث بذكاء",
-    description: "حسب المدينة، التخصص، الجهة، المكافأة وغيرها.",
-  },
-  {
-    title: "قارن بين الجهات",
-    description: "اعرف أي جهة تناسبك قبل التقديم.",
-  },
-  {
-    title: "احفظ التجارب",
-    description: "ارجع لها في أي وقت.",
-  },
-  {
-    title: "كل المزايا الجديدة أولاً",
-    description: "أي ميزة جديدة داخل دربك ستكون متوفرة لك مباشرة.",
-  },
-];
-
 const formatPlusStat = (value) =>
   typeof value === "number" ? `${value.toLocaleString("en-US")}+` : "جار التحميل";
 
@@ -64,30 +36,10 @@ const PremiumStat = ({ value, label }) => (
   </div>
 );
 
-const PremiumBenefitsPanel = () => (
-  <aside className="premium-benefits-panel" aria-label="مزايا دربك بلس">
-    <h3>✨ ماذا ستحصل؟</h3>
-    <ul>
-      {premiumBenefitDetails.map((benefit) => (
-        <li key={benefit.title}>
-          <span className="premium-benefit-check" aria-hidden="true">
-            <FiUnlock />
-          </span>
-          <div>
-            <strong>{benefit.title}</strong>
-            <p>{benefit.description}</p>
-          </div>
-        </li>
-      ))}
-    </ul>
-  </aside>
-);
-
 const PremiumPlanCard = ({
   plan,
   selected,
   onSelect,
-  onCheckout,
   loading,
 }) => (
   <article className={`premium-plan-card${selected ? " is-selected" : ""}`}>
@@ -118,12 +70,11 @@ const PremiumPlanCard = ({
       type="button"
       className="premium-plan-cta"
       onClick={() => {
-        onSelect();
-        onCheckout(plan);
+        onSelect(plan);
       }}
       disabled={loading}
     >
-      {loading ? "جاري تجهيز الدفع..." : plan.id === "monthly" ? "اشترك الآن" : "اشترك 3 أشهر"}
+      {loading ? "جاري التجهيز..." : plan.id === "monthly" ? "اختيار الشهر" : "اختيار 3 أشهر"}
     </button>
   </article>
 );
@@ -219,7 +170,7 @@ export default function PremiumAccessGate() {
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
   const [isLoginOnly, setIsLoginOnly] = useState(false);
-  const [showPlans, setShowPlans] = useState(false);
+  const [showCheckoutForm, setShowCheckoutForm] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState("one_time_90");
   const [platformStats, setPlatformStats] = useState({
     experiencesCount: null,
@@ -266,7 +217,7 @@ export default function PremiumAccessGate() {
       pendingActionRef.current = event.detail?.onGranted || null;
       setFeature(event.detail?.feature || "");
       setIsLoginOnly(Boolean(event.detail?.loginOnly));
-      setShowPlans(false);
+      setShowCheckoutForm(false);
       const accessStatus = event.detail?.accessStatus || {};
       setMessage(
         accessStatus.reason === "daily_limit"
@@ -313,7 +264,7 @@ export default function PremiumAccessGate() {
     setIsStartingCheckout(false);
     setIsRequestingHelp(false);
     setIsLoginOnly(false);
-    setShowPlans(false);
+    setShowCheckoutForm(false);
   };
 
   const updateField = (field, value) => {
@@ -457,6 +408,7 @@ export default function PremiumAccessGate() {
     });
     setFeature("experience_details");
     setIsLoginOnly(true);
+    setShowCheckoutForm(false);
     setIsOpen(true);
 
     params.delete("subscription");
@@ -476,9 +428,22 @@ export default function PremiumAccessGate() {
     );
   }, [verifyAccess]);
 
+  const selectPlanAndCreateAccount = (plan) => {
+    setSelectedPlanId(plan.id);
+    setShowCheckoutForm(true);
+    setMessage("ما نحتاج منك إلا بريدك الإلكتروني ورمز دخول بسيط، وبعدها نوديك للدفع الآمن.");
+    trackEventOncePerSession(
+      "premium_plan_selected",
+      {
+        metadata: { feature, planId: plan.id },
+      },
+      plan.id
+    );
+  };
+
   const startCheckout = async (checkoutPlan = selectedPlan) => {
-    if (!isValidContact(form.contact)) {
-      setMessage("اكتب بريدًا إلكترونيًا صحيحًا، أو رقم الجوال إذا كان لديك حساب سابق في دربك+.");
+    if (!isValidEmailContact(form.contact)) {
+      setMessage("اكتب بريدًا إلكترونيًا صحيحًا حتى نربط الاشتراك بحسابك.");
       return;
     }
 
@@ -670,7 +635,7 @@ export default function PremiumAccessGate() {
                   className="premium-login-back"
                   onClick={() => {
                     setIsLoginOnly(false);
-                    setShowPlans(true);
+                    setShowCheckoutForm(false);
                     setMessage("");
                   }}
                 >
@@ -679,28 +644,39 @@ export default function PremiumAccessGate() {
               </div>
             </section>
           ) : (
-            showPlans ? (
-              <section className="premium-section premium-plans-section">
+            showCheckoutForm ? (
+              <section className="premium-section premium-plans-section premium-account-step">
                 <button
                   type="button"
                   className="premium-plans-back"
                   onClick={() => {
-                    setShowPlans(false);
+                    setShowCheckoutForm(false);
                     setMessage("");
                   }}
                 >
-                  رجوع للمزايا
+                  تغيير الباقة
                 </button>
                 <div className="premium-section-heading">
                   <span>دربك+</span>
-                  <h3>اختر الباقة المناسبة لك</h3>
+                  <h2 id="premium-access-title">باقي خطوة بسيطة</h2>
                   <p>
-                    للاشتراك الجديد استخدم بريدًا إلكترونيًا مع رمز دخول بسيط.
-                    رقم الجوال يعمل فقط للحسابات السابقة.
+                    اخترت {selectedPlan.title}. ما نحتاج منك إلا إيميل ورمز بسيط
+                    تحفظه، ثم نحولك للدفع الآمن عبر ميسر.
                   </p>
                 </div>
 
-                <div className="premium-access-form">
+                <form
+                  className="premium-access-form premium-checkout-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    startCheckout(selectedPlan);
+                  }}
+                >
+                  <div className="premium-selected-plan-summary">
+                    <span>{selectedPlan.note}</span>
+                    <strong>{selectedPlan.price}</strong>
+                    <small>{selectedPlan.duration} · بدون تجديد تلقائي</small>
+                  </div>
                   <div className="premium-access-fields">
                     <label className="premium-access-field">
                       <span>البريد الإلكتروني</span>
@@ -731,29 +707,14 @@ export default function PremiumAccessGate() {
                   <span className="premium-access-code-hint">
                     مثال مناسب: Darb5 أو 2580. لا تستخدم رمزًا عامًا مثل 1111.
                   </span>
-                </div>
-
-                <div className="premium-plan-options" aria-label="اختيار الباقة">
-                  {subscriptionPlans.map((plan) => (
-                    <PremiumPlanCard
-                      key={plan.id}
-                      plan={plan}
-                      selected={selectedPlan.id === plan.id}
-                      loading={isStartingCheckout && selectedPlan.id === plan.id}
-                      onSelect={() => {
-                        setSelectedPlanId(plan.id);
-                        trackEventOncePerSession(
-                          "premium_plan_selected",
-                          {
-                            metadata: { feature, planId: plan.id },
-                          },
-                          plan.id
-                        );
-                      }}
-                      onCheckout={startCheckout}
-                    />
-                  ))}
-                </div>
+                  <button
+                    type="submit"
+                    className="premium-checkout-submit"
+                    disabled={isStartingCheckout}
+                  >
+                    {isStartingCheckout ? "جاري تجهيز الدفع..." : "المتابعة للدفع"}
+                  </button>
+                </form>
 
                 <PaymentMethods />
 
@@ -786,74 +747,59 @@ export default function PremiumAccessGate() {
                 </p>
               </section>
             ) : (
-              <>
-              <section className="premium-landing-hero">
-                <div className="premium-hero-copy">
-                  <span className="premium-access-badge">
-                    <span className="premium-student-mark" aria-hidden="true">
-                      🎓
-                    </span>
-                    <span>دربك+</span>
-                  </span>
+              <section className="premium-section premium-plans-section premium-plan-picker">
+                <div className="premium-section-heading">
+                  <span>دربك+</span>
                   <h2 id="premium-access-title">
-                    اعرف كل ما تحتاجه قبل التقديم على التدريب{" "}
-                    <span className="premium-title-price">بـ 5.99 ريال فقط</span>
+                    اعرف كل ما تحتاجه قبل التقديم على التدريب
                   </h2>
-                  <p className="premium-access-lead">
-                    وصول كامل إلى تجارب المتدربين الحقيقية وأدوات ذكية تساعدك
-                    تتخذ قرارك بثقة.
+                  <p>
+                    اختر الباقة، وبعدها نطلب منك فقط إيميل ورمز دخول بسيط.
                   </p>
-
-                  <div className="premium-landing-stats" aria-label="أرقام دربك">
-                    <PremiumStat
-                      value={formatPlusStat(platformStats.experiencesCount)}
-                      label="تجربة منشورة"
-                    />
-                    <PremiumStat
-                      value={formatPlusStat(platformStats.organizationsCount)}
-                      label="جهة تدريبية"
-                    />
-                  </div>
-
-                  <p className="premium-free-note">
-                    <FiShield aria-hidden="true" />
-                    <span>
-                      دربك سيبقى مجانيًا للجميع، ودربك+ للمزايا الإضافية فقط.
-                    </span>
-                  </p>
-
-                  <button
-                    type="button"
-                    className="premium-login-switch"
-                    onClick={() => {
-                      setIsLoginOnly(true);
-                      setMessage("");
-                    }}
-                  >
-                    لديك دربك+؟ تسجيل دخول فقط
-                  </button>
                 </div>
 
-                <PremiumBenefitsPanel />
-              </section>
+                <div className="premium-landing-stats" aria-label="أرقام دربك">
+                  <PremiumStat
+                    value={formatPlusStat(platformStats.experiencesCount)}
+                    label="تجربة منشورة"
+                  />
+                  <PremiumStat
+                    value={formatPlusStat(platformStats.organizationsCount)}
+                    label="جهة تدريبية"
+                  />
+                </div>
 
-              <div className="premium-discover-block">
-                <span>جاهز تعرف الباقة الأنسب لك؟</span>
+                <div className="premium-plan-options" aria-label="اختيار الباقة">
+                  {subscriptionPlans.map((plan) => (
+                    <PremiumPlanCard
+                      key={plan.id}
+                      plan={plan}
+                      selected={selectedPlan.id === plan.id}
+                      loading={false}
+                      onSelect={selectPlanAndCreateAccount}
+                    />
+                  ))}
+                </div>
+
                 <button
                   type="button"
-                  className="premium-discover-button"
+                  className="premium-login-switch"
                   onClick={() => {
-                    setShowPlans(true);
+                    setIsLoginOnly(true);
                     setMessage("");
-                    trackEvent("premium_discover_plans_clicked", {
-                      metadata: { feature },
-                    });
                   }}
                 >
-                  اكتشف الباقات
+                  لديك دربك+؟ تسجيل دخول فقط
                 </button>
-              </div>
-              </>
+
+                <p className="premium-free-note">
+                  <FiShield aria-hidden="true" />
+                  <span>
+                    دربك سيبقى مجانيًا، ودربك+ للمزايا الإضافية فقط. الدفع آمن
+                    وبدون تجديد تلقائي.
+                  </span>
+                </p>
+              </section>
             )
           )}
         </div>

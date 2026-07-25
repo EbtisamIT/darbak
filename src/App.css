@@ -1080,6 +1080,7 @@ body {
   font-weight: 900;
 }
 
+.premium-section-heading h2,
 .premium-section-heading h3 {
   margin: 0;
   color: var(--app-text);
@@ -1145,6 +1146,14 @@ body {
   margin: 0 auto;
 }
 
+.premium-plan-picker {
+  justify-items: center;
+}
+
+.premium-plan-picker .premium-landing-stats {
+  width: min(460px, 100%);
+}
+
 .premium-access-form {
   display: grid;
   gap: 9px;
@@ -1192,6 +1201,54 @@ body {
   color: var(--app-muted);
   font-size: 11.5px;
   line-height: 1.6;
+}
+
+.premium-selected-plan-summary {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  text-align: center;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 16px;
+  background: var(--app-brand-soft);
+  padding: 12px;
+}
+
+.premium-selected-plan-summary span {
+  color: var(--app-brand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.premium-selected-plan-summary strong {
+  color: var(--app-text);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.premium-selected-plan-summary small {
+  color: var(--app-text-soft);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.premium-checkout-submit {
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  border-radius: 14px;
+  background: var(--app-brand);
+  color: #07100e;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  box-shadow: 0 12px 28px var(--app-brand-soft);
+}
+
+.premium-checkout-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .premium-plan-options {
@@ -4487,11 +4544,71 @@ body {
   }
 
   .premium-plan-options {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .premium-plan-card {
     min-height: auto;
+    gap: 9px;
+    padding: 18px 10px 12px;
+  }
+
+  .premium-plan-card-head {
+    gap: 4px;
+  }
+
+  .premium-plan-card-head span {
+    font-size: 10px;
+  }
+
+  .premium-plan-card-head h3 {
+    font-size: 14px;
+  }
+
+  .premium-plan-card-head p {
+    min-height: 34px;
+    font-size: 10px;
+    line-height: 1.55;
+  }
+
+  .premium-plan-price {
+    gap: 4px;
+  }
+
+  .premium-plan-price strong {
+    font-size: 30px;
+  }
+
+  .premium-plan-price span {
+    font-size: 13px;
+  }
+
+  .premium-plan-price small {
+    font-size: 10px;
+  }
+
+  .premium-plan-card ul {
+    gap: 5px;
+  }
+
+  .premium-plan-card li {
+    gap: 5px;
+    font-size: 10.5px;
+    line-height: 1.45;
+  }
+
+  .premium-plan-ribbon {
+    min-width: 88px;
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  .premium-plan-cta {
+    min-height: 40px;
+    padding: 9px 8px;
+    border-radius: 11px;
+    font-size: 12px;
   }
 
   .premium-access-verify-form {
