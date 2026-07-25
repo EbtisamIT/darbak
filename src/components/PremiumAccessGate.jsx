@@ -431,7 +431,7 @@ export default function PremiumAccessGate() {
   const selectPlanAndCreateAccount = (plan) => {
     setSelectedPlanId(plan.id);
     setShowCheckoutForm(true);
-    setMessage("ما نحتاج منك إلا بريدك الإلكتروني ورمز دخول بسيط، وبعدها نوديك للدفع الآمن.");
+    setMessage("اكتب البريد الإلكتروني والرمز، وبعد الضغط نوديك مباشرة لصفحة الدفع الآمنة.");
     trackEventOncePerSession(
       "premium_plan_selected",
       {
@@ -658,10 +658,10 @@ export default function PremiumAccessGate() {
                 </button>
                 <div className="premium-section-heading">
                   <span>دربك+</span>
-                  <h2 id="premium-access-title">باقي خطوة بسيطة</h2>
+                  <h2 id="premium-access-title">جهّز حسابك ثم انتقل للدفع</h2>
                   <p>
-                    اخترت {selectedPlan.title}. ما نحتاج منك إلا إيميل ورمز بسيط
-                    تحفظه، ثم نحولك للدفع الآمن عبر ميسر.
+                    اخترت {selectedPlan.title}. اكتب بريدك الإلكتروني ورمز دخول
+                    تحفظه، وبعد الضغط ننقلك مباشرة لصفحة الدفع عبر ميسر.
                   </p>
                 </div>
 
@@ -712,7 +712,7 @@ export default function PremiumAccessGate() {
                     className="premium-checkout-submit"
                     disabled={isStartingCheckout}
                   >
-                    {isStartingCheckout ? "جاري تجهيز الدفع..." : "المتابعة للدفع"}
+                    {isStartingCheckout ? "جاري تحويلك للدفع..." : "إنشاء الحساب والانتقال للدفع"}
                   </button>
                 </form>
 
@@ -729,16 +729,6 @@ export default function PremiumAccessGate() {
                   </div>
                 </div>
 
-                <form
-                  className="premium-access-verify-form"
-                  onSubmit={verifySubscription}
-                >
-                  <p>لديك دربك+؟ ادخل بنفس البريد الإلكتروني أو رقم الجوال القديم والرمز.</p>
-                  <button type="submit" disabled={isVerifying}>
-                    {isVerifying ? "جاري الدخول..." : "دخول مستخدم دربك+"}
-                  </button>
-                </form>
-
                 <p className="premium-access-platform-note">
                   يدعم تفعيلك تطوير منصة دربك وإضافة مزايا جديدة وتحسين تجربة
                   المستخدم بشكل مستمر. منصة دربك تساعد طلاب التدريب التعاوني من
@@ -754,7 +744,8 @@ export default function PremiumAccessGate() {
                     اعرف كل ما تحتاجه قبل التقديم على التدريب
                   </h2>
                   <p>
-                    اختر الباقة، وبعدها نطلب منك فقط إيميل ورمز دخول بسيط.
+                    اختر الباقة، وبعدها نطلب منك فقط إيميل ورمز دخول بسيط ثم
+                    نوديك مباشرة للدفع.
                   </p>
                 </div>
 
