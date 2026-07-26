@@ -2953,7 +2953,7 @@ const ExperiencesPage = () => {
               {renderStepContent()}
             </div>
 
-            {renderRelatedExperiences()}
+            {currentStep === steps.length && renderRelatedExperiences()}
 
             <div
               style={{
