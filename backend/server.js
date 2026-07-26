@@ -1444,6 +1444,7 @@ const sendPremiumPaymentSuccessEmailOnce = async ({
   subscription,
   invoice = {},
   source = "",
+  force = false,
 } = {}) => {
   const providerPaymentId =
     subscription?.providerPaymentId || invoice?.id || invoice?.invoice_id || "";
@@ -1456,13 +1457,15 @@ const sendPremiumPaymentSuccessEmailOnce = async ({
     return { emailStatus: "not_configured", emailError: "" };
   }
 
-  const alreadySent = await AnalyticsEvent.findOne({
-    eventName: "premium_payment_email_sent",
-    "metadata.providerPaymentId": providerPaymentId,
-  }).lean();
+  if (!force) {
+    const alreadySent = await AnalyticsEvent.findOne({
+      eventName: "premium_payment_email_sent",
+      "metadata.providerPaymentId": providerPaymentId,
+    }).lean();
 
-  if (alreadySent) {
-    return { emailStatus: "already_sent", emailError: "" };
+    if (alreadySent) {
+      return { emailStatus: "already_sent", emailError: "" };
+    }
   }
 
   const plan = getSubscriptionPlan(subscription.planId);
@@ -1540,10 +1543,44 @@ const sendPremiumPaymentSuccessEmailOnce = async ({
       durationDays,
       emailTo: CONTACT_EMAIL_TO,
       source,
+      manualResend: Boolean(force),
     }),
   });
 
   return { emailStatus: "sent", emailError: "" };
+};
+
+const getMoyasarPaymentSourceForSubscription = async (subscription = {}) => {
+  const providerPaymentId = (subscription.providerPaymentId || "").toString().trim();
+
+  if (!providerPaymentId) {
+    return {};
+  }
+
+  if (subscription.provider !== "moyasar") {
+    return {
+      id: providerPaymentId,
+      status: subscription.status || "",
+    };
+  }
+
+  try {
+    return await getMoyasarInvoice(providerPaymentId);
+  } catch (invoiceErr) {
+    try {
+      return await getMoyasarPayment(providerPaymentId);
+    } catch (paymentErr) {
+      console.warn("⚠️ Could not load Moyasar payment source for email resend:", {
+        providerPaymentId,
+        invoiceError: invoiceErr.message,
+        paymentError: paymentErr.message,
+      });
+      return {
+        id: providerPaymentId,
+        status: subscription.status || "",
+      };
+    }
+  }
 };
 
 const extractMoyasarInvoiceId = (payload = {}, { allowRootId = true } = {}) => {
@@ -5420,6 +5457,67 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Admin subscription create error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/subscriptions/:id/resend-payment-email', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const subscription = await Subscription.findById(req.params.id).lean();
+    if (!subscription) {
+      return res.status(404).json({ error: "الاشتراك غير موجود." });
+    }
+
+    if (!subscription.providerPaymentId) {
+      return res.status(400).json({
+        error: "لا يوجد رقم عملية دفع مرتبط بهذا الاشتراك لإعادة إرسال الإيميل.",
+      });
+    }
+
+    const isPaidLikeStatus =
+      subscription.status === "active" || subscription.status === "expired";
+    if (!isPaidLikeStatus) {
+      return res.status(400).json({
+        error: "لا يمكن إرسال إيميل دفع ناجح لاشتراك لم يتم تفعيله بعد.",
+      });
+    }
+
+    const paymentSource = await getMoyasarPaymentSourceForSubscription(subscription);
+    const emailResult = await sendPremiumPaymentSuccessEmailOnce({
+      subscription,
+      invoice: paymentSource,
+      source: "admin_manual_resend",
+      force: true,
+    });
+
+    if (emailResult.emailStatus === "not_configured") {
+      return res.status(503).json({
+        error:
+          "إرسال الإيميل غير مفعّل. أضيفي RESEND_API_KEY و CONTACT_EMAIL_FROM في Render.",
+        emailStatus: emailResult.emailStatus,
+      });
+    }
+
+    if (emailResult.emailStatus === "failed") {
+      return res.status(502).json({
+        error: "تعذر إرسال الإيميل من Resend.",
+        emailStatus: emailResult.emailStatus,
+        emailError: emailResult.emailError,
+      });
+    }
+
+    res.json({
+      ok: true,
+      emailStatus: emailResult.emailStatus,
+      emailTo: CONTACT_EMAIL_TO,
+      sentAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("❌ Admin payment email resend error:", err);
     res.status(500).json({ error: err.message });
   }
 });

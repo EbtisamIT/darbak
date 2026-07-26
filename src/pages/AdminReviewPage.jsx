@@ -903,6 +903,7 @@ export default function AdminReviewPage() {
     defaultManualSubscriptionForm
   );
   const [savingManualSubscription, setSavingManualSubscription] = useState(false);
+  const [resendingPaymentEmailId, setResendingPaymentEmailId] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -1312,6 +1313,38 @@ export default function AdminReviewPage() {
       );
     } finally {
       setSavingManualSubscription(false);
+    }
+  };
+
+  const resendPaymentEmail = async (subscription = {}) => {
+    if (!subscription.id) return;
+
+    if (!subscription.providerPaymentId) {
+      setMessage("هذا الاشتراك ما فيه رقم عملية دفع مرتبط، لذلك ما نقدر نعيد إيميل الدفع.");
+      return;
+    }
+
+    try {
+      setResendingPaymentEmailId(subscription.id);
+      setMessage("");
+
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/subscriptions/${subscription.id}/resend-payment-email`,
+        {},
+        { headers: authHeaders }
+      );
+
+      setMessage(
+        `تم إرسال إيميل الدفع إلى ${data.emailTo || "إيميل الإدارة"} بنجاح.`
+      );
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.data?.error ||
+          "تعذر إعادة إرسال إيميل الدفع. تأكدي من إعدادات Resend في Render."
+      );
+    } finally {
+      setResendingPaymentEmailId("");
     }
   };
 
@@ -2143,7 +2176,7 @@ export default function AdminReviewPage() {
             <table
               style={{
                 width: "100%",
-                minWidth: 760,
+                minWidth: 900,
                 borderCollapse: "collapse",
                 color: adminColors.text,
               }}
@@ -2177,6 +2210,11 @@ export default function AdminReviewPage() {
                         : subscription.status === "expired"
                         ? "expired"
                         : "neutral";
+                    const canResendPaymentEmail =
+                      Boolean(subscription.providerPaymentId) &&
+                      ["active", "expired"].includes(subscription.status);
+                    const isResendingPaymentEmail =
+                      resendingPaymentEmailId === subscription.id;
 
                     return (
                       <tr
@@ -2208,26 +2246,72 @@ export default function AdminReviewPage() {
                           {formatAdminDateTime(subscription.updatedAt)}
                         </td>
                         <td style={{ padding: "10px" }}>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              prefillManualSubscriptionContact(subscription.email)
-                            }
+                          <div
                             style={{
-                              background: "rgba(102,208,195,0.1)",
-                              border: `1px solid ${adminColors.inputBorder}`,
-                              borderRadius: "999px",
-                              color: adminColors.brand,
-                              cursor: "pointer",
-                              fontFamily: "inherit",
-                              fontSize: 12,
-                              fontWeight: 800,
-                              padding: "7px 10px",
-                              whiteSpace: "nowrap",
+                              display: "flex",
+                              gap: "7px",
+                              flexWrap: "wrap",
+                              alignItems: "center",
                             }}
                           >
-                            استخدم الحساب
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                prefillManualSubscriptionContact(subscription.email)
+                              }
+                              style={{
+                                background: "rgba(102,208,195,0.1)",
+                                border: `1px solid ${adminColors.inputBorder}`,
+                                borderRadius: "999px",
+                                color: adminColors.brand,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                                fontSize: 12,
+                                fontWeight: 800,
+                                padding: "7px 10px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              استخدم الحساب
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => resendPaymentEmail(subscription)}
+                              disabled={!canResendPaymentEmail || isResendingPaymentEmail}
+                              title={
+                                canResendPaymentEmail
+                                  ? "إعادة إرسال إيميل الدفع للإدارة"
+                                  : "متاح فقط للاشتراكات المفعلة ولديها رقم عملية دفع"
+                              }
+                              style={{
+                                background: canResendPaymentEmail
+                                  ? "rgba(142,231,220,0.14)"
+                                  : "rgba(255,255,255,0.035)",
+                                border: `1px solid ${
+                                  canResendPaymentEmail
+                                    ? "rgba(142,231,220,0.35)"
+                                    : "rgba(255,255,255,0.08)"
+                                }`,
+                                borderRadius: "999px",
+                                color: canResendPaymentEmail
+                                  ? adminColors.brandStrong
+                                  : adminColors.muted,
+                                cursor:
+                                  !canResendPaymentEmail || isResendingPaymentEmail
+                                    ? "not-allowed"
+                                    : "pointer",
+                                fontFamily: "inherit",
+                                fontSize: 12,
+                                fontWeight: 900,
+                                padding: "7px 10px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {isResendingPaymentEmail
+                                ? "جار الإرسال..."
+                                : "إيميل الدفع"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
