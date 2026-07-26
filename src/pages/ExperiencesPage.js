@@ -2743,19 +2743,6 @@ const ExperiencesPage = () => {
                   </div>
 
                   <div style={{ marginTop: "10px" }}>
-                    <p
-                      className="experience-source-label"
-                      style={{
-                        margin: "0 0 5px",
-                        color: "var(--app-muted-2)",
-                        fontSize: "10px",
-                        lineHeight: 1.4,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {getExperienceSourceLabel(exp)}
-                    </p>
-
                     {getExperienceCardStats(exp).length > 0 && (
                       <div className="card-interaction-stats experience-interaction-count">
                         {getExperienceCardStats(exp).map((stat) => (
@@ -2948,6 +2935,20 @@ const ExperiencesPage = () => {
                 {getExperienceAcceptedLabel(selectedExperience)}
               </p>
             )}
+
+            <p
+              style={{
+                margin: getExperienceAcceptedLabel(selectedExperience)
+                  ? "-8px 0 14px"
+                  : "-2px 0 14px",
+                color: "var(--app-muted-2)",
+                fontSize: "10.5px",
+                lineHeight: 1.5,
+                fontWeight: 400,
+              }}
+            >
+              المصدر: {getExperienceSourceLabel(selectedExperience)}
+            </p>
 
             <div style={{ marginTop: "20px" }}>
               {renderStepContent()}
