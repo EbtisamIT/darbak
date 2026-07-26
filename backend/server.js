@@ -1562,6 +1562,7 @@ const extractMoyasarInvoiceId = (payload = {}, { allowRootId = true } = {}) => {
 const activateMoyasarSubscriptionFromInvoiceId = async ({
   invoiceId = "",
   source = "",
+  visitorId = "",
 } = {}) => {
   if (!invoiceId) {
     return { ok: true, ignored: true, status: "missing_invoice_id" };
@@ -1619,6 +1620,7 @@ const activateMoyasarSubscriptionFromInvoiceId = async ({
   await syncSubscriptionUser(subscription);
   await recordPremiumAccessVerifiedEvent({
     subscription,
+    visitorId,
     source,
   });
 
@@ -4606,23 +4608,15 @@ app.post('/api/subscriptions/verify', async (req, res) => {
         const invoice = await getMoyasarInvoice(pendingSubscription.providerPaymentId);
 
         if (invoice.status === "paid") {
-          const activated = await Subscription.findByIdAndUpdate(
-            pendingSubscription._id,
-            {
-              status: "active",
-              expiresAt: addSubscriptionDays(
-                getSubscriptionDurationDays(pendingSubscription)
-              ),
-            },
-            { new: true }
-          ).lean();
-
-          await syncSubscriptionUser(activated);
-          await recordPremiumAccessVerifiedEvent({
-            subscription: activated,
+          await activateMoyasarSubscriptionFromInvoiceId({
+            invoiceId: pendingSubscription.providerPaymentId,
             visitorId,
             source: "verify_pending_paid",
           });
+
+          const activated = await Subscription.findById(
+            pendingSubscription._id
+          ).lean();
 
           return res.json({
             active: true,
@@ -4671,6 +4665,28 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       visitorId,
       source: "verify_active",
     });
+
+    if (subscription.provider === "moyasar" && subscription.providerPaymentId) {
+      getMoyasarInvoice(subscription.providerPaymentId)
+        .then((invoice) =>
+          sendPremiumPaymentSuccessEmailOnce({
+            subscription,
+            invoice,
+            source: "verify_active_recovery",
+          })
+        )
+        .then((emailResult) => {
+          if (emailResult.emailStatus === "failed") {
+            console.error(
+              "❌ Premium payment email recovery failed:",
+              emailResult.emailError
+            );
+          }
+        })
+        .catch((emailErr) =>
+          console.error("❌ Premium payment email recovery error:", emailErr)
+        );
+    }
 
     res.json({
       active: true,
@@ -4883,23 +4899,15 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         );
 
         if (invoice.status === "paid") {
-          const activated = await Subscription.findByIdAndUpdate(
-            existingSubscription._id,
-            {
-              status: "active",
-              expiresAt: addSubscriptionDays(
-                getSubscriptionDurationDays(existingSubscription)
-              ),
-            },
-            { new: true }
-          ).lean();
-
-          await syncSubscriptionUser(activated);
-          await recordPremiumAccessVerifiedEvent({
-            subscription: activated,
+          await activateMoyasarSubscriptionFromInvoiceId({
+            invoiceId: existingSubscription.providerPaymentId,
             visitorId,
             source: "start_checkout_pending_paid",
           });
+
+          const activated = await Subscription.findById(
+            existingSubscription._id
+          ).lean();
 
           return res.json({
             active: true,
