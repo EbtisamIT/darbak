@@ -817,6 +817,9 @@ const createMoyasarInvoice = async ({
 const getMoyasarInvoice = async (invoiceId) =>
   callMoyasar(`/invoices/${encodeURIComponent(invoiceId)}`);
 
+const getMoyasarPayment = async (paymentId) =>
+  callMoyasar(`/payments/${encodeURIComponent(paymentId)}`);
+
 const isUnclearMajorText = (value = "") => {
   const text = value.toString().trim();
   if (!text) return true;
@@ -1412,18 +1415,24 @@ const getMoyasarPaymentMethodLabel = (invoice = {}) => {
     payments.find(Boolean) ||
     {};
   const source = payment.source || {};
+  const directSource = invoice.source || {};
   const provider =
     source.company ||
     source.type ||
     source.name ||
     payment.source_type ||
-    invoice.source?.company ||
+    directSource.company ||
+    directSource.type ||
+    directSource.name ||
     "";
   const lastDigits =
     source.number ||
     source.last_digits ||
     source.last4 ||
     payment.last_digits ||
+    directSource.number ||
+    directSource.last_digits ||
+    directSource.last4 ||
     "";
 
   return [provider, lastDigits ? `**** ${lastDigits.toString().slice(-4)}` : ""]
@@ -1539,17 +1548,23 @@ const sendPremiumPaymentSuccessEmailOnce = async ({
 
 const extractMoyasarInvoiceId = (payload = {}, { allowRootId = true } = {}) => {
   const data = payload.data || payload.payment || payload.invoice || {};
+  const object = data.object || payload.object || {};
   const candidates = [
     payload.invoice_id,
     payload.invoiceId,
     data.invoice_id,
     data.invoiceId,
+    object.invoice_id,
+    object.invoiceId,
     payload.invoice?.id,
     data.invoice?.id,
+    object.invoice?.id,
     payload.metadata?.invoice_id,
     data.metadata?.invoice_id,
+    object.metadata?.invoice_id,
     allowRootId ? payload.id : "",
     allowRootId ? data.id : "",
+    allowRootId ? object.id : "",
   ];
 
   return (
@@ -1559,34 +1574,98 @@ const extractMoyasarInvoiceId = (payload = {}, { allowRootId = true } = {}) => {
   );
 };
 
-const activateMoyasarSubscriptionFromInvoiceId = async ({
-  invoiceId = "",
+const extractMoyasarPaymentId = (payload = {}, { allowRootId = true } = {}) => {
+  const data = payload.data || payload.payment || {};
+  const object = data.object || payload.object || {};
+  const candidates = [
+    payload.payment_id,
+    payload.paymentId,
+    data.payment_id,
+    data.paymentId,
+    object.payment_id,
+    object.paymentId,
+    payload.payment?.id,
+    data.payment?.id,
+    object.payment?.id,
+    allowRootId ? payload.id : "",
+    allowRootId ? data.id : "",
+    allowRootId ? object.id : "",
+  ];
+
+  return (
+    candidates
+      .map((value) => (value || "").toString().trim())
+      .find(Boolean) || ""
+  );
+};
+
+const getMoyasarPayloadStatus = (payload = {}) =>
+  (
+    payload.status ||
+    payload.data?.status ||
+    payload.data?.object?.status ||
+    payload.object?.status ||
+    payload.payment?.status ||
+    payload.invoice?.status ||
+    ""
+  )
+    .toString()
+    .toLowerCase();
+
+const getMoyasarEventType = (payload = {}) =>
+  (
+    payload.type ||
+    payload.event ||
+    payload.name ||
+    payload.event_type ||
+    payload.eventType ||
+    payload.data?.event_type ||
+    payload.data?.eventType ||
+    ""
+  )
+    .toString()
+    .toLowerCase();
+
+const moyasarPayloadLooksLikeInvoice = (payload = {}) =>
+  Boolean(
+    Array.isArray(payload.payments) ||
+      payload.url ||
+      payload.success_url ||
+      payload.callback_url ||
+      payload.invoice ||
+      payload.data?.invoice ||
+      payload.data?.object?.payments
+  );
+
+const findSubscriptionFromMoyasarPayment = async (payment = {}) => {
+  const metadata = payment.metadata || {};
+  const contact = normalizeSubscriberContact(
+    metadata.darbak_contact ||
+      metadata.contact ||
+      metadata.email ||
+      metadata.customer_email ||
+      ""
+  );
+  const planId = (metadata.plan_id || metadata.planId || "").toString().trim();
+
+  if (!contact) return null;
+
+  return Subscription.findOne({
+    email: contact,
+    provider: "moyasar",
+    status: { $in: ["pending", "active"] },
+    ...(planId ? { planId } : {}),
+  })
+    .sort({ updatedAt: -1 })
+    .lean();
+};
+
+const activateMoyasarSubscriptionRecord = async ({
+  existingSubscription,
+  paymentSource = {},
   source = "",
   visitorId = "",
 } = {}) => {
-  if (!invoiceId) {
-    return { ok: true, ignored: true, status: "missing_invoice_id" };
-  }
-
-  const invoice = await getMoyasarInvoice(invoiceId);
-  const status = invoice.status || "";
-
-  if (status !== "paid") {
-    if (["expired", "failed", "canceled", "cancelled"].includes(status)) {
-      await Subscription.findOneAndUpdate(
-        { provider: "moyasar", providerPaymentId: invoiceId },
-        { status: "cancelled" }
-      );
-    }
-
-    return { ok: true, ignored: true, status };
-  }
-
-  const existingSubscription = await Subscription.findOne({
-    provider: "moyasar",
-    providerPaymentId: invoiceId,
-  }).lean();
-
   if (!existingSubscription) {
     const error = new Error("Subscription not found");
     error.statusCode = 404;
@@ -1626,7 +1705,7 @@ const activateMoyasarSubscriptionFromInvoiceId = async ({
 
   const emailResult = await sendPremiumPaymentSuccessEmailOnce({
     subscription,
-    invoice,
+    invoice: paymentSource,
     source,
   });
 
@@ -1637,10 +1716,98 @@ const activateMoyasarSubscriptionFromInvoiceId = async ({
   return {
     ok: true,
     active: true,
-    status,
+    status: paymentSource.status || "paid",
     alreadyActive,
     emailStatus: emailResult.emailStatus,
   };
+};
+
+const activateMoyasarSubscriptionFromInvoiceId = async ({
+  invoiceId = "",
+  source = "",
+  visitorId = "",
+} = {}) => {
+  if (!invoiceId) {
+    return { ok: true, ignored: true, status: "missing_invoice_id" };
+  }
+
+  const invoice = await getMoyasarInvoice(invoiceId);
+  const status = invoice.status || "";
+
+  if (status !== "paid") {
+    if (["expired", "failed", "canceled", "cancelled"].includes(status)) {
+      await Subscription.findOneAndUpdate(
+        { provider: "moyasar", providerPaymentId: invoiceId },
+        { status: "cancelled" }
+      );
+    }
+
+    return { ok: true, ignored: true, status };
+  }
+
+  const existingSubscription = await Subscription.findOne({
+    provider: "moyasar",
+    providerPaymentId: invoiceId,
+  }).lean();
+
+  return activateMoyasarSubscriptionRecord({
+    existingSubscription,
+    paymentSource: invoice,
+    source,
+    visitorId,
+  });
+};
+
+const activateMoyasarSubscriptionFromPayment = async ({
+  payment = {},
+  source = "",
+  visitorId = "",
+} = {}) => {
+  const paymentData = payment.data?.object || payment.data || payment;
+  const status = (paymentData.status || "").toString().toLowerCase();
+  const invoiceId =
+    paymentData.invoice_id ||
+    paymentData.invoiceId ||
+    paymentData.invoice?.id ||
+    paymentData.metadata?.invoice_id ||
+    "";
+
+  if (invoiceId) {
+    return activateMoyasarSubscriptionFromInvoiceId({
+      invoiceId,
+      source,
+      visitorId,
+    });
+  }
+
+  if (status !== "paid") {
+    return { ok: true, ignored: true, status };
+  }
+
+  const existingSubscription = await findSubscriptionFromMoyasarPayment(paymentData);
+  return activateMoyasarSubscriptionRecord({
+    existingSubscription,
+    paymentSource: paymentData,
+    source,
+    visitorId,
+  });
+};
+
+const activateMoyasarSubscriptionFromPaymentId = async ({
+  paymentId = "",
+  source = "",
+  visitorId = "",
+} = {}) => {
+  if (!paymentId) {
+    return { ok: true, ignored: true, status: "missing_payment_id" };
+  }
+
+  const payment = await getMoyasarPayment(paymentId);
+  return activateMoyasarSubscriptionFromPayment({
+    payment,
+    source,
+    visitorId,
+  });
 };
 
 const getAnalyticsGroup = async (match, field, limit = 10) => {
@@ -5053,18 +5220,34 @@ app.post('/api/subscriptions/moyasar/callback', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
+    const eventType = getMoyasarEventType(req.body);
     const invoiceId =
-      extractMoyasarInvoiceId(req.body, { allowRootId: true }) ||
-      req.query.id;
+      extractMoyasarInvoiceId(req.body, {
+        allowRootId:
+          moyasarPayloadLooksLikeInvoice(req.body) ||
+          eventType.includes("invoice"),
+      }) ||
+      req.query.invoice_id;
+    const paymentId =
+      extractMoyasarPaymentId(req.body, {
+        allowRootId: !invoiceId,
+      }) || req.query.payment_id || req.query.id;
 
-    if (!invoiceId) {
-      return res.status(400).json({ error: "Missing invoice id" });
+    if (!invoiceId && !paymentId) {
+      return res
+        .status(400)
+        .json({ error: "Missing Moyasar invoice or payment id" });
     }
 
-    const result = await activateMoyasarSubscriptionFromInvoiceId({
-      invoiceId,
-      source: "moyasar_callback",
-    });
+    const result = invoiceId
+      ? await activateMoyasarSubscriptionFromInvoiceId({
+          invoiceId,
+          source: "moyasar_callback",
+        })
+      : await activateMoyasarSubscriptionFromPaymentId({
+          paymentId,
+          source: "moyasar_callback_payment",
+        });
 
     res.json(result);
   } catch (err) {
@@ -5101,22 +5284,8 @@ app.post('/api/webhooks/moyasar', (req, res) => {
       }
     }
 
-    const eventType = (
-      req.body?.type ||
-      req.body?.event ||
-      req.body?.name ||
-      ""
-    )
-      .toString()
-      .toLowerCase();
-    const status = (
-      req.body?.status ||
-      req.body?.data?.status ||
-      req.body?.payment?.status ||
-      ""
-    )
-      .toString()
-      .toLowerCase();
+    const eventType = getMoyasarEventType(req.body);
+    const status = getMoyasarPayloadStatus(req.body);
 
     if (
       (eventType && !eventType.includes("paid") && !eventType.includes("payment")) ||
@@ -5126,29 +5295,42 @@ app.post('/api/webhooks/moyasar', (req, res) => {
     }
 
     const invoiceId = extractMoyasarInvoiceId(req.body, {
-      allowRootId: eventType.includes("invoice"),
+      allowRootId:
+        moyasarPayloadLooksLikeInvoice(req.body) ||
+        eventType.includes("invoice"),
+    });
+    const paymentId = extractMoyasarPaymentId(req.body, {
+      allowRootId: !invoiceId,
     });
 
-    if (!invoiceId) {
-      console.warn("⚠️ Moyasar webhook ignored: missing invoice id", {
+    if (!invoiceId && !paymentId) {
+      console.warn("⚠️ Moyasar webhook ignored: missing invoice or payment id", {
         eventType,
         status,
       });
       return res.json({
         ok: true,
         ignored: true,
-        reason: "missing_invoice_id",
+        reason: "missing_moyasar_id",
       });
     }
 
-    res.json({ ok: true, received: true });
+    res.json({ ok: true, received: true, invoiceId: Boolean(invoiceId), paymentId: Boolean(paymentId) });
 
     setImmediate(async () => {
       try {
         if (mongoose.connection.readyState !== 1) return;
-        await activateMoyasarSubscriptionFromInvoiceId({
-          invoiceId,
-          source: "moyasar_webhook",
+        if (invoiceId) {
+          await activateMoyasarSubscriptionFromInvoiceId({
+            invoiceId,
+            source: "moyasar_webhook",
+          });
+          return;
+        }
+
+        await activateMoyasarSubscriptionFromPaymentId({
+          paymentId,
+          source: "moyasar_webhook_payment",
         });
       } catch (err) {
         console.error("❌ Moyasar webhook processing error:", err);
