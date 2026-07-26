@@ -245,6 +245,11 @@ const emptyUserManagement = {
     totalPaidRevenueSar: 0,
     activeRevenueSar: 0,
   },
+  emailSettings: {
+    resendConfigured: false,
+    emailTo: "",
+    emailFrom: "",
+  },
   planBreakdown: [],
   users: [],
   subscriptions: [],
@@ -285,7 +290,10 @@ const analyticsEventLabels = {
   premium_checkout_failed: "تعذر بدء الدفع",
   premium_payment_returned: "رجوع من ميسر",
   premium_access_verified: "تفعيل اشتراك",
+  premium_payment_email_attempt: "محاولة إرسال إيميل الدفع",
+  premium_payment_email_sent: "إيميل دفع مرسل",
   premium_access_help_requested: "نسيان رمز دربك+",
+  admin_email_test: "اختبار بريد الإدارة",
   account_modal_opened: "فتح حسابي",
   account_login_success: "دخول حساب ناجح",
   account_login_failed: "دخول حساب فاشل",
@@ -313,11 +321,14 @@ const premiumFunnelSteps = [
   ["premium_checkout_started", "بدأوا الدفع"],
   ["premium_payment_returned", "رجعوا من ميسر"],
   ["premium_access_verified", "مدفوعات ميسر ناجحة"],
+  ["premium_payment_email_attempt", "محاولات إيميل الدفع"],
 ];
 
 const premiumSupportSteps = [
   ["premium_gate_closed", "أغلقوا النافذة"],
   ["premium_checkout_failed", "تعذر بدء الدفع"],
+  ["premium_payment_email_sent", "إيميل دفع مرسل"],
+  ["admin_email_test", "اختبار بريد الإدارة"],
   ["account_login_success", "دخول مشترك ناجح"],
   ["account_login_failed", "محاولة دخول فاشلة"],
   ["premium_access_help_requested", "طلب نسيت الرمز"],
@@ -904,6 +915,7 @@ export default function AdminReviewPage() {
   );
   const [savingManualSubscription, setSavingManualSubscription] = useState(false);
   const [resendingPaymentEmailId, setResendingPaymentEmailId] = useState("");
+  const [testingAdminEmail, setTestingAdminEmail] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -1152,6 +1164,10 @@ export default function AdminReviewPage() {
         ...emptyUserManagement,
         ...data,
         summary: { ...emptyUserManagement.summary, ...(data.summary || {}) },
+        emailSettings: {
+          ...emptyUserManagement.emailSettings,
+          ...(data.emailSettings || {}),
+        },
         planBreakdown: Array.isArray(data.planBreakdown) ? data.planBreakdown : [],
         users: Array.isArray(data.users) ? data.users : [],
         subscriptions: Array.isArray(data.subscriptions)
@@ -1345,6 +1361,34 @@ export default function AdminReviewPage() {
       );
     } finally {
       setResendingPaymentEmailId("");
+    }
+  };
+
+  const sendAdminEmailTest = async () => {
+    try {
+      setTestingAdminEmail(true);
+      setMessage("");
+
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/email/test`,
+        {},
+        { headers: authHeaders }
+      );
+
+      setMessage(
+        `تم إرسال اختبار البريد إلى ${data.emailTo || "إيميل الإدارة"}. شيكي الوارد والسبام.`
+      );
+      fetchUserManagement();
+    } catch (err) {
+      console.error(err);
+      const details = err.response?.data?.emailError
+        ? ` التفاصيل: ${err.response.data.emailError}`
+        : "";
+      setMessage(
+        `${err.response?.data?.error || "تعذر إرسال اختبار البريد."}${details}`
+      );
+    } finally {
+      setTestingAdminEmail(false);
     }
   };
 
@@ -1910,6 +1954,10 @@ export default function AdminReviewPage() {
       ...emptyUserManagement.summary,
       ...(userManagement.summary || {}),
     };
+    const emailSettings = {
+      ...emptyUserManagement.emailSettings,
+      ...(userManagement.emailSettings || {}),
+    };
     const users = userManagement.users || [];
     const subscriptions = userManagement.subscriptions || [];
     const planBreakdown = userManagement.planBreakdown || [];
@@ -1950,6 +1998,60 @@ export default function AdminReviewPage() {
               formatAdminCurrency(summary.activeRevenueSar),
             ],
           ].map(renderAdminMetricCard)}
+        </section>
+
+        <section
+          style={{
+            ...cardStyle,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+            borderColor: emailSettings.resendConfigured
+              ? "rgba(102,208,195,0.22)"
+              : "rgba(251,191,36,0.28)",
+          }}
+        >
+          <div style={{ display: "grid", gap: "6px" }}>
+            <h3 style={{ color: adminColors.brand, margin: 0 }}>
+              إشعارات الدفع عبر الإيميل
+            </h3>
+            <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.7 }}>
+              الحالة:{" "}
+              <strong
+                style={{
+                  color: emailSettings.resendConfigured
+                    ? adminColors.brandStrong
+                    : "#fbbf24",
+                }}
+              >
+                {emailSettings.resendConfigured ? "Resend مفعّل" : "Resend غير مفعّل"}
+              </strong>
+            </p>
+            <small style={{ color: adminColors.textSoft, lineHeight: 1.8 }}>
+              من: {emailSettings.emailFrom || "-"} · إلى:{" "}
+              {emailSettings.emailTo || "-"}
+            </small>
+          </div>
+
+          <button
+            type="button"
+            onClick={sendAdminEmailTest}
+            disabled={testingAdminEmail}
+            style={{
+              background: adminColors.brand,
+              color: "#061312",
+              border: "none",
+              borderRadius: "999px",
+              padding: "11px 16px",
+              cursor: testingAdminEmail ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              fontWeight: 900,
+            }}
+          >
+            {testingAdminEmail ? "جار الاختبار..." : "اختبار البريد"}
+          </button>
         </section>
 
         <section

@@ -281,6 +281,56 @@ const sendContactEmail = async ({ reason = "", message = "", contact = "" } = {}
   return { emailStatus: "sent", emailError: "" };
 };
 
+const sendAdminTestEmail = async () => {
+  if (!RESEND_API_KEY || typeof fetch !== "function") {
+    return { emailStatus: "not_configured", emailError: "" };
+  }
+
+  const sentAtLabel = formatRiyadhDateTime(new Date());
+  const payload = {
+    from: CONTACT_EMAIL_FROM,
+    to: [CONTACT_EMAIL_TO],
+    subject: "اختبار إشعارات دربك",
+    text: [
+      "هذا اختبار لإعدادات إرسال الإيميلات في دربك.",
+      "",
+      `وقت الاختبار: ${sentAtLabel}`,
+      `From: ${CONTACT_EMAIL_FROM}`,
+      `To: ${CONTACT_EMAIL_TO}`,
+    ].join("\n"),
+    html: `
+      <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#111827">
+        <h2 style="margin:0 0 12px;color:#0f766e">اختبار إشعارات دربك</h2>
+        <p>إذا وصلك هذا الإيميل، إعدادات Resend في Render تعمل بنجاح.</p>
+        <table style="width:100%;border-collapse:collapse;margin-top:12px">
+          <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>وقت الاختبار</strong></td><td style="padding:8px;border:1px solid #e5e7eb">${escapeHtml(sentAtLabel)}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>From</strong></td><td style="padding:8px;border:1px solid #e5e7eb">${escapeHtml(CONTACT_EMAIL_FROM)}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>To</strong></td><td style="padding:8px;border:1px solid #e5e7eb">${escapeHtml(CONTACT_EMAIL_TO)}</td></tr>
+        </table>
+      </div>
+    `,
+  };
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    return {
+      emailStatus: "failed",
+      emailError: errorBody.slice(0, 600) || `Resend status ${response.status}`,
+    };
+  }
+
+  return { emailStatus: "sent", emailError: "" };
+};
+
 const normalizeAccessCode = (value = "") =>
   normalizeArabicDigits(value).trim().replace(/\s+/g, "");
 
@@ -1408,6 +1458,39 @@ const recordPremiumAccessVerifiedEvent = async ({
   });
 };
 
+const recordPremiumPaymentEmailAttempt = async ({
+  subscription,
+  providerPaymentId = "",
+  emailStatus = "",
+  emailError = "",
+  source = "",
+  manualResend = false,
+} = {}) => {
+  if (!subscription) return null;
+
+  return AnalyticsEvent.create({
+    eventName: "premium_payment_email_attempt",
+    page: "/subscriptions/moyasar",
+    deviceType: "unknown",
+    metadata: sanitizeAnalyticsMetadata({
+      provider: subscription.provider || "moyasar",
+      providerPaymentId,
+      planId: subscription.planId || "monthly",
+      priceSar: getSubscriptionPriceSar(subscription),
+      durationDays: getSubscriptionDurationDays(subscription),
+      emailTo: CONTACT_EMAIL_TO,
+      emailFrom: CONTACT_EMAIL_FROM,
+      emailStatus,
+      emailError,
+      source,
+      manualResend: Boolean(manualResend),
+    }),
+  }).catch((err) => {
+    console.error("❌ Premium email attempt analytics error:", err);
+    return null;
+  });
+};
+
 const getMoyasarPaymentMethodLabel = (invoice = {}) => {
   const payments = Array.isArray(invoice.payments) ? invoice.payments : [];
   const payment =
@@ -1450,10 +1533,25 @@ const sendPremiumPaymentSuccessEmailOnce = async ({
     subscription?.providerPaymentId || invoice?.id || invoice?.invoice_id || "";
 
   if (!subscription || !providerPaymentId) {
+    await recordPremiumPaymentEmailAttempt({
+      subscription,
+      providerPaymentId,
+      emailStatus: "skipped",
+      emailError: "missing_subscription_or_provider_payment_id",
+      source,
+      manualResend: force,
+    });
     return { emailStatus: "skipped", emailError: "missing_subscription" };
   }
 
   if (!RESEND_API_KEY || typeof fetch !== "function") {
+    await recordPremiumPaymentEmailAttempt({
+      subscription,
+      providerPaymentId,
+      emailStatus: "not_configured",
+      source,
+      manualResend: force,
+    });
     return { emailStatus: "not_configured", emailError: "" };
   }
 
@@ -1464,6 +1562,13 @@ const sendPremiumPaymentSuccessEmailOnce = async ({
     }).lean();
 
     if (alreadySent) {
+      await recordPremiumPaymentEmailAttempt({
+        subscription,
+        providerPaymentId,
+        emailStatus: "already_sent",
+        source,
+        manualResend: force,
+      });
       return { emailStatus: "already_sent", emailError: "" };
     }
   }
@@ -1525,11 +1630,29 @@ const sendPremiumPaymentSuccessEmailOnce = async ({
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
+    const emailError =
+      errorBody.slice(0, 600) || `Resend status ${response.status}`;
+    await recordPremiumPaymentEmailAttempt({
+      subscription,
+      providerPaymentId,
+      emailStatus: "failed",
+      emailError,
+      source,
+      manualResend: force,
+    });
     return {
       emailStatus: "failed",
-      emailError: errorBody.slice(0, 600) || `Resend status ${response.status}`,
+      emailError,
     };
   }
+
+  await recordPremiumPaymentEmailAttempt({
+    subscription,
+    providerPaymentId,
+    emailStatus: "sent",
+    source,
+    manualResend: force,
+  });
 
   await AnalyticsEvent.create({
     eventName: "premium_payment_email_sent",
@@ -5461,6 +5584,54 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
   }
 });
 
+app.post('/api/admin/email/test', requireAdmin, async (req, res) => {
+  try {
+    const emailResult = await sendAdminTestEmail();
+
+    await AnalyticsEvent.create({
+      eventName: "admin_email_test",
+      page: "/admin/users",
+      deviceType: "unknown",
+      metadata: sanitizeAnalyticsMetadata({
+        emailStatus: emailResult.emailStatus,
+        emailError: emailResult.emailError || "",
+        emailTo: CONTACT_EMAIL_TO,
+        emailFrom: CONTACT_EMAIL_FROM,
+      }),
+    }).catch(() => null);
+
+    if (emailResult.emailStatus === "not_configured") {
+      return res.status(503).json({
+        error:
+          "إرسال الإيميل غير مفعّل. أضيفي RESEND_API_KEY في Render وتأكدي من CONTACT_EMAIL_FROM.",
+        emailStatus: emailResult.emailStatus,
+        emailTo: CONTACT_EMAIL_TO,
+        emailFrom: CONTACT_EMAIL_FROM,
+      });
+    }
+
+    if (emailResult.emailStatus === "failed") {
+      return res.status(502).json({
+        error: "Resend رفض إرسال الإيميل.",
+        emailStatus: emailResult.emailStatus,
+        emailError: emailResult.emailError,
+        emailTo: CONTACT_EMAIL_TO,
+        emailFrom: CONTACT_EMAIL_FROM,
+      });
+    }
+
+    res.json({
+      ok: true,
+      emailStatus: emailResult.emailStatus,
+      emailTo: CONTACT_EMAIL_TO,
+      emailFrom: CONTACT_EMAIL_FROM,
+    });
+  } catch (err) {
+    console.error("❌ Admin email test error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/admin/subscriptions/:id/resend-payment-email', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -5755,6 +5926,11 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         paidSubscriptions: paidRevenueStats[0]?.count || 0,
         totalPaidRevenueSar: Number(paidRevenueStats[0]?.total || 0),
         activeRevenueSar: Number(activeRevenueStats[0]?.total || 0),
+      },
+      emailSettings: {
+        resendConfigured: Boolean(RESEND_API_KEY),
+        emailTo: CONTACT_EMAIL_TO,
+        emailFrom: CONTACT_EMAIL_FROM,
       },
       planBreakdown,
       users: safeUsers,
