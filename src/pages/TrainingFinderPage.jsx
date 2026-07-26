@@ -372,50 +372,22 @@ const OrganizationLogo = ({ name, url, imageUrl }) => {
     <span
       className="suggested-organization-logo"
       aria-hidden="true"
-      style={{
-        width: "42px",
-        height: "42px",
-        borderRadius: "14px",
-        display: "inline-grid",
-        placeItems: "center",
-        flex: "0 0 auto",
-        minWidth: "42px",
-        maxWidth: "42px",
-        minHeight: "42px",
-        maxHeight: "42px",
-        aspectRatio: "1 / 1",
-        background:
-          "linear-gradient(145deg, var(--app-card), var(--app-brand-soft))",
-        border: "1px solid var(--app-brand-border)",
-        color: "var(--app-brand)",
-        fontSize: "19px",
-        fontWeight: "900",
-        lineHeight: 1,
-        overflow: "hidden",
-        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
-      }}
     >
       {logoUrl && !hasImageError ? (
-        <img
-          src={logoUrl}
-          alt=""
-          width="24"
-          height="24"
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onError={() => setHasImageError(true)}
-          style={{
-            width: "31px",
-            height: "31px",
-            minWidth: "31px",
-            minHeight: "31px",
-            display: "block",
-            objectFit: "contain",
-            borderRadius: "8px",
-          }}
-        />
+        <span className="organization-logo-image-frame">
+          <img
+            src={logoUrl}
+            alt=""
+            width="28"
+            height="28"
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => setHasImageError(true)}
+          />
+        </span>
       ) : (
-        initial
+        <span className="organization-logo-initial">{initial}</span>
       )}
     </span>
   );
@@ -3699,6 +3671,72 @@ export default function TrainingFinderPage() {
           white-space: nowrap;
         }
 
+        .suggested-organization-logo {
+          width: 42px;
+          height: 42px;
+          min-width: 42px;
+          max-width: 42px;
+          min-height: 42px;
+          max-height: 42px;
+          aspect-ratio: 1 / 1;
+          display: inline-grid;
+          place-items: center;
+          flex: 0 0 auto;
+          border-radius: 14px;
+          background:
+            linear-gradient(145deg, var(--app-card), var(--app-brand-soft));
+          border: 1px solid var(--app-brand-border);
+          color: var(--app-brand);
+          line-height: 1;
+          overflow: hidden;
+          box-shadow:
+            inset 0 0 0 1px rgba(255,255,255,0.04),
+            0 10px 24px rgba(0, 0, 0, 0.08);
+        }
+
+        .organization-logo-image-frame {
+          width: 32px;
+          height: 32px;
+          min-width: 32px;
+          min-height: 32px;
+          display: inline-grid;
+          place-items: center;
+          border-radius: 10px;
+          background:
+            linear-gradient(145deg, #ffffff 0%, #f7fffd 100%);
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          box-shadow:
+            0 1px 3px rgba(15, 23, 42, 0.12),
+            inset 0 0 0 1px rgba(255,255,255,0.7);
+        }
+
+        .organization-logo-image-frame img {
+          width: 25px;
+          height: 25px;
+          min-width: 25px;
+          min-height: 25px;
+          max-width: 25px;
+          max-height: 25px;
+          display: block;
+          object-fit: contain;
+          border-radius: 6px;
+          filter: drop-shadow(0 0 1px rgba(15, 23, 42, 0.28));
+        }
+
+        .organization-logo-initial {
+          width: 32px;
+          height: 32px;
+          display: inline-grid;
+          place-items: center;
+          border-radius: 10px;
+          background: var(--app-input-bg);
+          border: 1px solid var(--app-brand-border);
+          color: var(--app-brand);
+          font-size: 18px;
+          font-weight: 900;
+          line-height: 1;
+        }
+
         .opportunity-card {
           min-height: 250px;
         }
@@ -4202,12 +4240,27 @@ export default function TrainingFinderPage() {
             border-radius: 11px !important;
           }
 
-          .suggested-organization-logo img {
-            width: 27px !important;
-            height: 27px !important;
-            min-width: 27px !important;
-            min-height: 27px !important;
+          .organization-logo-image-frame,
+          .organization-logo-initial {
+            width: 26px !important;
+            height: 26px !important;
+            min-width: 26px !important;
+            min-height: 26px !important;
             border-radius: 7px !important;
+          }
+
+          .organization-logo-image-frame img {
+            width: 21px !important;
+            height: 21px !important;
+            min-width: 21px !important;
+            min-height: 21px !important;
+            max-width: 21px !important;
+            max-height: 21px !important;
+            border-radius: 5px !important;
+          }
+
+          .organization-logo-initial {
+            font-size: 15px !important;
           }
 
           .suggested-card-head {
