@@ -578,6 +578,7 @@ const ExperiencesPage = () => {
     selectedExperience?._id || selectedExperience?.id || "";
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
+  const isLastExperienceStep = currentStep === steps.length;
 
   useEffect(() => {
     setPageSeo(
@@ -616,7 +617,11 @@ const ExperiencesPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!selectedExperienceId || selectedExperienceIsLoading) {
+    if (
+      !selectedExperienceId ||
+      selectedExperienceIsLoading ||
+      !isLastExperienceStep
+    ) {
       setRelatedExperiences([]);
       setRelatedLoading(false);
       return undefined;
@@ -643,7 +648,7 @@ const ExperiencesPage = () => {
       isActive = false;
       window.clearTimeout(relatedTimer);
     };
-  }, [selectedExperienceId, selectedExperienceIsLoading]);
+  }, [selectedExperienceId, selectedExperienceIsLoading, isLastExperienceStep]);
 
   useEffect(() => {
     if (!selectedExperience) return undefined;
@@ -2954,7 +2959,7 @@ const ExperiencesPage = () => {
               {renderStepContent()}
             </div>
 
-            {currentStep === steps.length && renderRelatedExperiences()}
+            {isLastExperienceStep && renderRelatedExperiences()}
 
             <div
               style={{
