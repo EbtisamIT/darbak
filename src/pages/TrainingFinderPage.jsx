@@ -13,6 +13,10 @@ import AnimatedCount from "../components/AnimatedCount";
 import ShareButton from "../components/ShareButton";
 import PremiumInlineNotice from "../components/PremiumInlineNotice";
 import { guideUrl } from "../components/TrainingGuideBanner";
+import {
+  darbakGuideMeta,
+  darbakGuideOrganizations,
+} from "../data/darbakGuideSuggestions";
 import { trackEvent } from "../utils/analytics";
 import { getAccessHeaders, requestPremiumAccess } from "../utils/premiumAccess";
 import {
@@ -300,6 +304,65 @@ const getSelectedCityScope = (cityName) => {
     containingRegion,
     getRegionDisplayName(containingRegion),
   ];
+};
+
+const isNationalGuideOrganization = (organization = {}) =>
+  [organization.region, organization.city, ...(organization.regions || [])].some(
+    (value) => normalizeName(value) === normalizeName("كل المناطق")
+  );
+
+const guideOrganizationMatchesLocation = (
+  organization = {},
+  selectedCityScope = [],
+  suggestionRegion = "",
+  cityName = ""
+) => {
+  if (!cityName) return true;
+  if (isNationalGuideOrganization(organization)) return true;
+
+  const allowedLocations = new Set(
+    [
+      cityName,
+      suggestionRegion,
+      getRegionDisplayName(suggestionRegion),
+      ...selectedCityScope,
+    ]
+      .filter(Boolean)
+      .map(normalizeName)
+  );
+  const organizationLocations = [
+    organization.city,
+    organization.region,
+    ...(organization.cities || []),
+    ...(organization.regions || []),
+  ]
+    .filter(Boolean)
+    .map(normalizeName);
+
+  return organizationLocations.some((locationName) =>
+    allowedLocations.has(locationName)
+  );
+};
+
+const getGuideOrganizationLocationText = (organization = {}) => {
+  const cities = (organization.cities || []).filter(
+    (cityName) => normalizeName(cityName) !== normalizeName("كل المناطق")
+  );
+  if (cities.length > 0) return cities.slice(0, 3).join("، ");
+
+  const regions = (organization.regions || [])
+    .filter((regionName) => normalizeName(regionName) !== normalizeName("كل المناطق"))
+    .map(getRegionDisplayName);
+  if (regions.length > 0) return regions.slice(0, 3).join("، ");
+
+  return "كل المناطق";
+};
+
+const getGuideSpecialtyPreview = (organization = {}, fallback = "") => {
+  const specialties = organization.specialties || [];
+  if (specialties.length === 0) return fallback || "تخصصات متعددة";
+  const preview = specialties.slice(0, 3).join("، ");
+  return specialties.length > 3 ? `${preview} +${specialties.length - 3}` : preview;
 };
 
 const formatInteractionCount = (count = 0) => {
@@ -769,6 +832,12 @@ export const suggestedOrganizationsByMajorCategory = {
 };
 
 const organizationHomepageEntries = [
+  ...darbakGuideOrganizations
+    .filter((organization) => organization.url || organization.sourceUrl)
+    .map((organization) => [
+      organization.name,
+      organization.url || organization.sourceUrl,
+    ]),
   ...Object.values(suggestedOrganizationsByRegion)
     .flat()
     .map((organization) => [organization.name, organization.url]),
@@ -879,6 +948,8 @@ export default function TrainingFinderPage() {
   const [error, setError] = useState("");
   const [faqExpanded, setFaqExpanded] = useState(false);
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
+  const [selectedGuideOrganization, setSelectedGuideOrganization] =
+    useState(null);
   const [activeResultsTab, setActiveResultsTab] = useState("opportunities");
   const [opportunityFilters, setOpportunityFilters] = useState({
     status: "",
@@ -904,7 +975,7 @@ export default function TrainingFinderPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedOpportunity) return undefined;
+    if (!selectedOpportunity && !selectedGuideOrganization) return undefined;
 
     const previousOverflow = document.body.style.overflow;
     const previousOverscroll = document.body.style.overscrollBehavior;
@@ -915,7 +986,7 @@ export default function TrainingFinderPage() {
       document.body.style.overflow = previousOverflow;
       document.body.style.overscrollBehavior = previousOverscroll;
     };
-  }, [selectedOpportunity]);
+  }, [selectedOpportunity, selectedGuideOrganization]);
 
   const selectedSpecialtyOption = useMemo(
     () =>
@@ -926,10 +997,6 @@ export default function TrainingFinderPage() {
   );
   const selectedSpecialtyLabel =
     selectedSpecialtyOption?.label || selectedSpecialty;
-  const selectedMajorCategories = useMemo(
-    () => selectedSpecialtyOption?.categories || [],
-    [selectedSpecialtyOption]
-  );
   const suggestionRegion = resolveSuggestionRegion(city);
   const selectedCityScope = useMemo(() => getSelectedCityScope(city), [city]);
   const visibleTargets = useMemo(() => {
@@ -985,48 +1052,40 @@ export default function TrainingFinderPage() {
     ? trainingFinderFaqItems
     : trainingFinderFaqItems.slice(0, 3);
   const suggestedOrganizations = useMemo(() => {
-    const specialtyOrganizations = selectedMajorCategories.flatMap((category) =>
-      (suggestedOrganizationsByMajorCategory[category] || []).map(
-        (organization) => ({
-          ...organization,
-          sourceLabel: "حسب التخصص",
-        })
+    const guideOrganizations = darbakGuideOrganizations
+      .filter((organization) =>
+        guideOrganizationMatchesLocation(
+          organization,
+          selectedCityScope,
+          suggestionRegion,
+          city
+        )
       )
-    );
-    const regionOrganizations = suggestionRegion
+      .map((organization) => ({
+        ...organization,
+        sourceLabel: darbakGuideMeta.sourceLabel,
+      }));
+    const manualRegionOrganizations = suggestionRegion
       ? (suggestedOrganizationsByRegion[suggestionRegion] || []).map(
           (organization) => ({
             ...organization,
-            sourceLabel: "حسب المدينة",
+            sourceLabel: "اقتراح حسب المدينة",
+            regions: [suggestionRegion],
+            cities: selectedCityScope,
+            applicationWindow: "حسب إعلان الجهة",
+            specialties: [],
           })
         )
       : [];
-    if (city) {
-      return dedupeOrganizations(regionOrganizations).filter(
-        (organization) =>
-          !visibleTargetNames.has(normalizeName(organization.name))
-      );
-    }
-
-    const fallbackOrganizations =
-      specialtyOrganizations.length === 0 && regionOrganizations.length === 0
-        ? Object.values(suggestedOrganizationsByRegion)
-            .flat()
-            .map((organization) => ({
-              ...organization,
-              sourceLabel: "اقتراح عام",
-            }))
-        : [];
 
     return dedupeOrganizations([
-      ...specialtyOrganizations,
-      ...regionOrganizations,
-      ...fallbackOrganizations,
+      ...guideOrganizations,
+      ...manualRegionOrganizations,
     ]).filter(
       (organization) =>
       !visibleTargetNames.has(normalizeName(organization.name))
     );
-  }, [city, selectedMajorCategories, suggestionRegion, visibleTargetNames]);
+  }, [city, selectedCityScope, suggestionRegion, visibleTargetNames]);
   const visibleOpportunities = useMemo(() => {
     const filteredOpportunities = opportunities.filter((opportunity) => {
       const applicationState = getOpportunityApplicationState(
@@ -1523,6 +1582,64 @@ export default function TrainingFinderPage() {
     );
   };
 
+  const closeGuideOrganizationDetails = () => {
+    setSelectedGuideOrganization(null);
+  };
+
+  const setGuideOrganizationLockedPreview = (organization) => {
+    setSelectedGuideOrganization({
+      ...organization,
+      isPremiumPreviewLocked: true,
+    });
+  };
+
+  const unlockGuideOrganizationDetails = (
+    organization,
+    { showGateOnLimited = false } = {}
+  ) => {
+    if (!organization) return;
+
+    requestPremiumAccess(
+      {
+        feature: "training_guide_contact_details",
+        title: organization.name || "جهة من دليل دربك",
+        source: "where_to_train_guide",
+        itemKey: organization.id ? `guide-organization:${organization.id}` : "",
+        deferGateOnLimited: !showGateOnLimited,
+        onLimited: () => setGuideOrganizationLockedPreview(organization),
+      },
+      () => {
+        trackEvent("training_guide_suggestion_unlocked", {
+          major: selectedSpecialty,
+          city,
+          metadata: {
+            organizationId: organization.id || "",
+            organizationName: organization.name || "",
+            sourceLabel: organization.sourceLabel || "",
+          },
+        });
+        setSelectedGuideOrganization({
+          ...organization,
+          isPremiumPreviewLocked: false,
+        });
+      }
+    );
+  };
+
+  const openGuideOrganizationDetails = (organization) => {
+    setGuideOrganizationLockedPreview(organization);
+    trackEvent("training_guide_suggestion_details_clicked", {
+      major: selectedSpecialty,
+      city,
+      metadata: {
+        organizationId: organization.id || "",
+        organizationName: organization.name || "",
+        sourceLabel: organization.sourceLabel || "",
+      },
+    });
+    unlockGuideOrganizationDetails(organization);
+  };
+
   const openOpportunityApplication = (opportunity) => {
     const opportunityId = opportunity._id || opportunity.id || "";
     if (!opportunity.applicationUrl && !opportunity.hasApplicationUrl) return;
@@ -1652,6 +1769,18 @@ export default function TrainingFinderPage() {
         }))
         .filter((chip) => chip.value)
     : [];
+  const selectedGuideOrganizationLogoUrl = selectedGuideOrganization
+    ? selectedGuideOrganization.url ||
+      selectedGuideOrganization.sourceUrl ||
+      resolveOrganizationHomepageUrl(selectedGuideOrganization.name)
+    : "";
+  const isSelectedGuideLocked =
+    Boolean(selectedGuideOrganization) &&
+    selectedGuideOrganization.isPremiumPreviewLocked !== false;
+  const selectedGuideSpecialties = selectedGuideOrganization?.specialties || [];
+  const selectedGuideEmails = isSelectedGuideLocked
+    ? []
+    : selectedGuideOrganization?.emails || [];
 
   const buildTrainingFinderSharePath = () => {
     const params = new URLSearchParams();
@@ -2815,7 +2944,9 @@ export default function TrainingFinderPage() {
                       lineHeight: 1.8,
                     }}
                   >
-                    جهات كبداية بحث حسب تخصصك أو مدينتك.
+                    جهات من دليل دربك الشامل حسب المدينة أو المنطقة، مع{" "}
+                    {darbakGuideMeta.extractedUniqueEmailCount} إيميل مستخرج
+                    وقنوات تواصل تظهر تفاصيلها لمشتركي دربك+.
                   </p>
                 </div>
               </div>
@@ -2847,6 +2978,14 @@ export default function TrainingFinderPage() {
                     const savedOrganizationId = `suggested-organization:${normalizeName(
                       organization.name
                     )}`;
+                    const organizationUrl =
+                      organization.url || organization.sourceUrl || "";
+                    const specialtyPreview = getGuideSpecialtyPreview(
+                      organization,
+                      selectedSpecialtyLabel
+                    );
+                    const locationText =
+                      getGuideOrganizationLocationText(organization);
 
                     return (
                     <article
@@ -2876,7 +3015,7 @@ export default function TrainingFinderPage() {
                               subtitle: organization.sourceLabel || "اقتراح جهة",
                               organizationName: organization.name,
                               meta: selectedSpecialtyLabel || city || "",
-                              url: organization.url,
+                              url: organizationUrl || buildTrainingFinderSharePath(),
                             })
                           }
                           aria-label={
@@ -2918,7 +3057,8 @@ export default function TrainingFinderPage() {
                       >
                         <OrganizationLogo
                           name={organization.name}
-                          url={organization.url}
+                          url={organizationUrl}
+                          imageUrl={organization.logoUrl}
                         />
                         <div>
                           <div
@@ -2965,7 +3105,7 @@ export default function TrainingFinderPage() {
                               lineHeight: 1.7,
                             }}
                           >
-                            {organization.note}
+                            {organization.sector || organization.note}
                           </p>
                         </div>
                       </div>
@@ -2992,7 +3132,9 @@ export default function TrainingFinderPage() {
                             lineHeight: 1.6,
                           }}
                         >
-                          <span style={{ color: "var(--app-muted)" }}>مناسب لـ</span>
+                          <span style={{ color: "var(--app-muted)" }}>
+                            المدينة
+                          </span>
                           <strong
                             style={{
                               color: "var(--app-brand)",
@@ -3000,7 +3142,56 @@ export default function TrainingFinderPage() {
                               textAlign: "left",
                             }}
                           >
-                            {selectedSpecialtyLabel}
+                            {locationText}
+                          </strong>
+                        </p>
+                        <p
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            margin: 0,
+                            color: "var(--app-text-soft)",
+                            fontSize: "12px",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          <span style={{ color: "var(--app-muted)" }}>
+                            التخصصات
+                          </span>
+                          <strong
+                            style={{
+                              color: "var(--app-text)",
+                              fontWeight: "800",
+                              textAlign: "left",
+                              overflowWrap: "anywhere",
+                            }}
+                          >
+                            {specialtyPreview}
+                          </strong>
+                        </p>
+                        <p
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            margin: 0,
+                            color: "var(--app-text-soft)",
+                            fontSize: "12px",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          <span style={{ color: "var(--app-muted)" }}>
+                            التقديم
+                          </span>
+                          <strong
+                            style={{
+                              color: "var(--app-text-soft)",
+                              fontWeight: "800",
+                              textAlign: "left",
+                            }}
+                          >
+                            {organization.applicationWindow || "حسب إعلان الجهة"}
                           </strong>
                         </p>
                         <p
@@ -3011,24 +3202,18 @@ export default function TrainingFinderPage() {
                             lineHeight: 1.75,
                           }}
                         >
-                          ابحث في الموقع الرسمي عن التدريب، الوظائف، أو برامج
-                          الخريجين، وتابع لينكدإن للجهة إذا توفر.
+                          {organization.note ||
+                            "تفاصيل التواصل وطريقة الاستخدام متاحة داخل التفاصيل."}
                         </p>
                       </div>
                       <div className="finder-card-actions">
-                        <a
-                          href={organization.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ textDecoration: "none" }}
+                        <button
+                          type="button"
+                          className="opportunity-secondary-button"
+                          onClick={() => openGuideOrganizationDetails(organization)}
                         >
-                          <button
-                            type="button"
-                            className="opportunity-secondary-button"
-                          >
-                            زيارة صفحة الجهة
-                          </button>
-                        </a>
+                          تفاصيل الجهة
+                        </button>
                       </div>
                     </article>
                     );
@@ -3133,6 +3318,199 @@ export default function TrainingFinderPage() {
         </section>
         )}
       </section>
+
+      {selectedGuideOrganization && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`تفاصيل ${selectedGuideOrganization.name || "جهة من دليل دربك"}`}
+          onClick={closeGuideOrganizationDetails}
+          className="opportunity-detail-overlay"
+        >
+          <div
+            className="opportunity-detail-modal guide-organization-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="opportunity-detail-head">
+              <OrganizationLogo
+                name={selectedGuideOrganization.name}
+                url={selectedGuideOrganizationLogoUrl}
+                imageUrl={selectedGuideOrganization.logoUrl}
+              />
+              <div>
+                <p className="opportunity-detail-eyebrow">
+                  {selectedGuideOrganization.sourceLabel ||
+                    darbakGuideMeta.sourceLabel}
+                </p>
+                <h2>{selectedGuideOrganization.name}</h2>
+                <p>
+                  {selectedGuideOrganization.sector || "جهة تدريبية"}
+                  {" - "}
+                  {getGuideOrganizationLocationText(selectedGuideOrganization)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeGuideOrganizationDetails}
+                aria-label="إغلاق تفاصيل الجهة"
+                className="opportunity-detail-close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="opportunity-detail-meta">
+              <span className="detail-time-chip">
+                متى يفتح:{" "}
+                {selectedGuideOrganization.applicationWindow || "حسب إعلان الجهة"}
+              </span>
+              {selectedGuideOrganization.confidence && (
+                <span className="opportunity-status open">
+                  الموثوقية: {selectedGuideOrganization.confidence}
+                </span>
+              )}
+              {selectedGuideOrganization.lastVerified && (
+                <span className="opportunity-deadline">
+                  آخر تحقق: {selectedGuideOrganization.lastVerified}
+                </span>
+              )}
+            </div>
+
+            {selectedGuideSpecialties.length > 0 && (
+              <div className="guide-specialties-block">
+                <strong>التخصصات المناسبة</strong>
+                <div className="guide-specialties-list">
+                  {selectedGuideSpecialties.map((specialty) => (
+                    <span key={`${selectedGuideOrganization.id}-${specialty}`}>
+                      {specialty}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="opportunity-detail-note guide-organization-note">
+              {selectedGuideOrganization.note ||
+                "هذه الجهة مضافة كاقتراح من دليل دربك الشامل، وتحتاج مراجعة المصدر الرسمي قبل التقديم."}
+            </p>
+
+            {isSelectedGuideLocked && (
+              <PremiumInlineNotice
+                lockedItems={[
+                  "إيميلات وقنوات التواصل",
+                  "طريقة الاستخدام المقترحة",
+                  "رابط المصدر الرسمي",
+                ]}
+                onUnlock={() =>
+                  unlockGuideOrganizationDetails(selectedGuideOrganization, {
+                    showGateOnLimited: true,
+                  })
+                }
+                onSkip={closeGuideOrganizationDetails}
+              />
+            )}
+
+            <div className="premium-preview-blur-wrap">
+              <div
+                className={`guide-contact-grid${
+                  isSelectedGuideLocked ? " is-premium-preview-blurred" : ""
+                }`}
+              >
+                <div>
+                  <span>قناة التواصل</span>
+                  <strong>
+                    {isSelectedGuideLocked
+                      ? "متاحة لمشتركي دربك+"
+                      : selectedGuideOrganization.contactType || "حسب المصدر"}
+                  </strong>
+                </div>
+                <div>
+                  <span>الإيميل</span>
+                  <strong>
+                    {selectedGuideEmails.length > 0
+                      ? selectedGuideEmails.join("، ")
+                      : isSelectedGuideLocked
+                      ? "مقفلة"
+                      : "غير منشور"}
+                  </strong>
+                </div>
+                <div>
+                  <span>طريقة الاستخدام</span>
+                  <strong>
+                    {isSelectedGuideLocked
+                      ? "تظهر بعد تفعيل دربك+"
+                      : selectedGuideOrganization.usage ||
+                        "راجع صفحة الجهة الرسمية."}
+                  </strong>
+                </div>
+                <div>
+                  <span>المصدر</span>
+                  <strong>
+                    {isSelectedGuideLocked
+                      ? "رابط المصدر مقفل"
+                      : selectedGuideOrganization.sourceUrl ||
+                        selectedGuideOrganization.url ||
+                        "غير متاح"}
+                  </strong>
+                </div>
+              </div>
+              {isSelectedGuideLocked && (
+                <span className="premium-preview-blur-label">
+                  فعّل دربك+ لرؤية معلومات التواصل كاملة
+                </span>
+              )}
+            </div>
+
+            <p className="guide-source-line">ملخص من دليل دربك الشامل</p>
+
+            <div className="opportunity-detail-actions">
+              <button
+                type="button"
+                onClick={closeGuideOrganizationDetails}
+                className="opportunity-secondary-button"
+              >
+                إغلاق
+              </button>
+              {isSelectedGuideLocked ? (
+                <button
+                  type="button"
+                  className="opportunity-apply-button"
+                  onClick={() =>
+                    unlockGuideOrganizationDetails(selectedGuideOrganization, {
+                      showGateOnLimited: true,
+                    })
+                  }
+                >
+                  فتح معلومات التواصل
+                </button>
+              ) : selectedGuideOrganization.url ||
+                selectedGuideOrganization.sourceUrl ? (
+                <a
+                  href={
+                    selectedGuideOrganization.url ||
+                    selectedGuideOrganization.sourceUrl
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: "none" }}
+                >
+                  <button type="button" className="opportunity-apply-button">
+                    زيارة صفحة الجهة
+                  </button>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="opportunity-apply-button is-disabled"
+                  disabled
+                >
+                  لا يوجد رابط
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedOpportunity && (
         <div
@@ -4259,6 +4637,75 @@ export default function TrainingFinderPage() {
           gap: 8px;
         }
 
+        .guide-specialties-block {
+          display: grid;
+          gap: 9px;
+          background: var(--app-card);
+          border: 1px solid var(--app-border);
+          border-radius: 14px;
+          padding: 12px;
+        }
+
+        .guide-specialties-block > strong {
+          color: var(--app-brand);
+          font-size: 13px;
+          line-height: 1.4;
+        }
+
+        .guide-specialties-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+        }
+
+        .guide-specialties-list span {
+          background: var(--app-brand-soft);
+          border: 1px solid var(--app-brand-border);
+          color: var(--app-text-soft);
+          border-radius: 999px;
+          padding: 6px 9px;
+          font-size: 12px;
+          font-weight: 800;
+          line-height: 1.35;
+        }
+
+        .guide-contact-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .guide-contact-grid > div {
+          min-width: 0;
+          display: grid;
+          gap: 4px;
+          background: var(--app-card);
+          border: 1px solid var(--app-border);
+          border-radius: 13px;
+          padding: 10px;
+        }
+
+        .guide-contact-grid span {
+          color: var(--app-muted);
+          font-size: 11px;
+          font-weight: 800;
+          line-height: 1.4;
+        }
+
+        .guide-contact-grid strong {
+          color: var(--app-text);
+          font-size: 12px;
+          line-height: 1.7;
+          overflow-wrap: anywhere;
+        }
+
+        .guide-source-line {
+          margin: -2px 2px 0;
+          color: var(--app-muted);
+          font-size: 11px;
+          line-height: 1.5;
+        }
+
         @media (max-width: 760px) {
           .opportunity-guide-inline-banner {
             grid-template-columns: 1fr !important;
@@ -4556,6 +5003,15 @@ export default function TrainingFinderPage() {
 
           .opportunity-detail-actions {
             grid-template-columns: 1fr !important;
+          }
+
+          .guide-contact-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .guide-specialties-list span {
+            font-size: 11px !important;
+            padding: 5px 7px !important;
           }
 
           .training-target-card,
