@@ -492,43 +492,12 @@ const isOpportunityRecentlyAdded = (opportunity = {}, days = 14) => {
   return Date.now() - createdAt <= days * 24 * 60 * 60 * 1000;
 };
 
-const opportunityFilterGroups = [
-  {
-    key: "status",
-    label: "الحالة",
-    options: [
-      { value: "", label: "الكل" },
-      { value: "open", label: "مفتوح" },
-      { value: "closed", label: "مغلق" },
-    ],
-  },
-  {
-    key: "reward",
-    label: "المكافأة",
-    options: [
-      { value: "", label: "الكل" },
-      { value: "yes", label: "مكافأة" },
-      { value: "no", label: "بدون مكافأة" },
-    ],
-  },
-  {
-    key: "mode",
-    label: "نوع التدريب",
-    options: [
-      { value: "", label: "الكل" },
-      { value: "onsite", label: "حضوري" },
-      { value: "remote", label: "عن بعد" },
-      { value: "hybrid", label: "مختلط" },
-    ],
-  },
-  {
-    key: "freshness",
-    label: "الإضافة",
-    options: [
-      { value: "", label: "الكل" },
-      { value: "recent", label: "مضاف حديثًا" },
-    ],
-  },
+const opportunityQuickFilters = [
+  { key: "reward", value: "yes", label: "بمكافأة" },
+  { key: "freshness", value: "recent", label: "فرص جديدة" },
+  { key: "mode", value: "onsite", label: "حضوري" },
+  { key: "status", value: "open", label: "مفتوح" },
+  { key: "status", value: "closed", label: "مغلق" },
 ];
 
 const getOpportunityCities = (opportunity = {}) => {
@@ -1939,38 +1908,20 @@ export default function TrainingFinderPage() {
         </form>
 
         <div className="opportunity-filter-bar" aria-label="فلاتر الفرص">
-          <div className="opportunity-filter-bar-title">
-            <span>فلترة الفرص</span>
-            <small>
-              {opportunitiesLoading
-                ? "جاري تحديث الفرص..."
-                : `${visibleOpportunities.length} من ${opportunities.length}`}
-            </small>
-          </div>
-
           <div className="opportunity-filter-groups">
-            {opportunityFilterGroups.map((group) => (
-              <div className="opportunity-filter-group" key={group.key}>
-                <span>{group.label}</span>
-                <div className="opportunity-filter-options">
-                  {group.options.map((option) => (
-                    <button
-                      key={`${group.key}-${option.value || "all"}`}
-                      type="button"
-                      className={`opportunity-filter-chip${
-                        opportunityFilters[group.key] === option.value
-                          ? " is-active"
-                          : ""
-                      }`}
-                      onClick={() =>
-                        updateOpportunityFilter(group.key, option.value)
-                      }
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {opportunityQuickFilters.map((filter) => (
+              <button
+                key={`${filter.key}-${filter.value}`}
+                type="button"
+                className={`opportunity-filter-chip${
+                  opportunityFilters[filter.key] === filter.value
+                    ? " is-active"
+                    : ""
+                }`}
+                onClick={() => updateOpportunityFilter(filter.key, filter.value)}
+              >
+                {filter.label}
+              </button>
             ))}
           </div>
 
@@ -1980,7 +1931,7 @@ export default function TrainingFinderPage() {
               className="opportunity-filter-reset"
               onClick={resetOpportunityFilters}
             >
-              مسح الفلاتر
+              مسح
             </button>
           )}
         </div>
@@ -3766,36 +3717,20 @@ export default function TrainingFinderPage() {
 
         .opportunity-filter-bar {
           display: grid;
-          grid-template-columns: auto minmax(0, 1fr) auto;
-          gap: 10px;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
           align-items: center;
-          background: var(--app-card);
-          border: 1px solid var(--app-border);
-          border-radius: 16px;
-          padding: 10px;
+          background: transparent;
+          border: none;
+          border-radius: 0;
+          padding: 0 2px;
           text-align: right;
-        }
-
-        .opportunity-filter-bar-title {
-          display: grid;
-          gap: 2px;
-          min-width: 86px;
-          color: var(--app-text);
-          font-size: 13px;
-          font-weight: 900;
-          line-height: 1.4;
-        }
-
-        .opportunity-filter-bar-title small {
-          color: var(--app-muted);
-          font-size: 11px;
-          font-weight: 800;
         }
 
         .opportunity-filter-groups {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 7px;
           overflow-x: auto;
           scrollbar-width: none;
           -webkit-overflow-scrolling: touch;
@@ -3803,31 +3738,6 @@ export default function TrainingFinderPage() {
 
         .opportunity-filter-groups::-webkit-scrollbar {
           display: none;
-        }
-
-        .opportunity-filter-group {
-          flex: 0 0 auto;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          background: var(--app-surface);
-          border: 1px solid var(--app-border);
-          border-radius: 999px;
-          padding: 5px;
-        }
-
-        .opportunity-filter-group > span {
-          color: var(--app-text-soft);
-          font-size: 11px;
-          font-weight: 900;
-          padding: 0 5px;
-          white-space: nowrap;
-        }
-
-        .opportunity-filter-options {
-          display: flex;
-          align-items: center;
-          gap: 4px;
         }
 
         .opportunity-filter-chip,
@@ -3844,6 +3754,22 @@ export default function TrainingFinderPage() {
           white-space: nowrap;
           cursor: pointer;
           transition: 0.18s ease;
+        }
+
+        .opportunity-filter-chip {
+          flex: 0 0 auto;
+        }
+
+        .opportunity-filter-chip::before {
+          content: "";
+          width: 5px;
+          height: 5px;
+          border-radius: 999px;
+          display: inline-block;
+          margin-inline-end: 5px;
+          background: currentColor;
+          opacity: 0.65;
+          vertical-align: middle;
         }
 
         .opportunity-filter-chip:hover,
@@ -3863,6 +3789,7 @@ export default function TrainingFinderPage() {
           justify-self: end;
           background: transparent;
           color: var(--app-muted);
+          padding-inline: 8px;
         }
 
         .training-results-tabs {
@@ -4348,32 +4275,14 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-filter-bar {
-            grid-template-columns: 1fr !important;
-            gap: 8px !important;
-            padding: 9px !important;
-            border-radius: 14px !important;
-          }
-
-          .opportunity-filter-bar-title {
-            grid-template-columns: auto auto !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            min-width: 0 !important;
+            grid-template-columns: minmax(0, 1fr) auto !important;
+            gap: 6px !important;
+            padding: 0 1px !important;
           }
 
           .opportunity-filter-groups {
-            gap: 7px !important;
+            gap: 6px !important;
             padding-bottom: 1px !important;
-          }
-
-          .opportunity-filter-group {
-            gap: 4px !important;
-            padding: 4px !important;
-          }
-
-          .opportunity-filter-group > span {
-            font-size: 10.5px !important;
-            padding: 0 4px !important;
           }
 
           .opportunity-filter-chip,
@@ -4383,7 +4292,7 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-filter-reset {
-            justify-self: stretch !important;
+            justify-self: end !important;
           }
 
           .opportunity-request-grid {
