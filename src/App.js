@@ -29,6 +29,7 @@ import DarbakAssistant from "./components/DarbakAssistant";
 import { trackEvent } from "./utils/analytics";
 
 const PLATFORM_UPDATE_NOTICE_KEY = "darbak_portfolio_announcement_seen_v1";
+const PORTFOLIO_ANNOUNCEMENT_EVENT = "darbak:open-portfolio-announcement";
 const ADMIN_REVIEW_PATH = "/darbak-owner-review-2026";
 const cvProductUrl =
   "https://darbakk.com/%D8%B3%D9%8A%D8%B1%D8%A9-%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8-%D8%A7%D9%84%D8%AA%D8%B9%D8%A7%D9%88%D9%86%D9%8A/p1027158085";
@@ -181,16 +182,6 @@ const buildGuideRecommendation = (answers) => {
   };
 };
 
-const hasSeenPlatformUpdateNotice = () => {
-  if (typeof window === "undefined") return true;
-
-  try {
-    return window.localStorage.getItem(PLATFORM_UPDATE_NOTICE_KEY) === "true";
-  } catch {
-    return true;
-  }
-};
-
 const markPlatformUpdateNoticeSeen = () => {
   if (typeof window === "undefined") return;
 
@@ -242,16 +233,18 @@ function PlatformUpdateNotice() {
 
   useEffect(() => {
     const isAdminPage = location.pathname === ADMIN_REVIEW_PATH;
-    const isTrainingFinderPage = location.pathname.startsWith("/where-to-train");
-
-    setNoticeMode("portfolio");
-    setStep("intro");
-    setShowNotice(
-      !isAdminPage && !isTrainingFinderPage && !hasSeenPlatformUpdateNotice()
-    );
+    if (isAdminPage) setShowNotice(false);
   }, [location.pathname]);
 
   useEffect(() => {
+    const openPortfolioAnnouncement = () => {
+      setNoticeMode("portfolio");
+      setStep("intro");
+      setShareStatus("");
+      portfolioAnnouncementTrackedRef.current = false;
+      setShowNotice(true);
+    };
+
     const openDiagnosisCard = () => {
       setNoticeMode("diagnosis");
       setStep("intro");
@@ -260,8 +253,16 @@ function PlatformUpdateNotice() {
       setShowNotice(true);
     };
 
+    window.addEventListener(
+      PORTFOLIO_ANNOUNCEMENT_EVENT,
+      openPortfolioAnnouncement
+    );
     window.addEventListener("darbak:open-training-diagnosis", openDiagnosisCard);
     return () => {
+      window.removeEventListener(
+        PORTFOLIO_ANNOUNCEMENT_EVENT,
+        openPortfolioAnnouncement
+      );
       window.removeEventListener(
         "darbak:open-training-diagnosis",
         openDiagnosisCard
@@ -281,7 +282,7 @@ function PlatformUpdateNotice() {
     portfolioAnnouncementTrackedRef.current = true;
     trackEvent("portfolio_announcement_viewed", {
       page: location.pathname,
-      metadata: { source: "first_visit_popup" },
+      metadata: { source: "portfolio_nav_click" },
     });
   }, [location.pathname, noticeMode, showNotice]);
 

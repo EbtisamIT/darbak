@@ -197,6 +197,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     setFloatingMenuOpen(false);
   };
 
+  const openPortfolioAnnouncement = () => {
+    window.dispatchEvent(new Event("darbak:open-portfolio-announcement"));
+    setFloatingMenuOpen(false);
+  };
+
   const floatingLinkStyle = (path) => ({
     display: "flex",
     alignItems: "center",
@@ -405,9 +410,13 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             {isMobile ? "مقابلات" : "💬 مقابلات"}
           </Link>
 
-          <Link to="/portfolio" style={linkStyle("/portfolio")}>
+          <button
+            type="button"
+            onClick={openPortfolioAnnouncement}
+            style={quietActionButtonStyle}
+          >
             portfolio
-          </Link>
+          </button>
 
           <button
             type="button"
@@ -510,10 +519,14 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 <span aria-hidden="true">💬</span>
               </Link>
 
-              <Link to="/portfolio" style={floatingLinkStyle("/portfolio")}>
+              <button
+                type="button"
+                onClick={openPortfolioAnnouncement}
+                style={floatingActionStyle}
+              >
                 <span>portfolio</span>
                 <span aria-hidden="true">▤</span>
-              </Link>
+              </button>
 
               <button
                 type="button"
