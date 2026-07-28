@@ -2194,6 +2194,7 @@ export default function TrainingFinderPage() {
                             : "♡ حفظ"}
                         </button>
                         <ShareButton
+                          compact
                           buttonLabel="مشاركة صديق"
                           title={opportunity.title || "فرصة تدريب من دربك"}
                           text={`شوف هذه الفرصة في دربك: ${
@@ -2290,6 +2291,11 @@ export default function TrainingFinderPage() {
                               ? ` - ${getOpportunityCityText(opportunity)}`
                               : ""}
                           </p>
+                          {getOpportunityCityText(opportunity) && (
+                            <p className="opportunity-card-city">
+                              {getOpportunityCityText(opportunity)}
+                            </p>
+                          )}
                           {getOpportunityCardStats(opportunity).length > 0 && (
                             <div className="card-interaction-stats opportunity-interaction-count">
                               {getOpportunityCardStats(opportunity).map((stat) => (
@@ -4042,6 +4048,18 @@ export default function TrainingFinderPage() {
           overflow: hidden;
         }
 
+        .opportunity-card-city {
+          display: none;
+          margin: 0;
+          color: var(--app-muted);
+          font-size: 11px;
+          font-weight: 800;
+          line-height: 1.4;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
         .opportunity-card-badges {
           display: flex;
           flex-wrap: wrap;
@@ -4400,45 +4418,153 @@ export default function TrainingFinderPage() {
           }
 
           .opportunities-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 8px !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 7px !important;
           }
 
           .finder-result-card,
           .opportunity-card {
-            padding: 10px !important;
+            padding: 8px !important;
             border-radius: 13px !important;
-            gap: 8px !important;
-            min-height: 220px !important;
+            gap: 6px !important;
+            min-height: 150px !important;
+          }
+
+          .opportunity-card {
+            justify-items: stretch !important;
+          }
+
+          .opportunity-card::after {
+            content: "تفاصيل";
+            display: inline-grid;
+            place-items: center;
+            min-height: 24px;
+            margin-top: auto;
+            border-radius: 999px;
+            background: var(--app-brand-soft);
+            border: 1px solid var(--app-brand-border);
+            color: var(--app-brand);
+            font-size: 10px;
+            font-weight: 900;
+            line-height: 1;
+          }
+
+          .opportunity-card .card-quick-actions {
+            align-items: center !important;
+            gap: 4px !important;
+          }
+
+          .opportunity-card .save-item-button {
+            width: 25px !important;
+            min-width: 25px !important;
+            height: 25px !important;
+            min-height: 25px !important;
+            padding: 0 !important;
+            font-size: 0 !important;
+            border-radius: 999px !important;
+          }
+
+          .opportunity-card .save-item-button::before {
+            content: "♡";
+            font-size: 13px;
+            line-height: 1;
+          }
+
+          .opportunity-card .save-item-button.is-saved::before {
+            content: "♥";
+          }
+
+          .opportunity-card .share-card-control {
+            flex: 0 0 auto !important;
+            max-width: 25px !important;
+          }
+
+          .opportunity-card .share-card-button {
+            width: 25px !important;
+            min-width: 25px !important;
+            height: 25px !important;
+            min-height: 25px !important;
+            gap: 0 !important;
+            padding: 0 !important;
+            border-radius: 999px !important;
+            font-size: 0 !important;
+          }
+
+          .opportunity-card .share-card-button span {
+            display: none !important;
+          }
+
+          .opportunity-card .share-card-button svg {
+            width: 13px !important;
+            height: 13px !important;
+          }
+
+          .opportunity-card .card-timestamp-row {
+            display: none !important;
           }
 
           .opportunity-card-head {
-            grid-template-columns: 34px minmax(0, 1fr) !important;
-            gap: 8px !important;
+            grid-template-columns: 1fr !important;
+            justify-items: center !important;
+            gap: 6px !important;
+            text-align: center !important;
+          }
+
+          .opportunity-card-head .suggested-organization-logo {
+            width: 36px !important;
+            height: 36px !important;
+            min-width: 36px !important;
+            min-height: 36px !important;
+            max-width: 36px !important;
+            max-height: 36px !important;
+            border-radius: 12px !important;
+          }
+
+          .opportunity-card-head .organization-logo-image-frame,
+          .opportunity-card-head .organization-logo-initial {
+            width: 28px !important;
+            height: 28px !important;
+            min-width: 28px !important;
+            min-height: 28px !important;
+            border-radius: 9px !important;
+          }
+
+          .opportunity-card-head .organization-logo-image-frame img {
+            width: 22px !important;
+            height: 22px !important;
+            min-width: 22px !important;
+            min-height: 22px !important;
+            max-width: 22px !important;
+            max-height: 22px !important;
           }
 
           .opportunity-card-badges {
             grid-column: 1 / -1 !important;
             display: flex !important;
-            justify-content: flex-start !important;
-            gap: 5px !important;
+            justify-content: center !important;
+            gap: 4px !important;
           }
 
           .opportunity-status,
           .opportunity-featured-badge {
-            padding: 4px 7px !important;
-            font-size: 10px !important;
+            padding: 4px 6px !important;
+            font-size: 9px !important;
           }
 
           .opportunity-organization-name {
-            min-height: 34px !important;
+            min-height: 30px !important;
             margin-bottom: 3px !important;
-            font-size: 13.5px !important;
-            line-height: 1.35 !important;
+            font-size: 11.5px !important;
+            line-height: 1.3 !important;
+            text-align: center !important;
             display: -webkit-box !important;
             -webkit-line-clamp: 2 !important;
             -webkit-box-orient: vertical !important;
             overflow: hidden !important;
+          }
+
+          .opportunity-card-city {
+            display: block !important;
           }
 
           .opportunity-chip-grid {
@@ -4447,18 +4573,16 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-actions {
-            gap: 3px !important;
+            display: none !important;
           }
 
           .opportunity-card-title {
-            min-height: 34px !important;
-            margin-bottom: 2px !important;
-            font-size: 11px !important;
-            line-height: 1.45 !important;
-            display: -webkit-box !important;
-            -webkit-line-clamp: 2 !important;
-            -webkit-box-orient: vertical !important;
-            overflow: hidden !important;
+            display: none !important;
+          }
+
+          .opportunity-interaction-count,
+          .opportunity-card .finder-card-info {
+            display: none !important;
           }
 
           .opportunity-chip {
@@ -4614,6 +4738,38 @@ export default function TrainingFinderPage() {
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
+          }
+
+          .opportunity-card.suggested-target-card {
+            padding: 8px !important;
+            gap: 6px !important;
+            min-height: 150px !important;
+          }
+
+          .opportunity-card .opportunity-card-head {
+            grid-template-columns: 1fr !important;
+            justify-items: center !important;
+            text-align: center !important;
+          }
+
+          .opportunity-card .suggested-card-title-row {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            justify-items: center !important;
+            gap: 4px !important;
+          }
+
+          .opportunity-card .finder-card-info,
+          .opportunity-card .opportunity-actions,
+          .opportunity-card .opportunity-card-title,
+          .opportunity-card .opportunity-interaction-count {
+            display: none !important;
+          }
+        }
+
+        @media (min-width: 520px) and (max-width: 760px) {
+          .opportunities-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
           }
         }
 
