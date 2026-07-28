@@ -365,6 +365,97 @@ const getGuideSpecialtyPreview = (organization = {}, fallback = "") => {
   return specialties.length > 3 ? `${preview} +${specialties.length - 3}` : preview;
 };
 
+const entityIncludesAny = (entity = {}, keywords = []) => {
+  const text = [
+    entity.name,
+    entity.organizationName,
+    entity.title,
+    entity.sector,
+    entity.note,
+    entity.contactType,
+    entity.applicationMethod,
+    entity.applicationWindow,
+    entity.usage,
+    ...(entity.specialties || []),
+    ...(entity.majorCategories || []),
+    ...(entity.majors || []),
+    ...(entity.methods || []),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const normalizedText = normalizeName(text);
+
+  return keywords.some((keyword) =>
+    normalizedText.includes(normalizeName(keyword))
+  );
+};
+
+const isGovernmentEntity = (entity) =>
+  entityIncludesAny(entity, [
+    "حكومي",
+    "وزارة",
+    "هيئة",
+    "امانة",
+    "أمانة",
+    "جامعة",
+    "ديوان",
+    "صندوق",
+    "مركز وطني",
+    "المركز الوطني",
+    "بلدية",
+    "الهيئة الملكية",
+  ]);
+
+const isTechEntity = (entity) =>
+  !isGovernmentEntity(entity) &&
+  entityIncludesAny(entity, [
+    "تقنية",
+    "تقني",
+    "حلول رقمية",
+    "برمجيات",
+    "بيانات",
+    "ذكاء اصطناعي",
+    "امن سيبراني",
+    "أمن سيبراني",
+    "اتصالات",
+    "نظم معلومات",
+    "حاسب",
+    "it",
+    "software",
+    "digital",
+  ]);
+
+const isConsultingEntity = (entity) =>
+  entityIncludesAny(entity, [
+    "استشارات",
+    "استشارية",
+    "مراجعة",
+    "محاسبة ومراجعة",
+    "ey",
+    "ernst",
+    "kpmg",
+    "pwc",
+    "deloitte",
+    "accenture",
+    "bcg",
+    "mckinsey",
+    "bain",
+  ]);
+
+const acceptsWithoutAnnouncement = (entity) =>
+  entityIncludesAny(entity, [
+    "ايميل",
+    "إيميل",
+    "بريد",
+    "ارسال",
+    "إرسال",
+    "تواصل مباشر",
+    "تدريب مباشر",
+    "يدوي",
+    "manual",
+    "email",
+  ]);
+
 const formatInteractionCount = (count = 0) => {
   const numericCount = Number(count) || 0;
   if (numericCount >= 1000) return `${(numericCount / 1000).toFixed(1)}k`;
@@ -950,6 +1041,7 @@ export default function TrainingFinderPage() {
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [selectedGuideOrganization, setSelectedGuideOrganization] =
     useState(null);
+  const [showSearchInsightModal, setShowSearchInsightModal] = useState(false);
   const [activeResultsTab, setActiveResultsTab] = useState("opportunities");
   const [opportunityFilters, setOpportunityFilters] = useState({
     status: "",
@@ -1158,6 +1250,90 @@ export default function TrainingFinderPage() {
         ]
       : []),
   ];
+  const searchInsightOrganizations = useMemo(() => {
+    const organizationsMap = new Map();
+    const mergeOrganization = (entity = {}) => {
+      const name = (entity.name || entity.organizationName || "").trim();
+      const key = normalizeName(name);
+      if (!key) return;
+
+      const current = organizationsMap.get(key) || { name };
+      organizationsMap.set(key, {
+        ...current,
+        ...entity,
+        name: current.name || name,
+        organizationName: current.organizationName || entity.organizationName || name,
+        specialties: Array.from(
+          new Set([
+            ...(current.specialties || []),
+            ...(entity.specialties || []),
+          ].filter(Boolean))
+        ),
+        majorCategories: Array.from(
+          new Set([
+            ...(current.majorCategories || []),
+            ...(entity.majorCategories || []),
+          ].filter(Boolean))
+        ),
+        majors: Array.from(
+          new Set([
+            ...(current.majors || []),
+            ...(entity.majors || []),
+          ].filter(Boolean))
+        ),
+        methods: Array.from(
+          new Set([
+            ...(current.methods || []),
+            ...(entity.methods || []),
+          ].filter(Boolean))
+        ),
+      });
+    };
+
+    visibleOpportunities.forEach((opportunity) =>
+      mergeOrganization({
+        ...opportunity,
+        name: opportunity.organizationName,
+      })
+    );
+    visibleTargets.forEach((target) =>
+      mergeOrganization({
+        ...target,
+        name: target.organizationName,
+      })
+    );
+    suggestedOrganizations.forEach((organization) =>
+      mergeOrganization(organization)
+    );
+
+    return Array.from(organizationsMap.values());
+  }, [suggestedOrganizations, visibleOpportunities, visibleTargets]);
+  const searchInsightItems = useMemo(
+    () => [
+      {
+        key: "government",
+        label: "جهة حكومية",
+        count: searchInsightOrganizations.filter(isGovernmentEntity).length,
+      },
+      {
+        key: "technology",
+        label: "شركة تقنية",
+        count: searchInsightOrganizations.filter(isTechEntity).length,
+      },
+      {
+        key: "consulting",
+        label: "شركة استشارية",
+        count: searchInsightOrganizations.filter(isConsultingEntity).length,
+      },
+      {
+        key: "direct",
+        label: "جهة تقبل بدون إعلان",
+        count: searchInsightOrganizations.filter(acceptsWithoutAnnouncement)
+          .length,
+      },
+    ],
+    [searchInsightOrganizations]
+  );
 
   const fetchOpportunities = async (params = {}) => {
     try {
@@ -1232,11 +1408,13 @@ export default function TrainingFinderPage() {
           ? "targets"
           : "suggestions"
       );
+      setShowSearchInsightModal(true);
     } catch (err) {
       console.error(err);
       setError("تعذر عرض النتائج حاليًا.");
       setTargets([]);
       setOpportunities([]);
+      setShowSearchInsightModal(false);
     } finally {
       setLoading(false);
     }
@@ -1970,7 +2148,10 @@ export default function TrainingFinderPage() {
             التخصص
             <select
               value={selectedSpecialty}
-              onChange={(event) => setSelectedSpecialty(event.target.value)}
+              onChange={(event) => {
+                setSelectedSpecialty(event.target.value);
+                setShowSearchInsightModal(false);
+              }}
               style={{
                 width: "100%",
                 padding: "12px",
@@ -1994,7 +2175,10 @@ export default function TrainingFinderPage() {
             المدينة أو المنطقة
             <select
               value={city}
-              onChange={(event) => setCity(event.target.value)}
+              onChange={(event) => {
+                setCity(event.target.value);
+                setShowSearchInsightModal(false);
+              }}
               style={{
                 width: "100%",
                 padding: "12px",
@@ -3319,6 +3503,55 @@ export default function TrainingFinderPage() {
         )}
       </section>
 
+      {showSearchInsightModal && selectedSpecialty && searched && !loading && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="ملخص نتائج وين أتدرب"
+          className="search-insight-overlay"
+          onClick={() => setShowSearchInsightModal(false)}
+        >
+          <div
+            className="search-insight-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="search-insight-close"
+              aria-label="إغلاق ملخص النتائج"
+              onClick={() => setShowSearchInsightModal(false)}
+            >
+              ×
+            </button>
+            <p className="search-insight-eyebrow">ملخص سريع حسب اختيارك</p>
+            <h2>حسب تخصصك ({selectedSpecialtyLabel}):</h2>
+            <p className="search-insight-subtitle">
+              {city
+                ? `الأرقام محسوبة من نتائج ${city} الحالية.`
+                : "الأرقام محسوبة من كل المدن والمناطق الحالية."}
+            </p>
+
+            <div className="search-insight-list">
+              {searchInsightItems.map((item) => (
+                <div className="search-insight-item" key={item.key}>
+                  <span aria-hidden="true">✔</span>
+                  <strong>{item.count}</strong>
+                  <p>{item.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="search-insight-action"
+              onClick={() => setShowSearchInsightModal(false)}
+            >
+              عرض النتائج
+            </button>
+          </div>
+        </div>
+      )}
+
       {selectedGuideOrganization && (
         <div
           role="dialog"
@@ -4637,6 +4870,122 @@ export default function TrainingFinderPage() {
           gap: 8px;
         }
 
+        .search-insight-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 3290;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
+          background: var(--app-overlay);
+          backdrop-filter: blur(8px);
+        }
+
+        .search-insight-modal {
+          position: relative;
+          width: min(480px, 100%);
+          display: grid;
+          gap: 12px;
+          background:
+            radial-gradient(circle at top right, var(--app-brand-soft), transparent 48%),
+            var(--app-surface);
+          border: 1px solid var(--app-brand-border);
+          border-radius: 20px;
+          padding: 20px;
+          text-align: right;
+          box-shadow: 0 24px 70px var(--app-shadow);
+        }
+
+        .search-insight-close {
+          position: absolute;
+          top: 12px;
+          left: 12px;
+          width: 32px;
+          height: 32px;
+          display: inline-grid;
+          place-items: center;
+          border-radius: 50%;
+          border: 1px solid var(--app-border);
+          background: var(--app-card);
+          color: var(--app-text);
+          font-size: 19px;
+          cursor: pointer;
+        }
+
+        .search-insight-eyebrow {
+          margin: 0;
+          color: var(--app-brand);
+          font-size: 12px;
+          font-weight: 900;
+          line-height: 1.5;
+        }
+
+        .search-insight-modal h2 {
+          margin: 0;
+          color: var(--app-text);
+          font-size: 24px;
+          line-height: 1.45;
+          padding-left: 34px;
+        }
+
+        .search-insight-subtitle {
+          margin: -4px 0 0;
+          color: var(--app-text-soft);
+          font-size: 13px;
+          line-height: 1.8;
+        }
+
+        .search-insight-list {
+          display: grid;
+          gap: 9px;
+          margin-top: 2px;
+        }
+
+        .search-insight-item {
+          min-height: 42px;
+          display: grid;
+          grid-template-columns: 22px 44px minmax(0, 1fr);
+          gap: 8px;
+          align-items: center;
+          background: var(--app-card);
+          border: 1px solid var(--app-border);
+          border-radius: 13px;
+          padding: 9px 11px;
+        }
+
+        .search-insight-item span {
+          color: var(--app-brand);
+          font-size: 15px;
+          line-height: 1;
+        }
+
+        .search-insight-item strong {
+          color: var(--app-brand);
+          font-size: 20px;
+          line-height: 1;
+          font-weight: 900;
+        }
+
+        .search-insight-item p {
+          margin: 0;
+          color: var(--app-text);
+          font-size: 14px;
+          font-weight: 800;
+          line-height: 1.5;
+        }
+
+        .search-insight-action {
+          min-height: 44px;
+          border: none;
+          border-radius: 12px;
+          background: var(--app-brand);
+          color: #07100e;
+          font-family: inherit;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
         .guide-specialties-block {
           display: grid;
           gap: 9px;
@@ -5003,6 +5352,36 @@ export default function TrainingFinderPage() {
 
           .opportunity-detail-actions {
             grid-template-columns: 1fr !important;
+          }
+
+          .search-insight-overlay {
+            align-items: end !important;
+            padding: 10px !important;
+          }
+
+          .search-insight-modal {
+            border-radius: 18px 18px 14px 14px !important;
+            padding: 17px !important;
+            gap: 10px !important;
+          }
+
+          .search-insight-modal h2 {
+            font-size: 19px !important;
+            padding-left: 30px !important;
+          }
+
+          .search-insight-item {
+            grid-template-columns: 19px 34px minmax(0, 1fr) !important;
+            min-height: 38px !important;
+            padding: 8px 9px !important;
+          }
+
+          .search-insight-item strong {
+            font-size: 17px !important;
+          }
+
+          .search-insight-item p {
+            font-size: 12.5px !important;
           }
 
           .guide-contact-grid {
