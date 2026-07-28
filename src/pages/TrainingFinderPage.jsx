@@ -465,7 +465,8 @@ const getOpportunityFreshnessLabel = (opportunity = {}) => {
   return relativeCreate ? `أضيفت ${relativeCreate}` : "";
 };
 
-const getOpportunityApplicationState = (deadline) => {
+const getOpportunityApplicationState = (deadline, status = "") => {
+  if (status === "expired") return { label: "مغلق", tone: "closed" };
   if (!deadline) return { label: "مفتوح", tone: "open" };
 
   const deadlineDate = new Date(deadline);
@@ -1542,7 +1543,10 @@ export default function TrainingFinderPage() {
     ? getRelatedTargetForOpportunity(selectedOpportunity)
     : null;
   const selectedOpportunityStatus = selectedOpportunity
-    ? getOpportunityApplicationState(selectedOpportunity.deadline)
+    ? getOpportunityApplicationState(
+        selectedOpportunity.deadline,
+        selectedOpportunity.status
+      )
     : null;
   const selectedOpportunityLogoUrl = selectedOpportunity
     ? selectedOpportunity.applicationUrl ||
@@ -1945,7 +1949,8 @@ export default function TrainingFinderPage() {
               >
                 {opportunities.map((opportunity, index) => {
                   const applicationState = getOpportunityApplicationState(
-                    opportunity.deadline
+                    opportunity.deadline,
+                    opportunity.status
                   );
                   const opportunityLogoUrl =
                     opportunity.applicationUrl ||
@@ -2186,7 +2191,8 @@ export default function TrainingFinderPage() {
                           التفاصيل
                         </button>
 
-                        {opportunity.applicationUrl || opportunity.hasApplicationUrl ? (
+                        {(opportunity.applicationUrl || opportunity.hasApplicationUrl) &&
+                        applicationState.tone !== "closed" ? (
                           <button
                             type="button"
                             className="opportunity-apply-button"
@@ -2196,6 +2202,14 @@ export default function TrainingFinderPage() {
                             }}
                           >
                             تقديم الآن
+                          </button>
+                        ) : applicationState.tone === "closed" ? (
+                          <button
+                            type="button"
+                            className="opportunity-apply-button is-disabled"
+                            disabled
+                          >
+                            مغلق
                           </button>
                         ) : (
                           <button
@@ -3133,13 +3147,22 @@ export default function TrainingFinderPage() {
               >
                 إغلاق
               </button>
-              {selectedOpportunity.applicationUrl ? (
+              {selectedOpportunity.applicationUrl &&
+              selectedOpportunityStatus?.tone !== "closed" ? (
                 <button
                   type="button"
                   className="opportunity-apply-button"
                   onClick={() => openOpportunityApplication(selectedOpportunity)}
                 >
                   تقديم الآن
+                </button>
+              ) : selectedOpportunityStatus?.tone === "closed" ? (
+                <button
+                  type="button"
+                  className="opportunity-apply-button is-disabled"
+                  disabled
+                >
+                  مغلق
                 </button>
               ) : (
                 <button

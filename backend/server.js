@@ -150,6 +150,9 @@ const normalizeSearchText = (value = "") =>
     .replace(/[\u064B-\u065F]/g, "")
     .replace(/\s+/g, " ");
 
+const escapeRegex = (value = "") =>
+  value.toString().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const containsBlockedTerms = (value = "") => {
   const normalizedValue = normalizeSearchText(value);
   return BLOCKED_TERMS.some((term) =>
@@ -1078,8 +1081,39 @@ const isClosedByDeadline = (deadline) => {
   return deadlineDate < new Date();
 };
 
+const getExpiredOpportunityCutoff = () => {
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  return cutoff;
+};
+
+const markExpiredOpportunities = async () => {
+  if (mongoose.connection.readyState !== 1) return;
+
+  await Opportunity.updateMany(
+    {
+      status: "active",
+      deadline: {
+        $exists: true,
+        $ne: null,
+        $lt: getExpiredOpportunityCutoff(),
+      },
+    },
+    { $set: { status: "expired" } }
+  );
+};
+
 const sanitizeOpportunityPayload = (body = {}) => {
   const deadlineValue = body.deadline ? new Date(body.deadline) : undefined;
+  const hasValidDeadline =
+    deadlineValue && !Number.isNaN(deadlineValue.getTime());
+  const requestedStatus = ["active", "draft", "expired"].includes(body.status)
+    ? body.status
+    : "active";
+  const status =
+    requestedStatus === "active" && hasValidDeadline && isClosedByDeadline(deadlineValue)
+      ? "expired"
+      : requestedStatus;
   const normalizedCities = normalizeArrayField(body.cities);
   const fallbackCity = (body.city || "").trim();
   const cities =
@@ -1124,15 +1158,13 @@ const sanitizeOpportunityPayload = (body = {}) => {
     logoUrl: (body.logoUrl || "").trim(),
     sourceUrl: (body.sourceUrl || "").trim(),
     note: (body.note || "").trim(),
-    status: ["active", "draft", "expired"].includes(body.status)
-      ? body.status
-      : "active",
+    status,
     sourceType: ["admin", "visitor"].includes(body.sourceType)
       ? body.sourceType
       : "admin",
     submitterContact: (body.submitterContact || "").trim(),
     featured: Boolean(body.featured),
-    ...(deadlineValue && !Number.isNaN(deadlineValue.getTime())
+    ...(hasValidDeadline
       ? { deadline: deadlineValue }
       : { deadline: undefined }),
   };
@@ -7130,6 +7162,8 @@ app.get('/api/opportunities', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
+    await markExpiredOpportunities();
+
     const major = (req.query.major || "").trim();
     const majorCategory = (req.query.majorCategory || "").trim();
     const majorCategories = Array.from(
@@ -7144,7 +7178,7 @@ app.get('/api/opportunities', async (req, res) => {
     );
     const city = (req.query.city || "").trim();
 
-    const andFilters = [{ status: "active" }];
+    const andFilters = [{ status: { $in: ["active", "expired"] } }];
 
     if (major || majorCategories.length > 0) {
       andFilters.push({
@@ -7181,9 +7215,10 @@ app.get('/api/opportunities', async (req, res) => {
 
     const sortedOpportunities = opportunities
       .sort((a, b) => {
+        const aClosed = a.status === "expired" || isClosedByDeadline(a.deadline);
+        const bClosed = b.status === "expired" || isClosedByDeadline(b.deadline);
         const closedDiff =
-          Number(isClosedByDeadline(a.deadline)) -
-          Number(isClosedByDeadline(b.deadline));
+          Number(aClosed) - Number(bClosed);
         if (closedDiff !== 0) return closedDiff;
 
         const featuredDiff = Number(b.featured) - Number(a.featured);
@@ -7244,9 +7279,11 @@ app.get('/api/opportunities/:id', async (req, res) => {
       }
     }
 
+    await markExpiredOpportunities();
+
     const opportunity = await Opportunity.findOne({
       _id: req.params.id,
-      status: "active",
+      status: { $in: ["active", "expired"] },
     }).lean();
 
     if (!opportunity) {
@@ -7888,13 +7925,58 @@ app.get('/api/admin/opportunities', requireAdmin, async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
+    await markExpiredOpportunities();
+
     const status = ["active", "draft", "expired"].includes(req.query.status)
       ? req.query.status
       : "";
-    const filter = status ? { status } : {};
+    const search = (req.query.search || "").toString().trim();
+    const city = (req.query.city || "").toString().trim();
+    const sourceType = ["admin", "visitor"].includes(req.query.sourceType)
+      ? req.query.sourceType
+      : "";
+    const hasReward = ["yes", "no", ""].includes(req.query.hasReward)
+      ? req.query.hasReward
+      : "";
+    const featured =
+      req.query.featured === "true"
+        ? true
+        : req.query.featured === "false"
+        ? false
+        : "";
+    const andFilters = [];
+
+    if (status) andFilters.push({ status });
+    if (sourceType) andFilters.push({ sourceType });
+    if (hasReward) andFilters.push({ hasReward });
+    if (featured !== "") andFilters.push({ featured });
+
+    if (city) {
+      const cityValues = getCityFilterValues(city);
+      andFilters.push({
+        $or: [{ city: { $in: cityValues } }, { cities: { $in: cityValues } }],
+      });
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(escapeRegex(search), "i");
+      andFilters.push({
+        $or: [
+          { organizationName: searchRegex },
+          { title: searchRegex },
+          { city: searchRegex },
+          { cities: searchRegex },
+          { majorCategories: searchRegex },
+          { specialties: searchRegex },
+          { note: searchRegex },
+        ],
+      });
+    }
+
+    const filter = andFilters.length > 0 ? { $and: andFilters } : {};
 
     const opportunities = await Opportunity.find(filter)
-      .sort({ featured: -1, createdAt: -1 })
+      .sort({ status: 1, featured: -1, updatedAt: -1, createdAt: -1 })
       .limit(150)
       .lean();
 

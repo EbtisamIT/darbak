@@ -98,6 +98,19 @@ const defaultOpportunityForm = {
 };
 
 const opportunityCityOptions = [
+  "الشرقية",
+  "القصيم",
+  "منطقة الرياض",
+  "منطقة مكة",
+  "منطقة المدينة",
+  "منطقة عسير",
+  "منطقة تبوك",
+  "منطقة حائل",
+  "منطقة الحدود الشمالية",
+  "منطقة جازان",
+  "منطقة نجران",
+  "منطقة الباحة",
+  "منطقة الجوف",
   "الرياض",
   "جدة",
   "مكة المكرمة",
@@ -444,6 +457,11 @@ const opportunityStatusOptions = [
   ["expired", "منتهية"],
 ];
 
+const opportunityFilterStatusOptions = [
+  ["all", "كل الفرص"],
+  ...opportunityStatusOptions,
+];
+
 const opportunitySelectFields = [
   {
     field: "trainingEnvironment",
@@ -701,7 +719,9 @@ const isGeneralOpportunity = (opportunity = {}) =>
   normalizeFormArray(opportunity.specialties).length === 0 &&
   normalizeFormArray(opportunity.majorCategories).length === 0;
 
-const getOpportunityApplicationState = (deadline) => {
+const getOpportunityApplicationState = (deadline, status = "") => {
+  if (status === "expired") return { label: "مغلق", tone: "closed" };
+  if (status === "draft") return { label: "بانتظار المراجعة", tone: "draft" };
   if (!deadline) return { label: "مفتوح", tone: "open" };
 
   const deadlineDate = new Date(deadline);
@@ -713,6 +733,35 @@ const getOpportunityApplicationState = (deadline) => {
   return deadlineDate < new Date()
     ? { label: "مغلق", tone: "closed" }
     : { label: "مفتوح", tone: "open" };
+};
+
+const getOpportunityBadgeStyle = (tone = "open") => {
+  const styles = {
+    open: {
+      background: "rgba(34,197,94,0.12)",
+      border: "1px solid rgba(34,197,94,0.34)",
+      color: "#86efac",
+    },
+    closed: {
+      background: "rgba(248,113,113,0.12)",
+      border: "1px solid rgba(248,113,113,0.34)",
+      color: "#fecaca",
+    },
+    draft: {
+      background: "rgba(250,204,21,0.12)",
+      border: "1px solid rgba(250,204,21,0.3)",
+      color: "#fde68a",
+    },
+  };
+
+  return {
+    ...(styles[tone] || styles.open),
+    borderRadius: "999px",
+    padding: "6px 10px",
+    fontSize: "12px",
+    fontWeight: "bold",
+    whiteSpace: "nowrap",
+  };
 };
 
 const adminSelectStyle = {
@@ -910,6 +959,12 @@ export default function AdminReviewPage() {
   const [userManagement, setUserManagement] = useState(emptyUserManagement);
   const [userStatus, setUserStatus] = useState("all");
   const [userSearch, setUserSearch] = useState("");
+  const [opportunitySearch, setOpportunitySearch] = useState("");
+  const [opportunityCityFilter, setOpportunityCityFilter] = useState("");
+  const [opportunitySourceFilter, setOpportunitySourceFilter] = useState("");
+  const [opportunityRewardFilter, setOpportunityRewardFilter] = useState("");
+  const [opportunityFeaturedFilter, setOpportunityFeaturedFilter] = useState("");
+  const [opportunityFilterVersion, setOpportunityFilterVersion] = useState(0);
   const [manualSubscriptionForm, setManualSubscriptionForm] = useState(
     defaultManualSubscriptionForm
   );
@@ -1052,7 +1107,14 @@ export default function AdminReviewPage() {
       sessionStorage.setItem("darbak_admin_password", password);
 
       const { data } = await axios.get(`${API_BASE_URL}/api/admin/opportunities`, {
-        params: { status: opportunityStatus },
+        params: {
+          status: opportunityStatus === "all" ? "" : opportunityStatus,
+          search: opportunitySearch.trim(),
+          city: opportunityCityFilter,
+          sourceType: opportunitySourceFilter,
+          hasReward: opportunityRewardFilter,
+          featured: opportunityFeaturedFilter,
+        },
         headers: authHeaders,
       });
 
@@ -1205,7 +1267,18 @@ export default function AdminReviewPage() {
       fetchExperiences();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, opportunityStatus, analyticsDays, userStatus, adminView]);
+  }, [
+    status,
+    opportunityStatus,
+    opportunityCityFilter,
+    opportunitySourceFilter,
+    opportunityRewardFilter,
+    opportunityFeaturedFilter,
+    opportunityFilterVersion,
+    analyticsDays,
+    userStatus,
+    adminView,
+  ]);
 
   const refreshCurrentView = () => {
     if (adminView === "suggestions") {
@@ -1778,6 +1851,20 @@ export default function AdminReviewPage() {
     setEditingOpportunityId(null);
   };
 
+  const applyOpportunityFilters = () => {
+    setOpportunityFilterVersion((currentVersion) => currentVersion + 1);
+  };
+
+  const resetOpportunityFilters = () => {
+    setOpportunityStatus("active");
+    setOpportunitySearch("");
+    setOpportunityCityFilter("");
+    setOpportunitySourceFilter("");
+    setOpportunityRewardFilter("");
+    setOpportunityFeaturedFilter("");
+    applyOpportunityFilters();
+  };
+
   const startOpportunityEdit = (opportunity) => {
     setEditingOpportunityId(opportunity._id);
     setOpportunityForm({
@@ -1802,6 +1889,11 @@ export default function AdminReviewPage() {
       featured: Boolean(opportunity.featured),
     });
     setMessage("");
+    window.setTimeout(() => {
+      document
+        .getElementById("admin-opportunity-form")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
   };
 
   const saveOpportunity = async (event) => {
@@ -2756,7 +2848,7 @@ export default function AdminReviewPage() {
             }}
           >
             {adminView === "opportunities" ? (
-              opportunityStatusOptions.map(([value, label]) => (
+              opportunityFilterStatusOptions.map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
@@ -3654,7 +3746,138 @@ export default function AdminReviewPage() {
         </div>
       ) : adminView === "opportunities" ? (
         <div style={{ display: "grid", gap: "12px" }}>
+          <section
+            style={{
+              ...cardStyle,
+              display: "grid",
+              gap: "12px",
+            }}
+          >
+            <div>
+              <h2 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                فلاتر الفرص
+              </h2>
+              <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.8 }}>
+                ابحثي بسرعة حسب الجهة، المدينة، المصدر، المكافأة أو حالة التمييز.
+              </p>
+            </div>
+            <div className="admin-opportunity-filters">
+              <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                بحث
+                <input
+                  value={opportunitySearch}
+                  onChange={(e) => setOpportunitySearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyOpportunityFilters();
+                    }
+                  }}
+                  placeholder="اسم الجهة، الفرصة، التخصص..."
+                  style={adminSelectStyle}
+                />
+              </label>
+
+              <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                المدينة أو المنطقة
+                <select
+                  value={opportunityCityFilter}
+                  onChange={(e) => setOpportunityCityFilter(e.target.value)}
+                  style={adminSelectStyle}
+                >
+                  <option value="">كل المدن والمناطق</option>
+                  {opportunityCityOptions.map((cityName) => (
+                    <option key={`filter-city-${cityName}`} value={cityName}>
+                      {cityName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                المصدر
+                <select
+                  value={opportunitySourceFilter}
+                  onChange={(e) => setOpportunitySourceFilter(e.target.value)}
+                  style={adminSelectStyle}
+                >
+                  <option value="">كل المصادر</option>
+                  <option value="admin">إضافة إدارية</option>
+                  <option value="visitor">من زائر</option>
+                </select>
+              </label>
+
+              <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                المكافأة
+                <select
+                  value={opportunityRewardFilter}
+                  onChange={(e) => setOpportunityRewardFilter(e.target.value)}
+                  style={adminSelectStyle}
+                >
+                  <option value="">الكل</option>
+                  <option value="yes">يوجد مكافأة</option>
+                  <option value="no">لا يوجد مكافأة</option>
+                </select>
+              </label>
+
+              <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                التمييز
+                <select
+                  value={opportunityFeaturedFilter}
+                  onChange={(e) => setOpportunityFeaturedFilter(e.target.value)}
+                  style={adminSelectStyle}
+                >
+                  <option value="">الكل</option>
+                  <option value="true">مميزة فقط</option>
+                  <option value="false">غير مميزة</option>
+                </select>
+              </label>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={resetOpportunityFilters}
+                style={{
+                  background: "transparent",
+                  color: adminColors.textSoft,
+                  border: "1px solid rgba(203,213,225,0.35)",
+                  borderRadius: "10px",
+                  padding: "9px 14px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                مسح الفلاتر
+              </button>
+              <button
+                type="button"
+                onClick={applyOpportunityFilters}
+                disabled={loading}
+                style={{
+                  background: adminColors.brand,
+                  color: "#061312",
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "9px 14px",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: "bold",
+                }}
+              >
+                تطبيق الفلاتر
+              </button>
+            </div>
+          </section>
+
           <form
+            id="admin-opportunity-form"
             onSubmit={saveOpportunity}
             style={{
               ...cardStyle,
@@ -3895,92 +4118,89 @@ export default function AdminReviewPage() {
               لا توجد فرص في هذا التصنيف.
             </div>
           ) : (
-            opportunities.map((opportunity) => {
+            <div className="admin-opportunities-grid">
+              {opportunities.map((opportunity) => {
               const applicationState = getOpportunityApplicationState(
-                opportunity.deadline
+                opportunity.deadline,
+                opportunity.status
               );
               const generalOpportunity = isGeneralOpportunity(opportunity);
+              const sourceLabel =
+                opportunity.sourceType === "visitor" ? "من زائر" : "إضافة إدارية";
+              const primarySpecialties = generalOpportunity
+                ? "جميع التخصصات"
+                : (opportunity.specialties || []).slice(0, 3).join("، ") ||
+                  (opportunity.majorCategories || []).slice(0, 2).join("، ") ||
+                  "عام";
+              const notePreview =
+                (opportunity.note || "").trim().length > 115
+                  ? `${opportunity.note.trim().slice(0, 115)}...`
+                  : opportunity.note || "لا توجد ملاحظة للطلاب.";
 
               return (
-              <article key={opportunity._id} style={cardStyle}>
+              <article
+                key={opportunity._id}
+                className="admin-opportunity-card"
+                style={{
+                  ...cardStyle,
+                  display: "grid",
+                  gap: "12px",
+                  minHeight: "320px",
+                  alignContent: "space-between",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
+                    alignItems: "flex-start",
                     gap: "12px",
-                    flexWrap: "wrap",
-                    marginBottom: "10px",
                   }}
                 >
-                  <div>
-                    <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
-                      {opportunity.title}
-                    </h3>
-                    <p style={{ color: adminColors.textSoft, margin: 0, lineHeight: 1.7 }}>
+                  <div
+                    style={{
+                      width: "44px",
+                      height: "44px",
+                      borderRadius: "14px",
+                      background: "rgba(125,219,205,0.12)",
+                      border: "1px solid rgba(125,219,205,0.25)",
+                      color: adminColors.brand,
+                      display: "grid",
+                      placeItems: "center",
+                      fontWeight: "900",
+                      flex: "0 0 auto",
+                    }}
+                    aria-hidden="true"
+                  >
+                    {(opportunity.organizationName || "ف").trim().slice(0, 1)}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <h3
+                      style={{
+                        color: adminColors.brand,
+                        margin: "0 0 5px",
+                        fontSize: "17px",
+                        lineHeight: 1.5,
+                        overflowWrap: "anywhere",
+                      }}
+                    >
                       {opportunity.organizationName}
+                    </h3>
+                    <p
+                      style={{
+                        color: adminColors.textSoft,
+                        margin: 0,
+                        lineHeight: 1.7,
+                        fontSize: "13px",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {opportunity.title}
                       {getOpportunityCitiesText(opportunity)
                         ? ` - ${getOpportunityCitiesText(opportunity)}`
                         : ""}
                     </p>
-                  </div>
-                  <span
-                    style={{
-                      alignSelf: "start",
-                      background:
-                        applicationState.tone === "open"
-                          ? "rgba(34,197,94,0.12)"
-                          : "rgba(248,113,113,0.12)",
-                      border:
-                        applicationState.tone === "open"
-                          ? "1px solid rgba(34,197,94,0.34)"
-                          : "1px solid rgba(248,113,113,0.34)",
-                      color:
-                        applicationState.tone === "open" ? "#86efac" : "#fecaca",
-                      borderRadius: "999px",
-                      padding: "6px 10px",
-                      fontSize: "12px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    التقديم {applicationState.label}
-                  </span>
-                  <span
-                    style={{
-                      alignSelf: "start",
-                      background:
-                        opportunity.sourceType === "visitor"
-                          ? "rgba(250,204,21,0.1)"
-                          : "rgba(125,219,205,0.08)",
-                      border:
-                        opportunity.sourceType === "visitor"
-                          ? "1px solid rgba(250,204,21,0.28)"
-                          : "1px solid rgba(125,219,205,0.18)",
-                      color:
-                        opportunity.sourceType === "visitor"
-                          ? "#fde68a"
-                          : adminColors.brand,
-                      borderRadius: "999px",
-                      padding: "6px 10px",
-                      fontSize: "12px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {opportunity.sourceType === "visitor"
-                      ? "من زائر"
-                      : "إضافة إدارية"}
-                  </span>
-                  <div
-                    style={{
-                      color: adminColors.muted,
-                      fontSize: "13px",
-                      lineHeight: 1.8,
-                      textAlign: "left",
-                    }}
-                  >
-                    <div>آخر تحديث:</div>
-                    <strong style={{ color: adminColors.textSoft, fontWeight: "600" }}>
-                      {formatAdminDateTime(opportunity.updatedAt)}
-                    </strong>
                   </div>
                 </div>
 
@@ -3989,11 +4209,28 @@ export default function AdminReviewPage() {
                     display: "flex",
                     gap: "7px",
                     flexWrap: "wrap",
-                    margin: "0 0 12px",
                   }}
                 >
+                  <span style={getOpportunityBadgeStyle(applicationState.tone)}>
+                    {applicationState.label}
+                  </span>
+                  <span
+                    style={{
+                      ...getOpportunityBadgeStyle(
+                        opportunity.sourceType === "visitor" ? "draft" : "open"
+                      ),
+                      color:
+                        opportunity.sourceType === "visitor"
+                          ? "#fde68a"
+                          : adminColors.brand,
+                    }}
+                  >
+                    {sourceLabel}
+                  </span>
+                  {opportunity.featured && (
+                    <span style={getOpportunityBadgeStyle("open")}>مميزة</span>
+                  )}
                   {[
-                    ["status", "الحالة"],
                     ["trainingEnvironment", "البيئة"],
                     ["trainingMode", "النوع"],
                     ["hasReward", "المكافأة"],
@@ -4014,82 +4251,103 @@ export default function AdminReviewPage() {
                       {label}: {getOpportunityOptionLabel(field, opportunity[field])}
                     </span>
                   ))}
-                  {opportunity.deadline && (
-                    <span
-                      style={{
-                        background: "rgba(250,204,21,0.08)",
-                        border: "1px solid rgba(250,204,21,0.25)",
-                        borderRadius: "999px",
-                        color: "#fde68a",
-                        padding: "6px 9px",
-                        fontSize: "12px",
-                      }}
-                    >
-                      ينتهي: {formatDateForInput(opportunity.deadline)}
-                    </span>
-                  )}
                 </div>
-
-                <p
-                  style={{
-                    color: adminColors.text,
-                    lineHeight: 1.9,
-                    whiteSpace: "pre-wrap",
-                    overflowWrap: "anywhere",
-                    margin: "0 0 12px",
-                  }}
-                >
-                  {opportunity.note || "لا توجد ملاحظة."}
-                </p>
-
-                {opportunity.submitterContact && (
-                  <p
-                    style={{
-                      color: adminColors.textSoft,
-                      background: "rgba(255,255,255,0.035)",
-                      border: "1px solid rgba(255,255,255,0.07)",
-                      borderRadius: "10px",
-                      padding: "8px 10px",
-                      margin: "0 0 12px",
-                      fontSize: "13px",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    تواصل المرسل: {opportunity.submitterContact}
-                  </p>
-                )}
 
                 <div
                   style={{
-                    color: adminColors.muted,
-                    fontSize: "13px",
-                    lineHeight: 1.8,
-                    marginBottom: "12px",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: "8px",
+                    color: adminColors.textSoft,
+                    fontSize: "12px",
+                    lineHeight: 1.7,
                   }}
                 >
-                  <div>
-                    المدن: {getOpportunityCitiesText(opportunity) || "كل المدن"}
-                  </div>
-                  <div>
-                    التخصصات الرئيسية:{" "}
-                    {generalOpportunity
-                      ? "جميع التخصصات"
-                      : (opportunity.majorCategories || []).join("، ") || "عام"}
-                  </div>
-                  <div>
-                    التخصصات:{" "}
-                    {generalOpportunity
-                      ? "جميع التخصصات"
-                      : (opportunity.specialties || []).join("، ") || "عام"}
-                  </div>
+                  {[
+                    ["المدن", getOpportunityCitiesText(opportunity) || "كل المدن"],
+                    ["التخصص", primarySpecialties],
+                    [
+                      "ينتهي",
+                      opportunity.deadline
+                        ? formatDateForInput(opportunity.deadline)
+                        : "غير محدد",
+                    ],
+                    ["آخر تحديث", formatAdminDateTime(opportunity.updatedAt)],
+                  ].map(([label, value]) => (
+                    <div
+                      key={`${opportunity._id}-${label}`}
+                      style={{
+                        background: "rgba(255,255,255,0.032)",
+                        border: "1px solid rgba(255,255,255,0.065)",
+                        borderRadius: "12px",
+                        padding: "9px 10px",
+                        minWidth: 0,
+                      }}
+                    >
+                      <span style={{ color: adminColors.muted, display: "block" }}>
+                        {label}
+                      </span>
+                      <strong
+                        style={{
+                          color: adminColors.text,
+                          fontWeight: "700",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
                 </div>
+
+                <div
+                  style={{
+                    color: adminColors.text,
+                    lineHeight: 1.8,
+                    fontSize: "13px",
+                    background: "rgba(255,255,255,0.026)",
+                    border: "1px solid rgba(255,255,255,0.055)",
+                    borderRadius: "12px",
+                    padding: "10px",
+                    minHeight: "64px",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {notePreview}
+                </div>
+
+                {(opportunity.submitterContact ||
+                  opportunity.applicationUrl ||
+                  opportunity.sourceUrl) && (
+                  <div
+                    style={{
+                      color: adminColors.textSoft,
+                      fontSize: "12px",
+                      lineHeight: 1.8,
+                      display: "grid",
+                      gap: "3px",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {opportunity.submitterContact && (
+                      <span>تواصل المرسل: {opportunity.submitterContact}</span>
+                    )}
+                    {opportunity.applicationUrl && (
+                      <span>رابط التقديم: {opportunity.applicationUrl}</span>
+                    )}
+                    {opportunity.sourceUrl && (
+                      <span>رابط المصدر: {opportunity.sourceUrl}</span>
+                    )}
+                  </div>
+                )}
 
                 <div
                   style={{
                     display: "flex",
                     gap: "8px",
-                    justifyContent: "flex-end",
+                    justifyContent: "space-between",
                     flexWrap: "wrap",
+                    marginTop: "auto",
                   }}
                 >
                   <button
@@ -4126,7 +4384,8 @@ export default function AdminReviewPage() {
                 </div>
               </article>
               );
-            })
+              })}
+            </div>
           )}
         </div>
       ) : (
@@ -4587,6 +4846,35 @@ export default function AdminReviewPage() {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 10px;
+        }
+
+        .admin-opportunity-filters {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .admin-opportunities-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          align-items: stretch;
+        }
+
+        .admin-opportunity-card {
+          transition: transform 0.18s ease, border-color 0.18s ease;
+        }
+
+        .admin-opportunity-card:hover {
+          transform: translateY(-2px);
+          border-color: rgba(102, 208, 195, 0.28) !important;
+        }
+
+        @media (max-width: 900px) {
+          .admin-opportunity-filters,
+          .admin-opportunities-grid {
+            grid-template-columns: 1fr !important;
+          }
         }
       `}</style>
     </main>
