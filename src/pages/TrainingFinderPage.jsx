@@ -1334,6 +1334,22 @@ export default function TrainingFinderPage() {
     ],
     [searchInsightOrganizations]
   );
+  const searchInsightLocationLabel = city || "كل المدن والمناطق";
+  const searchInsightTotalOrganizations = searchInsightOrganizations.length;
+  const visibleSearchInsightItems = searchInsightItems.filter(
+    (item) => item.count > 0
+  );
+  const openSearchInsightSubscription = () => {
+    setShowSearchInsightModal(false);
+    requestPremiumAccess({
+      feature: "where_to_train_search_apply",
+      title: "ابدأ التقديم الآن",
+      source: "where_to_train_search_insight",
+      itemKey: `where-to-train:${normalizeName(selectedSpecialty)}:${normalizeName(
+        city
+      )}`,
+    });
+  };
 
   const fetchOpportunities = async (params = {}) => {
     try {
@@ -3523,16 +3539,21 @@ export default function TrainingFinderPage() {
             >
               ×
             </button>
-            <p className="search-insight-eyebrow">ملخص سريع حسب اختيارك</p>
-            <h2>حسب تخصصك ({selectedSpecialtyLabel}):</h2>
+            <p className="search-insight-eyebrow">حسب نتائج بحثك</p>
+            <h2>
+              حصلنا لك{" "}
+              <span>{searchInsightTotalOrganizations}</span>
+              {" "}جهة في {searchInsightLocationLabel}
+            </h2>
             <p className="search-insight-subtitle">
-              {city
-                ? `الأرقام محسوبة من نتائج ${city} الحالية.`
-                : "الأرقام محسوبة من كل المدن والمناطق الحالية."}
+              اختصر عليك أسابيع بحث... وقدّم اليوم على الجهات الأقرب لاختيارك.
             </p>
 
             <div className="search-insight-list">
-              {searchInsightItems.map((item) => (
+              {(visibleSearchInsightItems.length
+                ? visibleSearchInsightItems
+                : searchInsightItems
+              ).map((item) => (
                 <div className="search-insight-item" key={item.key}>
                   <span aria-hidden="true">✔</span>
                   <strong>{item.count}</strong>
@@ -3544,9 +3565,9 @@ export default function TrainingFinderPage() {
             <button
               type="button"
               className="search-insight-action"
-              onClick={() => setShowSearchInsightModal(false)}
+              onClick={openSearchInsightSubscription}
             >
-              عرض النتائج
+              ابدأ التقديم الآن
             </button>
           </div>
         </div>
@@ -4927,6 +4948,12 @@ export default function TrainingFinderPage() {
           font-size: 24px;
           line-height: 1.45;
           padding-left: 34px;
+        }
+
+        .search-insight-modal h2 span {
+          color: var(--app-brand);
+          font-size: 1.18em;
+          font-weight: 900;
         }
 
         .search-insight-subtitle {
