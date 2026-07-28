@@ -458,6 +458,12 @@ const formatInteractionCount = (count = 0) => {
   return numericCount.toString();
 };
 
+const formatPlusCount = (count = 0) => {
+  const numericCount = Number(count) || 0;
+  if (!numericCount) return "";
+  return `${numericCount.toLocaleString("en-US")}+`;
+};
+
 const getInteractionStat = (item = {}, key) =>
   Number(item.interactionStats?.[key]) || 0;
 
@@ -565,6 +571,9 @@ const ExperiencesPage = () => {
   const [totalExperiences, setTotalExperiences] = useState(
     () => getCachedExperiences().length
   );
+  const [platformStats, setPlatformStats] = useState({
+    experiencesCount: null,
+  });
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchAnalyticsVersion, setSearchAnalyticsVersion] = useState(0);
@@ -576,6 +585,9 @@ const ExperiencesPage = () => {
   const selectedExperienceIsLoading = Boolean(selectedExperience?.isLoadingDetails);
   const selectedExperienceId =
     selectedExperience?._id || selectedExperience?.id || "";
+  const experiencesPlusCountLabel = formatPlusCount(
+    platformStats.experiencesCount || totalExperiences
+  );
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
   const isLastExperienceStep = currentStep === steps.length;
@@ -614,6 +626,32 @@ const ExperiencesPage = () => {
     window.addEventListener("darbak:saved-items-updated", updateSavedItems);
     return () =>
       window.removeEventListener("darbak:saved-items-updated", updateSavedItems);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchPlatformStats = async () => {
+      try {
+        const { data } = await axios.get(`${API_BASE_URL}/api/home-stats`);
+        if (!isMounted) return;
+
+        setPlatformStats({
+          experiencesCount:
+            typeof data.experiencesCount === "number"
+              ? data.experiencesCount
+              : null,
+        });
+      } catch {
+        // The banner can fall back to page totals.
+      }
+    };
+
+    fetchPlatformStats();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -1959,11 +1997,16 @@ const ExperiencesPage = () => {
         <section className="experiences-plus-banner" aria-label="إعلان دربك بلس">
           <div className="experiences-plus-banner-copy">
             <span>دربك+</span>
-            <strong>استعرض أكثر من 700 تجربة تدريب وتقييم موثّقة</strong>
-            <p>وجميع مزايا دربك+ بـ 5 ريال فقط.</p>
+            <strong>باقي لك مئات التجارب المهمة 👀</strong>
+            <p>
+              اختصر على نفسك وقت البحث عن التدريب
+              {experiencesPlusCountLabel
+                ? ` - ${experiencesPlusCountLabel} تجربة حقيقية من طلاب`
+                : ""}
+            </p>
           </div>
           <button type="button" onClick={openExperiencesPlusBanner}>
-            فعّل دربك+
+            كمل استكشافك
           </button>
         </section>
 

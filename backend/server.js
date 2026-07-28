@@ -671,7 +671,7 @@ const evaluateContentAccess = async ({
       viewsUsed: currentCount,
       remainingViews: 0,
       message:
-        "استخدمت المشاهدة المجانية لهذا القسم اليوم. فعّل دربك+ للوصول الكامل لبقية التفاصيل.",
+        "وقفت هنا... وباقي أهم التجارب. فعّل دربك+ وكمل استكشافك.",
     };
   }
 
@@ -4321,18 +4321,38 @@ app.get('/api/home-stats', async (req, res) => {
         { deadline: { $gte: startOfToday } },
       ],
     };
+    const activeSubscriptionFilter = {
+      status: "active",
+      expiresAt: { $gt: new Date() },
+    };
 
-    const [experiencesCount, organizationNames, currentProgramsCount] =
+    const [
+      experiencesCount,
+      experienceOrganizationNames,
+      opportunityOrganizationNames,
+      currentProgramsCount,
+      activeSubscriberEmails,
+    ] =
       await Promise.all([
         Experience.countDocuments(approvedFilter),
         Experience.distinct("organizationName", approvedFilter),
+        Opportunity.distinct("organizationName", {
+          status: { $in: ["active", "expired"] },
+        }),
         Opportunity.countDocuments(currentOpportunitiesFilter),
+        Subscription.distinct("email", activeSubscriptionFilter),
       ]);
+    const organizationNames = uniqueTruthy([
+      ...experienceOrganizationNames,
+      ...opportunityOrganizationNames,
+    ]);
 
     res.json({
       experiencesCount,
-      organizationNames: organizationNames.filter(Boolean),
+      organizationNames,
+      organizationsCount: organizationNames.length,
       currentProgramsCount,
+      activeSubscribersCount: activeSubscriberEmails.filter(Boolean).length,
     });
   } catch (err) {
     console.error("❌ Home stats error:", err);

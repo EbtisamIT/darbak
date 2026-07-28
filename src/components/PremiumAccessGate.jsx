@@ -29,6 +29,11 @@ const PENDING_SUBSCRIPTION_KEY = "darbak_pending_subscription_v1";
 const formatPlusStat = (value) =>
   typeof value === "number" ? `${value.toLocaleString("en-US")}+` : "جار التحميل";
 
+const getSubscriberSocialProof = (count) =>
+  typeof count === "number" && count > 0
+    ? `انضم لـ ${formatPlusStat(count)} طالب اشتركوا في دربك`
+    : "طلاب كثير بدأوا يكملون طريقهم مع دربك+";
+
 const PremiumStat = ({ value, label }) => (
   <div className="premium-landing-stat">
     <strong>{value}</strong>
@@ -74,7 +79,7 @@ const PremiumPlanCard = ({
       }}
       disabled={loading}
     >
-      {loading ? "جاري التجهيز..." : plan.id === "monthly" ? "اختيار الشهر" : "اختيار 3 أشهر"}
+      {loading ? "جاري التجهيز..." : plan.id === "monthly" ? "ابدأ الآن" : "ابدأ 3 أشهر"}
     </button>
   </article>
 );
@@ -110,7 +115,7 @@ const subscriptionPlans = [
     duration: "شهر",
     description: "وصول كامل للمزايا الرقمية المتقدمة لمدة شهر.",
     badge: "شهري",
-    note: "مناسب للتجربة السريعة",
+    note: "ابدأ الآن واكتشف فرصك",
     perks: ["وصول كامل", "مساعد دربك", "بحث متقدم"],
   },
   {
@@ -175,6 +180,7 @@ export default function PremiumAccessGate() {
   const [platformStats, setPlatformStats] = useState({
     experiencesCount: null,
     organizationsCount: null,
+    activeSubscribersCount: null,
   });
   const pendingActionRef = useRef(null);
   const selectedPlan =
@@ -194,9 +200,16 @@ export default function PremiumAccessGate() {
             typeof data.experiencesCount === "number"
               ? data.experiencesCount
               : null,
-          organizationsCount: Array.isArray(data.organizationNames)
-            ? data.organizationNames.filter(Boolean).length
-            : null,
+          organizationsCount:
+            typeof data.organizationsCount === "number"
+              ? data.organizationsCount
+              : Array.isArray(data.organizationNames)
+              ? data.organizationNames.filter(Boolean).length
+              : null,
+          activeSubscribersCount:
+            typeof data.activeSubscribersCount === "number"
+              ? data.activeSubscribersCount
+              : null,
         });
       } catch {
         // Stats are decorative here and should not block payment.
@@ -222,7 +235,7 @@ export default function PremiumAccessGate() {
       setMessage(
         accessStatus.reason === "daily_limit"
           ? accessStatus.message ||
-              "استخدمت المشاهدة المجانية اليوم. فعّل دربك+ للوصول الكامل لبقية التفاصيل."
+              "وقفت هنا... وباقي أهم التجارب. فعّل دربك+ وكمل استكشافك."
           : ""
       );
       setIsOpen(true);
@@ -658,11 +671,16 @@ export default function PremiumAccessGate() {
                 </button>
                 <div className="premium-section-heading">
                   <span>دربك+</span>
-                  <h2 id="premium-access-title">جهّز حسابك ثم انتقل للدفع</h2>
+                  <h2 id="premium-access-title">باقي خطوة وحدة وتبدأ رحلتك 🚀</h2>
                   <p>
-                    اخترت {selectedPlan.title}. اكتب بريدك الإلكتروني ورمز دخول
-                    تحفظه، وبعد الضغط ننقلك مباشرة لصفحة الدفع عبر ميسر.
+                    مانحتاج منك إلا إيميل ورمز دخول بسيط، بعدها تنتقل مباشرة
+                    للدفع الآمن.
                   </p>
+                  <ul className="premium-checkout-gains">
+                    <li>وصول كامل لكل التجارب</li>
+                    <li>جهات مناسبة لتخصصك</li>
+                    <li>فرص تدريب محدثة باستمرار</li>
+                  </ul>
                 </div>
 
                 <form
@@ -712,7 +730,7 @@ export default function PremiumAccessGate() {
                     className="premium-checkout-submit"
                     disabled={isStartingCheckout}
                   >
-                    {isStartingCheckout ? "جاري تحويلك للدفع..." : "إنشاء الحساب والانتقال للدفع"}
+                    {isStartingCheckout ? "جاري تحويلك للدفع..." : "ابدأ الآن"}
                   </button>
                 </form>
 
@@ -741,11 +759,11 @@ export default function PremiumAccessGate() {
                 <div className="premium-section-heading">
                   <span>دربك+</span>
                   <h2 id="premium-access-title">
-                    اعرف كل ما تحتاجه قبل التقديم على التدريب
+                    اختصر طريقك للتدريب 🎯
                   </h2>
                   <p>
-                    اختر الباقة، وبعدها نطلب منك فقط إيميل ورمز دخول بسيط ثم
-                    نوديك مباشرة للدفع.
+                    كل اللي تحتاجه في مكان واحد: تجارب، جهات، فرص، ونصائح
+                    حقيقية تساعدك تاخذ قرارك بثقة.
                   </p>
                 </div>
 
@@ -759,6 +777,10 @@ export default function PremiumAccessGate() {
                     label="جهة تدريبية"
                   />
                 </div>
+
+                <p className="premium-social-proof">
+                  {getSubscriberSocialProof(platformStats.activeSubscribersCount)}
+                </p>
 
                 <div className="premium-plan-options" aria-label="اختيار الباقة">
                   {subscriptionPlans.map((plan) => (
