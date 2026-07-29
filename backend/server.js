@@ -7544,10 +7544,6 @@ app.get('/api/opportunities', async (req, res) => {
         $or: [
           { city: { $in: cityValues } },
           { cities: { $in: cityValues } },
-          { city: "" },
-          { cities: { $size: 0 } },
-          { cities: { $exists: false } },
-          { trainingMode: "remote" },
         ],
       });
     }

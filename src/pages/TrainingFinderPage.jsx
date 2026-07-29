@@ -1179,7 +1179,19 @@ export default function TrainingFinderPage() {
     );
   }, [city, selectedCityScope, suggestionRegion, visibleTargetNames]);
   const visibleOpportunities = useMemo(() => {
+    const allowedCities =
+      selectedCityScope.length > 0
+        ? new Set(selectedCityScope.map(normalizeName))
+        : null;
     const filteredOpportunities = opportunities.filter((opportunity) => {
+      if (allowedCities) {
+        const opportunityCities = getOpportunityCities(opportunity);
+        const matchesSelectedCity = opportunityCities.some((opportunityCity) =>
+          allowedCities.has(normalizeName(opportunityCity))
+        );
+        if (!matchesSelectedCity) return false;
+      }
+
       const applicationState = getOpportunityApplicationState(
         opportunity.deadline,
         opportunity.status
@@ -1216,7 +1228,7 @@ export default function TrainingFinderPage() {
     }
 
     return filteredOpportunities;
-  }, [opportunities, opportunityFilters]);
+  }, [opportunities, opportunityFilters, selectedCityScope]);
   const hasActiveOpportunityFilters = Object.values(opportunityFilters).some(
     Boolean
   );
@@ -1460,7 +1472,7 @@ export default function TrainingFinderPage() {
       setCity(nextCity);
       setSearched(false);
       setTargets([]);
-      fetchOpportunities();
+      fetchOpportunities(nextCity ? { city: nextCity } : {});
       return;
     }
 
