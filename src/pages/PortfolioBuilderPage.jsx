@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import QRCode from "qrcode";
 import API_BASE_URL from "../config/api";
 import { cityOptions, specializationOptions } from "./TrainingFinderPage";
 import {
@@ -745,15 +746,32 @@ export default function PortfolioBuilderPage() {
 
     const avatarImage = await loadCanvasImage(avatarPreview);
     const brandLogo = await loadCanvasImage(logo);
+    let qrImage = null;
+    try {
+      const qrDataUrl = await QRCode.toDataURL(portfolioShareUrl, {
+        width: 240,
+        margin: 1,
+        errorCorrectionLevel: "M",
+        color: { dark: "#081827", light: "#ffffff" },
+      });
+      qrImage = await loadCanvasImage(qrDataUrl);
+    } catch {
+      qrImage = null;
+    }
+
     const fullName = form.fullName || "اسم الطالب";
     const targetText =
       form.targetOrganizations ||
-      "جهات وقطاعات تدريبية مناسبة لبداية مهنية أوضح";
-    const badgeSkills = skillItems.slice(0, 3);
+      "جهات تدريبية مناسبة لبداية مهنية أوضح";
+    const badgeSkills = skillItems.slice(0, 6);
     const visibleProjects = activeProjects.slice(0, 2);
-    const visibleCertifications = activeCertifications.slice(0, 2);
     const displayUrl = portfolioShareUrl.replace(/^https?:\/\//, "");
     const currentYear = new Date().getFullYear();
+    const statusText = readinessValue || "مستعد ومؤهل للمقابلات";
+    const degreeText = degreeValue || "طالب";
+    const cityText = cityValue || "السعودية";
+    const majorText = majorValue || "التخصص";
+    const universityText = universityValue || "الجامعة";
 
     const fillRoundedRect = (x, y, boxWidth, boxHeight, radius, fillStyle) => {
       context.fillStyle = fillStyle;
@@ -837,34 +855,70 @@ export default function PortfolioBuilderPage() {
       drawSmallMark(x - 104, y + 8, palette.accent);
     };
 
-    const drawInfoTile = (label, value, x, y, boxWidth) => {
-      fillRoundedRect(x, y, boxWidth, 106, 24, "rgba(255,255,255,0.085)");
-      strokeRoundedRect(x, y, boxWidth, 106, 24, "rgba(255,255,255,0.13)", 2);
+    const drawSectionTitle = (title, x, y) => {
       context.textAlign = "right";
-      context.fillStyle = palette.mutedOnCard;
-      context.font = "800 19px Cairo, Arial, sans-serif";
-      context.fillText(label, x + boxWidth - 24, y + 18);
-      context.fillStyle = palette.textOnCard;
+      context.fillStyle = palette.text;
+      context.font = "900 30px Cairo, Arial, sans-serif";
+      context.fillText(title, x, y);
+      context.fillStyle = palette.accent;
+      context.beginPath();
+      context.arc(x + 24, y + 16, 7, 0, Math.PI * 2);
+      context.fill();
+    };
+
+    const drawInfoColumn = (label, value, x, y, boxWidth) => {
+      context.textAlign = "center";
+      context.fillStyle = palette.accent;
       context.font = "900 22px Cairo, Arial, sans-serif";
+      context.fillText(label, x + boxWidth / 2, y);
+      context.fillStyle = palette.text;
+      context.font = "900 24px Cairo, Arial, sans-serif";
       writeWrappedCanvasText(
         context,
         value,
-        x + boxWidth - 24,
-        y + 53,
-        boxWidth - 48,
-        28,
+        x + boxWidth / 2,
+        y + 38,
+        boxWidth - 18,
+        30,
         2
       );
     };
 
-    const drawListLine = (label, value, y) => {
+    const drawContactButton = (label, x, y, boxWidth) => {
+      fillRoundedRect(x, y, boxWidth, 56, 16, palette.panel2);
+      strokeRoundedRect(x, y, boxWidth, 56, 16, palette.border, 2);
+      context.textAlign = "center";
+      context.fillStyle = palette.text;
+      context.font = "900 20px Cairo, Arial, sans-serif";
+      context.fillText(label, x + boxWidth / 2, y + 15);
+    };
+
+    const writeProjectCard = (project, x, y, boxWidth) => {
+      fillRoundedRect(x, y, boxWidth, 126, 20, palette.panel2);
+      strokeRoundedRect(x, y, boxWidth, 126, 20, palette.border, 2);
       context.textAlign = "right";
       context.fillStyle = palette.accent;
-      context.font = "900 23px Cairo, Arial, sans-serif";
-      context.fillText(label, 890, y);
+      context.font = "900 22px Cairo, Arial, sans-serif";
+      writeWrappedCanvasText(
+        context,
+        project.title || "مشروع",
+        x + boxWidth - 24,
+        y + 18,
+        boxWidth - 48,
+        28,
+        1
+      );
       context.fillStyle = palette.text;
-      context.font = "800 24px Cairo, Arial, sans-serif";
-      writeWrappedCanvasText(context, value, 752, y, 590, 31, 1);
+      context.font = "800 19px Cairo, Arial, sans-serif";
+      writeWrappedCanvasText(
+        context,
+        project.description || "مشروع يعكس المهارات العملية للطالب.",
+        x + boxWidth - 24,
+        y + 56,
+        boxWidth - 48,
+        27,
+        2
+      );
     };
 
     const background = context.createLinearGradient(0, 0, width, height);
@@ -873,211 +927,185 @@ export default function PortfolioBuilderPage() {
     context.fillStyle = background;
     context.fillRect(0, 0, width, height);
 
-    const topGlow = context.createRadialGradient(790, 130, 20, 790, 130, 620);
-    topGlow.addColorStop(0, palette.accentSoft);
-    topGlow.addColorStop(1, "rgba(125, 219, 205, 0)");
-    context.fillStyle = topGlow;
+    const glow = context.createRadialGradient(540, 340, 40, 540, 340, 760);
+    glow.addColorStop(0, palette.glow || palette.accentSoft);
+    glow.addColorStop(1, "rgba(125, 219, 205, 0)");
+    context.fillStyle = glow;
     context.fillRect(0, 0, width, height);
 
     context.direction = "rtl";
-    context.textAlign = "right";
     context.textBaseline = "top";
 
     context.shadowColor = palette.shadow;
-    context.shadowBlur = 52;
+    context.shadowBlur = 58;
     context.shadowOffsetY = 26;
-    context.fillStyle = palette.poster;
-    context.beginPath();
-    drawCanvasRoundRect(context, 70, 58, 940, 1234, 58);
-    context.fill();
-    context.shadowColor = "transparent";
-
-    context.strokeStyle = palette.border;
-    context.lineWidth = 3;
-    context.beginPath();
-    drawCanvasRoundRect(context, 70, 58, 940, 1234, 58);
-    context.stroke();
-
-    drawBrand(910, 104);
-
-    context.textAlign = "center";
-    context.fillStyle = palette.accent;
-    context.font = "900 25px Cairo, Arial, sans-serif";
-    context.fillText("بطاقة جاهزية التدريب", width / 2, 104);
-
-    context.fillStyle = palette.text;
-    context.font = "900 48px Cairo, Arial, sans-serif";
-    context.fillText("ملف أعمال رقمي جاهز للمشاركة", width / 2, 148);
-
-    context.fillStyle = palette.muted;
-    context.font = "800 24px Cairo, Arial, sans-serif";
-    context.fillText("صورة منظمة لعرض هويتك المهنية أمام جهات التدريب", width / 2, 216);
-
-    context.shadowColor = palette.shadow;
-    context.shadowBlur = 38;
-    context.shadowOffsetY = 18;
-    const cardGradient = context.createLinearGradient(116, 292, 964, 792);
+    const cardGradient = context.createLinearGradient(72, 56, 1008, 1294);
     cardGradient.addColorStop(0, palette.cardStart);
     cardGradient.addColorStop(1, palette.cardEnd);
-    fillRoundedRect(116, 292, 848, 500, 44, cardGradient);
+    fillRoundedRect(72, 56, 936, 1238, 42, cardGradient);
     context.shadowColor = "transparent";
+    strokeRoundedRect(72, 56, 936, 1238, 42, palette.border, 2);
 
-    strokeRoundedRect(116, 292, 848, 500, 44, palette.cardBorder, 3);
-
-    const cardGlow = context.createRadialGradient(800, 326, 10, 800, 326, 420);
-    cardGlow.addColorStop(0, palette.cardGlow);
-    cardGlow.addColorStop(1, "rgba(125, 219, 205, 0)");
-    context.fillStyle = cardGlow;
-    context.beginPath();
-    drawCanvasRoundRect(context, 116, 292, 848, 500, 44);
-    context.fill();
-
-    context.globalAlpha = 0.16;
-    context.strokeStyle = "#ffffff";
-    context.lineWidth = 2;
-    for (let index = 0; index < 7; index += 1) {
-      context.beginPath();
-      context.moveTo(170 + index * 108, 730);
-      context.lineTo(310 + index * 108, 345);
-      context.stroke();
-    }
-    context.globalAlpha = 1;
-
-    drawBrand(886, 334, true);
-    drawPill(limitCanvasText(readinessValue || "جاهز للمقابلات"), 142, 334, 260, {
-      fill: "rgba(125, 219, 205, 0.18)",
-      color: palette.textOnCard,
-      border: "rgba(125, 219, 205, 0.3)",
+    drawBrand(190, 98);
+    drawPill("جاهز مع دربك ✦", 772, 92, 174, {
+      fill: "rgba(125, 219, 205, 0.12)",
+      color: palette.accent,
+      border: "rgba(125, 219, 205, 0.22)",
     });
 
-    context.fillStyle = "rgba(255,255,255,0.12)";
-    context.beginPath();
-    context.arc(540, 464, 118, 0, Math.PI * 2);
-    context.fill();
-    context.strokeStyle = "rgba(125, 219, 205, 0.86)";
-    context.lineWidth = 6;
-    context.beginPath();
-    context.arc(540, 464, 118, 0, Math.PI * 2);
-    context.stroke();
-
+    fillRoundedRect(106, 180, 190, 190, 30, "rgba(125, 219, 205, 0.08)");
+    strokeRoundedRect(106, 180, 190, 190, 30, palette.accent, 3);
     if (avatarImage) {
-      drawCircularImage(context, avatarImage, 432, 356, 216);
+      drawCircularImage(context, avatarImage, 118, 192, 166);
     } else {
-      const initials = fullName
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part[0])
-        .join("") || "د";
-      context.fillStyle = palette.accent2;
+      const initials =
+        fullName
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0])
+          .join("") || "د";
       context.textAlign = "center";
-      context.font = "900 82px Cairo, Arial, sans-serif";
-      context.fillText(initials, 540, 410);
+      context.fillStyle = palette.accent;
+      context.font = "900 88px Cairo, Arial, sans-serif";
+      context.fillText(initials, 201, 224);
     }
 
-    context.fillStyle = palette.textOnCard;
-    context.textAlign = "center";
-    context.font = "900 46px Cairo, Arial, sans-serif";
-    writeWrappedCanvasText(
-      context,
-      fullName,
-      width / 2,
-      594,
-      700,
-      54,
-      2
-    );
-
-    context.fillStyle = palette.mutedOnCard;
-    context.font = "800 25px Cairo, Arial, sans-serif";
-    writeWrappedCanvasText(
-      context,
-      [majorValue || "التخصص", degreeValue || "الدرجة", universityValue || "الجامعة"]
-        .filter(Boolean)
-        .join(" | "),
-      width / 2,
-      700,
-      720,
-      35,
-      2
-    );
-
-    drawInfoTile("المدينة", cityValue || "السعودية", 154, 826, 244);
-    drawInfoTile("التخصص", majorValue || "التخصص", 418, 826, 244);
-    drawInfoTile(
-      "الجاهزية",
-      readinessValue || "مستعد للتقديم",
-      682,
-      826,
-      244
-    );
-
-    fillRoundedRect(116, 962, 848, 224, 34, palette.panel);
-    strokeRoundedRect(116, 962, 848, 224, 34, palette.border, 2);
-
-    context.textAlign = "right";
-    context.fillStyle = palette.accent;
-    context.font = "900 28px Cairo, Arial, sans-serif";
-    context.fillText("نبذة سريعة", 886, 990);
-
+    context.direction = "ltr";
+    context.textAlign = "left";
     context.fillStyle = palette.text;
+    context.font = "900 50px Cairo, Arial, sans-serif";
+    writeWrappedCanvasText(context, fullName, 334, 182, 390, 58, 1);
+
+    context.direction = "rtl";
+    context.textAlign = "left";
+    context.fillStyle = palette.accent;
     context.font = "800 25px Cairo, Arial, sans-serif";
+    writeWrappedCanvasText(context, majorText, 334, 246, 390, 34, 1);
+
+    context.fillStyle = palette.muted;
+    context.font = "800 20px Cairo, Arial, sans-serif";
+    writeWrappedCanvasText(
+      context,
+      `${universityText} - ${cityText}`,
+      334,
+      290,
+      390,
+      30,
+      1
+    );
+
+    drawPill(`✓ ${limitCanvasText(statusText, 30)}`, 328, 324, 318, {
+      fill: "rgba(47, 159, 145, 0.28)",
+      color: palette.text,
+      border: "rgba(125, 219, 205, 0.14)",
+    });
+
+    fillRoundedRect(794, 184, 152, 152, 22, "#ffffff");
+    if (qrImage) {
+      context.drawImage(qrImage, 809, 199, 122, 122);
+    } else {
+      context.fillStyle = "#081827";
+      context.textAlign = "center";
+      context.font = "900 22px Cairo, Arial, sans-serif";
+      context.fillText("QR", 870, 240);
+      context.font = "700 13px Cairo, Arial, sans-serif";
+      context.fillText("انسخ الرابط", 870, 272);
+    }
+    context.direction = "rtl";
+    context.fillStyle = palette.muted;
+    context.textAlign = "center";
+    context.font = "800 18px Cairo, Arial, sans-serif";
+    context.fillText("امسح لعرض الملف", 870, 350);
+
+    fillRoundedRect(104, 414, 872, 128, 24, palette.panel);
+    strokeRoundedRect(104, 414, 872, 128, 24, palette.border);
+    const infoItems = [
+      { label: "الحالة", value: degreeText },
+      { label: "التخصص", value: majorText },
+      { label: "الموقع", value: cityText },
+      { label: "متاح للتدريب", value: `${currentYear}` },
+    ];
+    infoItems.forEach((item, index) => {
+      const x = 112 + index * 218;
+      drawInfoColumn(item.label, item.value, x, 442, 204);
+      if (index > 0) {
+        context.strokeStyle = palette.border;
+        context.beginPath();
+        context.moveTo(x - 8, 436);
+        context.lineTo(x - 8, 522);
+        context.stroke();
+      }
+    });
+
+    fillRoundedRect(104, 570, 872, 138, 24, palette.panel);
+    strokeRoundedRect(104, 570, 872, 138, 24, palette.border);
+    drawSectionTitle("نبذة شخصية", 904, 596);
+    context.fillStyle = palette.text;
+    context.font = "800 24px Cairo, Arial, sans-serif";
     const bioText =
       form.bio ||
       "طالب يبني ملف أعماله الرقمي لعرض مهاراته ومشاريعه وجهوزيته المهنية بطريقة واضحة.";
-    writeWrappedCanvasText(context, bioText, 886, 1034, 760, 36, 2);
+    writeWrappedCanvasText(context, bioText, 902, 642, 760, 35, 2);
 
-    drawListLine("أستهدف", targetText, 1138);
+    fillRoundedRect(104, 734, 872, 118, 24, palette.panel);
+    strokeRoundedRect(104, 734, 872, 118, 24, palette.border);
+    drawSectionTitle("المهارات", 904, 758);
+    context.font = "800 20px Cairo, Arial, sans-serif";
+    let chipX = 888;
+    const chipY = 806;
+    (badgeSkills.length ? badgeSkills : ["مهارات مهنية", "تعلم سريع", "تواصل"]).forEach(
+      (skill) => {
+        const chipWidth = Math.min(168, context.measureText(skill).width + 36);
+        if (chipX - chipWidth < 136) return;
+        fillRoundedRect(chipX - chipWidth, chipY, chipWidth, 38, 14, "rgba(125, 219, 205, 0.12)");
+        strokeRoundedRect(chipX - chipWidth, chipY, chipWidth, 38, 14, "rgba(125, 219, 205, 0.24)");
+        context.fillStyle = palette.accent;
+        context.textAlign = "center";
+        context.fillText(skill, chipX - chipWidth / 2, chipY + 8);
+        chipX -= chipWidth + 14;
+      }
+    );
 
-    fillRoundedRect(116, 128, 162, 54, 27, palette.accentSoft);
-    context.textAlign = "center";
-    context.fillStyle = palette.accent;
-    context.font = "900 24px Cairo, Arial, sans-serif";
-    context.fillText(String(currentYear), 197, 142);
-
-    const proofItems = [
+    fillRoundedRect(104, 878, 872, 182, 24, palette.panel);
+    strokeRoundedRect(104, 878, 872, 182, 24, palette.border);
+    drawSectionTitle("أبرز المشاريع", 904, 902);
+    const projectsForBadge =
       visibleProjects.length > 0
-        ? `${visibleProjects.length} مشروع بارز`
-        : "مشاريع قابلة للإضافة",
-      visibleCertifications.length > 0
-        ? `${visibleCertifications.length} شهادة أو دورة`
-        : "شهادات ودورات",
-      badgeSkills.length > 0 ? `${badgeSkills.length}+ مهارات` : "مهارات مهنية",
-    ];
-
-    proofItems.forEach((item, index) => {
-      const x = 164 + index * 252;
-      fillRoundedRect(x, 1204, 220, 62, 20, palette.panel2);
-      strokeRoundedRect(x, 1204, 220, 62, 20, palette.border, 2);
-      context.fillStyle = palette.text;
-      context.textAlign = "center";
-      context.font = "900 21px Cairo, Arial, sans-serif";
-      context.fillText(item, x + 110, 1224);
+        ? visibleProjects
+        : [
+            {
+              title: "مشروع قابل للإضافة",
+              description: "أضف مشروعًا أو بحثًا يوضح مهاراتك العملية.",
+            },
+          ];
+    projectsForBadge.slice(0, 2).forEach((project, index) => {
+      writeProjectCard(project, 128 + index * 424, 950, 392);
     });
 
-    fillRoundedRect(150, 1288, 780, 36, 18, palette.accentSoft);
-    context.textAlign = "right";
+    fillRoundedRect(104, 1086, 872, 90, 24, palette.panel);
+    strokeRoundedRect(104, 1086, 872, 90, 24, palette.border);
+    drawSectionTitle("أستهدف", 904, 1110);
     context.fillStyle = palette.text;
-    context.font = "900 19px Cairo, Arial, sans-serif";
-    context.fillText("ملفي المهني عبر", 890, 1296);
+    context.font = "800 21px Cairo, Arial, sans-serif";
+    writeWrappedCanvasText(context, targetText, 762, 1112, 560, 30, 2);
 
+    const contactLabels = [
+      form.email ? "البريد الإلكتروني" : "",
+      form.linkedinUrl ? "LinkedIn" : "",
+      portfolioShareUrl ? "رابط الملف" : "",
+    ].filter(Boolean);
+    contactLabels.slice(0, 3).forEach((label, index) => {
+      drawContactButton(label, 104 + index * 296, 1200, 272);
+    });
+
+    context.fillStyle = palette.muted;
+    context.textAlign = "center";
+    context.font = "800 20px Cairo, Arial, sans-serif";
+    context.fillText("#جاهز_مع_دربك  |  darbak.space", width / 2, 1270);
     context.fillStyle = palette.accent;
-    context.font = "900 21px Cairo, Arial, sans-serif";
-    context.fillText(displayUrl, 736, 1294);
-
-    context.textAlign = "left";
-    context.fillStyle = palette.text;
-    context.font = "800 18px Cairo, Arial, sans-serif";
-    context.fillText("#جاهز_مع_دربك", 190, 1298);
-
-    fillRoundedRect(814, 121, 48, 48, 12, isLight ? "#ffffff" : "rgba(255,255,255,0.08)");
-    context.fillStyle = palette.accent;
-    for (let row = 0; row < 3; row += 1) {
-      for (let col = 0; col < 3; col += 1) {
-        if ((row === 1 && col === 1) || (row === 2 && col === 0)) continue;
-        context.fillRect(824 + col * 12, 131 + row * 12, 7, 7);
-      }
-    }
+    context.font = "800 16px Cairo, Arial, sans-serif";
+    context.fillText(limitCanvasText(displayUrl, 56), width / 2, 1300);
 
     const download = (url) => {
       const link = document.createElement("a");
