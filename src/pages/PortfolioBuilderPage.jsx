@@ -920,46 +920,46 @@ export default function PortfolioBuilderPage() {
     context.font = "900 30px Cairo, Arial, sans-serif";
     writeWrappedCanvasText(context, targetText, width / 2, 964, 800, 42, 2);
 
-    fillRoundedRect(114, 1042, 852, 236, 32, palette.panel);
-    strokeRoundedRect(114, 1042, 852, 236, 32, "rgba(125, 219, 205, 0.18)", 2);
+    context.textAlign = "center";
+    context.fillStyle = palette.accentGreen;
+    context.font = "900 32px Cairo, Arial, sans-serif";
+    context.fillText("جاهز للفرص، ومستعد لصنع الأثر", width / 2, 1030);
+
+    fillRoundedRect(114, 1082, 852, 198, 32, palette.panel);
+    strokeRoundedRect(114, 1082, 852, 198, 32, "rgba(125, 219, 205, 0.18)", 2);
     context.strokeStyle = palette.divider;
     context.beginPath();
-    context.moveTo(398, 1084);
+    context.moveTo(398, 1120);
     context.lineTo(398, 1238);
     context.stroke();
 
-    fillRoundedRect(168, 1080, 164, 164, 22, "#ffffff");
+    fillRoundedRect(168, 1108, 150, 150, 22, "#ffffff");
     if (qrImage) {
-      context.drawImage(qrImage, 182, 1094, 136, 136);
+      context.drawImage(qrImage, 181, 1121, 124, 124);
     } else {
       context.fillStyle = "#081827";
       context.font = "900 18px Cairo, Arial, sans-serif";
-      context.fillText("QR", 250, 1148);
+      context.fillText("QR", 243, 1172);
     }
     context.fillStyle = palette.textOnCard;
-    context.font = "800 25px Cairo, Arial, sans-serif";
-    context.fillText("امسح للعرض", 250, 1250);
+    context.font = "800 23px Cairo, Arial, sans-serif";
+    context.fillText("امسح للعرض", 243, 1254);
 
     context.textAlign = "right";
     context.fillStyle = palette.accentGreen;
-    context.font = "900 40px Cairo, Arial, sans-serif";
-    context.fillText("ملفي المهني", 874, 1086);
+    context.font = "900 38px Cairo, Arial, sans-serif";
+    context.fillText("ملفي المهني", 874, 1120);
     context.fillStyle = palette.mutedOnCard;
-    context.font = "800 27px Cairo, Arial, sans-serif";
+    context.font = "800 26px Cairo, Arial, sans-serif";
     writeWrappedCanvasText(
       context,
       "جميع معلوماتي، مشاريعي، وأعمالي في رابط واحد.",
       874,
-      1146,
+      1178,
       406,
       38,
       2
     );
-
-    context.textAlign = "center";
-    context.fillStyle = palette.mutedOnCard;
-    context.font = "800 23px Cairo, Arial, sans-serif";
-    context.fillText("جاهز للفرص، ومستعد لصنع الأثر ✨", width / 2, 1300);
 
     const download = (url) => {
       const link = document.createElement("a");
