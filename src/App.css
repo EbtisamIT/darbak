@@ -3139,6 +3139,11 @@ body {
 }
 
 .portfolio-builder-message {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   margin: 0;
   padding: 11px 13px;
   border-radius: 16px;
@@ -3148,6 +3153,18 @@ body {
   font-size: 13px;
   font-weight: 800;
   line-height: 1.8;
+}
+
+.portfolio-builder-message button {
+  border: none;
+  border-radius: 999px;
+  background: var(--app-brand);
+  color: #071814;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 8px 13px;
 }
 
 .portfolio-preview-card {
