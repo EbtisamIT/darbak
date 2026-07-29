@@ -727,52 +727,26 @@ export default function PortfolioBuilderPage() {
     const context = canvas.getContext("2d");
     if (!context) return;
 
-    const isLight = badgeTheme === "light";
-    const palette = isLight
-      ? {
-          bg: "#f6fbfa",
-          bg2: "#ffffff",
-          poster: "#ffffff",
-          cardStart: "#073944",
-          cardEnd: "#0b1728",
-          cardGlow: "rgba(125, 219, 205, 0.28)",
-          text: "#10201d",
-          textOnCard: "#f8fffd",
-          muted: "#5d706d",
-          mutedOnCard: "#bdd8d3",
-          subtle: "#778885",
-          accent: "#2f9f91",
-          accent2: "#7ddbcd",
-          accentSoft: "rgba(125, 219, 205, 0.18)",
-          panel: "#f4fbf9",
-          panel2: "#ffffff",
-          border: "rgba(24, 88, 79, 0.14)",
-          cardBorder: "rgba(125, 219, 205, 0.34)",
-          shadow: "rgba(20, 53, 47, 0.16)",
-        }
-      : {
-          bg: "#071114",
-          bg2: "#111827",
-          poster: "#0c1216",
-          cardStart: "#07333e",
-          cardEnd: "#101827",
-          cardGlow: "rgba(125, 219, 205, 0.2)",
-          text: "#f8fafc",
-          textOnCard: "#f8fffd",
-          muted: "#a8b3bf",
-          mutedOnCard: "#b7cbc7",
-          subtle: "#7d8b96",
-          accent: "#7ddbcd",
-          accent2: "#4fc2b2",
-          accentSoft: "rgba(125, 219, 205, 0.13)",
-          panel: "rgba(255,255,255,0.055)",
-          panel2: "rgba(255,255,255,0.035)",
-          border: "rgba(255,255,255,0.1)",
-          cardBorder: "rgba(125, 219, 205, 0.26)",
-          shadow: "rgba(0, 0, 0, 0.42)",
-        };
+    const palette = {
+      bg: "#00111d",
+      bg2: "#051827",
+      cardStart: "#061b2d",
+      cardMid: "#082439",
+      cardEnd: "#071522",
+      textOnCard: "#f8fffd",
+      mutedOnCard: "#9fb3c4",
+      divider: "rgba(196, 220, 234, 0.18)",
+      accent: "#7ddbcd",
+      accent2: "#37f1dc",
+      accentGreen: "#41e98d",
+      accentSoft: "rgba(125, 219, 205, 0.13)",
+      panel: "rgba(255,255,255,0.055)",
+      border: "rgba(211, 232, 246, 0.44)",
+      shadow: "rgba(0, 0, 0, 0.5)",
+    };
 
     const avatarImage = await loadCanvasImage(avatarPreview);
+    const brandLogo = await loadCanvasImage(logo);
     let qrImage = null;
     try {
       const qrDataUrl = await QRCode.toDataURL(portfolioShareUrl, {
@@ -790,7 +764,6 @@ export default function PortfolioBuilderPage() {
     const targetText =
       form.targetOrganizations ||
       "جهات تدريبية مناسبة لبداية مهنية أوضح";
-    const displayUrl = portfolioShareUrl.replace(/^https?:\/\//, "");
     const currentYear = new Date().getFullYear();
     const statusText = readinessValue || "مستعد ومؤهل للمقابلات";
     const cityText = cityValue || "السعودية";
@@ -823,15 +796,15 @@ export default function PortfolioBuilderPage() {
       const {
         fill = palette.accentSoft,
         color = palette.accent,
-        border = palette.cardBorder,
+        border = "rgba(125, 219, 205, 0.12)",
         align = "center",
       } = options;
-      fillRoundedRect(x, y, boxWidth, 48, 24, fill);
-      strokeRoundedRect(x, y, boxWidth, 48, 24, border, 2);
+      fillRoundedRect(x, y, boxWidth, 58, 29, fill);
+      strokeRoundedRect(x, y, boxWidth, 58, 29, border, 2);
       context.fillStyle = color;
       context.textAlign = align;
-      context.font = "900 22px Cairo, Arial, sans-serif";
-      context.fillText(text, align === "right" ? x + boxWidth - 22 : x + boxWidth / 2, y + 11);
+      context.font = "900 30px Cairo, Arial, sans-serif";
+      context.fillText(text, align === "right" ? x + boxWidth - 22 : x + boxWidth / 2, y + 8);
     };
 
     const limitCanvasText = (text, maxLength = 18) => {
@@ -847,7 +820,7 @@ export default function PortfolioBuilderPage() {
     context.fillRect(0, 0, width, height);
 
     const glow = context.createRadialGradient(540, 410, 40, 540, 410, 760);
-    glow.addColorStop(0, "rgba(125, 219, 205, 0.22)");
+    glow.addColorStop(0, "rgba(14, 165, 233, 0.18)");
     glow.addColorStop(1, "rgba(125, 219, 205, 0)");
     context.fillStyle = glow;
     context.fillRect(0, 0, width, height);
@@ -855,22 +828,31 @@ export default function PortfolioBuilderPage() {
     context.direction = "rtl";
     context.textBaseline = "top";
     context.shadowColor = palette.shadow;
-    context.shadowBlur = 58;
-    context.shadowOffsetY = 26;
-    const cardGradient = context.createLinearGradient(72, 56, 1008, 1294);
-    cardGradient.addColorStop(0, "#06152a");
-    cardGradient.addColorStop(1, "#092e38");
-    fillRoundedRect(72, 56, 936, 1238, 42, cardGradient);
+    context.shadowBlur = 64;
+    context.shadowOffsetY = 30;
+    const cardGradient = context.createRadialGradient(540, 355, 20, 540, 355, 720);
+    cardGradient.addColorStop(0, palette.cardMid);
+    cardGradient.addColorStop(0.55, palette.cardStart);
+    cardGradient.addColorStop(1, palette.cardEnd);
+    fillRoundedRect(64, 66, 952, 1268, 42, cardGradient);
     context.shadowColor = "transparent";
-    strokeRoundedRect(72, 56, 936, 1238, 42, "rgba(210, 232, 241, 0.42)", 2);
+    strokeRoundedRect(64, 66, 952, 1268, 42, palette.border, 2);
 
-    context.textAlign = "right";
-    context.fillStyle = palette.accent;
-    context.font = "900 42px Cairo, Arial, sans-serif";
-    context.fillText("دربك", 900, 118);
+    if (brandLogo) {
+      const sx = brandLogo.width * 0.08;
+      const sy = brandLogo.height * 0.32;
+      const sw = brandLogo.width * 0.84;
+      const sh = brandLogo.height * 0.4;
+      context.drawImage(brandLogo, sx, sy, sw, sh, 802, 116, 142, 72);
+    } else {
+      context.textAlign = "right";
+      context.fillStyle = palette.accent;
+      context.font = "900 42px Cairo, Arial, sans-serif";
+      context.fillText("دربك", 900, 118);
+    }
 
-    drawPill(`دفعة ${currentYear}`, 116, 100, 192, {
-      fill: "rgba(255,255,255,0.08)",
+    drawPill(`دفعة ${currentYear}`, 116, 120, 206, {
+      fill: "rgba(255,255,255,0.07)",
       color: palette.accent,
       border: "rgba(125, 219, 205, 0.12)",
     });
@@ -878,18 +860,18 @@ export default function PortfolioBuilderPage() {
     context.shadowColor = "rgba(125, 219, 205, 0.42)";
     context.shadowBlur = 24;
     context.beginPath();
-    context.arc(width / 2, 286, 114, 0, Math.PI * 2);
+    context.arc(width / 2, 304, 114, 0, Math.PI * 2);
     context.fillStyle = "#ffffff";
     context.fill();
     context.shadowColor = "transparent";
     context.strokeStyle = palette.accent;
     context.lineWidth = 6;
     context.beginPath();
-    context.arc(width / 2, 286, 114, 0, Math.PI * 2);
+    context.arc(width / 2, 304, 114, 0, Math.PI * 2);
     context.stroke();
 
     if (avatarImage) {
-      drawCircularImage(context, avatarImage, width / 2 - 102, 184, 204);
+      drawCircularImage(context, avatarImage, width / 2 - 102, 202, 204);
     } else {
       const initials =
         fullName
@@ -901,79 +883,83 @@ export default function PortfolioBuilderPage() {
       context.textAlign = "center";
       context.fillStyle = palette.accent;
       context.font = "900 94px Cairo, Arial, sans-serif";
-      context.fillText(initials, width / 2, 230);
+      context.fillText(initials, width / 2, 248);
     }
 
     context.textAlign = "center";
     context.fillStyle = palette.textOnCard;
     context.font = "900 62px Cairo, Arial, sans-serif";
-    writeWrappedCanvasText(context, fullName, width / 2, 452, 780, 72, 1);
+    writeWrappedCanvasText(context, fullName, width / 2, 470, 780, 72, 1);
 
     context.fillStyle = palette.textOnCard;
     context.font = "800 30px Cairo, Arial, sans-serif";
-    writeWrappedCanvasText(context, majorText, width / 2, 540, 760, 42, 1);
+    writeWrappedCanvasText(context, majorText, width / 2, 558, 760, 42, 1);
 
     context.fillStyle = palette.mutedOnCard;
     context.font = "800 28px Cairo, Arial, sans-serif";
-    context.fillText(`📍 ${cityText}، السعودية`, width / 2, 602);
+    context.fillText(`📍 ${cityText}، السعودية`, width / 2, 620);
 
-    context.strokeStyle = "rgba(255,255,255,0.16)";
+    context.strokeStyle = palette.divider;
     context.lineWidth = 2;
     context.beginPath();
-    context.moveTo(144, 692);
-    context.lineTo(936, 692);
+    context.moveTo(144, 710);
+    context.lineTo(936, 710);
     context.stroke();
 
     context.fillStyle = palette.mutedOnCard;
     context.font = "800 25px Cairo, Arial, sans-serif";
-    context.fillText("الحالة المهنية", width / 2, 746);
-    context.fillStyle = palette.accent;
+    context.fillText("الحالة المهنية", width / 2, 764);
+    context.fillStyle = palette.accentGreen;
     context.font = "900 36px Cairo, Arial, sans-serif";
-    context.fillText(`✓ ${limitCanvasText(statusText, 36)}`, width / 2, 798);
+    context.fillText(`✓ ${limitCanvasText(statusText, 36)}`, width / 2, 816);
 
     context.fillStyle = palette.mutedOnCard;
     context.font = "800 25px Cairo, Arial, sans-serif";
-    context.fillText("القطاعات المستهدفة", width / 2, 892);
+    context.fillText("القطاعات المستهدفة", width / 2, 910);
     context.fillStyle = palette.textOnCard;
     context.font = "900 30px Cairo, Arial, sans-serif";
-    writeWrappedCanvasText(context, targetText, width / 2, 946, 800, 42, 2);
+    writeWrappedCanvasText(context, targetText, width / 2, 964, 800, 42, 2);
 
-    fillRoundedRect(114, 1062, 852, 178, 28, "rgba(255,255,255,0.055)");
-    strokeRoundedRect(114, 1062, 852, 178, 28, "rgba(125, 219, 205, 0.17)", 2);
-    context.strokeStyle = "rgba(255,255,255,0.18)";
+    fillRoundedRect(114, 1042, 852, 236, 32, palette.panel);
+    strokeRoundedRect(114, 1042, 852, 236, 32, "rgba(125, 219, 205, 0.18)", 2);
+    context.strokeStyle = palette.divider;
     context.beginPath();
-    context.moveTo(388, 1088);
-    context.lineTo(388, 1216);
+    context.moveTo(398, 1084);
+    context.lineTo(398, 1238);
     context.stroke();
 
-    fillRoundedRect(164, 1094, 132, 132, 18, "#ffffff");
+    fillRoundedRect(168, 1080, 164, 164, 22, "#ffffff");
     if (qrImage) {
-      context.drawImage(qrImage, 176, 1106, 108, 108);
+      context.drawImage(qrImage, 182, 1094, 136, 136);
     } else {
       context.fillStyle = "#081827";
       context.font = "900 18px Cairo, Arial, sans-serif";
-      context.fillText("QR", 230, 1145);
+      context.fillText("QR", 250, 1148);
     }
     context.fillStyle = palette.textOnCard;
-    context.font = "800 22px Cairo, Arial, sans-serif";
-    context.fillText("امسح للعرض", 230, 1230);
+    context.font = "800 25px Cairo, Arial, sans-serif";
+    context.fillText("امسح للعرض", 250, 1250);
 
     context.textAlign = "right";
-    context.fillStyle = palette.accent;
-    context.font = "900 33px Cairo, Arial, sans-serif";
-    context.fillText("ملفي المهني", 870, 1098);
+    context.fillStyle = palette.accentGreen;
+    context.font = "900 40px Cairo, Arial, sans-serif";
+    context.fillText("ملفي المهني", 874, 1086);
     context.fillStyle = palette.mutedOnCard;
-    context.font = "800 24px Cairo, Arial, sans-serif";
-    context.fillText("جميع معلوماتي، مشاريعي، وأعمالي في رابط واحد.", 870, 1146);
-    fillRoundedRect(432, 1192, 438, 50, 25, "rgba(255,255,255,0.08)");
-    context.fillStyle = palette.accent;
-    context.font = "900 24px Cairo, Arial, sans-serif";
-    context.fillText(limitCanvasText(displayUrl, 38), 844, 1204);
+    context.font = "800 27px Cairo, Arial, sans-serif";
+    writeWrappedCanvasText(
+      context,
+      "جميع معلوماتي، مشاريعي، وأعمالي في رابط واحد.",
+      874,
+      1146,
+      406,
+      38,
+      2
+    );
 
     context.textAlign = "center";
     context.fillStyle = palette.mutedOnCard;
     context.font = "800 23px Cairo, Arial, sans-serif";
-    context.fillText("جاهز للفرص، ومستعد لصنع الأثر ✨", width / 2, 1268);
+    context.fillText("جاهز للفرص، ومستعد لصنع الأثر ✨", width / 2, 1300);
 
     const download = (url) => {
       const link = document.createElement("a");
