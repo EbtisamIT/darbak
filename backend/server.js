@@ -6081,11 +6081,15 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
     const escapeRegex = (value = "") =>
       value.toString().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const userClauses = [];
+    const subscriptionClauses = [];
 
     if (search) {
       const normalizedSearch = normalizeSubscriberContact(search) || search;
       const regex = new RegExp(escapeRegex(normalizedSearch), "i");
       userClauses.push({ $or: [{ contact: regex }, { visitorId: regex }] });
+      subscriptionClauses.push({
+        $or: [{ email: regex }, { providerPaymentId: regex }],
+      });
     }
 
     if (status === "premium") {
@@ -6118,6 +6122,16 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
     }
 
     const userFilter = userClauses.length > 0 ? { $and: userClauses } : {};
+    const subscriptionFilter =
+      subscriptionClauses.length > 0 ? { $and: subscriptionClauses } : {};
+    const activeWindowMinutes = 5;
+    const visitorMatch = { visitorId: { $type: "string", $ne: "" } };
+    const activeVisitorMatch = {
+      ...visitorMatch,
+      createdAt: {
+        $gte: new Date(Date.now() - activeWindowMinutes * 60 * 1000),
+      },
+    };
 
     const [
       totalUsers,
@@ -6125,11 +6139,17 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
       visitorOnlyUsers,
       adminUsers,
       premiumUsers,
+      freeUsers,
+      filteredUsers,
       totalSubscriptions,
       activeSubscriptions,
       pendingSubscriptions,
       expiredSubscriptions,
       cancelledSubscriptions,
+      filteredSubscriptions,
+      allTimePageVisits,
+      allTimeVisitors,
+      activeVisitors,
       paidRevenueStats,
       activeRevenueStats,
       planBreakdown,
@@ -6153,6 +6173,15 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
           },
         ],
       }),
+      User.countDocuments({
+        contact: { $ne: "" },
+        isAdmin: { $ne: true },
+        $or: [
+          { isPremium: { $ne: true } },
+          { premiumExpiresAt: { $lte: now } },
+        ],
+      }),
+      User.countDocuments(userFilter),
       Subscription.countDocuments({}),
       Subscription.countDocuments({ status: "active", expiresAt: { $gt: now } }),
       Subscription.countDocuments({ status: "pending" }),
@@ -6163,6 +6192,10 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         ],
       }),
       Subscription.countDocuments({ status: "cancelled" }),
+      Subscription.countDocuments(subscriptionFilter),
+      AnalyticsEvent.countDocuments({ eventName: "page_view" }),
+      AnalyticsEvent.distinct("visitorId", visitorMatch),
+      AnalyticsEvent.distinct("visitorId", activeVisitorMatch),
       Subscription.aggregate([
         { $match: { status: { $in: ["active", "expired"] } } },
         {
@@ -6210,7 +6243,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
           "contact visitorId accessCodeHash isPremium isAdmin premiumExpiresAt lastViewedDate dailyViewsCount dailyViewItemKeys createdAt updatedAt"
         )
         .lean(),
-      Subscription.find(search ? { email: new RegExp(escapeRegex(normalizeSubscriberContact(search) || search), "i") } : {})
+      Subscription.find(subscriptionFilter)
         .sort({ updatedAt: -1 })
         .limit(120)
         .select(
@@ -6293,12 +6326,18 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         visitorOnlyUsers,
         adminUsers,
         premiumUsers,
-        freeUsers: Math.max(contactUsers - premiumUsers, 0),
+        freeUsers,
+        filteredUsers,
         totalSubscriptions,
         activeSubscriptions,
         pendingSubscriptions,
         expiredSubscriptions,
         cancelledSubscriptions,
+        filteredSubscriptions,
+        allTimePageVisits,
+        allTimeVisitors: allTimeVisitors.filter(Boolean).length,
+        activeVisitors: activeVisitors.filter(Boolean).length,
+        activeWindowMinutes,
         paidSubscriptions: paidRevenueStats[0]?.count || 0,
         totalPaidRevenueSar: Number(paidRevenueStats[0]?.total || 0),
         activeRevenueSar: Number(activeRevenueStats[0]?.total || 0),

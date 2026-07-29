@@ -249,11 +249,17 @@ const emptyUserManagement = {
     adminUsers: 0,
     premiumUsers: 0,
     freeUsers: 0,
+    filteredUsers: 0,
     totalSubscriptions: 0,
     activeSubscriptions: 0,
     pendingSubscriptions: 0,
     expiredSubscriptions: 0,
     cancelledSubscriptions: 0,
+    filteredSubscriptions: 0,
+    allTimeVisitors: 0,
+    allTimePageVisits: 0,
+    activeVisitors: 0,
+    activeWindowMinutes: 5,
     paidSubscriptions: 0,
     totalPaidRevenueSar: 0,
     activeRevenueSar: 0,
@@ -987,6 +993,12 @@ export default function AdminReviewPage() {
   const [savingOpportunity, setSavingOpportunity] = useState(false);
 
   const authHeaders = password ? { "x-admin-password": password } : {};
+  const userManagementSummary = {
+    ...emptyUserManagement.summary,
+    ...(userManagement.summary || {}),
+  };
+  const isUserManagementFiltered =
+    adminView === "users" && (userStatus !== "all" || Boolean(userSearch.trim()));
   const currentItemsCount =
     adminView === "suggestions"
       ? suggestions.length
@@ -999,7 +1011,13 @@ export default function AdminReviewPage() {
       : adminView === "analytics"
       ? analytics.totalEvents
       : adminView === "users"
-      ? userManagement.returnedUsers || userManagement.users.length
+      ? isUserManagementFiltered
+        ? userManagementSummary.filteredUsers ||
+          userManagement.returnedUsers ||
+          userManagement.users.length
+        : userManagementSummary.allTimeVisitors ||
+          userManagementSummary.totalUsers ||
+          userManagement.users.length
       : experiences.length;
   const currentItemsLabel =
     adminView === "suggestions"
@@ -1013,7 +1031,7 @@ export default function AdminReviewPage() {
       : adminView === "analytics"
       ? "حدث"
       : adminView === "users"
-      ? "مستخدم"
+      ? "زائر/مستخدم"
       : "تجربة";
 
   const fetchExperiences = async () => {
@@ -2080,8 +2098,28 @@ export default function AdminReviewPage() {
           }}
         >
           {[
-            ["إجمالي المستخدمين", summary.totalUsers],
+            [
+              "زوار مميزين من البداية",
+              summary.allTimeVisitors,
+              "كل جهاز/متصفح له معرف زائر مستقل.",
+            ],
+            [
+              "جميع الزيارات من البداية",
+              summary.allTimePageVisits,
+              "كل فتح صفحة في المنصة.",
+            ],
+            [
+              "النشطين الآن",
+              summary.activeVisitors,
+              `آخر ${summary.activeWindowMinutes || 5} دقائق.`,
+            ],
+            [
+              "حسابات الوصول",
+              summary.totalUsers,
+              "حسابات دربك+ أو زوار وصلوا لحدود المحتوى.",
+            ],
             ["حسابات ببيانات دخول", summary.contactUsers],
+            ["إجمالي الاشتراكات", summary.totalSubscriptions],
             ["مشتركين نشطين", summary.activeSubscriptions],
             ["بانتظار الدفع", summary.pendingSubscriptions],
             ["اشتراكات منتهية", summary.expiredSubscriptions],
