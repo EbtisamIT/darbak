@@ -174,9 +174,12 @@ export default function PremiumAccessGate() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
+  const [isResettingCode, setIsResettingCode] = useState(false);
   const [isLoginOnly, setIsLoginOnly] = useState(false);
   const [showCheckoutForm, setShowCheckoutForm] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState("one_time_90");
+  const [resetToken, setResetToken] = useState("");
+  const [isResetMode, setIsResetMode] = useState(false);
   const [platformStats, setPlatformStats] = useState({
     experiencesCount: null,
     organizationsCount: null,
@@ -231,6 +234,8 @@ export default function PremiumAccessGate() {
       setFeature(event.detail?.feature || "");
       setIsLoginOnly(Boolean(event.detail?.loginOnly));
       setShowCheckoutForm(false);
+      setIsResetMode(false);
+      setResetToken("");
       const accessStatus = event.detail?.accessStatus || {};
       setMessage(
         accessStatus.reason === "daily_limit"
@@ -276,8 +281,11 @@ export default function PremiumAccessGate() {
     setIsVerifying(false);
     setIsStartingCheckout(false);
     setIsRequestingHelp(false);
+    setIsResettingCode(false);
     setIsLoginOnly(false);
     setShowCheckoutForm(false);
+    setIsResetMode(false);
+    setResetToken("");
   };
 
   const updateField = (field, value) => {
@@ -311,6 +319,35 @@ export default function PremiumAccessGate() {
 
     return () => window.clearTimeout(noticeTimer);
   }, [successNotice]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("reset_code_token") || "";
+    const contact = params.get("reset_contact") || "";
+    if (!token) return;
+
+    setForm({
+      contact,
+      accessCode: "",
+    });
+    setFeature("reset_access_code");
+    setIsLoginOnly(true);
+    setShowCheckoutForm(false);
+    setIsResetMode(true);
+    setResetToken(token);
+    setMessage("اكتب رمز دخول جديد لحسابك في دربك+.");
+    setIsOpen(true);
+
+    params.delete("reset_code_token");
+    params.delete("reset_contact");
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${
+      nextSearch ? `?${nextSearch}` : ""
+    }${window.location.hash || ""}`;
+    window.history.replaceState({}, "", nextUrl);
+  }, []);
 
   const verifyAccess = useCallback(async (
     contactValue = form.contact,
@@ -360,8 +397,40 @@ export default function PremiumAccessGate() {
   };
 
   const requestAccessHelp = async () => {
-    if (!isValidContact(form.contact)) {
-      setMessage("اكتب البريد الإلكتروني أو رقم الجوال المستخدم سابقًا في دربك+ أولًا.");
+    const contact = form.contact.trim();
+
+    if (!contact) {
+      setMessage("اكتب البريد الإلكتروني المرتبط بحساب دربك+ أولًا.");
+      return;
+    }
+
+    if (isValidEmailContact(contact)) {
+      try {
+        setIsRequestingHelp(true);
+        setMessage("");
+        const { data } = await axios.post(
+          `${API_BASE_URL}/api/subscriptions/forgot-code`,
+          {
+            email: contact,
+            visitorId: getVisitorId(),
+            source: isLoginOnly ? "login_only" : "premium_gate",
+          }
+        );
+        setMessage(
+          data.message ||
+            "إذا كان هذا البريد مرتبطًا بحساب دربك+، ستصلك رسالة لإعادة تعيين الرمز."
+        );
+        trackEvent("premium_access_reset_clicked", {
+          metadata: { source: isLoginOnly ? "login_only" : "premium_gate" },
+        });
+      } catch (err) {
+        setMessage(
+          err.response?.data?.error ||
+            "تعذر إرسال رابط إعادة التعيين حاليًا."
+        );
+      } finally {
+        setIsRequestingHelp(false);
+      }
       return;
     }
 
@@ -370,7 +439,7 @@ export default function PremiumAccessGate() {
       setMessage("");
       const { data } = await axios.post(
         `${API_BASE_URL}/api/subscriptions/request-access-help`,
-        { contact: form.contact }
+        { contact }
       );
       setMessage(data.message || "وصل طلب المساعدة. بنساعدك على استعادة الوصول.");
       trackEvent("premium_access_help_requested", {
@@ -382,6 +451,57 @@ export default function PremiumAccessGate() {
       );
     } finally {
       setIsRequestingHelp(false);
+    }
+  };
+
+  const resetAccessCode = async (event) => {
+    event.preventDefault();
+
+    const contact = form.contact.trim();
+    const normalizedCode = normalizeAccessCode(form.accessCode);
+
+    if (!isValidEmailContact(contact)) {
+      setMessage("اكتب البريد الإلكتروني المرتبط بحساب دربك+.");
+      return;
+    }
+
+    if (!resetToken) {
+      setMessage("رابط إعادة التعيين غير صالح. اطلب رابطًا جديدًا.");
+      return;
+    }
+
+    if (!isValidAccessCode(normalizedCode)) {
+      setMessage("اختَر رمز دخول جديد من 4 إلى 12 رقم أو حرف إنجليزي.");
+      return;
+    }
+
+    try {
+      setIsResettingCode(true);
+      setMessage("");
+      const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/reset-code`, {
+        email: contact,
+        token: resetToken,
+        accessCode: normalizedCode,
+        visitorId: getVisitorId(),
+      });
+      saveAccessIdentity({ contact, accessCode: normalizedCode });
+      if (data.active) {
+        grantAccess(data);
+      } else {
+        setMessage(data.message || "تم تحديث رمز الدخول. سجّل الدخول بالرمز الجديد.");
+        setIsResetMode(false);
+        setResetToken("");
+      }
+      trackEvent("premium_access_code_reset", {
+        metadata: { source: "reset_email_link" },
+      });
+    } catch (err) {
+      setMessage(
+        err.response?.data?.error ||
+          "تعذر تحديث رمز الدخول. اطلب رابطًا جديدًا وحاول مرة أخرى."
+      );
+    } finally {
+      setIsResettingCode(false);
     }
   };
 
@@ -589,15 +709,23 @@ export default function PremiumAccessGate() {
           {isLoginOnly ? (
             <section className="premium-login-panel">
               <div className="premium-access-badge">دربك+</div>
-              <h2 id="premium-access-title">تسجيل الدخول إلى دربك+</h2>
+              <h2 id="premium-access-title">
+                {isResetMode ? "تعيين رمز دخول جديد" : "تسجيل الدخول إلى دربك+"}
+              </h2>
               <p className="premium-access-lead">
-                ادخل بنفس البريد الإلكتروني أو رقم الجوال الذي استخدمته سابقًا، مع رمز الدخول.
+                {isResetMode
+                  ? "اكتب بريدك المرتبط بدربك+ واختر رمزًا جديدًا تحفظه للدخول لاحقًا."
+                  : "ادخل بنفس البريد الإلكتروني أو رقم الجوال الذي استخدمته سابقًا، مع رمز الدخول."}
               </p>
 
               <div className="premium-access-form">
                 <div className="premium-access-fields">
                   <label className="premium-access-field">
-                    <span>البريد الإلكتروني أو رقم جوال لحساب سابق</span>
+                    <span>
+                      {isResetMode
+                        ? "البريد الإلكتروني"
+                        : "البريد الإلكتروني أو رقم جوال لحساب سابق"}
+                    </span>
                     <input
                       type="text"
                       inputMode="text"
@@ -610,7 +738,7 @@ export default function PremiumAccessGate() {
                     />
                   </label>
                   <label className="premium-access-field">
-                    <span>رمز الدخول</span>
+                    <span>{isResetMode ? "رمز الدخول الجديد" : "رمز الدخول"}</span>
                     <input
                       value={form.accessCode}
                       onChange={(event) =>
@@ -626,29 +754,56 @@ export default function PremiumAccessGate() {
 
               <form
                 className="premium-access-verify-form"
-                onSubmit={verifySubscription}
+                onSubmit={isResetMode ? resetAccessCode : verifySubscription}
               >
-                <p>سيتم التحقق من حسابك وفتح المزايا مباشرة.</p>
-                <button type="submit" disabled={isVerifying}>
-                  {isVerifying ? "جاري الدخول..." : "تسجيل الدخول"}
+                <p>
+                  {isResetMode
+                    ? "بعد حفظ الرمز الجديد، بنفتح لك دربك+ مباشرة إذا كان اشتراكك نشطًا."
+                    : "سيتم التحقق من حسابك وفتح المزايا مباشرة."}
+                </p>
+                <button type="submit" disabled={isVerifying || isResettingCode}>
+                  {isResetMode
+                    ? isResettingCode
+                      ? "جاري حفظ الرمز..."
+                      : "حفظ الرمز الجديد"
+                    : isVerifying
+                    ? "جاري الدخول..."
+                    : "تسجيل الدخول"}
                 </button>
               </form>
 
               <div className="premium-login-actions">
-                <button
-                  type="button"
-                  className="premium-login-help"
-                  onClick={requestAccessHelp}
-                  disabled={isRequestingHelp}
-                >
-                  {isRequestingHelp ? "جاري إرسال الطلب..." : "نسيت الرمز؟"}
-                </button>
+                {isResetMode ? (
+                  <button
+                    type="button"
+                    className="premium-login-help"
+                    onClick={() => {
+                      setIsResetMode(false);
+                      setResetToken("");
+                      setForm((current) => ({ ...current, accessCode: "" }));
+                      setMessage("");
+                    }}
+                  >
+                    رجوع لتسجيل الدخول
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="premium-login-help"
+                    onClick={requestAccessHelp}
+                    disabled={isRequestingHelp}
+                  >
+                    {isRequestingHelp ? "جاري إرسال الرابط..." : "نسيت الرمز؟"}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="premium-login-back"
                   onClick={() => {
                     setIsLoginOnly(false);
                     setShowCheckoutForm(false);
+                    setIsResetMode(false);
+                    setResetToken("");
                     setMessage("");
                   }}
                 >

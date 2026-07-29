@@ -198,7 +198,7 @@ export default function AccountModal() {
 
     if (!contact) {
       setMessage(
-        "اكتب البريد الإلكتروني أو رقم الجوال القديم المستخدم في دربك+ أولًا."
+        "اكتب البريد الإلكتروني المرتبط بدربك+، أو رقم الجوال للحسابات القديمة."
       );
       return;
     }
@@ -211,12 +211,24 @@ export default function AccountModal() {
     try {
       setRequestingHelp(true);
       setMessage("");
-      const { data } = await axios.post(
-        `${API_BASE_URL}/api/subscriptions/request-access-help`,
-        { contact }
-      );
-      setMessage(data.message || "وصل طلب المساعدة. بنساعدك على استعادة الوصول.");
-      trackEvent("account_access_help_requested");
+      if (isValidEmail(contact)) {
+        const { data } = await axios.post(
+          `${API_BASE_URL}/api/subscriptions/forgot-code`,
+          { email: contact, source: "account_modal" }
+        );
+        setMessage(
+          data.message ||
+            "إذا كان هذا البريد مرتبطًا بحساب دربك+، ستصلك رسالة لإعادة تعيين الرمز."
+        );
+        trackEvent("account_access_reset_requested");
+      } else {
+        const { data } = await axios.post(
+          `${API_BASE_URL}/api/subscriptions/request-access-help`,
+          { contact }
+        );
+        setMessage(data.message || "وصل طلب المساعدة. بنساعدك على استعادة الوصول.");
+        trackEvent("account_access_help_requested");
+      }
     } catch (err) {
       setMessage(err.response?.data?.error || "تعذر إرسال طلب المساعدة حاليًا.");
     } finally {
@@ -328,7 +340,7 @@ export default function AccountModal() {
               onClick={requestAccessHelp}
               disabled={requestingHelp}
             >
-              {requestingHelp ? "جاري إرسال الطلب..." : "نسيت الرمز؟"}
+              {requestingHelp ? "جاري الإرسال..." : "نسيت الرمز؟"}
             </button>
           </form>
         )}

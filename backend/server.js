@@ -284,6 +284,69 @@ const sendContactEmail = async ({ reason = "", message = "", contact = "" } = {}
   return { emailStatus: "sent", emailError: "" };
 };
 
+const sendAccessCodeResetEmail = async ({
+  email = "",
+  resetUrl = "",
+  expiresAt = null,
+} = {}) => {
+  if (!RESEND_API_KEY || typeof fetch !== "function") {
+    return { emailStatus: "not_configured", emailError: "" };
+  }
+
+  const expiresAtLabel = expiresAt
+    ? formatRiyadhDateTime(expiresAt)
+    : "بعد 30 دقيقة";
+  const cleanEmail = normalizeEmail(email);
+
+  const payload = {
+    from: CONTACT_EMAIL_FROM,
+    to: [cleanEmail],
+    reply_to: CONTACT_EMAIL_TO,
+    subject: "إعادة تعيين رمز دخول دربك+",
+    text: [
+      "وصلنا طلب إعادة تعيين رمز دخول دربك+.",
+      "",
+      "اضغط الرابط التالي واختر رمز دخول جديد:",
+      resetUrl,
+      "",
+      `صلاحية الرابط: ${expiresAtLabel}`,
+      "",
+      "إذا لم تطلب إعادة تعيين الرمز، تجاهل هذه الرسالة وسيبقى حسابك كما هو.",
+    ].join("\n"),
+    html: `
+      <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#111827;background:#f8fafc;padding:24px">
+        <div style="max-width:560px;margin:auto;background:#ffffff;border:1px solid #dbe7e3;border-radius:18px;padding:24px">
+          <p style="margin:0 0 8px;color:#0f766e;font-weight:700">دربك+</p>
+          <h2 style="margin:0 0 12px;color:#111827">إعادة تعيين رمز الدخول</h2>
+          <p style="margin:0 0 16px;color:#334155">وصلنا طلب إعادة تعيين رمز دخولك في دربك+. اضغط الزر واختر رمزًا جديدًا.</p>
+          <a href="${escapeHtml(resetUrl)}" style="display:inline-block;background:#7ddbcd;color:#07100e;text-decoration:none;font-weight:700;border-radius:12px;padding:12px 18px">تعيين رمز جديد</a>
+          <p style="margin:16px 0 0;color:#64748b;font-size:13px">صلاحية الرابط: ${escapeHtml(expiresAtLabel)}</p>
+          <p style="margin:10px 0 0;color:#64748b;font-size:12px">إذا لم تطلب إعادة التعيين، تجاهل هذه الرسالة وسيبقى حسابك كما هو.</p>
+        </div>
+      </div>
+    `,
+  };
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    return {
+      emailStatus: "failed",
+      emailError: errorBody.slice(0, 600) || `Resend status ${response.status}`,
+    };
+  }
+
+  return { emailStatus: "sent", emailError: "" };
+};
+
 const sendAdminTestEmail = async () => {
   if (!RESEND_API_KEY || typeof fetch !== "function") {
     return { emailStatus: "not_configured", emailError: "" };
@@ -348,6 +411,14 @@ const hashAccessCode = (contact = "", accessCode = "") =>
     .update(
       `${normalizeSubscriberContact(contact)}:${normalizeAccessCode(accessCode)}`
     )
+    .digest("hex");
+
+const generateAccessResetToken = () => crypto.randomBytes(32).toString("hex");
+
+const hashAccessResetToken = (token = "") =>
+  crypto
+    .createHmac("sha256", SUBSCRIPTION_SECRET)
+    .update(token.toString().trim())
     .digest("hex");
 
 const isAdminContact = (contact = "", accessCode = "") => {
@@ -5163,6 +5234,259 @@ app.post('/api/subscriptions/request-access-help', async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Subscription access help error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/subscriptions/forgot-code', async (req, res) => {
+  const genericMessage =
+    "إذا كان هذا البريد مرتبطًا بحساب دربك+، ستصلك رسالة لإعادة تعيين رمز الدخول خلال دقائق.";
+
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const rawEmail = (req.body.email || req.body.contact || "")
+      .toString()
+      .trim()
+      .slice(0, 160);
+
+    if (!isValidEmail(rawEmail)) {
+      return res.status(400).json({
+        error: "اكتب البريد الإلكتروني المرتبط بحساب دربك+.",
+      });
+    }
+
+    const email = normalizeEmail(rawEmail);
+    const subscription = await Subscription.findOne({
+      email,
+      status: "active",
+      expiresAt: { $gt: new Date() },
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    await AnalyticsEvent.create({
+      eventName: "premium_access_reset_requested",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/subscriptions/reset-code",
+      deviceType: "unknown",
+      metadata: sanitizeAnalyticsMetadata({
+        hasSubscription: Boolean(subscription),
+        source: sanitizeAnalyticsText(req.body.source || "", 80),
+      }),
+    }).catch((analyticsErr) =>
+      console.error("❌ Reset request analytics error:", analyticsErr)
+    );
+
+    if (!subscription) {
+      return res.json({ success: true, message: genericMessage });
+    }
+
+    const resetToken = generateAccessResetToken();
+    const resetTokenHash = hashAccessResetToken(resetToken);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    const resetUrl = new URL(getFrontendUrl());
+    resetUrl.searchParams.set("reset_code_token", resetToken);
+    resetUrl.searchParams.set("reset_contact", email);
+
+    await Subscription.findByIdAndUpdate(subscription._id, {
+      $set: {
+        accessResetTokenHash: resetTokenHash,
+        accessResetExpiresAt: expiresAt,
+        accessResetRequestedAt: new Date(),
+      },
+      $unset: {
+        accessResetUsedAt: "",
+      },
+    });
+
+    const emailResult = await sendAccessCodeResetEmail({
+      email,
+      resetUrl: resetUrl.toString(),
+      expiresAt,
+    });
+
+    await AnalyticsEvent.create({
+      eventName:
+        emailResult.emailStatus === "sent"
+          ? "premium_access_reset_email_sent"
+          : "premium_access_reset_email_failed",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/subscriptions/reset-code",
+      deviceType: "unknown",
+      metadata: sanitizeAnalyticsMetadata({
+        emailStatus: emailResult.emailStatus,
+        emailError: emailResult.emailError || "",
+      }),
+    }).catch((analyticsErr) =>
+      console.error("❌ Reset email analytics error:", analyticsErr)
+    );
+
+    if (emailResult.emailStatus === "not_configured") {
+      return res.status(503).json({
+        error:
+          "إرسال الإيميل غير مفعّل حاليًا. تواصلي معنا وسنساعدك يدويًا.",
+      });
+    }
+
+    if (emailResult.emailStatus === "failed") {
+      return res.status(502).json({
+        error:
+          "تعذر إرسال إيميل إعادة التعيين حاليًا. جرّب مرة أخرى بعد قليل.",
+      });
+    }
+
+    res.json({ success: true, message: genericMessage });
+  } catch (err) {
+    console.error("❌ Subscription forgot code error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/subscriptions/reset-code', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const rawEmail = (req.body.email || req.body.contact || "")
+      .toString()
+      .trim()
+      .slice(0, 160);
+    const token = (req.body.token || "").toString().trim();
+    const newAccessCode = normalizeAccessCode(req.body.accessCode || "");
+    const visitorId = sanitizeAnalyticsText(req.body.visitorId, 90);
+
+    if (!isValidEmail(rawEmail)) {
+      return res.status(400).json({
+        error: "اكتب البريد الإلكتروني المرتبط بحساب دربك+.",
+      });
+    }
+
+    if (!token || token.length < 32) {
+      return res.status(400).json({
+        error: "رابط إعادة التعيين غير صالح أو ناقص.",
+      });
+    }
+
+    if (!isValidAccessCode(newAccessCode)) {
+      return res.status(400).json({
+        error: "اختَر رمز دخول جديد من 4 إلى 12 رقم أو حرف إنجليزي.",
+      });
+    }
+
+    const email = normalizeEmail(rawEmail);
+    const tokenHash = hashAccessResetToken(token);
+    const subscription = await Subscription.findOne({
+      email,
+      accessResetTokenHash: tokenHash,
+      accessResetExpiresAt: { $gt: new Date() },
+      status: "active",
+      expiresAt: { $gt: new Date() },
+    }).sort({ updatedAt: -1 });
+
+    if (!subscription) {
+      return res.status(400).json({
+        error:
+          "رابط إعادة التعيين غير صالح أو انتهت صلاحيته. اطلب رابطًا جديدًا.",
+      });
+    }
+
+    const previousAccessCodeHash = subscription.accessCodeHash;
+    const nextAccessCodeHash = hashAccessCode(email, newAccessCode);
+    const now = new Date();
+
+    await Subscription.updateMany(
+      {
+        email,
+        accessCodeHash: previousAccessCodeHash,
+        status: "active",
+        expiresAt: { $gt: now },
+      },
+      {
+        $set: {
+          accessCodeHash: nextAccessCodeHash,
+          accessResetUsedAt: now,
+        },
+        $unset: {
+          accessResetTokenHash: "",
+          accessResetExpiresAt: "",
+          accessResetRequestedAt: "",
+        },
+      }
+    );
+
+    const userPayload = {
+      contact: email,
+      accessCodeHash: nextAccessCodeHash,
+      isPremium:
+        subscription.status === "active" &&
+        subscription.expiresAt &&
+        new Date(subscription.expiresAt) > now,
+      premiumExpiresAt: subscription.expiresAt,
+    };
+    const existingNextUser = await User.findOne({
+      contact: email,
+      accessCodeHash: nextAccessCodeHash,
+    });
+    if (existingNextUser) {
+      await User.findByIdAndUpdate(existingNextUser._id, { $set: userPayload });
+    } else {
+      await User.findOneAndUpdate(
+        { contact: email, accessCodeHash: previousAccessCodeHash },
+        { $set: userPayload },
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      );
+    }
+
+    await Portfolio.updateMany(
+      { contact: email, accessCodeHash: previousAccessCodeHash },
+      { $set: { accessCodeHash: nextAccessCodeHash } }
+    );
+    await PortfolioAsset.updateMany(
+      { contact: email, accessCodeHash: previousAccessCodeHash },
+      { $set: { accessCodeHash: nextAccessCodeHash } }
+    );
+
+    const updatedSubscription = await Subscription.findOne(
+      getActiveSubscriptionFilter(email, nextAccessCodeHash)
+    ).lean();
+
+    if (updatedSubscription) {
+      await syncSubscriptionUser(updatedSubscription);
+    }
+
+    await AnalyticsEvent.create({
+      eventName: "premium_access_code_reset",
+      visitorId,
+      page: "/subscriptions/reset-code",
+      deviceType: "unknown",
+      metadata: sanitizeAnalyticsMetadata({
+        planId: subscription.planId || "monthly",
+        status: subscription.status,
+      }),
+    }).catch((analyticsErr) =>
+      console.error("❌ Reset success analytics error:", analyticsErr)
+    );
+
+    res.json({
+      success: true,
+      message: "تم تحديث رمز الدخول. تم تسجيل دخولك إلى دربك+.",
+      active: Boolean(updatedSubscription),
+      contact: email,
+      email,
+      expiresAt: updatedSubscription?.expiresAt || subscription.expiresAt,
+      accessType: updatedSubscription ? "premium" : "pending",
+      planId: subscription.planId || "monthly",
+      priceSar: getSubscriptionPriceSar(subscription),
+      durationDays: getSubscriptionDurationDays(subscription),
+      provider: subscription.provider || "",
+      providerPaymentId: subscription.providerPaymentId || "",
+    });
+  } catch (err) {
+    console.error("❌ Subscription reset code error:", err);
     res.status(500).json({ error: err.message });
   }
 });

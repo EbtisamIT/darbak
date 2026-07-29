@@ -50,6 +50,21 @@ const subscriptionSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    accessResetTokenHash: {
+      type: String,
+      default: "",
+      trim: true,
+      index: true,
+    },
+    accessResetExpiresAt: {
+      type: Date,
+    },
+    accessResetRequestedAt: {
+      type: Date,
+    },
+    accessResetUsedAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );
