@@ -2033,6 +2033,27 @@ export default function TrainingFinderPage() {
     });
   };
 
+  const openOpportunityPremiumBanner = () => {
+    trackEvent("premium_where_to_train_opportunities_banner_clicked", {
+      major: selectedSpecialtyLabel,
+      city,
+      resultsCount: visibleOpportunities.length,
+      metadata: {
+        selectedSpecialty,
+        source: "where_to_train_opportunities_banner",
+      },
+    });
+
+    requestPremiumAccess({
+      feature: "where_to_train_opportunities",
+      title: "كمل استكشاف الفرص",
+      source: "where_to_train_opportunities_banner",
+      itemKey: `where-to-train-opportunities:${normalizeName(
+        selectedSpecialty
+      )}:${normalizeName(city)}`,
+    });
+  };
+
   const renderOpportunityGuideBanner = () => (
     <aside
       className="opportunity-guide-inline-banner"
@@ -2097,6 +2118,31 @@ export default function TrainingFinderPage() {
           افتح دليل رحلة المتدرب
         </button>
       </a>
+    </aside>
+  );
+
+  const renderOpportunityPremiumBanner = () => (
+    <aside
+      className="opportunity-plus-inline-banner"
+      aria-label="إعلان دربك بلس للفرص"
+      style={{ gridColumn: "1 / -1" }}
+    >
+      <div className="opportunity-plus-inline-copy">
+        <span>دربك+</span>
+        <strong>افتح تفاصيل الفرص المناسبة لك</strong>
+        <p>
+          وصول كامل لروابط التقديم، تفاصيل الفرصة، وحالة الجهات حسب تخصصك
+          ومدينتك بدون تضييع وقت بين الإعلانات.
+        </p>
+      </div>
+      <div className="opportunity-plus-inline-points" aria-label="مزايا فرص دربك بلس">
+        <span>روابط تقديم مباشرة</span>
+        <span>تفاصيل أوضح للفرص</span>
+        <span>فرص وجهات مناسبة</span>
+      </div>
+      <button type="button" onClick={openOpportunityPremiumBanner}>
+        كمل استكشاف الفرص
+      </button>
     </aside>
   );
 
@@ -2689,8 +2735,12 @@ export default function TrainingFinderPage() {
                         )}
                       </div>
                     </article>
-                    {index === opportunityGuideBannerIndex &&
-                      renderOpportunityGuideBanner()}
+                    {index === opportunityGuideBannerIndex && (
+                      <>
+                        {renderOpportunityGuideBanner()}
+                        {renderOpportunityPremiumBanner()}
+                      </>
+                    )}
                     </React.Fragment>
                   );
                 })}
@@ -5094,6 +5144,95 @@ export default function TrainingFinderPage() {
           line-height: 1.5;
         }
 
+        .opportunity-plus-inline-banner {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 14px;
+          padding: 15px 16px;
+          border-radius: 18px;
+          border: 1px solid var(--app-brand-border);
+          background:
+            radial-gradient(circle at 12% 10%, rgba(125, 219, 205, 0.2), transparent 36%),
+            linear-gradient(135deg, color-mix(in srgb, var(--app-brand) 12%, var(--app-surface)), var(--app-surface));
+          box-shadow: 0 16px 34px var(--app-shadow);
+          overflow: hidden;
+        }
+
+        .opportunity-plus-inline-copy {
+          min-width: 0;
+          display: grid;
+          gap: 5px;
+        }
+
+        .opportunity-plus-inline-copy span {
+          width: fit-content;
+          padding: 4px 10px;
+          border-radius: 999px;
+          background: var(--app-brand);
+          color: #071315;
+          font-size: 12px;
+          font-weight: 900;
+          line-height: 1.4;
+        }
+
+        .opportunity-plus-inline-copy strong {
+          color: var(--app-text);
+          font-size: clamp(16px, 2vw, 21px);
+          line-height: 1.55;
+          font-weight: 900;
+        }
+
+        .opportunity-plus-inline-copy p {
+          margin: 0;
+          max-width: 620px;
+          color: var(--app-text-soft);
+          font-size: 13px;
+          font-weight: 800;
+          line-height: 1.8;
+        }
+
+        .opportunity-plus-inline-points {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          gap: 7px;
+          min-width: 0;
+        }
+
+        .opportunity-plus-inline-points span {
+          border: 1px solid var(--app-brand-border);
+          border-radius: 999px;
+          background: rgba(125, 219, 205, 0.08);
+          color: var(--app-text-soft);
+          font-size: 11.5px;
+          font-weight: 900;
+          line-height: 1.4;
+          padding: 6px 9px;
+          white-space: nowrap;
+        }
+
+        .opportunity-plus-inline-banner button {
+          grid-column: 2;
+          grid-row: 1 / span 2;
+          align-self: center;
+          border: none;
+          border-radius: 999px;
+          background: var(--app-brand);
+          color: #071315;
+          cursor: pointer;
+          font-family: inherit;
+          font-size: 13px;
+          font-weight: 900;
+          padding: 11px 17px;
+          white-space: nowrap;
+          box-shadow: 0 10px 24px rgba(125, 219, 205, 0.22);
+        }
+
+        .opportunity-plus-inline-banner button:hover {
+          transform: translateY(-1px);
+        }
+
         @media (max-width: 760px) {
           .opportunity-guide-inline-banner {
             grid-template-columns: 1fr !important;
@@ -5103,6 +5242,27 @@ export default function TrainingFinderPage() {
           .opportunity-guide-inline-banner button {
             width: 100% !important;
             max-width: none !important;
+          }
+
+          .opportunity-plus-inline-banner {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+            padding: 13px !important;
+          }
+
+          .opportunity-plus-inline-points {
+            justify-content: flex-start !important;
+          }
+
+          .opportunity-plus-inline-points span {
+            font-size: 10.5px !important;
+            padding: 5px 8px !important;
+          }
+
+          .opportunity-plus-inline-banner button {
+            grid-column: auto !important;
+            grid-row: auto !important;
+            width: 100% !important;
           }
 
           .training-finder-form {

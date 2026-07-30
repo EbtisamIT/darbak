@@ -304,6 +304,8 @@ const analyticsEventLabels = {
   premium_gate_closed: "إغلاق نافذة الاشتراك",
   premium_nav_cta_clicked: "ضغط زر دربك+",
   premium_experiences_banner_clicked: "ضغط بنر دربك+ في التجارب",
+  premium_where_to_train_opportunities_banner_clicked:
+    "ضغط بنر دربك+ في الفرص",
   premium_plan_selected: "اختيار باقة دربك+",
   premium_checkout_started: "بدء الدفع",
   premium_checkout_failed: "تعذر بدء الدفع",
@@ -342,6 +344,7 @@ const analyticsEventLabels = {
 const premiumFunnelSteps = [
   ["premium_gate_opened", "ظهرت نافذة دربك+"],
   ["premium_nav_cta_clicked", "ضغطوا زر دربك+"],
+  ["premium_where_to_train_opportunities_banner_clicked", "ضغطوا بنر الفرص"],
   ["premium_plan_selected", "اختاروا باقة"],
   ["premium_checkout_started", "بدأوا الدفع"],
   ["premium_payment_returned", "رجعوا من ميسر"],
