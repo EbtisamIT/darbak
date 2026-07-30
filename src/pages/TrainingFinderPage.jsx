@@ -2164,6 +2164,8 @@ export default function TrainingFinderPage() {
           gap: "18px",
         }}
       >
+        {renderOpportunityPremiumBanner()}
+
         <header style={{ textAlign: "center" }}>
           <p
             style={{
@@ -2736,10 +2738,7 @@ export default function TrainingFinderPage() {
                       </div>
                     </article>
                     {index === opportunityGuideBannerIndex && (
-                      <>
-                        {renderOpportunityGuideBanner()}
-                        {renderOpportunityPremiumBanner()}
-                      </>
+                      renderOpportunityGuideBanner()
                     )}
                     </React.Fragment>
                   );
