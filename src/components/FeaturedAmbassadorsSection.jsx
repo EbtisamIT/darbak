@@ -21,22 +21,15 @@ const getOrganizationInitials = (name = "") => {
   return (parts[0] || cleanName).slice(0, 2);
 };
 
-const getLinkedInHandle = (url = "") => {
-  if (!url) return "حساب LinkedIn";
+const getAmbassadorDisplayName = (experience = {}) =>
+  normalizeSpaces(experience.ambassadorDisplayName);
 
-  try {
-    const parsedUrl = new URL(url.startsWith("http") ? url : `https://${url}`);
-    const parts = parsedUrl.pathname.split("/").filter(Boolean);
-    const handle = parts[0] === "in" ? parts[1] : parts[0];
-    return handle ? `LinkedIn: ${handle}` : "حساب LinkedIn";
-  } catch {
-    return "حساب LinkedIn";
-  }
+const getLinkedInUrl = (url = "") => {
+  const cleanUrl = normalizeSpaces(url);
+  if (!cleanUrl) return "";
+
+  return cleanUrl.startsWith("http") ? cleanUrl : `https://${cleanUrl}`;
 };
-
-const getAmbassadorName = (experience = {}) =>
-  normalizeSpaces(experience.ambassadorDisplayName) ||
-  getLinkedInHandle(experience.ambassadorLinkedInUrl);
 
 const getStrongExperienceLine = (description = "") => {
   const cleanDescription = normalizeSpaces(description);
@@ -139,6 +132,9 @@ export default function FeaturedAmbassadorsSection({
         {visibleItems.map((experience, index) => {
           const logoUrl = normalizeSpaces(experience.featuredAmbassadorLogoUrl);
           const tags = getCardTags(experience);
+          const ambassadorName = getAmbassadorDisplayName(experience);
+          const linkedInUrl = getLinkedInUrl(experience.ambassadorLinkedInUrl);
+          const showLinkedInButton = Boolean(ambassadorName && linkedInUrl);
 
           return (
             <article
@@ -168,20 +164,25 @@ export default function FeaturedAmbassadorsSection({
               )}
 
               <div className="featured-card-footer">
-                {experience.ambassadorLinkedInUrl ? (
-                  <a
-                    href={experience.ambassadorLinkedInUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(event) => event.stopPropagation()}
-                    className="featured-card-owner"
-                  >
-                    {getAmbassadorName(experience)}
-                  </a>
-                ) : (
-                  <span className="featured-card-owner">
-                    {getAmbassadorName(experience)}
-                  </span>
+                {ambassadorName && (
+                  <div className="featured-card-ambassador-row">
+                    <span className="featured-card-owner">
+                      سفير دربك: {ambassadorName}
+                    </span>
+                    {showLinkedInButton && (
+                      <a
+                        href={linkedInUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(event) => event.stopPropagation()}
+                        className="featured-card-linkedin"
+                        aria-label={`فتح LinkedIn الخاص بـ ${ambassadorName}`}
+                      >
+                        <span aria-hidden="true">in</span>
+                        LinkedIn
+                      </a>
+                    )}
+                  </div>
                 )}
 
                 <Link className="featured-ambassador-button" to={`/experiences/${experience._id}`}>
@@ -366,15 +367,59 @@ export default function FeaturedAmbassadorsSection({
           margin-top: auto;
         }
 
+        .featured-card-ambassador-row {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-wrap: wrap;
+          gap: 8px;
+          min-height: 34px;
+        }
+
         .featured-card-owner {
-          min-height: 18px;
           color: #7ddbcd;
           font-size: 12px;
           font-weight: 900;
-          text-decoration: none;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          max-width: 100%;
+        }
+
+        .featured-card-linkedin {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          min-height: 30px;
+          border-radius: 999px;
+          border: 1px solid rgba(125,219,205,0.32);
+          padding: 5px 11px;
+          background: rgba(125,219,205,0.13);
+          color: #dffbf7;
+          font-size: 11px;
+          font-weight: 1000;
+          text-decoration: none;
+          transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .featured-card-linkedin:hover {
+          transform: translateY(-1px);
+          background: rgba(125,219,205,0.2);
+        }
+
+        .featured-card-linkedin span {
+          display: inline-grid;
+          place-items: center;
+          width: 18px;
+          height: 18px;
+          border-radius: 5px;
+          background: #0a66c2;
+          color: #fff;
+          font-family: Arial, sans-serif;
+          font-size: 10px;
+          font-weight: 900;
+          line-height: 1;
         }
 
         .featured-ambassador-button {
