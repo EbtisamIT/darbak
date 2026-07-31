@@ -957,6 +957,13 @@ const isUnclearMajorText = (value = "") => {
 const getReadableMajor = (exp = {}) =>
   isUnclearMajorText(exp.major) ? exp.majorCategory || exp.major : exp.major;
 
+const isActiveFeaturedAmbassador = (exp = {}) =>
+  Boolean(exp.featuredAmbassador) &&
+  exp.ambassadorConsent === "yes" &&
+  Boolean(exp.ambassadorLinkedInUrl) &&
+  (!exp.featuredAmbassadorUntil ||
+    new Date(exp.featuredAmbassadorUntil).getTime() > Date.now());
+
 export default function AdminReviewPage() {
   const [password, setPassword] = useState(
     () => sessionStorage.getItem("darbak_admin_password") || ""
@@ -991,6 +998,8 @@ export default function AdminReviewPage() {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [savingEdit, setSavingEdit] = useState(false);
+  const [updatingFeaturedExperienceId, setUpdatingFeaturedExperienceId] =
+    useState("");
   const [opportunityForm, setOpportunityForm] = useState(defaultOpportunityForm);
   const [editingOpportunityId, setEditingOpportunityId] = useState(null);
   const [savingOpportunity, setSavingOpportunity] = useState(false);
@@ -1504,6 +1513,38 @@ export default function AdminReviewPage() {
     } catch (err) {
       console.error(err);
       setMessage("تعذر تحديث حالة التجربة.");
+    }
+  };
+
+  const toggleFeaturedAmbassador = async (exp) => {
+    const currentlyActive = isActiveFeaturedAmbassador(exp);
+
+    try {
+      setMessage("");
+      setUpdatingFeaturedExperienceId(exp._id);
+
+      const { data } = await axios.patch(
+        `${API_BASE_URL}/api/admin/experiences/${exp._id}/featured-ambassador`,
+        { active: !currentlyActive, days: 7 },
+        { headers: authHeaders }
+      );
+
+      setExperiences((prev) =>
+        prev.map((item) => (item._id === exp._id ? data : item))
+      );
+      setMessage(
+        currentlyActive
+          ? "تم إلغاء تمييز التجربة من سفراء دربك."
+          : "تم تمييز التجربة ضمن سفراء دربك لمدة أسبوع."
+      );
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.data?.error ||
+          "تعذر تحديث تمييز سفير دربك لهذه التجربة."
+      );
+    } finally {
+      setUpdatingFeaturedExperienceId("");
     }
   };
 
@@ -4539,6 +4580,31 @@ export default function AdminReviewPage() {
                 </a>
               )}
 
+              {isActiveFeaturedAmbassador(exp) && (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    margin: "0 0 12px",
+                    color: adminColors.brand,
+                    background: "rgba(125,219,205,0.1)",
+                    border: "1px solid rgba(125,219,205,0.3)",
+                    borderRadius: "999px",
+                    padding: "7px 10px",
+                    fontSize: "12px",
+                    fontWeight: 900,
+                  }}
+                >
+                  ⭐ سفير دربك لهذا الأسبوع
+                  {exp.featuredAmbassadorUntil && (
+                    <span style={{ color: adminColors.textSoft, fontWeight: 700 }}>
+                      حتى {formatAdminDateTime(exp.featuredAmbassadorUntil)}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {editingId === exp._id ? (
                 <div
                   style={{
@@ -4837,6 +4903,36 @@ export default function AdminReviewPage() {
                       }}
                     >
                       تعديل
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleFeaturedAmbassador(exp)}
+                      disabled={updatingFeaturedExperienceId === exp._id}
+                      style={{
+                        background: isActiveFeaturedAmbassador(exp)
+                          ? "rgba(245,158,11,0.12)"
+                          : "rgba(125,219,205,0.08)",
+                        color: isActiveFeaturedAmbassador(exp)
+                          ? "#fde68a"
+                          : adminColors.brand,
+                        border: isActiveFeaturedAmbassador(exp)
+                          ? "1px solid rgba(245,158,11,0.35)"
+                          : "1px solid rgba(125,219,205,0.35)",
+                        borderRadius: "10px",
+                        padding: "9px 14px",
+                        cursor:
+                          updatingFeaturedExperienceId === exp._id
+                            ? "not-allowed"
+                            : "pointer",
+                        fontFamily: "inherit",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {updatingFeaturedExperienceId === exp._id
+                        ? "تحديث..."
+                        : isActiveFeaturedAmbassador(exp)
+                        ? "إلغاء سفير الأسبوع"
+                        : "تمييز كسفير أسبوع"}
                     </button>
                     {status !== "rejected" && (
                       <button

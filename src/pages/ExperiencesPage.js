@@ -5,6 +5,7 @@ import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import ShareButton from "../components/ShareButton";
 import PremiumInlineNotice from "../components/PremiumInlineNotice";
+import FeaturedAmbassadorsSection from "../components/FeaturedAmbassadorsSection";
 import { trackEvent } from "../utils/analytics";
 import { getAccessHeaders, requestPremiumAccess } from "../utils/premiumAccess";
 import {
@@ -566,6 +567,9 @@ const ExperiencesPage = () => {
   const [selectedCity, setSelectedCity] = useState("");
   const [rewardFilter, setRewardFilter] = useState("");
   const [environmentFilter, setEnvironmentFilter] = useState("");
+  const [ambassadorsOnly, setAmbassadorsOnly] = useState(
+    () => new URLSearchParams(location.search).get("ambassadors") === "1"
+  );
   const [fetchError, setFetchError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalExperiences, setTotalExperiences] = useState(
@@ -608,6 +612,8 @@ const ExperiencesPage = () => {
   }, [seoCity, seoSpecialty]);
 
   useEffect(() => {
+    setAmbassadorsOnly(new URLSearchParams(location.search).get("ambassadors") === "1");
+
     const companyFromUrl = getCompanySearchFromUrl(location.search);
     if (companyFromUrl) {
       setCompanySearch(companyFromUrl);
@@ -826,13 +832,16 @@ const ExperiencesPage = () => {
             !rewardFilter || exp.hadReward === rewardFilter;
           const matchesEnvironment =
             !environmentFilter || exp.trainingEnvironment === environmentFilter;
+          const matchesAmbassador =
+            !ambassadorsOnly || isActiveFeaturedAmbassador(exp);
 
           return (
             matchesMajor &&
             matchesCity &&
             matchesSearch &&
             matchesReward &&
-            matchesEnvironment
+            matchesEnvironment &&
+            matchesAmbassador
           );
         })
         .sort((a, b) => {
@@ -857,6 +866,7 @@ const ExperiencesPage = () => {
       searchTerms,
       rewardFilter,
       environmentFilter,
+      ambassadorsOnly,
       sortOption,
       getSearchScore,
     ]
@@ -886,6 +896,7 @@ const ExperiencesPage = () => {
             terms: searchTerms.join("|"),
             hadReward: rewardFilter,
             trainingEnvironment: environmentFilter,
+            ambassadors: ambassadorsOnly ? "1" : "",
           },
         });
 
@@ -925,6 +936,7 @@ const ExperiencesPage = () => {
       sortOption,
       rewardFilter,
       environmentFilter,
+      ambassadorsOnly,
     ]
   );
 
@@ -1132,6 +1144,7 @@ const ExperiencesPage = () => {
     selectedCity,
     rewardFilter,
     environmentFilter,
+    ambassadorsOnly,
     sortOption !== "latest",
   ].filter(Boolean).length;
 
@@ -1158,7 +1171,11 @@ const ExperiencesPage = () => {
     setSelectedCity("");
     setRewardFilter("");
     setEnvironmentFilter("");
+    setAmbassadorsOnly(false);
     setSortOption("latest");
+    if (new URLSearchParams(location.search).get("ambassadors") === "1") {
+      navigate("/experiences", { replace: true });
+    }
   };
 
   const MajorButton = ({ name, Icon, color = "var(--app-brand)", active, isAll }) => (
@@ -1285,6 +1302,13 @@ const ExperiencesPage = () => {
     (exp.howApplied === "غير مذكور"
       ? sourceTypeLabels.public_summary
       : sourceTypeLabels.direct);
+
+  const isActiveFeaturedAmbassador = (exp = {}) =>
+    Boolean(exp.featuredAmbassador) &&
+    exp.ambassadorConsent === "yes" &&
+    Boolean(exp.ambassadorLinkedInUrl) &&
+    (!exp.featuredAmbassadorUntil ||
+      new Date(exp.featuredAmbassadorUntil).getTime() > Date.now());
 
   const getClearRewardAmount = (value = "") => {
     const text = formatRewardAmount(value);
@@ -2523,6 +2547,29 @@ const ExperiencesPage = () => {
                 </button>
               )}
 
+              {ambassadorsOnly && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAmbassadorsOnly(false);
+                    navigate("/experiences", { replace: true });
+                  }}
+                  style={{
+                    background: "rgba(125,219,205,0.12)",
+                    border: "1px solid rgba(125,219,205,0.35)",
+                    color: "var(--app-brand)",
+                    borderRadius: "999px",
+                    padding: "7px 10px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: "12px",
+                    fontWeight: 800,
+                  }}
+                >
+                  سفراء دربك ✕
+                </button>
+              )}
+
               {sortOption !== "latest" && (
                 <button
                   type="button"
@@ -2559,6 +2606,8 @@ const ExperiencesPage = () => {
             </div>
           )}
         </div>
+
+        {!ambassadorsOnly && <FeaturedAmbassadorsSection compact />}
 
         {/* ================= Cards ================= */}
         {fetchError && (
@@ -2693,6 +2742,11 @@ const ExperiencesPage = () => {
                     />
                   </div>
                   {renderExperienceTimeRow(exp)}
+                  {isActiveFeaturedAmbassador(exp) && (
+                    <div className="experience-ambassador-card-badge">
+                      ⭐ سفير دربك
+                    </div>
+                  )}
                   <div>
                     <div
                       className="experience-title-box"
@@ -2977,6 +3031,19 @@ const ExperiencesPage = () => {
             >
               هذه تجربة شخصية لا تمثل الجهة بالضرورة، وقد تختلف حسب الوقت والظروف.
             </p>
+
+            {isActiveFeaturedAmbassador(selectedExperience) && (
+              <div className="experience-ambassador-detail-badge">
+                <span>⭐ تجربة مختارة ضمن سفراء دربك</span>
+                <a
+                  href={selectedExperience.ambassadorLinkedInUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  تعرّف على صاحب التجربة عبر LinkedIn
+                </a>
+              </div>
+            )}
 
             {getExperienceAcceptedLabel(selectedExperience) && (
               <p className="detail-time-note">
@@ -3311,6 +3378,48 @@ const ExperiencesPage = () => {
         .experience-modal::-webkit-scrollbar-thumb {
           background: var(--app-brand-border);
           border-radius: 999px;
+        }
+
+        .experience-ambassador-card-badge {
+          width: fit-content;
+          max-width: 100%;
+          margin: 4px auto 9px;
+          border: 1px solid var(--app-brand-border);
+          border-radius: 999px;
+          padding: 5px 9px;
+          background: var(--app-brand-soft);
+          color: var(--app-brand);
+          font-size: 11px;
+          font-weight: 900;
+          line-height: 1.2;
+          white-space: nowrap;
+        }
+
+        .experience-ambassador-detail-badge {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin: -4px 0 15px;
+          padding: 10px 12px;
+          border-radius: 14px;
+          border: 1px solid var(--app-brand-border);
+          background: var(--app-brand-soft);
+          color: var(--app-text);
+          font-size: 12px;
+          line-height: 1.7;
+          flex-wrap: wrap;
+        }
+
+        .experience-ambassador-detail-badge span {
+          color: var(--app-brand);
+          font-weight: 900;
+        }
+
+        .experience-ambassador-detail-badge a {
+          color: var(--app-brand-strong);
+          font-weight: 900;
+          text-decoration: none;
         }
 
         @media (min-width: 901px) {

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
+import FeaturedAmbassadorsSection from "../components/FeaturedAmbassadorsSection";
 import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirectory";
 import { darbakGuideOrganizations } from "../data/darbakGuideSuggestions";
 import {
@@ -448,6 +449,8 @@ const HomePage = () => {
           </Link>
         ))}
       </div>
+
+      <FeaturedAmbassadorsSection compact />
 
       <style>{`
         .home-stat-card:hover,

@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3001;
 const DEFAULT_EXPERIENCES_LIMIT = 36;
 const MAX_EXPERIENCES_LIMIT = 60;
 const EXPERIENCE_PUBLIC_FIELDS =
-  "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
+  "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
 const OPPORTUNITY_PUBLIC_FIELDS =
   "organizationName title city cities majorCategories specialties trainingEnvironment trainingMode hasReward applicationMethod logoUrl deadline status sourceType featured createdAt updatedAt";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
@@ -2647,6 +2647,14 @@ const SMART_ASSISTANT_SUGGESTED_QUESTIONS = [
 
 const getApprovedExperiencesFilter = () => ({
   $or: [{ status: "approved" }, { status: { $exists: false } }],
+});
+
+const getActiveFeaturedAmbassadorFilter = () => ({
+  ...getApprovedExperiencesFilter(),
+  featuredAmbassador: true,
+  ambassadorConsent: "yes",
+  ambassadorLinkedInUrl: { $exists: true, $ne: "" },
+  featuredAmbassadorUntil: { $gt: new Date() },
 });
 
 const uniqueTruthy = (values = []) =>
@@ -7816,6 +7824,32 @@ app.post('/api/experiences', async (req, res) => {
 });
 
 // جلب التجارب
+app.get('/api/experiences/featured-ambassadors', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const requestedLimit = parseInt(req.query.limit, 10) || 3;
+    const limit = Math.min(Math.max(requestedLimit, 1), 12);
+    const experiences = await Experience.find(getActiveFeaturedAmbassadorFilter())
+      .select(EXPERIENCE_PUBLIC_FIELDS)
+      .sort({ featuredAmbassadorAt: -1, reviewedAt: -1, createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    const experiencesWithCounts = await attachItemInteractionCounts(
+      "experience",
+      experiences
+    );
+
+    res.json({ data: experiencesWithCounts });
+  } catch (err) {
+    console.error("❌ Featured ambassadors fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/experiences', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -7843,10 +7877,12 @@ app.get('/api/experiences', async (req, res) => {
     )
       ? req.query.trainingEnvironment
       : "";
+    const ambassadorsOnly =
+      req.query.ambassadors === "1" || req.query.ambassadors === "true";
 
-    const baseFilter = {
-      $or: [{ status: "approved" }, { status: { $exists: false } }],
-    };
+    const baseFilter = ambassadorsOnly
+      ? getActiveFeaturedAmbassadorFilter()
+      : getApprovedExperiencesFilter();
     const andFilters = [];
 
     if (majors.length > 0) {
@@ -8516,6 +8552,59 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
     res.json(updated);
   } catch (err) {
     console.error("❌ Admin update error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/experiences/:id/featured-ambassador', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const active = Boolean(req.body.active);
+    const days = Math.min(Math.max(Number(req.body.days) || 7, 1), 30);
+    const experience = await Experience.findById(req.params.id).lean();
+
+    if (!experience) {
+      return res.status(404).json({ error: "Experience not found" });
+    }
+
+    if (active && experience.ambassadorConsent !== "yes") {
+      return res.status(400).json({
+        error: "لا يمكن تمييز التجربة كسفير دربك قبل موافقة صاحب التجربة على الظهور.",
+      });
+    }
+
+    if (active && !normalizeLinkedInProfileUrl(experience.ambassadorLinkedInUrl)) {
+      return res.status(400).json({
+        error: "أضيفي رابط LinkedIn صحيح قبل تمييز التجربة كسفير دربك.",
+      });
+    }
+
+    const now = new Date();
+    const update = active
+      ? {
+          featuredAmbassador: true,
+          featuredAmbassadorAt: now,
+          featuredAmbassadorUntil: new Date(
+            now.getTime() + days * 24 * 60 * 60 * 1000
+          ),
+        }
+      : {
+          featuredAmbassador: false,
+          featuredAmbassadorAt: null,
+          featuredAmbassadorUntil: null,
+        };
+
+    const updated = await Experience.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true,
+    }).lean();
+
+    res.json(updated);
+  } catch (err) {
+    console.error("❌ Admin featured ambassador update error:", err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -68,6 +68,18 @@ const experienceSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    featuredAmbassador: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    featuredAmbassadorAt: {
+      type: Date,
+    },
+    featuredAmbassadorUntil: {
+      type: Date,
+      index: true,
+    },
     starRating: {
       type: Number,
       required: true,
