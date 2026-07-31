@@ -238,10 +238,6 @@ const HomePage = () => {
     ]
   );
 
-  const openAddExperienceModal = () => {
-    window.dispatchEvent(new Event("darbak:open-add-experience"));
-  };
-
   return (
     <div
       className="home-page"
@@ -308,70 +304,21 @@ const HomePage = () => {
           flexWrap: "wrap",
         }}
       >
-        <button
-          type="button"
-          className="home-cta home-share-cta"
-          onClick={openAddExperienceModal}
-          style={{
-            backgroundColor: "var(--app-brand)",
-            color: "#07100e",
-            border: "none",
-            borderRadius: "10px",
-            padding: "14px 24px",
-            fontSize: "16px",
-            fontFamily: homeFont,
-            cursor: "pointer",
-            transition: "0.3s",
-            boxShadow: "0 0 14px var(--app-brand-border)",
-            fontWeight: "800",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "7px",
-            whiteSpace: "nowrap",
-          }}
-        >
-          <span aria-hidden="true" style={{ fontSize: "18px", lineHeight: 1 }}>
-            +
-          </span>
-          شارك تجربتك
-        </button>
-
-        <Link to="/experiences" style={{ textDecoration: "none" }}>
-          <button
-            className="home-cta home-read-cta"
-            style={{
-              backgroundColor: "transparent",
-              color: "var(--app-brand-strong)",
-              border: "1px solid var(--app-brand-border)",
-              borderRadius: "10px",
-              padding: "14px 28px",
-              fontSize: "16px",
-              fontFamily: homeFont,
-              cursor: "pointer",
-              transition: "0.3s",
-              fontWeight: "700",
-            }}
-          >
-            قراءة التجارب
-          </button>
-        </Link>
-
         <Link to="/where-to-train" style={{ textDecoration: "none" }}>
           <button
-            className="home-cta home-secondary-cta"
+            className="home-cta home-primary-cta"
             style={{
-              backgroundColor: "var(--app-input-bg)",
-              color: "var(--app-brand-strong)",
-              border: "1px solid var(--app-brand-border)",
+              backgroundColor: "var(--app-brand)",
+              color: "#07100e",
+              border: "none",
               borderRadius: "10px",
-              padding: "14px 28px",
+              padding: "14px 34px",
               fontSize: "16px",
               fontFamily: homeFont,
               cursor: "pointer",
               transition: "0.3s",
-              fontWeight: "700",
-              boxShadow: "0 0 10px rgba(125, 219, 205, 0.12)",
+              fontWeight: "900",
+              boxShadow: "0 0 14px var(--app-brand-border)",
             }}
           >
             وين أتدرب؟
@@ -512,22 +459,8 @@ const HomePage = () => {
             font-size: 16px !important;
           }
 
-          .home-share-cta {
-            width: min(100%, 158px) !important;
-            order: -1;
-            font-size: 13px !important;
-            padding: 10px 12px !important;
-          }
-
-          .home-read-cta,
-          .home-secondary-cta {
-            width: min(100%, 142px) !important;
-            font-size: 13px !important;
-            padding: 10px 12px !important;
-          }
-
           .home-actions {
-            width: min(100%, 330px);
+            width: min(100%, 280px);
             gap: 8px !important;
           }
 
