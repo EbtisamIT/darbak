@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3001;
 const DEFAULT_EXPERIENCES_LIMIT = 36;
 const MAX_EXPERIENCES_LIMIT = 60;
 const EXPERIENCE_PUBLIC_FIELDS =
-  "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
+  "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl ambassadorDisplayName featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
 const OPPORTUNITY_PUBLIC_FIELDS =
   "organizationName title city cities majorCategories specialties trainingEnvironment trainingMode hasReward applicationMethod logoUrl deadline status sourceType featured createdAt updatedAt";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
@@ -2650,11 +2650,18 @@ const getApprovedExperiencesFilter = () => ({
 });
 
 const getActiveFeaturedAmbassadorFilter = () => ({
-  ...getApprovedExperiencesFilter(),
-  featuredAmbassador: true,
-  ambassadorConsent: "yes",
-  ambassadorLinkedInUrl: { $exists: true, $ne: "" },
-  featuredAmbassadorUntil: { $gt: new Date() },
+  $and: [
+    getApprovedExperiencesFilter(),
+    {
+      featuredAmbassador: true,
+      ambassadorConsent: "yes",
+      featuredAmbassadorUntil: { $gt: new Date() },
+      $or: [
+        { ambassadorLinkedInUrl: { $exists: true, $ne: "" } },
+        { ambassadorDisplayName: { $exists: true, $ne: "" } },
+      ],
+    },
+  ],
 });
 
 const uniqueTruthy = (values = []) =>
@@ -8564,6 +8571,10 @@ app.patch('/api/admin/experiences/:id/featured-ambassador', requireAdmin, async 
 
     const active = Boolean(req.body.active);
     const days = Math.min(Math.max(Number(req.body.days) || 7, 1), 30);
+    const ambassadorDisplayName =
+      typeof req.body.ambassadorDisplayName === "string"
+        ? req.body.ambassadorDisplayName.trim().replace(/\s+/g, " ")
+        : "";
     const experience = await Experience.findById(req.params.id).lean();
 
     if (!experience) {
@@ -8576,9 +8587,27 @@ app.patch('/api/admin/experiences/:id/featured-ambassador', requireAdmin, async 
       });
     }
 
-    if (active && !normalizeLinkedInProfileUrl(experience.ambassadorLinkedInUrl)) {
+    if (active && (experience.status || "approved") !== "approved") {
       return res.status(400).json({
-        error: "أضيفي رابط LinkedIn صحيح قبل تمييز التجربة كسفير دربك.",
+        error: "اختاري تجربة مقبولة أولًا قبل تمييزها ضمن سفراء دربك.",
+      });
+    }
+
+    const existingLinkedInUrl = normalizeLinkedInProfileUrl(
+      experience.ambassadorLinkedInUrl
+    );
+    const nextDisplayName =
+      ambassadorDisplayName || experience.ambassadorDisplayName || "";
+
+    if (active && !existingLinkedInUrl && !nextDisplayName) {
+      return res.status(400).json({
+        error: "أضيفي اسم سفير دربك أو رابط LinkedIn صحيح قبل تمييز التجربة.",
+      });
+    }
+
+    if (active && ambassadorDisplayName.length > 80) {
+      return res.status(400).json({
+        error: "اسم سفير دربك يجب أن يكون أقصر من 80 حرف.",
       });
     }
 
@@ -8590,6 +8619,7 @@ app.patch('/api/admin/experiences/:id/featured-ambassador', requireAdmin, async 
           featuredAmbassadorUntil: new Date(
             now.getTime() + days * 24 * 60 * 60 * 1000
           ),
+          ambassadorDisplayName: nextDisplayName,
         }
       : {
           featuredAmbassador: false,
@@ -8662,6 +8692,7 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
       "ambassadorConsent",
       "ambassadorLinkedInUrl",
       "ambassadorProfileImageUrl",
+      "ambassadorDisplayName",
       "starRating",
       "ratings",
       "interviewQuestions",
@@ -8695,10 +8726,18 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
       updates.ambassadorConsent = "no";
       updates.ambassadorLinkedInUrl = "";
       updates.ambassadorProfileImageUrl = "";
+      updates.ambassadorDisplayName = "";
     }
 
     if (typeof updates.ambassadorLinkedInUrl === "string") {
       updates.ambassadorLinkedInUrl = updates.ambassadorLinkedInUrl.trim();
+    }
+
+    if (typeof updates.ambassadorDisplayName === "string") {
+      updates.ambassadorDisplayName = updates.ambassadorDisplayName
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 80);
     }
 
     if (updates.ambassadorConsent === "yes") {
@@ -8706,13 +8745,19 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
         updates.ambassadorLinkedInUrl
       );
 
-      if (!normalizedLinkedInUrl) {
+      if (updates.ambassadorLinkedInUrl && !normalizedLinkedInUrl) {
         return res.status(400).json({
-          error: "رابط LinkedIn غير صحيح. استخدم رابط ملف شخصي يبدأ بـ linkedin.com/in/ أو اجعل السفير مجهول.",
+          error: "رابط LinkedIn غير صحيح. استخدم رابط ملف شخصي يبدأ بـ linkedin.com/in/ أو اترك الرابط فارغًا واكتفِ باسم السفير.",
         });
       }
 
-      updates.ambassadorLinkedInUrl = normalizedLinkedInUrl;
+      updates.ambassadorLinkedInUrl = normalizedLinkedInUrl || "";
+
+      if (!updates.ambassadorLinkedInUrl && !updates.ambassadorDisplayName) {
+        return res.status(400).json({
+          error: "أضيفي اسم سفير دربك أو رابط LinkedIn، أو اجعلي السفير مجهول.",
+        });
+      }
     }
 
     if (

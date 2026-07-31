@@ -68,6 +68,7 @@ const editableFields = [
   "ambassadorConsent",
   "ambassadorLinkedInUrl",
   "ambassadorProfileImageUrl",
+  "ambassadorDisplayName",
   "starRating",
   "interviewQuestions",
   "sourceType",
@@ -957,10 +958,24 @@ const isUnclearMajorText = (value = "") => {
 const getReadableMajor = (exp = {}) =>
   isUnclearMajorText(exp.major) ? exp.majorCategory || exp.major : exp.major;
 
+const normalizeAdminSearchText = (value = "") =>
+  value
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[أإآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ـ/g, "")
+    .replace(/[\u064B-\u065F]/g, "")
+    .replace(/\s+/g, " ");
+
 const isActiveFeaturedAmbassador = (exp = {}) =>
   Boolean(exp.featuredAmbassador) &&
   exp.ambassadorConsent === "yes" &&
-  Boolean(exp.ambassadorLinkedInUrl) &&
+  (Boolean(exp.ambassadorLinkedInUrl) || Boolean(exp.ambassadorDisplayName)) &&
   (!exp.featuredAmbassadorUntil ||
     new Date(exp.featuredAmbassadorUntil).getTime() > Date.now());
 
@@ -981,6 +996,7 @@ export default function AdminReviewPage() {
   const [userManagement, setUserManagement] = useState(emptyUserManagement);
   const [userStatus, setUserStatus] = useState("all");
   const [userSearch, setUserSearch] = useState("");
+  const [experienceSearch, setExperienceSearch] = useState("");
   const [opportunitySearch, setOpportunitySearch] = useState("");
   const [opportunityCityFilter, setOpportunityCityFilter] = useState("");
   const [opportunitySourceFilter, setOpportunitySourceFilter] = useState("");
@@ -1005,6 +1021,22 @@ export default function AdminReviewPage() {
   const [savingOpportunity, setSavingOpportunity] = useState(false);
 
   const authHeaders = password ? { "x-admin-password": password } : {};
+  const normalizedExperienceSearch = normalizeAdminSearchText(experienceSearch);
+  const visibleExperiences = normalizedExperienceSearch
+    ? experiences.filter((exp) =>
+        [
+          exp.title,
+          exp.organizationName,
+          exp.city,
+          exp.majorCategory,
+          exp.major,
+          exp.ambassadorDisplayName,
+          exp.ambassadorLinkedInUrl,
+        ]
+          .map(normalizeAdminSearchText)
+          .some((value) => value.includes(normalizedExperienceSearch))
+      )
+    : experiences;
   const userManagementSummary = {
     ...emptyUserManagement.summary,
     ...(userManagement.summary || {}),
@@ -1030,7 +1062,7 @@ export default function AdminReviewPage() {
         : userManagementSummary.allTimeVisitors ||
           userManagementSummary.totalUsers ||
           userManagement.users.length
-      : experiences.length;
+      : visibleExperiences.length;
   const currentItemsLabel =
     adminView === "suggestions"
       ? "اقتراح"
@@ -1518,6 +1550,18 @@ export default function AdminReviewPage() {
 
   const toggleFeaturedAmbassador = async (exp) => {
     const currentlyActive = isActiveFeaturedAmbassador(exp);
+    let ambassadorDisplayName = exp.ambassadorDisplayName || "";
+
+    if (!currentlyActive) {
+      const suggestedName = ambassadorDisplayName || "";
+      const enteredName = window.prompt(
+        "اكتبي اسم سفير دربك الذي يظهر على الكرت. تقدرين تتركينه فارغ ويظهر حساب LinkedIn بدل الاسم.",
+        suggestedName
+      );
+
+      if (enteredName === null) return;
+      ambassadorDisplayName = enteredName.trim();
+    }
 
     try {
       setMessage("");
@@ -1525,7 +1569,11 @@ export default function AdminReviewPage() {
 
       const { data } = await axios.patch(
         `${API_BASE_URL}/api/admin/experiences/${exp._id}/featured-ambassador`,
-        { active: !currentlyActive, days: 7 },
+        {
+          active: !currentlyActive,
+          days: 7,
+          ambassadorDisplayName,
+        },
         { headers: authHeaders }
       );
 
@@ -2949,6 +2997,23 @@ export default function AdminReviewPage() {
               </>
             )}
           </select>
+        )}
+
+        {adminView === "experiences" && (
+          <input
+            value={experienceSearch}
+            onChange={(e) => setExperienceSearch(e.target.value)}
+            placeholder="ابحثي في التجارب المقبولة بالجهة، المدينة، التخصص أو اسم السفير"
+            style={{
+              minWidth: "320px",
+              background: adminColors.inputBg,
+              border: `1px solid ${adminColors.inputBorder}`,
+              borderRadius: "10px",
+              color: adminColors.text,
+              padding: "11px 12px",
+              fontFamily: "inherit",
+            }}
+          />
         )}
 
         <button
@@ -4479,12 +4544,14 @@ export default function AdminReviewPage() {
         </div>
       ) : (
         <div style={{ display: "grid", gap: "12px" }}>
-          {experiences.length === 0 && !loading ? (
+          {visibleExperiences.length === 0 && !loading ? (
             <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
-              لا توجد تجارب في هذا التصنيف.
+              {experienceSearch.trim()
+                ? "لا توجد تجربة مطابقة لبحثك في هذا التصنيف."
+                : "لا توجد تجارب في هذا التصنيف."}
             </div>
           ) : (
-            experiences.map((exp) => (
+            visibleExperiences.map((exp) => (
             <article key={exp._id} style={cardStyle}>
               <div
                 style={{
@@ -4576,7 +4643,11 @@ export default function AdminReviewPage() {
                     overflowWrap: "anywhere",
                   }}
                 >
-                  رابط سفير دربك: {exp.ambassadorLinkedInUrl}
+                  رابط سفير دربك:{" "}
+                  {exp.ambassadorDisplayName
+                    ? `${exp.ambassadorDisplayName} - `
+                    : ""}
+                  {exp.ambassadorLinkedInUrl}
                 </a>
               )}
 
@@ -4597,6 +4668,11 @@ export default function AdminReviewPage() {
                   }}
                 >
                   ⭐ سفير دربك لهذا الأسبوع
+                  {exp.ambassadorDisplayName && (
+                    <span style={{ color: adminColors.text, fontWeight: 900 }}>
+                      {exp.ambassadorDisplayName}
+                    </span>
+                  )}
                   {exp.featuredAmbassadorUntil && (
                     <span style={{ color: adminColors.textSoft, fontWeight: 700 }}>
                       حتى {formatAdminDateTime(exp.featuredAmbassadorUntil)}
@@ -4623,6 +4699,7 @@ export default function AdminReviewPage() {
                       ["duration", "مدة التدريب"],
                       ["trainingYear", "سنة التدريب"],
                       ["rewardAmount", "قيمة المكافأة"],
+                      ["ambassadorDisplayName", "اسم السفير الظاهر"],
                       ["ambassadorLinkedInUrl", "رابط LinkedIn للسفير"],
                       ["ambassadorProfileImageUrl", "رابط صورة السفير"],
                     ].map(([field, label]) => (
@@ -4907,7 +4984,15 @@ export default function AdminReviewPage() {
                     <button
                       type="button"
                       onClick={() => toggleFeaturedAmbassador(exp)}
-                      disabled={updatingFeaturedExperienceId === exp._id}
+                      disabled={
+                        updatingFeaturedExperienceId === exp._id ||
+                        (exp.status || "approved") !== "approved"
+                      }
+                      title={
+                        (exp.status || "approved") !== "approved"
+                          ? "اختاري من التجارب المقبولة فقط"
+                          : ""
+                      }
                       style={{
                         background: isActiveFeaturedAmbassador(exp)
                           ? "rgba(245,158,11,0.12)"
@@ -4921,9 +5006,12 @@ export default function AdminReviewPage() {
                         borderRadius: "10px",
                         padding: "9px 14px",
                         cursor:
-                          updatingFeaturedExperienceId === exp._id
+                          updatingFeaturedExperienceId === exp._id ||
+                          (exp.status || "approved") !== "approved"
                             ? "not-allowed"
                             : "pointer",
+                        opacity:
+                          (exp.status || "approved") !== "approved" ? 0.45 : 1,
                         fontFamily: "inherit",
                         fontWeight: "bold",
                       }}

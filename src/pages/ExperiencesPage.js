@@ -1290,7 +1290,8 @@ const ExperiencesPage = () => {
   const isActiveFeaturedAmbassador = (exp = {}) =>
     Boolean(exp.featuredAmbassador) &&
     exp.ambassadorConsent === "yes" &&
-    Boolean(exp.ambassadorLinkedInUrl) &&
+    (Boolean(exp.ambassadorLinkedInUrl) ||
+      Boolean(exp.ambassadorDisplayName)) &&
     (!exp.featuredAmbassadorUntil ||
       new Date(exp.featuredAmbassadorUntil).getTime() > Date.now());
 
@@ -2996,13 +2997,17 @@ const ExperiencesPage = () => {
             {isActiveFeaturedAmbassador(selectedExperience) && (
               <div className="experience-ambassador-detail-badge">
                 <span>⭐ تجربة مختارة ضمن سفراء دربك</span>
-                <a
-                  href={selectedExperience.ambassadorLinkedInUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  تعرّف على صاحب التجربة عبر LinkedIn
-                </a>
+                {selectedExperience.ambassadorLinkedInUrl ? (
+                  <a
+                    href={selectedExperience.ambassadorLinkedInUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    تعرّف على صاحب التجربة عبر LinkedIn
+                  </a>
+                ) : selectedExperience.ambassadorDisplayName ? (
+                  <small>{selectedExperience.ambassadorDisplayName}</small>
+                ) : null}
               </div>
             )}
 
@@ -3381,6 +3386,12 @@ const ExperiencesPage = () => {
           color: var(--app-brand-strong);
           font-weight: 900;
           text-decoration: none;
+        }
+
+        .experience-ambassador-detail-badge small {
+          color: var(--app-brand-strong);
+          font-size: 12px;
+          font-weight: 900;
         }
 
         @media (min-width: 901px) {

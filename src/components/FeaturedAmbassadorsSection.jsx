@@ -23,6 +23,10 @@ const getLinkedInHandle = (url = "") => {
   }
 };
 
+const getAmbassadorName = (experience = {}) =>
+  normalizeSpaces(experience.ambassadorDisplayName) ||
+  getLinkedInHandle(experience.ambassadorLinkedInUrl);
+
 const getStrongExperienceLine = (description = "") => {
   const cleanDescription = normalizeSpaces(description);
   if (!cleanDescription) return "تجربة مختارة تساعد المتدربين على فهم الصورة قبل التقديم.";
@@ -42,14 +46,13 @@ export default function FeaturedAmbassadorsSection({
   compact = false,
 }) {
   const [items, setItems] = useState([]);
-  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     axios
       .get(`${API_BASE_URL}/api/experiences/featured-ambassadors`, {
-        params: { limit: 9 },
+        params: { limit: 3 },
       })
       .then(({ data }) => {
         if (!isMounted) return;
@@ -64,10 +67,7 @@ export default function FeaturedAmbassadorsSection({
     };
   }, []);
 
-  const visibleItems = useMemo(
-    () => (showAll ? items : items.slice(0, 3)),
-    [items, showAll]
-  );
+  const visibleItems = useMemo(() => items.slice(0, 3), [items]);
 
   if (visibleItems.length === 0) return null;
 
@@ -86,14 +86,18 @@ export default function FeaturedAmbassadorsSection({
           <article className="featured-ambassador-card" key={experience._id}>
             <div className="featured-ambassador-topline">
               <span>سفير دربك</span>
-              <a
-                href={experience.ambassadorLinkedInUrl}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(event) => event.stopPropagation()}
-              >
-                {getLinkedInHandle(experience.ambassadorLinkedInUrl)}
-              </a>
+              {experience.ambassadorLinkedInUrl ? (
+                <a
+                  href={experience.ambassadorLinkedInUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {getAmbassadorName(experience)}
+                </a>
+              ) : (
+                <strong>{getAmbassadorName(experience)}</strong>
+              )}
             </div>
 
             <h3>{experience.organizationName}</h3>
@@ -108,16 +112,6 @@ export default function FeaturedAmbassadorsSection({
           </article>
         ))}
       </div>
-
-      {items.length > 3 && (
-        <button
-          className="featured-ambassadors-all"
-          type="button"
-          onClick={() => setShowAll((value) => !value)}
-        >
-          {showAll ? "إخفاء التجارب الإضافية" : "عرض المزيد من سفراء دربك"}
-        </button>
-      )}
 
       <style>{`
         .featured-ambassadors {
@@ -198,7 +192,8 @@ export default function FeaturedAmbassadorsSection({
           white-space: nowrap;
         }
 
-        .featured-ambassador-topline a {
+        .featured-ambassador-topline a,
+        .featured-ambassador-topline strong {
           color: var(--app-brand-strong);
           font-size: 11px;
           font-weight: 800;
@@ -206,6 +201,7 @@ export default function FeaturedAmbassadorsSection({
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          min-width: 0;
         }
 
         .featured-ambassador-card h3 {

@@ -68,6 +68,10 @@ const experienceSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    ambassadorDisplayName: {
+      type: String,
+      default: "",
+    },
     featuredAmbassador: {
       type: Boolean,
       default: false,
