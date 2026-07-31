@@ -4402,6 +4402,7 @@ app.get('/api/home-stats', async (req, res) => {
       experienceOrganizationNames,
       opportunityOrganizationNames,
       currentProgramsCount,
+      opportunityApplyClicksCount,
       activeSubscriberEmails,
     ] =
       await Promise.all([
@@ -4411,6 +4412,9 @@ app.get('/api/home-stats', async (req, res) => {
           status: { $in: ["active", "expired"] },
         }),
         Opportunity.countDocuments(currentOpportunitiesFilter),
+        AnalyticsEvent.countDocuments({
+          eventName: "opportunity_apply_clicked",
+        }),
         Subscription.distinct("email", activeSubscriptionFilter),
       ]);
     const organizationNames = uniqueTruthy([
@@ -4423,6 +4427,8 @@ app.get('/api/home-stats', async (req, res) => {
       organizationNames,
       organizationsCount: organizationNames.length,
       currentProgramsCount,
+      studentsAppliedCount: opportunityApplyClicksCount,
+      opportunityApplyClicksCount,
       activeSubscribersCount: activeSubscriberEmails.filter(Boolean).length,
     });
   } catch (err) {

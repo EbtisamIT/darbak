@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
+import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirectory";
+import { darbakGuideOrganizations } from "../data/darbakGuideSuggestions";
 import {
   suggestedOrganizationsByMajorCategory,
   suggestedOrganizationsByRegion,
@@ -33,6 +35,8 @@ const suggestedOrganizationNames = [
   ...Object.values(suggestedOrganizationsByMajorCategory)
     .flat()
     .map((organization) => organization.name),
+  ...darbakGuideOrganizations.map((organization) => organization.name),
+  ...darbakContactDirectoryOrganizations.map((organization) => organization.name),
 ];
 
 const MovingGreenPath = () => {
@@ -152,6 +156,7 @@ const MovingGreenPath = () => {
 const HomePage = () => {
   const [experiencesCount, setExperiencesCount] = useState(null);
   const [currentProgramsCount, setCurrentProgramsCount] = useState(null);
+  const [studentsAppliedCount, setStudentsAppliedCount] = useState(null);
   const [experienceOrganizationNames, setExperienceOrganizationNames] =
     useState([]);
 
@@ -167,6 +172,10 @@ const HomePage = () => {
 
         if (typeof data.currentProgramsCount === "number") {
           setCurrentProgramsCount(data.currentProgramsCount);
+        }
+
+        if (typeof data.studentsAppliedCount === "number") {
+          setStudentsAppliedCount(data.studentsAppliedCount);
         }
 
         if (Array.isArray(data.organizationNames)) {
@@ -210,8 +219,22 @@ const HomePage = () => {
         caption: "جهات حكومية وشركات",
         to: "/where-to-train",
       },
+      {
+        value:
+          typeof studentsAppliedCount === "number"
+            ? studentsAppliedCount
+            : null,
+        label: "طالب قدم عبر دربك",
+        caption: "من الفرص والبرامج",
+        to: "/where-to-train",
+      },
     ],
-    [currentProgramsCount, experiencesCount, organizationsCount]
+    [
+      currentProgramsCount,
+      experiencesCount,
+      organizationsCount,
+      studentsAppliedCount,
+    ]
   );
 
   const openAddExperienceModal = () => {
@@ -359,9 +382,9 @@ const HomePage = () => {
         className="home-stats"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
           gap: "12px",
-          width: "min(100%, 620px)",
+          width: "min(100%, 760px)",
           marginTop: "30px",
         }}
       >
@@ -507,7 +530,7 @@ const HomePage = () => {
 
           .home-stats {
             width: min(100%, 340px) !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 8px !important;
             margin-top: 22px !important;
           }
