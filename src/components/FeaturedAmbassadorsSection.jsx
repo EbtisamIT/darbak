@@ -85,7 +85,7 @@ const getCardTags = (experience = {}) => {
 
 export default function FeaturedAmbassadorsSection({
   title = "سفراء دربك لهذا الأسبوع ⭐",
-  subtitle = "تجارب مميزة شاركها طلاب سابقون لمساعدة المتدربين.",
+  subtitle = "تجارب شاركها طلاب سابقون لمساعدة المتدربين.",
   compact = false,
 }) {
   const [items, setItems] = useState([]);
@@ -122,7 +122,6 @@ export default function FeaturedAmbassadorsSection({
     >
       <div className="featured-ambassadors-head">
         <div>
-          <span>⭐ من تجارب الأسبوع</span>
           <h2>{title}</h2>
         </div>
         <p>{subtitle}</p>
@@ -213,14 +212,8 @@ export default function FeaturedAmbassadorsSection({
           margin-bottom: 16px;
         }
 
-        .featured-ambassadors-head span {
-          color: var(--app-brand);
-          font-size: 13px;
-          font-weight: 900;
-        }
-
         .featured-ambassadors-head h2 {
-          margin: 4px 0 0;
+          margin: 0;
           color: var(--app-text);
           font-size: ${compact ? "22px" : "26px"};
           line-height: 1.35;
