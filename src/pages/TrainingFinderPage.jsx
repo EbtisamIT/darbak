@@ -592,6 +592,17 @@ const getOrganizationLogoUrl = (url = "") => {
   return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
 };
 
+const getOrganizationLogoUrlFromDomain = (domain = "") => {
+  const cleanDomain = domain.toString().trim().replace(/^@/, "");
+  if (!cleanDomain || !cleanDomain.includes(".")) return "";
+  return `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`;
+};
+
+const getFirstEmailDomain = (emails = []) => {
+  const email = emails.find((value) => value && value.includes("@")) || "";
+  return email.split("@")[1] || "";
+};
+
 const getOrganizationInitial = (name = "") => {
   const firstLetter = name.trim().replace(/[^\u0600-\u06FFA-Za-z0-9]/g, "")[0];
   return firstLetter || "د";
@@ -2122,6 +2133,14 @@ export default function TrainingFinderPage() {
       organization.name
     )}`;
     const organizationUrl = organization.url || organization.sourceUrl || "";
+    const organizationResolvedUrl =
+      organizationUrl || resolveOrganizationHomepageUrl(organization.name);
+    const organizationImageUrl =
+      organization.logoUrl ||
+      getOrganizationLogoUrl(organizationResolvedUrl) ||
+      getOrganizationLogoUrlFromDomain(
+        getFirstEmailDomain(organization.emails || [])
+      );
     const specialtyPreview = getGuideSpecialtyPreview(
       organization,
       selectedSpecialtyLabel
@@ -2192,8 +2211,8 @@ export default function TrainingFinderPage() {
         >
           <OrganizationLogo
             name={organization.name}
-            url={organizationUrl}
-            imageUrl={organization.logoUrl}
+            url={organizationResolvedUrl}
+            imageUrl={organizationImageUrl}
           />
           <div>
             <div
