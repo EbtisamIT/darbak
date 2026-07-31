@@ -72,7 +72,11 @@ export default function FeaturedAmbassadorsSection({
   if (visibleItems.length === 0) return null;
 
   return (
-    <section className={`featured-ambassadors${compact ? " is-compact" : ""}`}>
+    <section
+      className={`featured-ambassadors${compact ? " is-compact" : ""}${
+        visibleItems.length > 1 ? " has-multiple" : ""
+      }`}
+    >
       <div className="featured-ambassadors-head">
         <div>
           <span>⭐ من تجارب الأسبوع</span>
@@ -84,6 +88,9 @@ export default function FeaturedAmbassadorsSection({
       <div className="featured-ambassadors-grid">
         {visibleItems.map((experience) => (
           <article className="featured-ambassador-card" key={experience._id}>
+            <div className="featured-ambassador-feature-tag">
+              تجربة مميزة
+            </div>
             <div className="featured-ambassador-topline">
               <span>سفير دربك</span>
               {experience.ambassadorLinkedInUrl ? (
@@ -161,15 +168,43 @@ export default function FeaturedAmbassadorsSection({
         }
 
         .featured-ambassador-card {
+          position: relative;
           display: flex;
           min-height: 205px;
           flex-direction: column;
           gap: 9px;
           border: 1px solid var(--app-border-soft);
           border-radius: 16px;
-          padding: 13px;
-          background: var(--app-card);
+          padding: 14px 13px 13px;
+          background:
+            linear-gradient(180deg, rgba(125,219,205,0.08), transparent 42%),
+            var(--app-card);
           box-shadow: 0 10px 24px rgba(0,0,0,0.08);
+          overflow: hidden;
+        }
+
+        .featured-ambassador-card::before {
+          content: "";
+          position: absolute;
+          inset-inline-start: 0;
+          top: 0;
+          width: 4px;
+          height: 100%;
+          background: linear-gradient(180deg, var(--app-brand), transparent);
+          opacity: 0.9;
+        }
+
+        .featured-ambassador-feature-tag {
+          width: fit-content;
+          border: 1px solid rgba(245,158,11,0.34);
+          border-radius: 999px;
+          padding: 4px 8px;
+          background: rgba(245,158,11,0.12);
+          color: #fbbf24;
+          font-size: 10.5px;
+          font-weight: 900;
+          line-height: 1.2;
+          white-space: nowrap;
         }
 
         .featured-ambassador-topline {
@@ -264,14 +299,17 @@ export default function FeaturedAmbassadorsSection({
 
         @media (max-width: 760px) {
           .featured-ambassadors {
-            width: min(100%, 390px);
-            padding: 13px 10px;
+            width: 100%;
+            max-width: 100%;
+            padding: 13px 0 13px;
+            overflow: hidden;
           }
 
           .featured-ambassadors-head {
             display: grid;
             gap: 7px;
             text-align: center;
+            padding: 0 14px;
           }
 
           .featured-ambassadors-head p {
@@ -279,16 +317,40 @@ export default function FeaturedAmbassadorsSection({
           }
 
           .featured-ambassadors-grid {
-            grid-template-columns: 1fr;
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            overscroll-behavior-inline: contain;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            padding: 2px 14px 12px;
+            scrollbar-width: none;
+          }
+
+          .featured-ambassadors-grid::-webkit-scrollbar {
+            display: none;
           }
 
           .featured-ambassador-card {
-            min-height: auto;
-            padding: 12px;
+            flex: 0 0 min(82vw, 310px);
+            min-height: 215px;
+            padding: 13px;
+            scroll-snap-align: center;
           }
 
           .featured-ambassador-card h3 {
-            min-height: auto;
+            min-height: 46px;
+          }
+
+          .featured-ambassadors.has-multiple::after {
+            content: "اسحب/ي لعرض المزيد";
+            display: block;
+            width: fit-content;
+            margin: -4px auto 0;
+            color: var(--app-muted-2);
+            font-size: 11px;
+            font-weight: 800;
+            opacity: 0.85;
           }
         }
       `}</style>
