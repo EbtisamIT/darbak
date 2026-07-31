@@ -5,7 +5,6 @@ import majors from "../majors";
 import API_BASE_URL from "../config/api";
 import ShareButton from "../components/ShareButton";
 import PremiumInlineNotice from "../components/PremiumInlineNotice";
-import FeaturedAmbassadorsSection from "../components/FeaturedAmbassadorsSection";
 import { trackEvent } from "../utils/analytics";
 import { getAccessHeaders, requestPremiumAccess } from "../utils/premiumAccess";
 import {
@@ -1287,14 +1286,6 @@ const ExperiencesPage = () => {
       ? sourceTypeLabels.public_summary
       : sourceTypeLabels.direct);
 
-  const isActiveFeaturedAmbassador = (exp = {}) =>
-    Boolean(exp.featuredAmbassador) &&
-    exp.ambassadorConsent === "yes" &&
-    (Boolean(exp.ambassadorLinkedInUrl) ||
-      Boolean(exp.ambassadorDisplayName)) &&
-    (!exp.featuredAmbassadorUntil ||
-      new Date(exp.featuredAmbassadorUntil).getTime() > Date.now());
-
   const getClearRewardAmount = (value = "") => {
     const text = formatRewardAmount(value);
     if (!text) return "";
@@ -2569,8 +2560,6 @@ const ExperiencesPage = () => {
           )}
         </div>
 
-        <FeaturedAmbassadorsSection compact />
-
         {/* ================= Cards ================= */}
         {fetchError && (
           <div
@@ -2704,11 +2693,6 @@ const ExperiencesPage = () => {
                     />
                   </div>
                   {renderExperienceTimeRow(exp)}
-                  {isActiveFeaturedAmbassador(exp) && (
-                    <div className="experience-ambassador-card-badge">
-                      ⭐ سفير دربك
-                    </div>
-                  )}
                   <div>
                     <div
                       className="experience-title-box"
@@ -2993,23 +2977,6 @@ const ExperiencesPage = () => {
             >
               هذه تجربة شخصية لا تمثل الجهة بالضرورة، وقد تختلف حسب الوقت والظروف.
             </p>
-
-            {isActiveFeaturedAmbassador(selectedExperience) && (
-              <div className="experience-ambassador-detail-badge">
-                <span>⭐ تجربة مختارة ضمن سفراء دربك</span>
-                {selectedExperience.ambassadorLinkedInUrl ? (
-                  <a
-                    href={selectedExperience.ambassadorLinkedInUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    تعرّف على صاحب التجربة عبر LinkedIn
-                  </a>
-                ) : selectedExperience.ambassadorDisplayName ? (
-                  <small>{selectedExperience.ambassadorDisplayName}</small>
-                ) : null}
-              </div>
-            )}
 
             {getExperienceAcceptedLabel(selectedExperience) && (
               <p className="detail-time-note">
@@ -3344,54 +3311,6 @@ const ExperiencesPage = () => {
         .experience-modal::-webkit-scrollbar-thumb {
           background: var(--app-brand-border);
           border-radius: 999px;
-        }
-
-        .experience-ambassador-card-badge {
-          width: fit-content;
-          max-width: 100%;
-          margin: 4px auto 9px;
-          border: 1px solid var(--app-brand-border);
-          border-radius: 999px;
-          padding: 5px 9px;
-          background: var(--app-brand-soft);
-          color: var(--app-brand);
-          font-size: 11px;
-          font-weight: 900;
-          line-height: 1.2;
-          white-space: nowrap;
-        }
-
-        .experience-ambassador-detail-badge {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          margin: -4px 0 15px;
-          padding: 10px 12px;
-          border-radius: 14px;
-          border: 1px solid var(--app-brand-border);
-          background: var(--app-brand-soft);
-          color: var(--app-text);
-          font-size: 12px;
-          line-height: 1.7;
-          flex-wrap: wrap;
-        }
-
-        .experience-ambassador-detail-badge span {
-          color: var(--app-brand);
-          font-weight: 900;
-        }
-
-        .experience-ambassador-detail-badge a {
-          color: var(--app-brand-strong);
-          font-weight: 900;
-          text-decoration: none;
-        }
-
-        .experience-ambassador-detail-badge small {
-          color: var(--app-brand-strong);
-          font-size: 12px;
-          font-weight: 900;
         }
 
         @media (min-width: 901px) {

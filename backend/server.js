@@ -8581,12 +8581,6 @@ app.patch('/api/admin/experiences/:id/featured-ambassador', requireAdmin, async 
       return res.status(404).json({ error: "Experience not found" });
     }
 
-    if (active && experience.ambassadorConsent !== "yes") {
-      return res.status(400).json({
-        error: "لا يمكن تمييز التجربة كسفير دربك قبل موافقة صاحب التجربة على الظهور.",
-      });
-    }
-
     if (active && (experience.status || "approved") !== "approved") {
       return res.status(400).json({
         error: "اختاري تجربة مقبولة أولًا قبل تمييزها ضمن سفراء دربك.",
@@ -8614,6 +8608,7 @@ app.patch('/api/admin/experiences/:id/featured-ambassador', requireAdmin, async 
     const now = new Date();
     const update = active
       ? {
+          ambassadorConsent: "yes",
           featuredAmbassador: true,
           featuredAmbassadorAt: now,
           featuredAmbassadorUntil: new Date(
