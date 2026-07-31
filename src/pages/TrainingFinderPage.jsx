@@ -19,7 +19,13 @@ import {
 } from "../data/darbakGuideSuggestions";
 import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirectory";
 import { trackEvent } from "../utils/analytics";
-import { getAccessHeaders, requestPremiumAccess } from "../utils/premiumAccess";
+import {
+  PREMIUM_STATUS_EVENT,
+  getAccessHeaders,
+  hasActivePremiumPass,
+  isPremiumGateEnabled,
+  requestPremiumAccess,
+} from "../utils/premiumAccess";
 import {
   getSavedItemIds,
   getSavedItemUpdateState,
@@ -155,6 +161,7 @@ const mergeGuideDirectoryOrganizations = (organizations = []) => {
         ...organization,
         emails,
         email: organization.email || emails[0] || "",
+        majorCategories: uniqueValues(organization.majorCategories || []),
       });
       return;
     }
@@ -185,6 +192,10 @@ const mergeGuideDirectoryOrganizations = (organizations = []) => {
       specialties: uniqueValues([
         ...(current.specialties || []),
         ...(organization.specialties || []),
+      ]),
+      majorCategories: uniqueValues([
+        ...(current.majorCategories || []),
+        ...(organization.majorCategories || []),
       ]),
       contactType: current.contactType || organization.contactType || "",
       sourceLabel: current.sourceLabel || organization.sourceLabel || "",
@@ -786,6 +797,125 @@ export const specializationOptions = Array.from(
     .values()
 ).sort((a, b) => a.label.localeCompare(b.label, "ar"));
 
+const getSpecialtiesForCategories = (categoryNames = []) => {
+  const normalizedCategories = new Set(categoryNames.map(normalizeName));
+
+  return uniqueValues(
+    majors
+      .filter((majorGroup) => normalizedCategories.has(normalizeName(majorGroup.name)))
+      .flatMap((majorGroup) => [majorGroup.name, ...(majorGroup.subMajors || [])])
+  );
+};
+
+const getGuideOrganizationSpecialtyScore = (
+  organization = {},
+  selectedSpecialtyLabel = "",
+  selectedCategoryNames = []
+) => {
+  const normalizedSelectedSpecialty = normalizeName(selectedSpecialtyLabel);
+  const normalizedSelectedCategories = selectedCategoryNames.map(normalizeName);
+
+  if (!normalizedSelectedSpecialty && normalizedSelectedCategories.length === 0) {
+    return 1;
+  }
+
+  const organizationSpecialties = uniqueValues([
+    ...(organization.specialties || []),
+    ...(organization.majorCategories || []),
+  ]);
+  const normalizedOrganizationSpecialties = organizationSpecialties.map(normalizeName);
+  const organizationText = normalizeName(
+    [
+      organization.name,
+      organization.sector,
+      organization.note,
+      organization.usage,
+      organization.guideSummary,
+      ...organizationSpecialties,
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+
+  const hasDirectSpecialtyMatch =
+    normalizedSelectedSpecialty &&
+    (organizationText.includes(normalizedSelectedSpecialty) ||
+      normalizedOrganizationSpecialties.some(
+        (specialtyName) =>
+          specialtyName === normalizedSelectedSpecialty ||
+          specialtyName.includes(normalizedSelectedSpecialty) ||
+          normalizedSelectedSpecialty.includes(specialtyName)
+      ));
+
+  if (hasDirectSpecialtyMatch) return 4;
+
+  const hasCategoryMatch =
+    normalizedSelectedCategories.length > 0 &&
+    normalizedSelectedCategories.some(
+      (categoryName) =>
+        organizationText.includes(categoryName) ||
+        normalizedOrganizationSpecialties.includes(categoryName)
+    );
+
+  if (hasCategoryMatch) return 3;
+
+  const relatedSpecialties = getSpecialtiesForCategories(selectedCategoryNames).map(
+    normalizeName
+  );
+  const hasRelatedSpecialtyMatch =
+    relatedSpecialties.length > 0 &&
+    normalizedOrganizationSpecialties.some((specialtyName) =>
+      relatedSpecialties.some(
+        (relatedSpecialty) =>
+          specialtyName === relatedSpecialty ||
+          specialtyName.includes(relatedSpecialty) ||
+          relatedSpecialty.includes(specialtyName)
+      )
+    );
+
+  return hasRelatedSpecialtyMatch ? 2 : 0;
+};
+
+const getGuideOrganizationLocationScore = (
+  organization = {},
+  selectedCityScope = [],
+  suggestionRegion = "",
+  cityName = ""
+) => {
+  if (!cityName) return 1;
+  if (isNationalGuideOrganization(organization)) return 1;
+
+  const normalizedCity = normalizeName(cityName);
+  const normalizedRegionNames = [suggestionRegion, getRegionDisplayName(suggestionRegion)]
+    .filter(Boolean)
+    .map(normalizeName);
+  const normalizedCityScope = selectedCityScope.map(normalizeName);
+  const organizationLocations = [
+    organization.city,
+    organization.region,
+    ...(organization.cities || []),
+    ...(organization.regions || []),
+  ]
+    .filter(Boolean)
+    .map(normalizeName);
+
+  if (organizationLocations.includes(normalizedCity)) return 4;
+  if (
+    normalizedRegionNames.some((regionName) =>
+      organizationLocations.includes(regionName)
+    )
+  ) {
+    return 3;
+  }
+  if (
+    normalizedCityScope.some((scopeName) => organizationLocations.includes(scopeName))
+  ) {
+    return 2;
+  }
+
+  return 0;
+};
+
 export const suggestedOrganizationsByRegion = {
   "منطقة الرياض": [
     { name: "stc", url: "https://www.stc.com.sa/", note: "اتصالات وتقنية" },
@@ -1099,6 +1229,54 @@ const resolveOrganizationHomepageUrl = (organizationName) => {
   })?.[1] || "";
 };
 
+const getReadableUrlHost = (url = "") => {
+  if (!url) return "";
+
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+  }
+};
+
+const getGuideOrganizationContactPreview = (organization = {}) => {
+  const emails = uniqueEmails([organization.email, ...(organization.emails || [])]);
+  if (emails.length > 0) {
+    return {
+      label: "إيميل التقديم",
+      value: emails[0],
+      type: "email",
+      sensitive: true,
+    };
+  }
+
+  const applicationUrl =
+    organization.applicationUrl ||
+    organization.url ||
+    organization.sourceUrl ||
+    resolveOrganizationHomepageUrl(organization.name);
+
+  if (applicationUrl) {
+    return {
+      label: "رابط التقديم",
+      value: getReadableUrlHost(applicationUrl),
+      url: applicationUrl,
+      type: "link",
+      sensitive: true,
+    };
+  }
+
+  return {
+    label: "طريقة التقديم",
+    value: organization.contactType || "تظهر داخل التفاصيل",
+    type: "method",
+    sensitive: false,
+  };
+};
+
+const getLockedContactPreviewValue = (type = "") =>
+  type === "email" ? "apply@••••••.sa" : "متاح بعد دربك+";
+
 export default function TrainingFinderPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -1148,6 +1326,9 @@ export default function TrainingFinderPage() {
   const [savingOpportunityRequest, setSavingOpportunityRequest] = useState(false);
   const [opportunityRequestMessage, setOpportunityRequestMessage] = useState("");
   const [savedItemIds, setSavedItemIds] = useState(() => getSavedItemIds());
+  const [canViewGuideContacts, setCanViewGuideContacts] = useState(
+    () => !isPremiumGateEnabled() || hasActivePremiumPass()
+  );
   const handledRouteOpportunityIdRef = useRef("");
 
   useEffect(() => {
@@ -1155,6 +1336,16 @@ export default function TrainingFinderPage() {
     window.addEventListener("darbak:saved-items-updated", updateSavedItems);
     return () =>
       window.removeEventListener("darbak:saved-items-updated", updateSavedItems);
+  }, []);
+
+  useEffect(() => {
+    const refreshGuideContactAccess = () =>
+      setCanViewGuideContacts(!isPremiumGateEnabled() || hasActivePremiumPass());
+
+    refreshGuideContactAccess();
+    window.addEventListener(PREMIUM_STATUS_EVENT, refreshGuideContactAccess);
+    return () =>
+      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshGuideContactAccess);
   }, []);
 
   useEffect(() => {
@@ -1180,6 +1371,14 @@ export default function TrainingFinderPage() {
   );
   const selectedSpecialtyLabel =
     selectedSpecialtyOption?.label || selectedSpecialty;
+  const selectedMajorCategories = useMemo(
+    () => selectedSpecialtyOption?.categories || [],
+    [selectedSpecialtyOption]
+  );
+  const selectedRelatedSpecialties = useMemo(
+    () => getSpecialtiesForCategories(selectedMajorCategories),
+    [selectedMajorCategories]
+  );
   const suggestionRegion = resolveSuggestionRegion(city);
   const selectedCityScope = useMemo(() => getSelectedCityScope(city), [city]);
   const visibleTargets = useMemo(() => {
@@ -1235,6 +1434,9 @@ export default function TrainingFinderPage() {
     ? trainingFinderFaqItems
     : trainingFinderFaqItems.slice(0, 3);
   const suggestedOrganizations = useMemo(() => {
+    const hasSpecialtyFilter = Boolean(
+      selectedSpecialtyLabel || selectedMajorCategories.length > 0
+    );
     const guideOrganizations = guideDirectoryOrganizations
       .filter((organization) =>
         guideOrganizationMatchesLocation(
@@ -1248,7 +1450,25 @@ export default function TrainingFinderPage() {
         ...organization,
         sourceLabel: organization.sourceLabel || darbakGuideMeta.sourceLabel,
       }));
-    const manualRegionOrganizations = suggestionRegion
+    const categoryOrganizations = selectedMajorCategories.flatMap((categoryName) =>
+      (suggestedOrganizationsByMajorCategory[categoryName] || []).map(
+        (organization) => ({
+          ...organization,
+          sourceLabel: "اقتراح حسب التخصص",
+          regions: ["كل المناطق"],
+          majorCategories: [categoryName],
+          specialties: uniqueValues([
+            selectedSpecialtyLabel,
+            categoryName,
+            ...selectedRelatedSpecialties,
+            ...(organization.specialties || []),
+          ]),
+          applicationWindow:
+            organization.applicationWindow || "حسب إعلان الجهة",
+        })
+      )
+    );
+    const manualRegionOrganizations = suggestionRegion && !hasSpecialtyFilter
       ? (suggestedOrganizationsByRegion[suggestionRegion] || []).map(
           (organization) => ({
             ...organization,
@@ -1261,14 +1481,61 @@ export default function TrainingFinderPage() {
         )
       : [];
 
-    return dedupeOrganizations([
+    const scoredOrganizations = dedupeOrganizations([
       ...guideOrganizations,
+      ...categoryOrganizations,
       ...manualRegionOrganizations,
-    ]).filter(
-      (organization) =>
-      !visibleTargetNames.has(normalizeName(organization.name))
-    );
-  }, [city, selectedCityScope, suggestionRegion, visibleTargetNames]);
+    ])
+      .map((organization) => {
+        const contactPreview = getGuideOrganizationContactPreview(organization);
+
+        return {
+          ...organization,
+          _specialtyScore: getGuideOrganizationSpecialtyScore(
+            organization,
+            selectedSpecialtyLabel,
+            selectedMajorCategories
+          ),
+          _locationScore: getGuideOrganizationLocationScore(
+            organization,
+            selectedCityScope,
+            suggestionRegion,
+            city
+          ),
+          _hasContactScore:
+            contactPreview.type === "email"
+              ? 2
+              : contactPreview.type === "link"
+              ? 1
+              : 0,
+        };
+      })
+      .filter(
+        (organization) =>
+          !visibleTargetNames.has(normalizeName(organization.name)) &&
+          (!hasSpecialtyFilter || organization._specialtyScore > 0)
+      );
+    const cityMatchedOrganizations =
+      city && scoredOrganizations.some((organization) => organization._locationScore > 1)
+        ? scoredOrganizations.filter((organization) => organization._locationScore > 1)
+        : scoredOrganizations;
+
+    return cityMatchedOrganizations.sort(
+        (first, second) =>
+          second._locationScore - first._locationScore ||
+          second._specialtyScore - first._specialtyScore ||
+          second._hasContactScore - first._hasContactScore ||
+          normalizeName(first.name).localeCompare(normalizeName(second.name), "ar")
+      );
+  }, [
+    city,
+    selectedCityScope,
+    selectedMajorCategories,
+    selectedRelatedSpecialties,
+    selectedSpecialtyLabel,
+    suggestionRegion,
+    visibleTargetNames,
+  ]);
   const visibleOpportunities = useMemo(() => {
     const allowedCities =
       selectedCityScope.length > 0
@@ -2142,6 +2409,12 @@ export default function TrainingFinderPage() {
       selectedSpecialtyLabel
     );
     const locationText = getGuideOrganizationLocationText(organization);
+    const contactPreview = getGuideOrganizationContactPreview(organization);
+    const isContactPreviewLocked =
+      contactPreview.sensitive && !canViewGuideContacts;
+    const contactPreviewValue = isContactPreviewLocked
+      ? getLockedContactPreviewValue(contactPreview.type)
+      : contactPreview.value;
 
     return (
       <article
@@ -2313,6 +2586,24 @@ export default function TrainingFinderPage() {
             >
               {organization.applicationWindow || "حسب إعلان الجهة"}
             </strong>
+          </p>
+          <p className="guide-contact-preview-row">
+            <span>{contactPreview.label}</span>
+            <strong
+              className={`guide-contact-preview-value${
+                isContactPreviewLocked ? " is-locked" : ""
+              }`}
+              title={
+                isContactPreviewLocked
+                  ? "متاح لمشتركي دربك+"
+                  : contactPreview.value
+              }
+            >
+              {contactPreviewValue}
+            </strong>
+            {isContactPreviewLocked && (
+              <em className="guide-contact-preview-badge">دربك+</em>
+            )}
           </p>
           <p
             style={{
@@ -3131,8 +3422,8 @@ export default function TrainingFinderPage() {
                           lineHeight: 1.75,
                         }}
                       >
-                        جهات مقترحة تساعدك تبدأ التقديم حسب تخصصك والمدينة
-                        المختارة.
+                        جهات مقترحة حسب المدينة والتخصص أو تخصص قريب منه، مع
+                        وسيلة التقديم المتاحة لكل جهة.
                       </p>
                     </div>
                   </div>
@@ -3611,8 +3902,8 @@ export default function TrainingFinderPage() {
                       lineHeight: 1.8,
                     }}
                   >
-                    جهات مقترحة حسب المدينة أو المنطقة، وتظهر تفاصيل التقديم
-                    لمشتركي دربك+.
+                    جهات مقترحة حسب المدينة والتخصص أو تخصص قريب منه، وتظهر
+                    تفاصيل التقديم لمشتركي دربك+.
                   </p>
                 </div>
               </div>
@@ -4739,6 +5030,52 @@ export default function TrainingFinderPage() {
           width: 100%;
         }
 
+        .guide-contact-preview-row {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 7px;
+          margin: 0;
+          color: var(--app-text-soft);
+          font-size: 12px;
+          line-height: 1.6;
+        }
+
+        .guide-contact-preview-row > span:first-child {
+          color: var(--app-muted);
+        }
+
+        .guide-contact-preview-value {
+          color: var(--app-brand);
+          font-weight: 900;
+          text-align: left;
+          direction: ltr;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .guide-contact-preview-value.is-locked {
+          color: var(--app-text-soft);
+          filter: blur(2.4px);
+          user-select: none;
+        }
+
+        .guide-contact-preview-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid var(--app-brand-border);
+          border-radius: 999px;
+          padding: 3px 6px;
+          color: var(--app-brand);
+          background: var(--app-brand-soft);
+          font-style: normal;
+          font-size: 10px;
+          font-weight: 900;
+          white-space: nowrap;
+        }
+
         .suggested-organization-source {
           flex: 0 0 auto;
           background: var(--app-brand-soft);
@@ -5843,6 +6180,15 @@ export default function TrainingFinderPage() {
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
+          }
+
+          .guide-contact-preview-row {
+            grid-template-columns: minmax(0, 1fr) auto !important;
+            gap: 4px !important;
+          }
+
+          .guide-contact-preview-row > span:first-child {
+            grid-column: 1 / -1 !important;
           }
 
           .opportunity-card.suggested-target-card {
