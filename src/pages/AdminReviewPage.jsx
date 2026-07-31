@@ -4357,6 +4357,7 @@ export default function AdminReviewPage() {
                     borderRadius: "12px",
                     padding: "10px",
                     minHeight: "64px",
+                    whiteSpace: "pre-wrap",
                     overflowWrap: "anywhere",
                   }}
                 >

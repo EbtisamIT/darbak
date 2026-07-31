@@ -5064,6 +5064,8 @@ export default function TrainingFinderPage() {
           padding: 12px;
           font-size: 13px;
           line-height: 1.9;
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
         }
 
         .premium-preview-blur-wrap {
