@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3001;
 const DEFAULT_EXPERIENCES_LIMIT = 36;
 const MAX_EXPERIENCES_LIMIT = 60;
 const EXPERIENCE_PUBLIC_FIELDS =
-  "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl ambassadorDisplayName featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
+  "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl ambassadorDisplayName featuredAmbassadorLogoUrl featuredAmbassadorCardTitle featuredAmbassadorCardSummary featuredAmbassadorCardTags featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
 const OPPORTUNITY_PUBLIC_FIELDS =
   "organizationName title city cities majorCategories specialties trainingEnvironment trainingMode hasReward applicationMethod logoUrl deadline status sourceType featured createdAt updatedAt";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
@@ -1128,6 +1128,27 @@ const normalizeInterviewQuestions = (value) => {
       return true;
     })
     .slice(0, 20);
+};
+
+const normalizeFeaturedAmbassadorTags = (value) => {
+  const rawItems = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(/\n+|[,،|]+/)
+    : [];
+
+  const seen = new Set();
+
+  return rawItems
+    .map((item) => item.toString().replace(/\s+/g, " ").trim())
+    .filter((item) => item.length >= 2)
+    .filter((item) => {
+      const key = normalizeSearchText(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 4);
 };
 
 const sanitizeInterviewQuestionPayload = (body = {}) => ({
@@ -4357,8 +4378,8 @@ const buildSmartAssistantAnswer = ({
 
 // ===== Middlewares =====
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 // ===== MongoDB Connection =====
 mongoose.connect(process.env.MONGO_URI)
@@ -8688,6 +8709,10 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
       "ambassadorLinkedInUrl",
       "ambassadorProfileImageUrl",
       "ambassadorDisplayName",
+      "featuredAmbassadorLogoUrl",
+      "featuredAmbassadorCardTitle",
+      "featuredAmbassadorCardSummary",
+      "featuredAmbassadorCardTags",
       "starRating",
       "ratings",
       "interviewQuestions",
@@ -8733,6 +8758,38 @@ app.patch('/api/admin/experiences/:id', requireAdmin, async (req, res) => {
         .trim()
         .replace(/\s+/g, " ")
         .slice(0, 80);
+    }
+
+    if (typeof updates.featuredAmbassadorLogoUrl === "string") {
+      updates.featuredAmbassadorLogoUrl = updates.featuredAmbassadorLogoUrl
+        .trim()
+        .slice(0, 180000);
+    }
+
+    if (typeof updates.featuredAmbassadorCardTitle === "string") {
+      updates.featuredAmbassadorCardTitle = updates.featuredAmbassadorCardTitle
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 90);
+    }
+
+    if (typeof updates.featuredAmbassadorCardSummary === "string") {
+      updates.featuredAmbassadorCardSummary =
+        updates.featuredAmbassadorCardSummary
+          .trim()
+          .replace(/\s+/g, " ")
+          .slice(0, 150);
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(
+        updates,
+        "featuredAmbassadorCardTags"
+      )
+    ) {
+      updates.featuredAmbassadorCardTags = normalizeFeaturedAmbassadorTags(
+        updates.featuredAmbassadorCardTags
+      );
     }
 
     if (updates.ambassadorConsent === "yes") {

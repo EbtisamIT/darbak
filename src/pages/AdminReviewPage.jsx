@@ -69,12 +69,50 @@ const editableFields = [
   "ambassadorLinkedInUrl",
   "ambassadorProfileImageUrl",
   "ambassadorDisplayName",
+  "featuredAmbassadorLogoUrl",
+  "featuredAmbassadorCardTitle",
+  "featuredAmbassadorCardSummary",
+  "featuredAmbassadorCardTags",
   "starRating",
   "interviewQuestions",
   "sourceType",
   "description",
   "rejectionReason",
 ];
+
+const normalizeTagLines = (value = "") =>
+  value
+    .toString()
+    .split(/\n+|[,،|]+/)
+    .map((tag) => tag.trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .slice(0, 4);
+
+const compressAdminImageToDataUrl = (file, maxSize = 320, quality = 0.76) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const image = new Image();
+
+      image.onload = () => {
+        const scale = Math.min(maxSize / image.width, maxSize / image.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/webp", quality));
+      };
+
+      image.onerror = () => reject(new Error("Image load failed"));
+      image.src = reader.result;
+    };
+
+    reader.onerror = () => reject(new Error("File read failed"));
+    reader.readAsDataURL(file);
+  });
 
 const defaultOpportunityForm = {
   organizationName: "",
@@ -1629,12 +1667,17 @@ export default function AdminReviewPage() {
     const nextForm = {};
 
     editableFields.forEach((field) => {
-      nextForm[field] =
-        field === "interviewQuestions"
-          ? Array.isArray(exp[field])
-            ? exp[field].join("\n")
-            : ""
-          : exp[field] ?? "";
+      if (field === "interviewQuestions") {
+        nextForm[field] = Array.isArray(exp[field]) ? exp[field].join("\n") : "";
+        return;
+      }
+
+      if (field === "featuredAmbassadorCardTags") {
+        nextForm[field] = Array.isArray(exp[field]) ? exp[field].join("\n") : "";
+        return;
+      }
+
+      nextForm[field] = exp[field] ?? "";
     });
 
     nextForm.starRating = String(exp.starRating || "");
@@ -1652,6 +1695,33 @@ export default function AdminReviewPage() {
     setEditForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleFeaturedLogoUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setMessage("اختاري ملف صورة للشعار.");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setMessage("حجم الشعار كبير. اختاري صورة أقل من 2MB.");
+      return;
+    }
+
+    try {
+      setMessage("جاري تجهيز الشعار...");
+      const dataUrl = await compressAdminImageToDataUrl(file);
+      updateEditField("featuredAmbassadorLogoUrl", dataUrl);
+      setMessage("تم تجهيز شعار بطاقة سفير دربك.");
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر قراءة الشعار. جرّبي صورة مختلفة.");
+    }
+  };
+
   const saveExperienceEdit = async (id) => {
     try {
       setSavingEdit(true);
@@ -1664,6 +1734,9 @@ export default function AdminReviewPage() {
           .split("\n")
           .map((question) => question.trim())
           .filter(Boolean),
+        featuredAmbassadorCardTags: normalizeTagLines(
+          editForm.featuredAmbassadorCardTags || ""
+        ),
       };
 
       const { data } = await axios.patch(
@@ -1679,7 +1752,7 @@ export default function AdminReviewPage() {
       setMessage("تم حفظ تعديل التجربة.");
     } catch (err) {
       console.error(err);
-      setMessage("تعذر حفظ تعديل التجربة.");
+      setMessage(err.response?.data?.error || "تعذر حفظ تعديل التجربة.");
     } finally {
       setSavingEdit(false);
     }
@@ -4762,6 +4835,226 @@ export default function AdminReviewPage() {
                       </label>
                     ))}
                   </div>
+
+                  <section
+                    style={{
+                      display: "grid",
+                      gap: "12px",
+                      border: `1px solid ${adminColors.cardBorder}`,
+                      borderRadius: "14px",
+                      padding: "14px",
+                      background: "rgba(125,219,205,0.035)",
+                    }}
+                  >
+                    <div>
+                      <strong style={{ color: adminColors.brandStrong }}>
+                        بطاقة سفير دربك
+                      </strong>
+                      <p
+                        style={{
+                          margin: "5px 0 0",
+                          color: adminColors.muted,
+                          fontSize: "12px",
+                          lineHeight: 1.7,
+                        }}
+                      >
+                        هذه البيانات تظهر فقط في كروت السفراء بالصفحة الرئيسية.
+                      </p>
+                    </div>
+
+                    <div className="admin-edit-grid">
+                      <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                        عنوان الكرت
+                        <input
+                          value={editForm.featuredAmbassadorCardTitle || ""}
+                          onChange={(e) =>
+                            updateEditField(
+                              "featuredAmbassadorCardTitle",
+                              e.target.value
+                            )
+                          }
+                          placeholder="مثال: تجربة إبتسام في STC"
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            marginTop: "5px",
+                            background: adminColors.inputBg,
+                            color: adminColors.text,
+                            border: `1px solid ${adminColors.inputBorder}`,
+                            borderRadius: "9px",
+                            padding: "9px",
+                            fontFamily: "inherit",
+                          }}
+                        />
+                      </label>
+
+                      <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                        رابط شعار الشركة
+                        <input
+                          value={
+                            (editForm.featuredAmbassadorLogoUrl || "").startsWith(
+                              "data:"
+                            )
+                              ? "تم رفع شعار من الجهاز"
+                              : editForm.featuredAmbassadorLogoUrl || ""
+                          }
+                          onChange={(e) =>
+                            updateEditField(
+                              "featuredAmbassadorLogoUrl",
+                              e.target.value
+                            )
+                          }
+                          disabled={(editForm.featuredAmbassadorLogoUrl || "").startsWith(
+                            "data:"
+                          )}
+                          placeholder="اختياري: رابط صورة الشعار"
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            marginTop: "5px",
+                            background: adminColors.inputBg,
+                            color: adminColors.text,
+                            border: `1px solid ${adminColors.inputBorder}`,
+                            borderRadius: "9px",
+                            padding: "9px",
+                            fontFamily: "inherit",
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                      نبذة الكرت المختصرة
+                      <textarea
+                        value={editForm.featuredAmbassadorCardSummary || ""}
+                        onChange={(e) =>
+                          updateEditField(
+                            "featuredAmbassadorCardSummary",
+                            e.target.value
+                          )
+                        }
+                        rows={2}
+                        placeholder="مثال: ملخص سريع عن تجربة التدريب، بيئة العمل، وآلية التقديم."
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          marginTop: "5px",
+                          background: adminColors.inputBg,
+                          color: adminColors.text,
+                          border: `1px solid ${adminColors.inputBorder}`,
+                          borderRadius: "9px",
+                          padding: "10px",
+                          fontFamily: "inherit",
+                          lineHeight: 1.8,
+                        }}
+                      />
+                    </label>
+
+                    <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                      وسوم الكرت
+                      <textarea
+                        value={editForm.featuredAmbassadorCardTags || ""}
+                        onChange={(e) =>
+                          updateEditField(
+                            "featuredAmbassadorCardTags",
+                            e.target.value
+                          )
+                        }
+                        rows={3}
+                        placeholder="كل وسم في سطر: مكافأة / الرياض / نظم معلومات"
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          marginTop: "5px",
+                          background: adminColors.inputBg,
+                          color: adminColors.text,
+                          border: `1px solid ${adminColors.inputBorder}`,
+                          borderRadius: "9px",
+                          padding: "10px",
+                          fontFamily: "inherit",
+                          lineHeight: 1.8,
+                        }}
+                      />
+                    </label>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: "10px",
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: `1px solid ${adminColors.inputBorder}`,
+                          borderRadius: "999px",
+                          padding: "9px 14px",
+                          color: adminColors.brandStrong,
+                          background: "rgba(125,219,205,0.08)",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: 900,
+                        }}
+                      >
+                        رفع شعار الشركة
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFeaturedLogoUpload}
+                          style={{ display: "none" }}
+                        />
+                      </label>
+
+                      {editForm.featuredAmbassadorLogoUrl && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateEditField("featuredAmbassadorLogoUrl", "")
+                            }
+                            style={{
+                              border: "none",
+                              borderRadius: "999px",
+                              padding: "9px 12px",
+                              background: "rgba(239,68,68,0.14)",
+                              color: "#fca5a5",
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              fontWeight: 800,
+                            }}
+                          >
+                            حذف الشعار
+                          </button>
+                          <div
+                            style={{
+                              width: "96px",
+                              height: "54px",
+                              borderRadius: "12px",
+                              background: "#fff",
+                              border: "1px solid rgba(255,255,255,0.18)",
+                              display: "grid",
+                              placeItems: "center",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <img
+                              src={editForm.featuredAmbassadorLogoUrl}
+                              alt="معاينة شعار الشركة"
+                              style={{
+                                maxWidth: "88%",
+                                maxHeight: "78%",
+                                objectFit: "contain",
+                              }}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </section>
 
                   <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                     وصف التجربة

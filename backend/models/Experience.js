@@ -72,6 +72,22 @@ const experienceSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    featuredAmbassadorLogoUrl: {
+      type: String,
+      default: "",
+    },
+    featuredAmbassadorCardTitle: {
+      type: String,
+      default: "",
+    },
+    featuredAmbassadorCardSummary: {
+      type: String,
+      default: "",
+    },
+    featuredAmbassadorCardTags: {
+      type: [String],
+      default: [],
+    },
     featuredAmbassador: {
       type: Boolean,
       default: false,
