@@ -42,13 +42,14 @@ export default function FeaturedAmbassadorsSection({
   compact = false,
 }) {
   const [items, setItems] = useState([]);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     axios
       .get(`${API_BASE_URL}/api/experiences/featured-ambassadors`, {
-        params: { limit: 3 },
+        params: { limit: 9 },
       })
       .then(({ data }) => {
         if (!isMounted) return;
@@ -63,15 +64,20 @@ export default function FeaturedAmbassadorsSection({
     };
   }, []);
 
-  const visibleItems = useMemo(() => items.slice(0, 3), [items]);
+  const visibleItems = useMemo(
+    () => (showAll ? items : items.slice(0, 3)),
+    [items, showAll]
+  );
 
   if (visibleItems.length === 0) return null;
 
   return (
     <section className={`featured-ambassadors${compact ? " is-compact" : ""}`}>
       <div className="featured-ambassadors-head">
-        <span>⭐ من تجارب الأسبوع</span>
-        <h2>{title}</h2>
+        <div>
+          <span>⭐ من تجارب الأسبوع</span>
+          <h2>{title}</h2>
+        </div>
         <p>{subtitle}</p>
       </div>
 
@@ -103,29 +109,34 @@ export default function FeaturedAmbassadorsSection({
         ))}
       </div>
 
-      <Link className="featured-ambassadors-all" to="/experiences?ambassadors=1">
-        شاهد جميع تجارب السفراء
-      </Link>
+      {items.length > 3 && (
+        <button
+          className="featured-ambassadors-all"
+          type="button"
+          onClick={() => setShowAll((value) => !value)}
+        >
+          {showAll ? "إخفاء التجارب الإضافية" : "عرض المزيد من سفراء دربك"}
+        </button>
+      )}
 
       <style>{`
         .featured-ambassadors {
-          width: min(100%, 980px);
-          margin: ${compact ? "18px auto 22px" : "28px auto 0"};
-          padding: ${compact ? "18px" : "22px"};
+          width: min(100%, 1120px);
+          margin: ${compact ? "16px auto 22px" : "28px auto 0"};
+          padding: ${compact ? "16px" : "20px"};
           box-sizing: border-box;
-          border: 1px solid var(--app-border);
-          border-radius: 22px;
-          background: linear-gradient(180deg, var(--app-surface-2), var(--app-surface));
-          box-shadow: 0 18px 45px var(--app-shadow);
+          border-block: 1px solid var(--app-border);
+          background: linear-gradient(90deg, transparent, var(--app-surface-2), transparent);
           direction: rtl;
           text-align: right;
         }
 
         .featured-ambassadors-head {
-          display: grid;
-          gap: 7px;
-          margin-bottom: 16px;
-          text-align: center;
+          display: flex;
+          align-items: end;
+          justify-content: space-between;
+          gap: 18px;
+          margin-bottom: 14px;
         }
 
         .featured-ambassadors-head span {
@@ -135,7 +146,7 @@ export default function FeaturedAmbassadorsSection({
         }
 
         .featured-ambassadors-head h2 {
-          margin: 0;
+          margin: 4px 0 0;
           color: var(--app-text);
           font-size: ${compact ? "22px" : "26px"};
           line-height: 1.35;
@@ -146,6 +157,7 @@ export default function FeaturedAmbassadorsSection({
           color: var(--app-text-soft);
           font-size: 14px;
           line-height: 1.8;
+          max-width: 390px;
         }
 
         .featured-ambassadors-grid {
@@ -156,12 +168,12 @@ export default function FeaturedAmbassadorsSection({
 
         .featured-ambassador-card {
           display: flex;
-          min-height: 230px;
+          min-height: 205px;
           flex-direction: column;
           gap: 9px;
           border: 1px solid var(--app-border-soft);
           border-radius: 16px;
-          padding: 14px;
+          padding: 13px;
           background: var(--app-card);
           box-shadow: 0 10px 24px rgba(0,0,0,0.08);
         }
@@ -199,8 +211,9 @@ export default function FeaturedAmbassadorsSection({
         .featured-ambassador-card h3 {
           margin: 3px 0 0;
           color: var(--app-brand);
-          font-size: 18px;
+          font-size: 17px;
           line-height: 1.45;
+          min-height: 48px;
         }
 
         .featured-ambassador-meta {
@@ -243,13 +256,30 @@ export default function FeaturedAmbassadorsSection({
           margin: 16px auto 0;
           padding: 10px 16px;
           font-size: 13px;
+          cursor: pointer;
+          font-family: inherit;
+        }
+
+        @media (max-width: 980px) {
+          .featured-ambassadors-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
         }
 
         @media (max-width: 760px) {
           .featured-ambassadors {
-            width: min(100%, 360px);
-            padding: 14px;
-            border-radius: 18px;
+            width: min(100%, 390px);
+            padding: 13px 10px;
+          }
+
+          .featured-ambassadors-head {
+            display: grid;
+            gap: 7px;
+            text-align: center;
+          }
+
+          .featured-ambassadors-head p {
+            max-width: none;
           }
 
           .featured-ambassadors-grid {
@@ -257,6 +287,11 @@ export default function FeaturedAmbassadorsSection({
           }
 
           .featured-ambassador-card {
+            min-height: auto;
+            padding: 12px;
+          }
+
+          .featured-ambassador-card h3 {
             min-height: auto;
           }
         }

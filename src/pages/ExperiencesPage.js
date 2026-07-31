@@ -567,9 +567,6 @@ const ExperiencesPage = () => {
   const [selectedCity, setSelectedCity] = useState("");
   const [rewardFilter, setRewardFilter] = useState("");
   const [environmentFilter, setEnvironmentFilter] = useState("");
-  const [ambassadorsOnly, setAmbassadorsOnly] = useState(
-    () => new URLSearchParams(location.search).get("ambassadors") === "1"
-  );
   const [fetchError, setFetchError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalExperiences, setTotalExperiences] = useState(
@@ -612,8 +609,6 @@ const ExperiencesPage = () => {
   }, [seoCity, seoSpecialty]);
 
   useEffect(() => {
-    setAmbassadorsOnly(new URLSearchParams(location.search).get("ambassadors") === "1");
-
     const companyFromUrl = getCompanySearchFromUrl(location.search);
     if (companyFromUrl) {
       setCompanySearch(companyFromUrl);
@@ -832,16 +827,13 @@ const ExperiencesPage = () => {
             !rewardFilter || exp.hadReward === rewardFilter;
           const matchesEnvironment =
             !environmentFilter || exp.trainingEnvironment === environmentFilter;
-          const matchesAmbassador =
-            !ambassadorsOnly || isActiveFeaturedAmbassador(exp);
 
           return (
             matchesMajor &&
             matchesCity &&
             matchesSearch &&
             matchesReward &&
-            matchesEnvironment &&
-            matchesAmbassador
+            matchesEnvironment
           );
         })
         .sort((a, b) => {
@@ -866,7 +858,6 @@ const ExperiencesPage = () => {
       searchTerms,
       rewardFilter,
       environmentFilter,
-      ambassadorsOnly,
       sortOption,
       getSearchScore,
     ]
@@ -896,7 +887,6 @@ const ExperiencesPage = () => {
             terms: searchTerms.join("|"),
             hadReward: rewardFilter,
             trainingEnvironment: environmentFilter,
-            ambassadors: ambassadorsOnly ? "1" : "",
           },
         });
 
@@ -936,7 +926,6 @@ const ExperiencesPage = () => {
       sortOption,
       rewardFilter,
       environmentFilter,
-      ambassadorsOnly,
     ]
   );
 
@@ -1144,7 +1133,6 @@ const ExperiencesPage = () => {
     selectedCity,
     rewardFilter,
     environmentFilter,
-    ambassadorsOnly,
     sortOption !== "latest",
   ].filter(Boolean).length;
 
@@ -1171,11 +1159,7 @@ const ExperiencesPage = () => {
     setSelectedCity("");
     setRewardFilter("");
     setEnvironmentFilter("");
-    setAmbassadorsOnly(false);
     setSortOption("latest");
-    if (new URLSearchParams(location.search).get("ambassadors") === "1") {
-      navigate("/experiences", { replace: true });
-    }
   };
 
   const MajorButton = ({ name, Icon, color = "var(--app-brand)", active, isAll }) => (
@@ -2547,29 +2531,6 @@ const ExperiencesPage = () => {
                 </button>
               )}
 
-              {ambassadorsOnly && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAmbassadorsOnly(false);
-                    navigate("/experiences", { replace: true });
-                  }}
-                  style={{
-                    background: "rgba(125,219,205,0.12)",
-                    border: "1px solid rgba(125,219,205,0.35)",
-                    color: "var(--app-brand)",
-                    borderRadius: "999px",
-                    padding: "7px 10px",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    fontSize: "12px",
-                    fontWeight: 800,
-                  }}
-                >
-                  سفراء دربك ✕
-                </button>
-              )}
-
               {sortOption !== "latest" && (
                 <button
                   type="button"
@@ -2607,7 +2568,7 @@ const ExperiencesPage = () => {
           )}
         </div>
 
-        {!ambassadorsOnly && <FeaturedAmbassadorsSection compact />}
+        <FeaturedAmbassadorsSection compact />
 
         {/* ================= Cards ================= */}
         {fetchError && (
