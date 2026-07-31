@@ -17,6 +17,7 @@ import {
   darbakGuideMeta,
   darbakGuideOrganizations,
 } from "../data/darbakGuideSuggestions";
+import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirectory";
 import { trackEvent } from "../utils/analytics";
 import { getAccessHeaders, requestPremiumAccess } from "../utils/premiumAccess";
 import {
@@ -121,6 +122,89 @@ const normalizeName = (value = "") =>
     .replace(/ـ/g, "")
     .replace(/[\u064B-\u065F]/g, "")
     .replace(/\s+/g, " ");
+
+const uniqueValues = (values = []) =>
+  Array.from(
+    new Map(
+      values
+        .filter(Boolean)
+        .map((value) => [normalizeName(value), value])
+    ).values()
+  );
+
+const uniqueEmails = (emails = []) =>
+  Array.from(
+    new Map(
+      emails
+        .filter(Boolean)
+        .map((email) => [email.toString().trim().toLowerCase(), email.toString().trim()])
+    ).values()
+  );
+
+const mergeGuideDirectoryOrganizations = (organizations = []) => {
+  const organizationMap = new Map();
+
+  organizations.forEach((organization) => {
+    const key = normalizeName(organization.name);
+    if (!key) return;
+
+    const current = organizationMap.get(key);
+    if (!current) {
+      const emails = uniqueEmails(organization.emails || [organization.email]);
+      organizationMap.set(key, {
+        ...organization,
+        emails,
+        email: organization.email || emails[0] || "",
+      });
+      return;
+    }
+
+    const emails = uniqueEmails([
+      ...(current.emails || []),
+      current.email,
+      ...(organization.emails || []),
+      organization.email,
+    ]);
+
+    organizationMap.set(key, {
+      ...current,
+      emails,
+      email: current.email || emails[0] || "",
+      regions: uniqueValues([
+        ...(current.regions || []),
+        current.region,
+        ...(organization.regions || []),
+        organization.region,
+      ]),
+      cities: uniqueValues([
+        ...(current.cities || []),
+        current.city,
+        ...(organization.cities || []),
+        organization.city,
+      ]),
+      specialties: uniqueValues([
+        ...(current.specialties || []),
+        ...(organization.specialties || []),
+      ]),
+      contactType: current.contactType || organization.contactType || "",
+      sourceLabel: current.sourceLabel || organization.sourceLabel || "",
+      note: current.note || organization.note || "",
+      usage: current.usage || organization.usage || "",
+      guideSummary: current.guideSummary || organization.guideSummary || "",
+    });
+  });
+
+  return Array.from(organizationMap.values());
+};
+
+const guideDirectoryOrganizations = mergeGuideDirectoryOrganizations([
+  ...darbakGuideOrganizations,
+  ...darbakContactDirectoryOrganizations,
+]);
+
+const guideDirectoryEmailCount = uniqueEmails(
+  guideDirectoryOrganizations.flatMap((organization) => organization.emails || [])
+).length;
 
 const createReadableSlug = (value = "") => {
   const slug = normalizeName(value)
@@ -923,7 +1007,7 @@ export const suggestedOrganizationsByMajorCategory = {
 };
 
 const organizationHomepageEntries = [
-  ...darbakGuideOrganizations
+  ...guideDirectoryOrganizations
     .filter((organization) => organization.url || organization.sourceUrl)
     .map((organization) => [
       organization.name,
@@ -1144,7 +1228,7 @@ export default function TrainingFinderPage() {
     ? trainingFinderFaqItems
     : trainingFinderFaqItems.slice(0, 3);
   const suggestedOrganizations = useMemo(() => {
-    const guideOrganizations = darbakGuideOrganizations
+    const guideOrganizations = guideDirectoryOrganizations
       .filter((organization) =>
         guideOrganizationMatchesLocation(
           organization,
@@ -1155,7 +1239,7 @@ export default function TrainingFinderPage() {
       )
       .map((organization) => ({
         ...organization,
-        sourceLabel: darbakGuideMeta.sourceLabel,
+        sourceLabel: organization.sourceLabel || darbakGuideMeta.sourceLabel,
       }));
     const manualRegionOrganizations = suggestionRegion
       ? (suggestedOrganizationsByRegion[suggestionRegion] || []).map(
@@ -3206,7 +3290,7 @@ export default function TrainingFinderPage() {
                     }}
                   >
                     جهات من دليل دربك الشامل حسب المدينة أو المنطقة، مع{" "}
-                    {darbakGuideMeta.extractedUniqueEmailCount} إيميل مستخرج
+                    {guideDirectoryEmailCount} إيميل مستخرج
                     وقنوات تواصل تظهر تفاصيلها لمشتركي دربك+.
                   </p>
                 </div>
