@@ -202,10 +202,6 @@ const guideDirectoryOrganizations = mergeGuideDirectoryOrganizations([
   ...darbakContactDirectoryOrganizations,
 ]);
 
-const guideDirectoryEmailCount = uniqueEmails(
-  guideDirectoryOrganizations.flatMap((organization) => organization.emails || [])
-).length;
-
 const createReadableSlug = (value = "") => {
   const slug = normalizeName(value)
     .replace(/[^a-z0-9\u0600-\u06FF]+/g, "-")
@@ -1922,7 +1918,7 @@ export default function TrainingFinderPage() {
     requestPremiumAccess(
       {
         feature: "training_guide_contact_details",
-        title: organization.name || "جهة من دليل دربك",
+        title: organization.name || "جهة مقترحة",
         source: "where_to_train_guide",
         itemKey: organization.id ? `guide-organization:${organization.id}` : "",
         deferGateOnLimited: !showGateOnLimited,
@@ -2172,7 +2168,7 @@ export default function TrainingFinderPage() {
                 id: savedOrganizationId,
                 type: "suggested-organization",
                 title: organization.name,
-                subtitle: organization.sourceLabel || "اقتراح جهة",
+                subtitle: "اقتراح جهة",
                 organizationName: organization.name,
                 meta: selectedSpecialtyLabel || city || "",
                 url: organizationUrl || buildTrainingFinderSharePath(),
@@ -2235,9 +2231,7 @@ export default function TrainingFinderPage() {
               >
                 {organization.name}
               </h3>
-              <span className="suggested-organization-source">
-                {organization.sourceLabel || "اقتراح"}
-              </span>
+              <span className="suggested-organization-source">اقتراح</span>
             </div>
             <p
               style={{
@@ -2338,7 +2332,7 @@ export default function TrainingFinderPage() {
             className="opportunity-secondary-button"
             onClick={() => openGuideOrganizationDetails(organization)}
           >
-            تفاصيل الجهة
+            ابدأ التقديم
           </button>
         </div>
       </article>
@@ -3137,8 +3131,8 @@ export default function TrainingFinderPage() {
                           lineHeight: 1.75,
                         }}
                       >
-                        جهات من دليل دربك الشامل وملفات التواصل، تظهر هنا مع
-                        الفرص كبداية بحث أوسع حسب تخصصك والمدينة المختارة.
+                        جهات مقترحة تساعدك تبدأ التقديم حسب تخصصك والمدينة
+                        المختارة.
                       </p>
                     </div>
                   </div>
@@ -3617,9 +3611,8 @@ export default function TrainingFinderPage() {
                       lineHeight: 1.8,
                     }}
                   >
-                    جهات من دليل دربك الشامل حسب المدينة أو المنطقة، مع{" "}
-                    {guideDirectoryEmailCount} إيميل مستخرج
-                    وقنوات تواصل تظهر تفاصيلها لمشتركي دربك+.
+                    جهات مقترحة حسب المدينة أو المنطقة، وتظهر تفاصيل التقديم
+                    لمشتركي دربك+.
                   </p>
                 </div>
               </div>
@@ -3807,7 +3800,9 @@ export default function TrainingFinderPage() {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={`تفاصيل ${selectedGuideOrganization.name || "جهة من دليل دربك"}`}
+          aria-label={`تفاصيل ${
+            selectedGuideOrganization.name || "جهة مقترحة"
+          }`}
           onClick={closeGuideOrganizationDetails}
           className="opportunity-detail-overlay"
         >
@@ -3822,10 +3817,7 @@ export default function TrainingFinderPage() {
                 imageUrl={selectedGuideOrganization.logoUrl}
               />
               <div>
-                <p className="opportunity-detail-eyebrow">
-                  {selectedGuideOrganization.sourceLabel ||
-                    darbakGuideMeta.sourceLabel}
-                </p>
+                <p className="opportunity-detail-eyebrow">اقتراح للتقديم</p>
                 <h2>{selectedGuideOrganization.name}</h2>
                 <p>
                   {selectedGuideOrganization.sector || "جهة تدريبية"}
@@ -3875,13 +3867,13 @@ export default function TrainingFinderPage() {
 
             <p className="opportunity-detail-note guide-organization-note">
               {selectedGuideOrganization.note ||
-                "هذه الجهة مضافة كاقتراح من دليل دربك الشامل، وتحتاج مراجعة المصدر الرسمي قبل التقديم."}
+                "هذه الجهة مقترحة كنقطة بداية للتقديم، ويرجى مراجعة المصدر الرسمي قبل الإرسال."}
             </p>
 
             {isSelectedGuideLocked && (
               <PremiumInlineNotice
                 lockedItems={[
-                  "إيميلات وقنوات التواصل",
+                  "وسائل التقديم والتواصل",
                   "طريقة الاستخدام المقترحة",
                   "رابط المصدر الرسمي",
                 ]}
@@ -3945,7 +3937,7 @@ export default function TrainingFinderPage() {
               )}
             </div>
 
-            <p className="guide-source-line">ملخص من دليل دربك الشامل</p>
+            <p className="guide-source-line">معلومات تساعدك تبدأ التقديم</p>
 
             <div className="opportunity-detail-actions">
               <button
