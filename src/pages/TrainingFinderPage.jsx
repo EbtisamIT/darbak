@@ -1333,19 +1333,38 @@ export default function TrainingFinderPage() {
     setActiveResultsTab("opportunities");
   };
   const showResultsPanel = opportunitiesLoading || opportunities.length > 0 || searched;
+  const showSuggestionsWithOpportunities =
+    Boolean(selectedSpecialty) && suggestedOrganizations.length > 0;
   const resultTabs = [
-    { key: "opportunities", label: "فرص", count: visibleOpportunities.length },
+    {
+      key: "opportunities",
+      label: "فرص",
+      count:
+        visibleOpportunities.length +
+        (showSuggestionsWithOpportunities ? suggestedOrganizations.length : 0),
+    },
     ...(searched
       ? [
           { key: "targets", label: "تجارب دربك", count: visibleTargets.length },
-          {
-            key: "suggestions",
-            label: "اقتراحات",
-            count: suggestedOrganizations.length,
-          },
+          ...(showSuggestionsWithOpportunities
+            ? []
+            : [
+                {
+                  key: "suggestions",
+                  label: "اقتراحات",
+                  count: suggestedOrganizations.length,
+                },
+              ]),
         ]
       : []),
   ];
+
+  useEffect(() => {
+    if (showSuggestionsWithOpportunities && activeResultsTab === "suggestions") {
+      setActiveResultsTab("opportunities");
+    }
+  }, [activeResultsTab, showSuggestionsWithOpportunities]);
+
   const searchInsightOrganizations = useMemo(() => {
     const organizationsMap = new Map();
     const mergeOrganization = (entity = {}) => {
@@ -1518,7 +1537,7 @@ export default function TrainingFinderPage() {
           ? "opportunities"
           : nextTargets.length > 0
           ? "targets"
-          : "suggestions"
+          : "opportunities"
       );
       setShowSearchInsightModal(true);
     } catch (err) {
@@ -2098,6 +2117,215 @@ export default function TrainingFinderPage() {
     });
   };
 
+  const renderSuggestedOrganizationCard = (organization) => {
+    const savedOrganizationId = `suggested-organization:${normalizeName(
+      organization.name
+    )}`;
+    const organizationUrl = organization.url || organization.sourceUrl || "";
+    const specialtyPreview = getGuideSpecialtyPreview(
+      organization,
+      selectedSpecialtyLabel
+    );
+    const locationText = getGuideOrganizationLocationText(organization);
+
+    return (
+      <article
+        className="finder-result-card suggested-target-card"
+        key={`${organization.name}-${organization.url || organization.id || ""}`}
+        style={{
+          background: "var(--app-surface)",
+          border: "1px solid var(--app-border)",
+          borderRadius: "15px",
+          padding: "14px",
+          display: "grid",
+          gap: "10px",
+          position: "relative",
+        }}
+      >
+        <div className="card-quick-actions">
+          <button
+            type="button"
+            className={`save-item-button ${
+              savedItemIds.has(savedOrganizationId) ? "is-saved" : ""
+            }`}
+            onClick={(event) =>
+              handleSaveTrainingItem(event, {
+                id: savedOrganizationId,
+                type: "suggested-organization",
+                title: organization.name,
+                subtitle: organization.sourceLabel || "اقتراح جهة",
+                organizationName: organization.name,
+                meta: selectedSpecialtyLabel || city || "",
+                url: organizationUrl || buildTrainingFinderSharePath(),
+              })
+            }
+            aria-label={
+              savedItemIds.has(savedOrganizationId)
+                ? "إزالة الجهة من المحفوظات"
+                : "حفظ الجهة"
+            }
+            title={savedItemIds.has(savedOrganizationId) ? "محفوظة" : "حفظ الجهة"}
+          >
+            {savedItemIds.has(savedOrganizationId) ? "♥ محفوظة" : "♡ حفظ"}
+          </button>
+          <ShareButton
+            buttonLabel="مشاركة صديق"
+            title={`جهة مقترحة في دربك: ${organization.name}`}
+            text={`شوف هذه الجهة المقترحة في دربك: ${organization.name}.`}
+            url={buildTrainingFinderSharePath()}
+            onShareAction={(action) =>
+              trackTrainingShareAction(action, "suggested-organization", {
+                organizationName: organization.name,
+                sourceLabel: organization.sourceLabel || "",
+              })
+            }
+          />
+        </div>
+        <div
+          className="suggested-card-head"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "42px minmax(0, 1fr)",
+            gap: "10px",
+            alignItems: "start",
+          }}
+        >
+          <OrganizationLogo
+            name={organization.name}
+            url={organizationUrl}
+            imageUrl={organization.logoUrl}
+          />
+          <div>
+            <div
+              className="suggested-card-title-row"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "8px",
+                alignItems: "start",
+                marginBottom: "5px",
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                  color: "var(--app-brand)",
+                  fontSize: "17px",
+                  lineHeight: 1.4,
+                }}
+              >
+                {organization.name}
+              </h3>
+              <span className="suggested-organization-source">
+                {organization.sourceLabel || "اقتراح"}
+              </span>
+            </div>
+            <p
+              style={{
+                margin: 0,
+                color: "var(--app-text-soft)",
+                fontSize: "12px",
+                lineHeight: 1.7,
+              }}
+            >
+              {organization.sector || organization.note}
+            </p>
+          </div>
+        </div>
+
+        <div className="finder-card-info">
+          <p
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "10px",
+              margin: 0,
+              color: "var(--app-text-soft)",
+              fontSize: "12px",
+              lineHeight: 1.6,
+            }}
+          >
+            <span style={{ color: "var(--app-muted)" }}>المدينة</span>
+            <strong
+              style={{
+                color: "var(--app-brand)",
+                fontWeight: "800",
+                textAlign: "left",
+              }}
+            >
+              {locationText}
+            </strong>
+          </p>
+          <p
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "10px",
+              margin: 0,
+              color: "var(--app-text-soft)",
+              fontSize: "12px",
+              lineHeight: 1.6,
+            }}
+          >
+            <span style={{ color: "var(--app-muted)" }}>التخصصات</span>
+            <strong
+              style={{
+                color: "var(--app-text)",
+                fontWeight: "800",
+                textAlign: "left",
+                overflowWrap: "anywhere",
+              }}
+            >
+              {specialtyPreview}
+            </strong>
+          </p>
+          <p
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "10px",
+              margin: 0,
+              color: "var(--app-text-soft)",
+              fontSize: "12px",
+              lineHeight: 1.6,
+            }}
+          >
+            <span style={{ color: "var(--app-muted)" }}>التقديم</span>
+            <strong
+              style={{
+                color: "var(--app-text-soft)",
+                fontWeight: "800",
+                textAlign: "left",
+              }}
+            >
+              {organization.applicationWindow || "حسب إعلان الجهة"}
+            </strong>
+          </p>
+          <p
+            style={{
+              margin: 0,
+              color: "var(--app-text-soft)",
+              fontSize: "12px",
+              lineHeight: 1.75,
+            }}
+          >
+            {organization.note ||
+              "تفاصيل التواصل وطريقة الاستخدام متاحة داخل التفاصيل."}
+          </p>
+        </div>
+        <div className="finder-card-actions">
+          <button
+            type="button"
+            className="opportunity-secondary-button"
+            onClick={() => openGuideOrganizationDetails(organization)}
+          >
+            تفاصيل الجهة
+          </button>
+        </div>
+      </article>
+    );
+  };
+
   const opportunityGuideBannerIndex =
     visibleOpportunities.length >= 7
       ? 5
@@ -2513,7 +2741,9 @@ export default function TrainingFinderPage() {
               textAlign: "right",
             }}
           >
-            {visibleOpportunities.length === 0 && !opportunitiesLoading ? (
+            {visibleOpportunities.length === 0 &&
+            !showSuggestionsWithOpportunities &&
+            !opportunitiesLoading ? (
               <p
                 style={{
                   margin: 0,
@@ -2532,6 +2762,8 @@ export default function TrainingFinderPage() {
                   : ""}
               </p>
             ) : (
+              <>
+              {visibleOpportunities.length > 0 && (
               <div
                 className="finder-card-grid opportunities-grid"
                 style={{
@@ -2828,6 +3060,83 @@ export default function TrainingFinderPage() {
                   );
                 })}
               </div>
+              )}
+
+              {showSuggestionsWithOpportunities && !opportunitiesLoading && (
+                <section
+                  className="opportunity-inline-suggestions"
+                  style={{
+                    display: "grid",
+                    gap: "12px",
+                    marginTop: visibleOpportunities.length > 0 ? "8px" : 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "auto minmax(0, 1fr)",
+                      gap: "10px",
+                      alignItems: "start",
+                      background: "var(--app-card)",
+                      border: "1px solid var(--app-brand-border)",
+                      borderRadius: "14px",
+                      padding: "12px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-grid",
+                        placeItems: "center",
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "999px",
+                        background: "var(--app-brand-soft)",
+                        border: "1px solid var(--app-brand-border)",
+                        color: "var(--app-brand)",
+                        fontSize: "14px",
+                        fontWeight: "900",
+                      }}
+                    >
+                      {suggestedOrganizations.length}
+                    </span>
+                    <div>
+                      <h2
+                        style={{
+                          margin: 0,
+                          color: "var(--app-text)",
+                          fontSize: "18px",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        اقتراحات مناسبة لتخصصك
+                      </h2>
+                      <p
+                        style={{
+                          margin: "3px 0 0",
+                          color: "var(--app-muted)",
+                          fontSize: "12.5px",
+                          lineHeight: 1.75,
+                        }}
+                      >
+                        جهات من دليل دربك الشامل وملفات التواصل، تظهر هنا مع
+                        الفرص كبداية بحث أوسع حسب تخصصك والمدينة المختارة.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    className="finder-card-grid suggested-targets-grid opportunity-suggestions-grid"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                      gap: "10px",
+                    }}
+                  >
+                    {suggestedOrganizations.map(renderSuggestedOrganizationCard)}
+                  </div>
+                </section>
+              )}
+              </>
             )}
           </section>
         )}
@@ -3319,250 +3628,7 @@ export default function TrainingFinderPage() {
                     gap: "10px",
                   }}
                 >
-                  {suggestedOrganizations.map((organization) => {
-                    const savedOrganizationId = `suggested-organization:${normalizeName(
-                      organization.name
-                    )}`;
-                    const organizationUrl =
-                      organization.url || organization.sourceUrl || "";
-                    const specialtyPreview = getGuideSpecialtyPreview(
-                      organization,
-                      selectedSpecialtyLabel
-                    );
-                    const locationText =
-                      getGuideOrganizationLocationText(organization);
-
-                    return (
-                    <article
-                      className="finder-result-card suggested-target-card"
-                      key={`${organization.name}-${organization.url}`}
-                      style={{
-                        background: "var(--app-surface)",
-                        border: "1px solid var(--app-border)",
-                        borderRadius: "15px",
-                        padding: "14px",
-                        display: "grid",
-                        gap: "10px",
-                        position: "relative",
-                      }}
-                    >
-                      <div className="card-quick-actions">
-                        <button
-                          type="button"
-                          className={`save-item-button ${
-                            savedItemIds.has(savedOrganizationId) ? "is-saved" : ""
-                          }`}
-                          onClick={(event) =>
-                            handleSaveTrainingItem(event, {
-                              id: savedOrganizationId,
-                              type: "suggested-organization",
-                              title: organization.name,
-                              subtitle: organization.sourceLabel || "اقتراح جهة",
-                              organizationName: organization.name,
-                              meta: selectedSpecialtyLabel || city || "",
-                              url: organizationUrl || buildTrainingFinderSharePath(),
-                            })
-                          }
-                          aria-label={
-                            savedItemIds.has(savedOrganizationId)
-                              ? "إزالة الجهة من المحفوظات"
-                              : "حفظ الجهة"
-                          }
-                          title={
-                            savedItemIds.has(savedOrganizationId)
-                              ? "محفوظة"
-                              : "حفظ الجهة"
-                          }
-                        >
-                          {savedItemIds.has(savedOrganizationId)
-                            ? "♥ محفوظة"
-                            : "♡ حفظ"}
-                        </button>
-                        <ShareButton
-                          buttonLabel="مشاركة صديق"
-                          title={`جهة مقترحة في دربك: ${organization.name}`}
-                          text={`شوف هذه الجهة المقترحة في دربك: ${organization.name}.`}
-                          url={buildTrainingFinderSharePath()}
-                          onShareAction={(action) =>
-                            trackTrainingShareAction(action, "suggested-organization", {
-                              organizationName: organization.name,
-                              sourceLabel: organization.sourceLabel || "",
-                            })
-                          }
-                        />
-                      </div>
-                      <div
-                        className="suggested-card-head"
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "42px minmax(0, 1fr)",
-                          gap: "10px",
-                          alignItems: "start",
-                        }}
-                      >
-                        <OrganizationLogo
-                          name={organization.name}
-                          url={organizationUrl}
-                          imageUrl={organization.logoUrl}
-                        />
-                        <div>
-                          <div
-                            className="suggested-card-title-row"
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              gap: "8px",
-                              alignItems: "start",
-                              marginBottom: "5px",
-                            }}
-                          >
-                            <h3
-                              style={{
-                                margin: 0,
-                                color: "var(--app-brand)",
-                                fontSize: "17px",
-                                lineHeight: 1.4,
-                              }}
-                            >
-                              {organization.name}
-                            </h3>
-                            <span
-                              className="suggested-organization-source"
-                              style={{
-                                flex: "0 0 auto",
-                                background: "var(--app-brand-soft)",
-                                border: "1px solid var(--app-brand-border)",
-                                color: "var(--app-text-soft)",
-                                borderRadius: "999px",
-                                padding: "4px 7px",
-                                fontSize: "11px",
-                                lineHeight: 1.3,
-                              }}
-                            >
-                              {organization.sourceLabel || "اقتراح"}
-                            </span>
-                          </div>
-                          <p
-                            style={{
-                              margin: 0,
-                              color: "var(--app-text-soft)",
-                              fontSize: "12px",
-                              lineHeight: 1.7,
-                            }}
-                          >
-                            {organization.sector || organization.note}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div
-                        className="finder-card-info"
-                        style={{
-                          display: "grid",
-                          gap: "7px",
-                          background: "var(--app-card)",
-                          border: "1px solid var(--app-border)",
-                          borderRadius: "12px",
-                          padding: "10px",
-                        }}
-                      >
-                        <p
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: "10px",
-                            margin: 0,
-                            color: "var(--app-text-soft)",
-                            fontSize: "12px",
-                            lineHeight: 1.6,
-                          }}
-                        >
-                          <span style={{ color: "var(--app-muted)" }}>
-                            المدينة
-                          </span>
-                          <strong
-                            style={{
-                              color: "var(--app-brand)",
-                              fontWeight: "800",
-                              textAlign: "left",
-                            }}
-                          >
-                            {locationText}
-                          </strong>
-                        </p>
-                        <p
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: "10px",
-                            margin: 0,
-                            color: "var(--app-text-soft)",
-                            fontSize: "12px",
-                            lineHeight: 1.6,
-                          }}
-                        >
-                          <span style={{ color: "var(--app-muted)" }}>
-                            التخصصات
-                          </span>
-                          <strong
-                            style={{
-                              color: "var(--app-text)",
-                              fontWeight: "800",
-                              textAlign: "left",
-                              overflowWrap: "anywhere",
-                            }}
-                          >
-                            {specialtyPreview}
-                          </strong>
-                        </p>
-                        <p
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: "10px",
-                            margin: 0,
-                            color: "var(--app-text-soft)",
-                            fontSize: "12px",
-                            lineHeight: 1.6,
-                          }}
-                        >
-                          <span style={{ color: "var(--app-muted)" }}>
-                            التقديم
-                          </span>
-                          <strong
-                            style={{
-                              color: "var(--app-text-soft)",
-                              fontWeight: "800",
-                              textAlign: "left",
-                            }}
-                          >
-                            {organization.applicationWindow || "حسب إعلان الجهة"}
-                          </strong>
-                        </p>
-                        <p
-                          style={{
-                            margin: 0,
-                            color: "var(--app-text-soft)",
-                            fontSize: "12px",
-                            lineHeight: 1.75,
-                          }}
-                        >
-                          {organization.note ||
-                            "تفاصيل التواصل وطريقة الاستخدام متاحة داخل التفاصيل."}
-                        </p>
-                      </div>
-                      <div className="finder-card-actions">
-                        <button
-                          type="button"
-                          className="opportunity-secondary-button"
-                          onClick={() => openGuideOrganizationDetails(organization)}
-                        >
-                          تفاصيل الجهة
-                        </button>
-                      </div>
-                    </article>
-                    );
-                  })}
+                  {suggestedOrganizations.map(renderSuggestedOrganizationCard)}
                 </div>
               )}
             </section>
