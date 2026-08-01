@@ -620,21 +620,57 @@ const getOrganizationInitial = (name = "") => {
   return firstLetter || "د";
 };
 
-const OrganizationLogo = ({ name, url, imageUrl }) => {
-  const [hasImageError, setHasImageError] = useState(false);
-  const logoUrl = imageUrl || getOrganizationLogoUrl(url);
+const normalizeLogoUrl = (value = "") => {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  if (url.startsWith("//")) return `https:${url}`;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(url)) return `https://${url}`;
+  return "";
+};
+
+const getUniqueLogoCandidates = (...values) => {
+  const flattened = values.flatMap((value) =>
+    Array.isArray(value) ? value : [value]
+  );
+  return Array.from(
+    new Set(flattened.map(normalizeLogoUrl).filter(Boolean))
+  );
+};
+
+const getEntityLogoImageCandidates = (entity = {}, extraCandidates = []) => [
+  entity.logoUrl,
+  entity.logoURL,
+  entity.imageUrl,
+  entity.logo,
+  entity.companyLogo,
+  entity.companyLogoUrl,
+  entity.organizationLogo,
+  entity.organizationLogoUrl,
+  ...extraCandidates,
+];
+
+const OrganizationLogo = ({ name, url, imageUrl, imageUrls = [] }) => {
+  const logoCandidates = getUniqueLogoCandidates(
+    imageUrl,
+    imageUrls,
+    getOrganizationLogoUrl(url)
+  );
+  const [failedLogoUrls, setFailedLogoUrls] = useState(() => new Set());
+  const logoKey = logoCandidates.join("|");
+  const logoUrl = logoCandidates.find((candidate) => !failedLogoUrls.has(candidate));
   const initial = getOrganizationInitial(name);
 
   useEffect(() => {
-    setHasImageError(false);
-  }, [logoUrl]);
+    setFailedLogoUrls(new Set());
+  }, [logoKey]);
 
   return (
     <span
       className="suggested-organization-logo"
       aria-hidden="true"
     >
-      {logoUrl && !hasImageError ? (
+      {logoUrl ? (
         <span className="organization-logo-image-frame">
           <img
             src={logoUrl}
@@ -644,7 +680,13 @@ const OrganizationLogo = ({ name, url, imageUrl }) => {
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
-            onError={() => setHasImageError(true)}
+            onError={() =>
+              setFailedLogoUrls((current) => {
+                const next = new Set(current);
+                next.add(logoUrl);
+                return next;
+              })
+            }
           />
         </span>
       ) : (
@@ -2493,6 +2535,9 @@ export default function TrainingFinderPage() {
             name={organization.name}
             url={organizationResolvedUrl}
             imageUrl={organizationImageUrl}
+            imageUrls={getEntityLogoImageCandidates(organization, [
+              organizationImageUrl,
+            ])}
           />
           <div>
             <div
@@ -3211,6 +3256,7 @@ export default function TrainingFinderPage() {
                           name={opportunity.organizationName}
                           url={opportunityLogoUrl}
                           imageUrl={opportunity.logoUrl}
+                          imageUrls={getEntityLogoImageCandidates(opportunity)}
                         />
                         <div style={{ minWidth: 0 }}>
                           <div
@@ -4118,6 +4164,7 @@ export default function TrainingFinderPage() {
                 name={selectedGuideOrganization.name}
                 url={selectedGuideOrganizationLogoUrl}
                 imageUrl={selectedGuideOrganization.logoUrl}
+                imageUrls={getEntityLogoImageCandidates(selectedGuideOrganization)}
               />
               <div>
                 <p className="opportunity-detail-eyebrow">اقتراح للتقديم</p>
@@ -4311,6 +4358,7 @@ export default function TrainingFinderPage() {
                 name={selectedOpportunity.organizationName}
                 url={selectedOpportunityLogoUrl}
                 imageUrl={selectedOpportunity.logoUrl}
+                imageUrls={getEntityLogoImageCandidates(selectedOpportunity)}
               />
               <div>
                 <p className="opportunity-detail-eyebrow">تفاصيل الفرصة</p>
