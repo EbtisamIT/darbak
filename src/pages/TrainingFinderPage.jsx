@@ -73,6 +73,11 @@ const pageFont = "'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_FINDER_FAQ = false;
 const LOCKED_OPPORTUNITY_PREVIEW =
   "هذه معاينة مختصرة للفرصة. فعّل دربك+ للوصول إلى تفاصيل الفرصة وروابط التقديم المباشرة.";
+const WHERE_TO_TRAIN_PREMIUM_TITLE = "باقي تفاصيل الفرص والجهات 👀";
+const WHERE_TO_TRAIN_PREMIUM_DESCRIPTION =
+  "افتح دربك+ لرؤية روابط التقديم المباشرة، إيميلات الجهات، وتفاصيل الفرص المناسبة لتخصصك ومدينتك.";
+const WHERE_TO_TRAIN_GATE_MESSAGE =
+  "وقفت هنا... وباقي أهم تفاصيل الفرص والجهات. فعّل دربك+ للوصول لروابط التقديم ومعلومات التواصل المناسبة لك.";
 
 const emptyOpportunityRequest = {
   organizationName: "",
@@ -1734,6 +1739,7 @@ export default function TrainingFinderPage() {
       feature: "where_to_train_search_apply",
       title: "ابدأ التقديم الآن",
       source: "where_to_train_search_insight",
+      gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
       itemKey: `where-to-train:${normalizeName(selectedSpecialty)}:${normalizeName(
         city
       )}`,
@@ -1879,6 +1885,7 @@ export default function TrainingFinderPage() {
         {
           feature: "opportunity_details",
           source: "opportunity_direct_link",
+          gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
           itemKey: `opportunity:${routeOpportunityId}`,
           deferGateOnLimited: true,
           onLimited: () => {
@@ -2107,6 +2114,7 @@ export default function TrainingFinderPage() {
         feature: "opportunity_details",
         title: opportunity.title || opportunity.organizationName || "",
         source: "where_to_train",
+        gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
         itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
         deferGateOnLimited: true,
         onLimited: () => {
@@ -2187,6 +2195,7 @@ export default function TrainingFinderPage() {
         feature: "training_guide_contact_details",
         title: organization.name || "جهة مقترحة",
         source: "where_to_train_guide",
+        gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
         itemKey: organization.id ? `guide-organization:${organization.id}` : "",
         deferGateOnLimited: !showGateOnLimited,
         onLimited: () => setGuideOrganizationLockedPreview(organization),
@@ -2232,6 +2241,7 @@ export default function TrainingFinderPage() {
         feature: "opportunity_apply",
         title: opportunity.title || opportunity.organizationName || "",
         source: "where_to_train",
+        gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
         itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
         deferGateOnLimited: true,
         onLimited: () => {
@@ -2288,9 +2298,9 @@ export default function TrainingFinderPage() {
 
     return [
       `${title} في ${organization}`,
-      `تجارب طلاب في ${organization}`,
-      `فرص مناسبة في ${cityText}`,
-      "طريقة التقديم وأسئلة مقابلات محتملة",
+      `رابط التقديم في ${organization}`,
+      `فرص وجهات مناسبة في ${cityText}`,
+      "تفاصيل الموعد وطريقة التقديم",
     ];
   };
 
@@ -2304,6 +2314,7 @@ export default function TrainingFinderPage() {
             : "opportunity_details",
         title: opportunity.title || opportunity.organizationName || "",
         source: "opportunity_inline_notice",
+        gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
         itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
       },
       () => {
@@ -2662,8 +2673,9 @@ export default function TrainingFinderPage() {
 
     requestPremiumAccess({
       feature: "where_to_train_opportunities",
-      title: "كمل استكشاف الفرص",
+      title: "افتح تفاصيل الفرص والجهات",
       source: "where_to_train_opportunities_banner",
+      gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
       itemKey: `where-to-train-opportunities:${normalizeName(
         selectedSpecialty
       )}:${normalizeName(city)}`,
@@ -2745,19 +2757,19 @@ export default function TrainingFinderPage() {
     >
       <div className="opportunity-plus-inline-copy">
         <span>دربك+</span>
-        <strong>افتح تفاصيل الفرص المناسبة لك</strong>
+        <strong>باقي لك فرص وجهات مناسبة 👀</strong>
         <p>
-          وصول كامل لروابط التقديم، تفاصيل الفرصة، وحالة الجهات حسب تخصصك
-          ومدينتك بدون تضييع وقت بين الإعلانات.
+          اختصر بحثك وافتح روابط التقديم ومعلومات الجهات المناسبة لتخصصك
+          ومدينتك في مكان واحد.
         </p>
       </div>
       <div className="opportunity-plus-inline-points" aria-label="مزايا فرص دربك بلس">
         <span>روابط تقديم مباشرة</span>
-        <span>تفاصيل أوضح للفرص</span>
-        <span>فرص وجهات مناسبة</span>
+        <span>جهات مناسبة لتخصصك</span>
+        <span>فرص محدثة حسب المدينة</span>
       </div>
       <button type="button" onClick={openOpportunityPremiumBanner}>
-        كمل استكشاف الفرص
+        افتح فرصك المناسبة
       </button>
     </aside>
   );
@@ -4163,11 +4175,14 @@ export default function TrainingFinderPage() {
 
             {isSelectedGuideLocked && (
               <PremiumInlineNotice
+                title="باقي معلومات التقديم لهذه الجهة 👀"
+                description="افتح دربك+ لرؤية إيميل أو رابط التقديم ومعلومات التواصل للجهات المناسبة لتخصصك ومدينتك."
                 lockedItems={[
-                  "وسائل التقديم والتواصل",
-                  "طريقة الاستخدام المقترحة",
-                  "رابط المصدر الرسمي",
+                  "إيميل أو رابط التقديم المباشر",
+                  "معلومات التواصل مع الجهة",
+                  "مصدر يساعدك تبدأ التقديم",
                 ]}
+                actionLabel="افتح تفاصيل الجهة"
                 onUnlock={() =>
                   unlockGuideOrganizationDetails(selectedGuideOrganization, {
                     showGateOnLimited: true,
@@ -4358,7 +4373,10 @@ export default function TrainingFinderPage() {
             {selectedOpportunity.isPremiumPreviewLocked &&
               !selectedOpportunity.isPremiumUpsellHidden && (
                 <PremiumInlineNotice
+                  title={WHERE_TO_TRAIN_PREMIUM_TITLE}
+                  description={WHERE_TO_TRAIN_PREMIUM_DESCRIPTION}
                   lockedItems={getOpportunityPremiumLockedItems(selectedOpportunity)}
+                  actionLabel="افتح تفاصيل الفرصة"
                   onUnlock={() =>
                     openPremiumFromLockedOpportunity(selectedOpportunity)
                   }

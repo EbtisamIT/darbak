@@ -237,9 +237,11 @@ export default function PremiumAccessGate() {
       setIsResetMode(false);
       setResetToken("");
       const accessStatus = event.detail?.accessStatus || {};
+      const gateMessage = event.detail?.gateMessage || "";
       setMessage(
         accessStatus.reason === "daily_limit"
-          ? accessStatus.message ||
+          ? gateMessage ||
+              accessStatus.message ||
               "وقفت هنا... وباقي أهم التجارب. فعّل دربك+ وكمل استكشافك."
           : ""
       );

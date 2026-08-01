@@ -8,6 +8,7 @@ export default function PremiumInlineNotice({
   title = "وقفت هنا... وباقي أهم التجارب 👀",
   description = "",
   lockedItems = [],
+  actionLabel = "كمل استكشافك",
   onUnlock,
   onSkip,
 }) {
@@ -69,7 +70,7 @@ export default function PremiumInlineNotice({
             </span>
           )}
           <button type="button" onClick={onUnlock}>
-            كمل استكشافك
+            {actionLabel}
           </button>
           <button
             type="button"
