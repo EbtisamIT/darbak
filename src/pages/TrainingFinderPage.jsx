@@ -596,17 +596,51 @@ const getOrganizationInitial = (name = "") => {
   return firstLetter || "د";
 };
 
-const OrganizationLogo = ({ name, url, imageUrl, imageUrls = [], entity = {} }) => {
-  const logoCandidates = getOrganizationLogoCandidates(
-    {
-      name,
-      url,
-      logoUrl: imageUrl,
-      logoCandidates: imageUrls,
-      ...entity,
-    },
-    imageUrls
-  );
+const getDirectLogoCandidateUrl = (value = "") => {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  if (url.startsWith("data:image/")) return url;
+  if (url.startsWith("//")) return `https:${url}`;
+  if (/^https?:\/\//i.test(url)) return url;
+  return "";
+};
+
+const getDirectLogoCandidates = (values = []) =>
+  Array.from(new Set(values.map(getDirectLogoCandidateUrl).filter(Boolean)));
+
+const OrganizationLogo = ({
+  name,
+  url,
+  imageUrl,
+  imageUrls = [],
+  entity = {},
+  allowGeneratedLogo = true,
+}) => {
+  const directLogoCandidates = getDirectLogoCandidates([
+    imageUrl,
+    entity.logoUrl,
+    entity.logoURL,
+    entity.imageUrl,
+    entity.logo,
+    entity.companyLogo,
+    entity.companyLogoUrl,
+    entity.organizationLogo,
+    entity.organizationLogoUrl,
+    ...(Array.isArray(entity.logoCandidates) ? entity.logoCandidates : []),
+    ...imageUrls,
+  ]);
+  const logoCandidates = allowGeneratedLogo
+    ? getOrganizationLogoCandidates(
+        {
+          name,
+          url,
+          logoUrl: imageUrl,
+          logoCandidates: imageUrls,
+          ...entity,
+        },
+        imageUrls
+      )
+    : directLogoCandidates;
   const [failedLogoUrls, setFailedLogoUrls] = useState(() => new Set());
   const logoKey = logoCandidates.join("|");
   const logoUrl = logoCandidates.find((candidate) => !failedLogoUrls.has(candidate));
@@ -3200,6 +3234,7 @@ export default function TrainingFinderPage() {
                           url={opportunityLogoUrl}
                           imageUrl={opportunity.logoUrl}
                           entity={opportunity}
+                          allowGeneratedLogo={false}
                         />
                         <div style={{ minWidth: 0 }}>
                           <div
@@ -4302,6 +4337,7 @@ export default function TrainingFinderPage() {
                 url={selectedOpportunityLogoUrl}
                 imageUrl={selectedOpportunity.logoUrl}
                 entity={selectedOpportunity}
+                allowGeneratedLogo={false}
               />
               <div>
                 <p className="opportunity-detail-eyebrow">تفاصيل الفرصة</p>

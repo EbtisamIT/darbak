@@ -254,6 +254,18 @@ const addLogoCandidate = (candidates, value = "") => {
   if (faviconUrl) candidates.push(faviconUrl);
 };
 
+const addDirectLogoCandidate = (candidates, value = "") => {
+  const rawUrl = String(value || "").trim();
+  if (!rawUrl) return;
+  if (rawUrl.startsWith("data:image/")) {
+    candidates.push(rawUrl);
+    return;
+  }
+
+  const normalized = normalizeUrl(rawUrl);
+  if (normalized) candidates.push(normalized);
+};
+
 export const getOrganizationLogoCandidates = (entity = {}, extraCandidates = []) => {
   const candidates = [];
   const names = [
@@ -273,8 +285,9 @@ export const getOrganizationLogoCandidates = (entity = {}, extraCandidates = [])
     entity.organizationLogo,
     entity.organizationLogoUrl,
     ...getValueArray(entity.logoCandidates),
-    ...getValueArray(extraCandidates),
-  ].forEach((value) => addLogoCandidate(candidates, value));
+  ].forEach((value) => addDirectLogoCandidate(candidates, value));
+
+  getValueArray(extraCandidates).forEach((value) => addLogoCandidate(candidates, value));
 
   names
     .map(getKnownLogoDomain)
