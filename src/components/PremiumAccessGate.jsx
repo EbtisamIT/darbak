@@ -381,6 +381,13 @@ export default function PremiumAccessGate() {
   }, []);
 
   useEffect(() => {
+    if (!isPremiumGateEnabled() || hasActivePremiumPass()) return;
+    if (shouldShowReminderBar()) {
+      setIsReminderBarVisible(true);
+    }
+  }, []);
+
+  useEffect(() => {
     const handlePremiumRequest = (event) => {
       if (!isPremiumGateEnabled()) return;
 
@@ -1233,7 +1240,7 @@ export default function PremiumAccessGate() {
             className="subscription-reminder-bar-content"
             onClick={() => openSubscriptionFromReminder("bottom_bar")}
           >
-            <span>باقي تجارب كثيرة تناسب تخصصك — افتحها بـ5.99 ر.س</span>
+            <span>باقي تجارب وفرص كثيرة تناسب تخصصك — افتحها بـ5.99 ر.س</span>
           </button>
         </div>
       )}

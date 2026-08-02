@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -27,6 +27,7 @@ import AccountModal from "./components/AccountModal";
 import SavedItemsDrawer from "./components/SavedItemsDrawer";
 import DarbakAssistant from "./components/DarbakAssistant";
 import { trackEvent } from "./utils/analytics";
+import { PREMIUM_ACCESS_EVENT } from "./utils/premiumAccess";
 
 const PLATFORM_UPDATE_NOTICE_KEY = "darbak_portfolio_announcement_seen_v1";
 const PORTFOLIO_ANNOUNCEMENT_EVENT = "darbak:open-portfolio-announcement";
@@ -218,6 +219,139 @@ function PageBanner() {
       </span>{" "}
       خذ من تجارب غيرك ما يفيدك، لكن تذكّر أن لكل طالب رحلته وتجربته الخاصة. 🤍
     </div>
+  );
+}
+
+function SubscribeRoute() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const subscribeSource = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("source") || "subscribe_page";
+  }, [location.search]);
+
+  const openSubscribeGate = useCallback(() => {
+    window.dispatchEvent(
+      new CustomEvent(PREMIUM_ACCESS_EVENT, {
+        detail: {
+          feature: "subscribe_page",
+          title: "دربك+",
+          source: subscribeSource,
+        },
+      })
+    );
+  }, [subscribeSource]);
+
+  useEffect(() => {
+    trackEvent("subscribe_page_view", {
+      page: location.pathname,
+      metadata: {
+        source: subscribeSource,
+      },
+    });
+
+    const openTimer = window.setTimeout(openSubscribeGate, 0);
+    return () => window.clearTimeout(openTimer);
+  }, [location.pathname, openSubscribeGate, subscribeSource]);
+
+  return (
+    <section
+      dir="rtl"
+      style={{
+        minHeight: "52vh",
+        display: "grid",
+        placeItems: "center",
+        textAlign: "center",
+        padding: "28px 14px",
+      }}
+    >
+      <div
+        style={{
+          width: "min(560px, 100%)",
+          border: "1px solid var(--app-border)",
+          borderRadius: "22px",
+          background: "var(--app-surface)",
+          boxShadow: "0 18px 46px var(--app-shadow)",
+          padding: "28px",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            borderRadius: "999px",
+            background: "var(--app-brand-soft)",
+            color: "var(--app-brand)",
+            padding: "6px 14px",
+            fontWeight: 900,
+            marginBottom: "12px",
+          }}
+        >
+          دربك+
+        </span>
+        <h1
+          style={{
+            margin: "0 0 10px",
+            color: "var(--app-text)",
+            fontSize: "clamp(26px, 4vw, 38px)",
+            lineHeight: 1.35,
+          }}
+        >
+          كمل استكشاف التجارب والفرص
+        </h1>
+        <p
+          style={{
+            margin: "0 auto 20px",
+            color: "var(--app-text-soft)",
+            lineHeight: 1.8,
+            maxWidth: "430px",
+          }}
+        >
+          باقات دربك+ تفتح لك المزايا المتقدمة، ولو ما ظهرت النافذة اضغط الزر
+          بالأسفل.
+        </p>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            justifyContent: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            type="button"
+            onClick={openSubscribeGate}
+            style={{
+              border: "none",
+              borderRadius: "14px",
+              background: "var(--app-brand)",
+              color: "var(--app-bg)",
+              padding: "12px 20px",
+              fontFamily: "inherit",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            عرض باقات دربك+
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            style={{
+              border: "1px solid var(--app-border)",
+              borderRadius: "14px",
+              background: "transparent",
+              color: "var(--app-text)",
+              padding: "12px 20px",
+              fontFamily: "inherit",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            الرجوع للرئيسية
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1316,6 +1450,7 @@ function AppLayout({ theme, setTheme }) {
             <Route path="/experiences/:experienceId" element={<ExperiencesPage />} />
             <Route path="/interviews" element={<InterviewsPage />} />
             <Route path="/where-to-train" element={<TrainingFinderPage />} />
+            <Route path="/subscribe" element={<SubscribeRoute />} />
             <Route path="/portofoili" element={<PortfolioBuilderPage />} />
             <Route path="/portfolio" element={<PortfolioBuilderPage />} />
             <Route
