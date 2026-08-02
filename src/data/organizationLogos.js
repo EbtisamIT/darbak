@@ -3,6 +3,21 @@ import { darbakContactDirectoryOrganizations } from "./darbakContactDirectory";
 
 const LOGO_SIZE = 128;
 const IMAGE_URL_PATTERN = /\.(png|jpe?g|webp|svg|gif)(\?.*)?$/i;
+const GENERIC_LINK_DOMAINS = new Set([
+  "docs.google.com",
+  "drive.google.com",
+  "forms.gle",
+  "forms.office.com",
+  "forms.cloud.microsoft",
+  "linkedin.com",
+  "x.com",
+  "twitter.com",
+  "typeform.com",
+  "form.typeform.com",
+  "microsoft.com",
+  "office.com",
+  "surveys.mot.gov.sa",
+]);
 
 const normalizeLogoKey = (value = "") =>
   String(value || "")
@@ -49,6 +64,8 @@ const getFaviconUrl = (domain = "") => {
 
 const curatedOrganizationDomains = {
   "اكوا باور": "acwapower.com",
+  "اكاديميه التعلم": "aol.edu.sa",
+  "اكاديمية التعلم": "aol.edu.sa",
   "امالا": "amaala.com",
   "ارامكو": "aramco.com",
   "اس تي سي": "stc.com.sa",
@@ -89,9 +106,12 @@ const curatedOrganizationDomains = {
   "سنابل للاستثمار": "sanabil.com",
   "طيران ناس": "flynas.com",
   "علم": "elm.sa",
+  "عزم الانجاز": "azmalenjaz.sa",
   "غرفه الرياض": "chamber.sa",
   "كاوست": "kaust.edu.sa",
   "كدانه": "kidana.com.sa",
+  "كود لينك": "codelink.com.sa",
+  "كود لينك لتقنيه المعلومات": "codelink.com.sa",
   "مجلس الضمان الصحي": "chi.gov.sa",
   "مجموعه الدكتور سليمان الحبيب": "hmg.com",
   "مجموعه صافولا": "savola.com",
@@ -109,6 +129,7 @@ const curatedOrganizationDomains = {
   "هيئه الحكومه الرقميه": "dga.gov.sa",
   "هيئه السوق الماليه": "cma.org.sa",
   "هيئه المساحه الجيولوجيه السعوديه": "sgs.gov.sa",
+  "هيئه تطوير حائل": "hda.gov.sa",
   "هيئه تطوير عسير": "asda.gov.sa",
   "هيئه تطوير منطقه المدينه المنوره": "mda.gov.sa",
   "هيئه تقويم التعليم والتدريب": "etec.gov.sa",
@@ -134,10 +155,23 @@ const curatedOrganizationDomains = {
   "elm": "elm.sa",
   "ey": "ey.com",
   "kpmg": "kpmg.com",
+  "code link": "codelink.com.sa",
   "mbc": "mbc.net",
   "pwc": "pwc.com",
   "site": "site.sa",
   "stc": "stc.com.sa",
+  "mos": "mos.gov.sa",
+};
+
+const isGenericLinkDomain = (domain = "") => {
+  const cleanDomain = String(domain || "").replace(/^www\./, "").toLowerCase();
+  return (
+    GENERIC_LINK_DOMAINS.has(cleanDomain) ||
+    cleanDomain.endsWith(".myworkdayjobs.com") ||
+    cleanDomain.endsWith(".icims.com") ||
+    cleanDomain.endsWith(".successfactors.com") ||
+    cleanDomain.endsWith(".oraclecloud.com")
+  );
 };
 
 const getFirstKnownDomain = (organization = {}) => {
@@ -184,10 +218,17 @@ const getKnownLogoDomain = (name = "") => {
     return organizationLogoDomains[normalizedName];
   }
 
+  const hasWholePhrase = (text = "", phrase = "") =>
+    ` ${text} `.includes(` ${phrase} `);
+
   const matchingEntry = Object.entries(organizationLogoDomains)
     .filter(([key]) => key.length > 2)
     .sort((a, b) => b[0].length - a[0].length)
-    .find(([key]) => normalizedName.includes(key) || key.includes(normalizedName));
+    .find(([key]) => {
+      if (hasWholePhrase(normalizedName, key)) return true;
+      if (key.length <= 4 || normalizedName.length <= 4) return false;
+      return normalizedName.includes(key) || key.includes(normalizedName);
+    });
 
   return matchingEntry?.[1] || "";
 };
@@ -207,6 +248,8 @@ const addLogoCandidate = (candidates, value = "") => {
   }
 
   const domain = getDomainFromUrl(normalized);
+  if (isGenericLinkDomain(domain)) return;
+
   const faviconUrl = getFaviconUrl(domain);
   if (faviconUrl) candidates.push(faviconUrl);
 };
@@ -264,4 +307,3 @@ export const getOrganizationLogoCandidates = (entity = {}, extraCandidates = [])
 
 export const getOrganizationLogoUrl = (entity = {}, extraCandidates = []) =>
   getOrganizationLogoCandidates(entity, extraCandidates)[0] || "";
-
