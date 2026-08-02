@@ -491,8 +491,28 @@ const sanitizeVisitorId = (value = "") =>
 const sanitizeAccessItemKey = (value = "") =>
   value.toString().trim().replace(/[^\w:.-]/g, "").slice(0, 140);
 
-const getAccessItemType = (itemKey = "") =>
-  sanitizeAccessItemKey(itemKey).split(":")[0] || "general";
+const getAccessItemType = (itemKey = "") => {
+  const rawType = sanitizeAccessItemKey(itemKey).split(":")[0] || "general";
+
+  if (
+    [
+      "opportunity",
+      "opportunity_apply",
+      "opportunity-apply",
+      "where-to-train",
+      "where-to-train-opportunities",
+      "guide-organization",
+    ].includes(rawType)
+  ) {
+    return "opportunity";
+  }
+
+  if (["experience", "experience_details", "experience-details"].includes(rawType)) {
+    return "experience";
+  }
+
+  return rawType;
+};
 
 const getFreeDailyLimitForItem = (itemKey = "") => {
   const itemType = getAccessItemType(itemKey);
@@ -743,7 +763,7 @@ const evaluateContentAccess = async ({
       remainingViews: 0,
       subscriptionReminderLastShownAt: user.subscriptionReminderLastShownAt || null,
       message:
-        "وقفت هنا... وباقي أهم التجارب. فعّل دربك+ وكمل استكشافك.",
+        "وقفت هنا... وباقي تجارب وفرص مهمة. فعّل دربك+ وكمل استكشافك.",
     };
   }
 

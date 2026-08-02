@@ -252,9 +252,12 @@ const isSubscriptionReminderCandidate = (detail = {}, accessStatus = {}) => {
   return (
     feature.includes("experience") ||
     feature.includes("opportunity") ||
+    feature.includes("where_to_train") ||
     feature.includes("training_guide") ||
     itemKey.startsWith("experience:") ||
     itemKey.startsWith("opportunity:") ||
+    itemKey.startsWith("where-to-train:") ||
+    itemKey.startsWith("where-to-train-opportunities:") ||
     itemKey.startsWith("guide-organization:")
   );
 };
@@ -297,6 +300,7 @@ export default function PremiumAccessGate() {
   });
   const pendingActionRef = useRef(null);
   const reminderDetailRef = useRef(null);
+  const reminderBarTimerRef = useRef(null);
   const returnReminderEligibleRef = useRef(false);
   const sessionPageViewsRef = useRef(0);
   const lastTrackedPathRef = useRef("");
@@ -331,9 +335,41 @@ export default function PremiumAccessGate() {
       });
   }, []);
 
+  const queueReminderBar = useCallback(
+    (delayMs = SUBSCRIPTION_BROWSE_BAR_DELAY_MS) => {
+      if (typeof window === "undefined") return;
+      if (!isPremiumGateEnabled() || hasActivePremiumPass()) return;
+      if (
+        !shouldShowReminderBar() ||
+        getSessionFlag(SUBSCRIPTION_BAR_SHOWN_SESSION_KEY)
+      ) {
+        return;
+      }
+
+      if (reminderBarTimerRef.current) {
+        window.clearTimeout(reminderBarTimerRef.current);
+      }
+
+      reminderBarTimerRef.current = window.setTimeout(() => {
+        reminderBarTimerRef.current = null;
+
+        if (!hasActivePremiumPass() && shouldShowReminderBar()) {
+          setSessionFlag(SUBSCRIPTION_BAR_SHOWN_SESSION_KEY);
+          setIsReminderBarVisible(true);
+        }
+      }, delayMs);
+    },
+    []
+  );
+
   const closeSubscriptionReminder = useCallback(() => {
+    if (subscriptionReminder?.mode === "daily_limit") {
+      setSessionFlag(SUBSCRIPTION_LIMIT_GATE_DISMISSED_SESSION_KEY);
+      queueReminderBar();
+    }
+
     setSubscriptionReminder(null);
-  }, []);
+  }, [queueReminderBar, subscriptionReminder]);
 
   const closeReminderBar = () => {
     setStoredReminderTimestamp(SUBSCRIPTION_REMINDER_BAR_DISMISSED_PREFIX);
@@ -413,20 +449,15 @@ export default function PremiumAccessGate() {
   }, []);
 
   useEffect(() => {
-    if (!isPremiumGateEnabled() || hasActivePremiumPass()) return undefined;
-    if (!shouldShowReminderBar() || getSessionFlag(SUBSCRIPTION_BAR_SHOWN_SESSION_KEY)) {
-      return undefined;
-    }
+    queueReminderBar();
 
-    const barTimer = window.setTimeout(() => {
-      if (!hasActivePremiumPass() && shouldShowReminderBar()) {
-        setSessionFlag(SUBSCRIPTION_BAR_SHOWN_SESSION_KEY);
-        setIsReminderBarVisible(true);
+    return () => {
+      if (reminderBarTimerRef.current) {
+        window.clearTimeout(reminderBarTimerRef.current);
+        reminderBarTimerRef.current = null;
       }
-    }, SUBSCRIPTION_BROWSE_BAR_DELAY_MS);
-
-    return () => window.clearTimeout(barTimer);
-  }, []);
+    };
+  }, [queueReminderBar]);
 
   useEffect(() => {
     if (!isPremiumGateEnabled() || hasActivePremiumPass()) return;
@@ -487,31 +518,19 @@ export default function PremiumAccessGate() {
         setShowCheckoutForm(false);
         setIsResetMode(false);
         setResetToken("");
-        setSubscriptionReminder(null);
         reminderDetailRef.current = { detail, accessStatus };
 
         if (!getSessionFlag(SUBSCRIPTION_LIMIT_GATE_DISMISSED_SESSION_KEY)) {
-          setFeature(detail.feature || "limited_content");
-          setIsReminderBarVisible(false);
-          setIsLimitGateOpen(true);
-          setIsOpen(true);
-          setMessage(
-            accessStatus.message ||
-              "وقفت هنا... وباقي أهم التجارب والفرص. فعّل دربك+ وكمل استكشافك."
-          );
+          setIsLimitGateOpen(false);
+          setIsOpen(false);
+          setSubscriptionReminder({
+            detail,
+            accessStatus,
+            mode: "daily_limit",
+          });
           markSubscriptionReminderShown(detail, accessStatus);
-          trackEventOncePerSession(
-            "premium_gate_opened",
-            {
-              metadata: {
-                feature: detail.feature || "",
-                title: detail.title || "",
-                source: detail.source || "",
-                gateType: "daily_limit_gate",
-              },
-            },
-            "daily_limit_gate"
-          );
+        } else {
+          queueReminderBar(0);
         }
 
         return;
@@ -555,7 +574,7 @@ export default function PremiumAccessGate() {
     window.addEventListener(PREMIUM_ACCESS_EVENT, handlePremiumRequest);
     return () =>
       window.removeEventListener(PREMIUM_ACCESS_EVENT, handlePremiumRequest);
-  }, [markSubscriptionReminderShown]);
+  }, [markSubscriptionReminderShown, queueReminderBar]);
 
   const closeGate = () => {
     if (isOpen) {
