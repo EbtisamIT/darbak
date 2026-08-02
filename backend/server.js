@@ -741,6 +741,7 @@ const evaluateContentAccess = async ({
       dailyLimit,
       viewsUsed: currentCount,
       remainingViews: 0,
+      subscriptionReminderLastShownAt: user.subscriptionReminderLastShownAt || null,
       message:
         "وقفت هنا... وباقي أهم التجارب. فعّل دربك+ وكمل استكشافك.",
     };
@@ -788,6 +789,8 @@ const sendAccessDeniedResponse = (res, accessDecision = {}) =>
     dailyLimit: accessDecision.dailyLimit ?? FREE_DAILY_DETAIL_LIMIT,
     viewsUsed: accessDecision.viewsUsed || 0,
     remainingViews: accessDecision.remainingViews || 0,
+    subscriptionReminderLastShownAt:
+      accessDecision.subscriptionReminderLastShownAt || null,
     message:
       accessDecision.message ||
       accessDecision.error ||
@@ -1548,6 +1551,14 @@ const recordPremiumAccessVerifiedEvent = async ({
   }
 
   const cleanVisitorId = sanitizeAnalyticsText(visitorId, 90);
+  const metadata = sanitizeAnalyticsMetadata({
+    provider: "moyasar",
+    providerPaymentId,
+    planId: subscription.planId || "monthly",
+    priceSar: getSubscriptionPriceSar(subscription),
+    durationDays: getSubscriptionDurationDays(subscription),
+    source,
+  });
   const existingEvent = await AnalyticsEvent.findOne({
     eventName: "premium_access_verified",
     "metadata.providerPaymentId": providerPaymentId,
@@ -1562,23 +1573,40 @@ const recordPremiumAccessVerifiedEvent = async ({
       };
       await existingEvent.save();
     }
+  } else {
+    await AnalyticsEvent.create({
+      eventName: "premium_access_verified",
+      visitorId: cleanVisitorId,
+      page: "/subscriptions/moyasar",
+      deviceType: "unknown",
+      metadata,
+    });
+  }
 
-    return existingEvent;
+  const existingCompletedEvent = await AnalyticsEvent.findOne({
+    eventName: "subscription_completed",
+    "metadata.providerPaymentId": providerPaymentId,
+  });
+
+  if (existingCompletedEvent) {
+    if (cleanVisitorId && !existingCompletedEvent.visitorId) {
+      existingCompletedEvent.visitorId = cleanVisitorId;
+      existingCompletedEvent.metadata = {
+        ...(existingCompletedEvent.metadata || {}),
+        source: source || existingCompletedEvent.metadata?.source || "",
+      };
+      await existingCompletedEvent.save();
+    }
+
+    return existingCompletedEvent;
   }
 
   return AnalyticsEvent.create({
-    eventName: "premium_access_verified",
+    eventName: "subscription_completed",
     visitorId: cleanVisitorId,
     page: "/subscriptions/moyasar",
     deviceType: "unknown",
-    metadata: sanitizeAnalyticsMetadata({
-      provider: "moyasar",
-      providerPaymentId,
-      planId: subscription.planId || "monthly",
-      priceSar: getSubscriptionPriceSar(subscription),
-      durationDays: getSubscriptionDurationDays(subscription),
-      source,
-    }),
+    metadata,
   });
 };
 
@@ -2370,6 +2398,14 @@ const getCleanAnalyticsMatch = (match) => ({
   ],
 });
 
+const providerPaymentTrackedPremiumEvents = [
+  "premium_checkout_started",
+  "checkout_started",
+  "premium_payment_returned",
+  "premium_access_verified",
+  "subscription_completed",
+];
+
 const getPremiumEventAnalytics = (match, premiumEventNames = []) =>
   AnalyticsEvent.aggregate([
     {
@@ -2383,22 +2419,14 @@ const getPremiumEventAnalytics = (match, premiumEventNames = []) =>
             $or: [
               {
                 eventName: {
-                  $nin: [
-                    "premium_checkout_started",
-                    "premium_payment_returned",
-                    "premium_access_verified",
-                  ],
+                  $nin: providerPaymentTrackedPremiumEvents,
                 },
               },
               {
                 $and: [
                   {
                     eventName: {
-                      $in: [
-                        "premium_checkout_started",
-                        "premium_payment_returned",
-                        "premium_access_verified",
-                      ],
+                      $in: providerPaymentTrackedPremiumEvents,
                     },
                   },
                   { "metadata.providerPaymentId": { $exists: true, $ne: "" } },
@@ -2418,11 +2446,7 @@ const getPremiumEventAnalytics = (match, premiumEventNames = []) =>
                 {
                   $in: [
                     "$eventName",
-                    [
-                      "premium_checkout_started",
-                      "premium_payment_returned",
-                      "premium_access_verified",
-                    ],
+                    providerPaymentTrackedPremiumEvents,
                   ],
                 },
                 { $ne: ["$metadata.providerPaymentId", null] },
@@ -4676,6 +4700,29 @@ app.post('/api/access/check', async (req, res) => {
   }
 });
 
+app.post('/api/access/reminder-shown', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const user = await ensureAccessUser(getAccessIdentityFromRequest(req));
+    if (!user) {
+      return res.status(400).json({ error: "تعذر تحديد المستخدم." });
+    }
+
+    const now = new Date();
+    await User.findByIdAndUpdate(user._id, {
+      $set: { subscriptionReminderLastShownAt: now },
+    });
+
+    res.json({ ok: true, subscriptionReminderLastShownAt: now });
+  } catch (err) {
+    console.error("❌ Access reminder update error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/portfolio/me', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -6282,7 +6329,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         .sort({ updatedAt: -1 })
         .limit(180)
         .select(
-          "contact visitorId accessCodeHash isPremium isAdmin premiumExpiresAt lastViewedDate dailyViewsCount dailyViewItemKeys createdAt updatedAt"
+          "contact visitorId accessCodeHash isPremium isAdmin premiumExpiresAt lastViewedDate dailyViewsCount dailyViewItemKeys subscriptionReminderLastShownAt createdAt updatedAt"
         )
         .lean(),
       Subscription.find(subscriptionFilter)
@@ -6348,6 +6395,8 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         isAdmin: Boolean(user.isAdmin),
         premiumExpiresAt: user.premiumExpiresAt || null,
         lastViewedDate: user.lastViewedDate || "",
+        subscriptionReminderLastShownAt:
+          user.subscriptionReminderLastShownAt || null,
         dailyViewsCount: user.dailyViewsCount || 0,
         dailyItemsCount: Array.isArray(user.dailyViewItemKeys)
           ? user.dailyViewItemKeys.length
@@ -6421,15 +6470,19 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     ];
     const cvAdEventNames = ["diagnosis_cv_product_click"];
     const premiumEventNames = [
+      "subscription_reminder_shown",
+      "subscription_reminder_clicked",
       "premium_gate_opened",
       "premium_gate_closed",
       "premium_nav_cta_clicked",
       "premium_experiences_banner_clicked",
       "premium_where_to_train_opportunities_banner_clicked",
       "premium_plan_selected",
+      "checkout_started",
       "premium_checkout_started",
       "premium_checkout_failed",
       "premium_payment_returned",
+      "subscription_completed",
       "premium_access_verified",
       "premium_access_help_requested",
       "account_modal_opened",
@@ -6748,7 +6801,11 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
           $match: {
             ...cleanMatch,
             eventName: {
-              $in: ["premium_plan_selected", "premium_checkout_started"],
+              $in: [
+                "premium_plan_selected",
+                "premium_checkout_started",
+                "checkout_started",
+              ],
             },
             "metadata.planId": { $nin: [null, ""] },
           },
@@ -7032,13 +7089,17 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       topAdClicks,
       premiumEventCounts,
       premiumFunnelSummary: {
+        reminderShown: getPremiumEventSummary("subscription_reminder_shown"),
+        reminderClicked: getPremiumEventSummary("subscription_reminder_clicked"),
         gateOpened: getPremiumEventSummary("premium_gate_opened"),
         planSelected: getPremiumEventSummary("premium_plan_selected"),
-        checkoutStarted: getPremiumEventSummary("premium_checkout_started"),
+        checkoutStarted: getPremiumEventSummary("checkout_started"),
         paymentReturned: getPremiumEventSummary("premium_payment_returned"),
+        subscriptionCompleted: getPremiumEventSummary("subscription_completed"),
         paymentSuccessful: {
           events: paidMoyasarSubscriptions,
           uniqueVisitors:
+            getPremiumEventSummary("subscription_completed").uniqueVisitors ||
             getPremiumEventSummary("premium_access_verified").uniqueVisitors,
         },
         manualActiveSubscriptions,

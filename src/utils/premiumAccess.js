@@ -197,6 +197,9 @@ export const requestPremiumAccess = (detail = {}, onGranted = () => {}) => {
         detail.onLimited(data);
       }
       if (detail.deferGateOnLimited) {
+        if (data?.reason === "daily_limit") {
+          openPremiumGate({ ...detail, reminderOnly: true }, null, data);
+        }
         return;
       }
       openPremiumGate(detail, onGranted, data);

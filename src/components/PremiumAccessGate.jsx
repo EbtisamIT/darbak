@@ -8,6 +8,8 @@ import {
 import API_BASE_URL from "../config/api";
 import {
   PREMIUM_ACCESS_EVENT,
+  getStoredAccessIdentity,
+  hasActivePremiumPass,
   isPremiumGateEnabled,
   saveAccessIdentity,
   savePremiumPass,
@@ -25,6 +27,13 @@ const initialForm = {
 };
 
 const PENDING_SUBSCRIPTION_KEY = "darbak_pending_subscription_v1";
+const SUBSCRIPTION_REMINDER_SEEN_PREFIX =
+  "darbak_subscription_reminder_seen_v1";
+const SUBSCRIPTION_REMINDER_BAR_DISMISSED_PREFIX =
+  "darbak_subscription_reminder_bar_dismissed_v1";
+const SUBSCRIPTION_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const SUBSCRIPTION_REMINDER_SUBSCRIBE_URL =
+  "/subscribe?source=experience-reminder";
 
 const formatPlusStat = (value) =>
   typeof value === "number" ? `${value.toLocaleString("en-US")}+` : "جار التحميل";
@@ -165,6 +174,92 @@ const isValidAccessCode = (value = "") => {
   return /^[A-Za-z0-9]{4,12}$/.test(accessCode) && !/^(.)\1+$/.test(accessCode);
 };
 
+const getReminderAudienceKey = () => {
+  const identity = getStoredAccessIdentity();
+  const contact = (identity.contact || identity.email || "")
+    .toString()
+    .trim()
+    .toLowerCase();
+
+  return contact || getVisitorId() || "anonymous";
+};
+
+const getReminderStorageKey = (prefix) =>
+  `${prefix}:${getReminderAudienceKey()}`;
+
+const getStoredReminderTimestamp = (prefix) => {
+  if (typeof window === "undefined") return 0;
+
+  try {
+    const value = Number(window.localStorage.getItem(getReminderStorageKey(prefix)));
+    return Number.isFinite(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const setStoredReminderTimestamp = (prefix, timestamp = Date.now()) => {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      getReminderStorageKey(prefix),
+      String(timestamp)
+    );
+  } catch {
+    // Storage is only a fallback; the server still stores logged-in reminders.
+  }
+};
+
+const getServerReminderTimestamp = (accessStatus = {}) => {
+  if (!accessStatus.subscriptionReminderLastShownAt) return 0;
+  const timestamp = new Date(
+    accessStatus.subscriptionReminderLastShownAt
+  ).getTime();
+
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const isSubscriptionReminderCandidate = (detail = {}, accessStatus = {}) => {
+  if (accessStatus.reason !== "daily_limit" || detail.loginOnly) return false;
+
+  const feature = detail.feature || "";
+  const itemKey = detail.itemKey || "";
+  return (
+    feature.includes("experience") ||
+    feature.includes("opportunity") ||
+    feature.includes("training_guide") ||
+    itemKey.startsWith("experience:") ||
+    itemKey.startsWith("opportunity:") ||
+    itemKey.startsWith("guide-organization:")
+  );
+};
+
+const shouldShowSubscriptionReminder = (accessStatus = {}) => {
+  if (hasActivePremiumPass() || accessStatus.isPremium || accessStatus.isAdmin) {
+    return false;
+  }
+
+  const lastShownAt = Math.max(
+    getServerReminderTimestamp(accessStatus),
+    getStoredReminderTimestamp(SUBSCRIPTION_REMINDER_SEEN_PREFIX)
+  );
+
+  return !lastShownAt || Date.now() - lastShownAt >= SUBSCRIPTION_REMINDER_COOLDOWN_MS;
+};
+
+const shouldShowReminderBar = () => {
+  const lastDismissedAt = getStoredReminderTimestamp(
+    SUBSCRIPTION_REMINDER_BAR_DISMISSED_PREFIX
+  );
+
+  return (
+    !hasActivePremiumPass() &&
+    (!lastDismissedAt ||
+      Date.now() - lastDismissedAt >= SUBSCRIPTION_REMINDER_COOLDOWN_MS)
+  );
+};
+
 export default function PremiumAccessGate() {
   const [isOpen, setIsOpen] = useState(false);
   const [feature, setFeature] = useState("");
@@ -180,15 +275,74 @@ export default function PremiumAccessGate() {
   const [selectedPlanId, setSelectedPlanId] = useState("one_time_90");
   const [resetToken, setResetToken] = useState("");
   const [isResetMode, setIsResetMode] = useState(false);
+  const [subscriptionReminder, setSubscriptionReminder] = useState(null);
+  const [isReminderBarVisible, setIsReminderBarVisible] = useState(false);
   const [platformStats, setPlatformStats] = useState({
     experiencesCount: null,
     organizationsCount: null,
     activeSubscribersCount: null,
   });
   const pendingActionRef = useRef(null);
+  const reminderDetailRef = useRef(null);
   const selectedPlan =
     subscriptionPlans.find((plan) => plan.id === selectedPlanId) ||
     subscriptionPlans[0];
+
+  const markSubscriptionReminderShown = useCallback((detail = {}, accessStatus = {}) => {
+    const shownAt = Date.now();
+    const identity = getStoredAccessIdentity();
+
+    setStoredReminderTimestamp(SUBSCRIPTION_REMINDER_SEEN_PREFIX, shownAt);
+    trackEvent("subscription_reminder_shown", {
+      metadata: {
+        feature: detail.feature || "",
+        title: detail.title || "",
+        source: detail.source || "",
+        itemKey: detail.itemKey || "",
+        dailyLimit: accessStatus.dailyLimit || 0,
+        viewsUsed: accessStatus.viewsUsed || 0,
+      },
+    });
+
+    axios
+      .post(`${API_BASE_URL}/api/access/reminder-shown`, {
+        contact: identity.contact || identity.email || "",
+        accessCode: identity.accessCode || "",
+        visitorId: getVisitorId(),
+      })
+      .catch(() => {
+        // The local cooldown still prevents repeated reminders if this fails.
+      });
+  }, []);
+
+  const closeSubscriptionReminder = useCallback(() => {
+    setSubscriptionReminder(null);
+    if (shouldShowReminderBar()) {
+      setIsReminderBarVisible(true);
+    }
+  }, []);
+
+  const closeReminderBar = () => {
+    setStoredReminderTimestamp(SUBSCRIPTION_REMINDER_BAR_DISMISSED_PREFIX);
+    setIsReminderBarVisible(false);
+  };
+
+  const openSubscriptionFromReminder = (placement = "modal") => {
+    const detail =
+      subscriptionReminder?.detail || reminderDetailRef.current?.detail || {};
+    trackEvent("subscription_reminder_clicked", {
+      metadata: {
+        feature: detail.feature || "",
+        title: detail.title || "",
+        source: detail.source || "",
+        itemKey: detail.itemKey || "",
+        placement,
+      },
+    });
+    setSubscriptionReminder(null);
+    setIsReminderBarVisible(false);
+    window.location.assign(SUBSCRIPTION_REMINDER_SUBSCRIBE_URL);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -230,14 +384,40 @@ export default function PremiumAccessGate() {
     const handlePremiumRequest = (event) => {
       if (!isPremiumGateEnabled()) return;
 
-      pendingActionRef.current = event.detail?.onGranted || null;
-      setFeature(event.detail?.feature || "");
-      setIsLoginOnly(Boolean(event.detail?.loginOnly));
+      const detail = event.detail || {};
+      const accessStatus = detail.accessStatus || {};
+
+      if (isSubscriptionReminderCandidate(detail, accessStatus)) {
+        pendingActionRef.current = null;
+        setIsOpen(false);
+        setMessage("");
+        setIsLoginOnly(false);
+        setShowCheckoutForm(false);
+        setIsResetMode(false);
+        setResetToken("");
+
+        if (shouldShowSubscriptionReminder(accessStatus)) {
+          reminderDetailRef.current = { detail, accessStatus };
+          setSubscriptionReminder({ detail, accessStatus });
+          setIsReminderBarVisible(false);
+          markSubscriptionReminderShown(detail, accessStatus);
+        } else if (shouldShowReminderBar()) {
+          reminderDetailRef.current = { detail, accessStatus };
+          setIsReminderBarVisible(true);
+        }
+
+        return;
+      }
+
+      if (detail.reminderOnly) return;
+
+      pendingActionRef.current = detail.onGranted || null;
+      setFeature(detail.feature || "");
+      setIsLoginOnly(Boolean(detail.loginOnly));
       setShowCheckoutForm(false);
       setIsResetMode(false);
       setResetToken("");
-      const accessStatus = event.detail?.accessStatus || {};
-      const gateMessage = event.detail?.gateMessage || "";
+      const gateMessage = detail.gateMessage || "";
       setMessage(
         accessStatus.reason === "daily_limit"
           ? gateMessage ||
@@ -246,15 +426,15 @@ export default function PremiumAccessGate() {
           : ""
       );
       setIsOpen(true);
-      const gateType = event.detail?.loginOnly ? "login_only" : "premium_gate";
+      const gateType = detail.loginOnly ? "login_only" : "premium_gate";
       if (gateType === "premium_gate") {
         trackEventOncePerSession(
           "premium_gate_opened",
           {
             metadata: {
-              feature: event.detail?.feature || "",
-              title: event.detail?.title || "",
-              source: event.detail?.source || "",
+              feature: detail.feature || "",
+              title: detail.title || "",
+              source: detail.source || "",
               gateType,
             },
           },
@@ -266,7 +446,7 @@ export default function PremiumAccessGate() {
     window.addEventListener(PREMIUM_ACCESS_EVENT, handlePremiumRequest);
     return () =>
       window.removeEventListener(PREMIUM_ACCESS_EVENT, handlePremiumRequest);
-  }, []);
+  }, [markSubscriptionReminderShown]);
 
   const closeGate = () => {
     if (isOpen) {
@@ -305,6 +485,9 @@ export default function PremiumAccessGate() {
     setIsOpen(false);
     setMessage("");
     setIsLoginOnly(false);
+    setSubscriptionReminder(null);
+    setIsReminderBarVisible(false);
+    reminderDetailRef.current = null;
     setSuccessNotice("تم تفعيل دربك+ بنجاح. المزايا المتقدمة صارت مفتوحة لك الآن.");
 
     const action = pendingActionRef.current;
@@ -625,17 +808,22 @@ export default function PremiumAccessGate() {
 
       const checkoutDedupeKey =
         data.invoiceId || data.providerPaymentId || `${checkoutPlan.id}:${Date.now()}`;
+      const checkoutMetadata = {
+        feature,
+        hasContact: Boolean(form.contact.trim()),
+        planId: checkoutPlan.id,
+        provider: data.provider || "",
+        providerPaymentId: data.invoiceId || data.providerPaymentId || "",
+      };
+
       trackEventOnceLocal(
         "premium_checkout_started",
-        {
-          metadata: {
-            feature,
-            hasContact: Boolean(form.contact.trim()),
-            planId: checkoutPlan.id,
-            provider: data.provider || "",
-            providerPaymentId: data.invoiceId || data.providerPaymentId || "",
-          },
-        },
+        { metadata: checkoutMetadata },
+        checkoutDedupeKey
+      );
+      trackEventOnceLocal(
+        "checkout_started",
+        { metadata: { ...checkoutMetadata, source: "darbak_plus" } },
         checkoutDedupeKey
       );
 
@@ -674,7 +862,9 @@ export default function PremiumAccessGate() {
     }
   };
 
-  if (!isOpen && !successNotice) return null;
+  if (!isOpen && !successNotice && !subscriptionReminder && !isReminderBarVisible) {
+    return null;
+  }
 
   return (
     <>
@@ -682,6 +872,55 @@ export default function PremiumAccessGate() {
         <div className="premium-success-toast" role="status" dir="rtl">
           <strong>دربك+ فعال الآن</strong>
           <span>{successNotice}</span>
+        </div>
+      )}
+
+      {subscriptionReminder && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="subscription-reminder-title"
+          onClick={closeSubscriptionReminder}
+          className="subscription-reminder-overlay"
+          dir="rtl"
+        >
+          <section
+            className="subscription-reminder-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="subscription-reminder-close"
+              onClick={closeSubscriptionReminder}
+              aria-label="إغلاق"
+            >
+              ×
+            </button>
+            <div className="subscription-reminder-badge">دربك+</div>
+            <h2 id="subscription-reminder-title">
+              كل يوم تجربة وفرصة؟ افتحها كلها اليوم 👀
+            </h2>
+            <p>
+              وصلت لحدك المجاني اليوم. اشترك وافتح جميع تجارب التدريب والفرص
+              والمقابلات ومعلومات الجهات بـ5.99 ر.س شهريًا.
+            </p>
+            <div className="subscription-reminder-actions">
+              <button
+                type="button"
+                className="subscription-reminder-primary"
+                onClick={() => openSubscriptionFromReminder("modal")}
+              >
+                افتح جميع التجارب والفرص
+              </button>
+              <button
+                type="button"
+                className="subscription-reminder-secondary"
+                onClick={closeSubscriptionReminder}
+              >
+                أكمل مجانًا
+              </button>
+            </div>
+          </section>
         </div>
       )}
 
@@ -976,6 +1215,26 @@ export default function PremiumAccessGate() {
 
             {message && <p className="premium-access-message">{message}</p>}
           </div>
+        </div>
+      )}
+
+      {isReminderBarVisible && !subscriptionReminder && !isOpen && (
+        <div className="subscription-reminder-bar" dir="rtl" role="status">
+          <button
+            type="button"
+            className="subscription-reminder-bar-close"
+            onClick={closeReminderBar}
+            aria-label="إغلاق تذكير الاشتراك"
+          >
+            ×
+          </button>
+          <button
+            type="button"
+            className="subscription-reminder-bar-content"
+            onClick={() => openSubscriptionFromReminder("bottom_bar")}
+          >
+            <span>باقي تجارب كثيرة تناسب تخصصك — افتحها بـ5.99 ر.س</span>
+          </button>
         </div>
       )}
     </>

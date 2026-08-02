@@ -53,6 +53,9 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    subscriptionReminderLastShownAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

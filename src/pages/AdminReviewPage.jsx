@@ -339,6 +339,8 @@ const analyticsEventLabels = {
   training_guide_banner_click: "ضغط إعلان ملف المتدرب",
   diagnosis_cv_product_click: "ضغط إعلان السيرة الذاتية",
   share_item_clicked: "مشاركة عنصر",
+  subscription_reminder_shown: "ظهور تذكير الاشتراك",
+  subscription_reminder_clicked: "ضغط تذكير الاشتراك",
   premium_gate_opened: "ظهور نافذة الاشتراك",
   premium_gate_closed: "إغلاق نافذة الاشتراك",
   premium_nav_cta_clicked: "ضغط زر دربك+",
@@ -346,9 +348,11 @@ const analyticsEventLabels = {
   premium_where_to_train_opportunities_banner_clicked:
     "ضغط بنر دربك+ في الفرص",
   premium_plan_selected: "اختيار باقة دربك+",
+  checkout_started: "بدء الدفع",
   premium_checkout_started: "بدء الدفع",
   premium_checkout_failed: "تعذر بدء الدفع",
   premium_payment_returned: "رجوع من ميسر",
+  subscription_completed: "اكتمال الاشتراك",
   premium_access_verified: "تفعيل اشتراك",
   premium_payment_email_attempt: "محاولة إرسال إيميل الدفع",
   premium_payment_email_sent: "إيميل دفع مرسل",
@@ -381,13 +385,15 @@ const analyticsEventLabels = {
 };
 
 const premiumFunnelSteps = [
+  ["subscription_reminder_shown", "شاهدوا تذكير الاشتراك"],
+  ["subscription_reminder_clicked", "ضغطوا التذكير"],
   ["premium_gate_opened", "ظهرت نافذة دربك+"],
   ["premium_nav_cta_clicked", "ضغطوا زر دربك+"],
   ["premium_where_to_train_opportunities_banner_clicked", "ضغطوا بنر الفرص"],
   ["premium_plan_selected", "اختاروا باقة"],
-  ["premium_checkout_started", "بدأوا الدفع"],
+  ["checkout_started", "بدأوا الدفع"],
   ["premium_payment_returned", "رجعوا من ميسر"],
-  ["premium_access_verified", "مدفوعات ميسر ناجحة"],
+  ["subscription_completed", "اكتمل الاشتراك"],
   ["premium_payment_email_attempt", "محاولات إيميل الدفع"],
 ];
 
@@ -3241,6 +3247,16 @@ export default function AdminReviewPage() {
               }}
             >
               {[
+                [
+                  "شاهدوا تذكير الاشتراك",
+                  analytics.premiumFunnelSummary?.reminderShown?.events || 0,
+                  `${analytics.premiumFunnelSummary?.reminderShown?.uniqueVisitors || 0} مستخدم فريد`,
+                ],
+                [
+                  "ضغطوا التذكير",
+                  analytics.premiumFunnelSummary?.reminderClicked?.events || 0,
+                  `${analytics.premiumFunnelSummary?.reminderClicked?.uniqueVisitors || 0} مستخدم فريد`,
+                ],
                 [
                   "شاهدوا نافذة الاشتراك",
                   analytics.premiumFunnelSummary?.gateOpened?.events || 0,

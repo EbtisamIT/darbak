@@ -1611,6 +1611,163 @@ body {
   line-height: 1.7;
 }
 
+.subscription-reminder-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 7450;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: color-mix(in srgb, var(--app-overlay) 82%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.subscription-reminder-card {
+  position: relative;
+  width: min(470px, 100%);
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 12% 8%, var(--app-brand-soft), transparent 34%),
+    var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 24px 70px var(--app-shadow);
+  text-align: right;
+  font-family: "Aniq", "Cairo", sans-serif;
+}
+
+.subscription-reminder-close {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--app-border);
+  border-radius: 50%;
+  background: var(--app-input-bg);
+  color: var(--app-text-soft);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.subscription-reminder-badge {
+  width: max-content;
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 14px;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 999px;
+  background: var(--app-brand-soft);
+  color: var(--app-brand);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.subscription-reminder-card h2 {
+  margin: 0;
+  max-width: 370px;
+  color: var(--app-text);
+  font-size: clamp(24px, 5vw, 33px);
+  line-height: 1.45;
+}
+
+.subscription-reminder-card p {
+  margin: 0;
+  color: var(--app-text-soft);
+  font-size: 14.5px;
+  font-weight: 800;
+  line-height: 1.9;
+}
+
+.subscription-reminder-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.subscription-reminder-actions button,
+.subscription-reminder-bar button {
+  font-family: inherit;
+}
+
+.subscription-reminder-primary {
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--app-brand);
+  color: var(--app-button-text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 900;
+  box-shadow: 0 14px 35px var(--app-brand-shadow);
+}
+
+.subscription-reminder-secondary {
+  min-height: 48px;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  background: var(--app-input-bg);
+  color: var(--app-text-soft);
+  cursor: pointer;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.subscription-reminder-bar {
+  position: fixed;
+  right: 50%;
+  bottom: 18px;
+  z-index: 7050;
+  width: min(520px, calc(100vw - 24px));
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  transform: translateX(50%);
+  padding: 8px;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-surface) 92%, transparent);
+  box-shadow: 0 18px 50px var(--app-shadow);
+  backdrop-filter: blur(10px);
+  font-family: "Aniq", "Cairo", sans-serif;
+}
+
+.subscription-reminder-bar-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--app-border);
+  border-radius: 50%;
+  background: var(--app-input-bg);
+  color: var(--app-text-soft);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.subscription-reminder-bar-content {
+  min-height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--app-brand-soft);
+  color: var(--app-brand);
+  cursor: pointer;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.55;
+}
+
 .premium-access-platform-note {
   margin: 0;
   padding: 12px;
@@ -4467,6 +4624,50 @@ body {
     border-radius: 22px;
     padding: 14px;
     max-height: 94vh;
+  }
+
+  .subscription-reminder-overlay {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .subscription-reminder-card {
+    width: 100%;
+    border-radius: 22px;
+    padding: 22px 16px 16px;
+  }
+
+  .subscription-reminder-card h2 {
+    font-size: 24px;
+    padding-left: 32px;
+  }
+
+  .subscription-reminder-card p {
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  .subscription-reminder-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .subscription-reminder-secondary {
+    width: 100%;
+  }
+
+  .subscription-reminder-bar {
+    bottom: 12px;
+    width: calc(100vw - 18px);
+    border-radius: 20px;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .subscription-reminder-bar-content {
+    min-height: 44px;
+    border-radius: 16px;
+    padding: 8px 10px;
+    font-size: 12.5px;
   }
 
   .platform-update-overlay,
