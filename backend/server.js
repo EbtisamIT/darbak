@@ -8402,10 +8402,12 @@ app.get('/api/admin/experiences', requireAdmin, async (req, res) => {
       ? req.query.status
       : "pending";
 
-    const experiences = await Experience.find({ status })
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
+    const experiencesQuery = Experience.find({ status }).sort({ createdAt: -1 });
+    if (status !== "approved") {
+      experiencesQuery.limit(100);
+    }
+
+    const experiences = await experiencesQuery.lean();
 
     res.json({ data: experiences });
   } catch (err) {
