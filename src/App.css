@@ -1756,30 +1756,53 @@ body {
 
 .subscription-reminder-bar-content {
   min-height: 40px;
-  display: grid;
-  gap: 1px;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   border: 0;
   border-radius: 999px;
   background: var(--app-brand-soft);
   color: var(--app-brand);
   cursor: pointer;
-  padding: 8px 16px;
-  text-align: center;
+  padding: 8px 10px 8px 16px;
+  text-align: right;
   font-size: 12.5px;
   font-weight: 900;
   line-height: 1.55;
 }
 
-.subscription-reminder-bar-content strong,
-.subscription-reminder-bar-content span {
+.subscription-reminder-bar-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.subscription-reminder-bar-copy strong,
+.subscription-reminder-bar-copy span {
   display: block;
 }
 
-.subscription-reminder-bar-content span {
+.subscription-reminder-bar-copy span {
   color: var(--app-text-soft);
   font-size: 11.5px;
   font-weight: 800;
+}
+
+.subscription-reminder-bar-content em {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  border-radius: 999px;
+  padding: 5px 13px;
+  background: var(--app-brand);
+  color: #07100e;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 1000;
+  box-shadow: 0 10px 22px var(--app-brand-border);
 }
 
 .premium-access-platform-note {
@@ -4682,6 +4705,17 @@ body {
     border-radius: 16px;
     padding: 8px 10px;
     font-size: 12.5px;
+    gap: 8px;
+  }
+
+  .subscription-reminder-bar-copy span {
+    font-size: 11px;
+  }
+
+  .subscription-reminder-bar-content em {
+    min-height: 30px;
+    padding: 5px 10px;
+    font-size: 11px;
   }
 
   .platform-update-overlay,

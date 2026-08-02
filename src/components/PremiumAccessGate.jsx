@@ -487,22 +487,17 @@ export default function PremiumAccessGate() {
     setSessionFlag(SUBSCRIPTION_RETURN_REMINDER_SESSION_KEY);
     setStoredReminderTimestamp(SUBSCRIPTION_RETURN_REMINDER_SHOWN_PREFIX);
     reminderDetailRef.current = { detail, accessStatus: {} };
-    setIsReminderBarVisible(false);
-    setSubscriptionReminder({
-      detail,
-      accessStatus: {},
-      mode: "return_visit",
-    });
+    queueReminderBar();
     trackEvent("subscription_reminder_shown", {
       metadata: {
         feature: detail.feature,
         title: detail.title,
         source: detail.source,
-        mode: "return_visit",
+        mode: "return_visit_bar",
         pageViews: sessionPageViewsRef.current,
       },
     });
-  }, [isOpen, location.pathname, location.search, subscriptionReminder]);
+  }, [isOpen, location.pathname, location.search, queueReminderBar, subscriptionReminder]);
 
   useEffect(() => {
     const handlePremiumRequest = (event) => {
@@ -1370,8 +1365,11 @@ export default function PremiumAccessGate() {
             className="subscription-reminder-bar-content"
             onClick={() => openSubscriptionFromReminder("bottom_bar")}
           >
-            <strong>لا تنتظر تجربة جديدة كل يوم</strong>
-            <span>افتح جميع التجارب والفرص بـ5.99 ر.س</span>
+            <span className="subscription-reminder-bar-copy">
+              <strong>لا تنتظر تجربة جديدة كل يوم</strong>
+              <span>افتح جميع التجارب والفرص بـ5.99 ر.س</span>
+            </span>
+            <em>اشترك الآن</em>
           </button>
         </div>
       )}
