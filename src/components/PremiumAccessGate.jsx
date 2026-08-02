@@ -5,6 +5,7 @@ import {
   FiCreditCard,
   FiShield,
 } from "react-icons/fi";
+import { useLocation } from "react-router-dom";
 import API_BASE_URL from "../config/api";
 import {
   PREMIUM_ACCESS_EVENT,
@@ -31,7 +32,19 @@ const SUBSCRIPTION_REMINDER_SEEN_PREFIX =
   "darbak_subscription_reminder_seen_v1";
 const SUBSCRIPTION_REMINDER_BAR_DISMISSED_PREFIX =
   "darbak_subscription_reminder_bar_dismissed_v1";
+const SUBSCRIPTION_RETURN_REMINDER_SHOWN_PREFIX =
+  "darbak_subscription_return_reminder_shown_v1";
+const SUBSCRIPTION_LAST_VISIT_PREFIX =
+  "darbak_subscription_last_visit_v1";
+const SUBSCRIPTION_LIMIT_GATE_DISMISSED_SESSION_KEY =
+  "darbak_subscription_limit_gate_dismissed_session_v1";
+const SUBSCRIPTION_BAR_SHOWN_SESSION_KEY =
+  "darbak_subscription_bar_shown_session_v1";
+const SUBSCRIPTION_RETURN_REMINDER_SESSION_KEY =
+  "darbak_subscription_return_reminder_session_v1";
 const SUBSCRIPTION_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const SUBSCRIPTION_RETURN_REMINDER_COOLDOWN_MS = 3 * 24 * 60 * 60 * 1000;
+const SUBSCRIPTION_BROWSE_BAR_DELAY_MS = 3 * 60 * 1000;
 const SUBSCRIPTION_REMINDER_SUBSCRIBE_URL =
   "/subscribe?source=experience-reminder";
 
@@ -211,13 +224,24 @@ const setStoredReminderTimestamp = (prefix, timestamp = Date.now()) => {
   }
 };
 
-const getServerReminderTimestamp = (accessStatus = {}) => {
-  if (!accessStatus.subscriptionReminderLastShownAt) return 0;
-  const timestamp = new Date(
-    accessStatus.subscriptionReminderLastShownAt
-  ).getTime();
+const getSessionFlag = (key) => {
+  if (typeof window === "undefined") return false;
 
-  return Number.isFinite(timestamp) ? timestamp : 0;
+  try {
+    return window.sessionStorage.getItem(key) === "true";
+  } catch {
+    return false;
+  }
+};
+
+const setSessionFlag = (key) => {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.sessionStorage.setItem(key, "true");
+  } catch {
+    // Session storage only prevents repeated prompts in the current tab.
+  }
 };
 
 const isSubscriptionReminderCandidate = (detail = {}, accessStatus = {}) => {
@@ -235,19 +259,6 @@ const isSubscriptionReminderCandidate = (detail = {}, accessStatus = {}) => {
   );
 };
 
-const shouldShowSubscriptionReminder = (accessStatus = {}) => {
-  if (hasActivePremiumPass() || accessStatus.isPremium || accessStatus.isAdmin) {
-    return false;
-  }
-
-  const lastShownAt = Math.max(
-    getServerReminderTimestamp(accessStatus),
-    getStoredReminderTimestamp(SUBSCRIPTION_REMINDER_SEEN_PREFIX)
-  );
-
-  return !lastShownAt || Date.now() - lastShownAt >= SUBSCRIPTION_REMINDER_COOLDOWN_MS;
-};
-
 const shouldShowReminderBar = () => {
   const lastDismissedAt = getStoredReminderTimestamp(
     SUBSCRIPTION_REMINDER_BAR_DISMISSED_PREFIX
@@ -261,6 +272,7 @@ const shouldShowReminderBar = () => {
 };
 
 export default function PremiumAccessGate() {
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [feature, setFeature] = useState("");
   const [form, setForm] = useState(initialForm);
@@ -277,6 +289,7 @@ export default function PremiumAccessGate() {
   const [isResetMode, setIsResetMode] = useState(false);
   const [subscriptionReminder, setSubscriptionReminder] = useState(null);
   const [isReminderBarVisible, setIsReminderBarVisible] = useState(false);
+  const [isLimitGateOpen, setIsLimitGateOpen] = useState(false);
   const [platformStats, setPlatformStats] = useState({
     experiencesCount: null,
     organizationsCount: null,
@@ -284,6 +297,9 @@ export default function PremiumAccessGate() {
   });
   const pendingActionRef = useRef(null);
   const reminderDetailRef = useRef(null);
+  const returnReminderEligibleRef = useRef(false);
+  const sessionPageViewsRef = useRef(0);
+  const lastTrackedPathRef = useRef("");
   const selectedPlan =
     subscriptionPlans.find((plan) => plan.id === selectedPlanId) ||
     subscriptionPlans[0];
@@ -317,9 +333,6 @@ export default function PremiumAccessGate() {
 
   const closeSubscriptionReminder = useCallback(() => {
     setSubscriptionReminder(null);
-    if (shouldShowReminderBar()) {
-      setIsReminderBarVisible(true);
-    }
   }, []);
 
   const closeReminderBar = () => {
@@ -382,10 +395,83 @@ export default function PremiumAccessGate() {
 
   useEffect(() => {
     if (!isPremiumGateEnabled() || hasActivePremiumPass()) return;
-    if (shouldShowReminderBar()) {
-      setIsReminderBarVisible(true);
-    }
+
+    const lastVisitAt = getStoredReminderTimestamp(SUBSCRIPTION_LAST_VISIT_PREFIX);
+    const lastReturnReminderAt = getStoredReminderTimestamp(
+      SUBSCRIPTION_RETURN_REMINDER_SHOWN_PREFIX
+    );
+    const now = Date.now();
+
+    returnReminderEligibleRef.current = Boolean(
+      lastVisitAt &&
+        now - lastVisitAt >= SUBSCRIPTION_REMINDER_COOLDOWN_MS &&
+        (!lastReturnReminderAt ||
+          now - lastReturnReminderAt >= SUBSCRIPTION_RETURN_REMINDER_COOLDOWN_MS)
+    );
+
+    setStoredReminderTimestamp(SUBSCRIPTION_LAST_VISIT_PREFIX, now);
   }, []);
+
+  useEffect(() => {
+    if (!isPremiumGateEnabled() || hasActivePremiumPass()) return undefined;
+    if (!shouldShowReminderBar() || getSessionFlag(SUBSCRIPTION_BAR_SHOWN_SESSION_KEY)) {
+      return undefined;
+    }
+
+    const barTimer = window.setTimeout(() => {
+      if (!hasActivePremiumPass() && shouldShowReminderBar()) {
+        setSessionFlag(SUBSCRIPTION_BAR_SHOWN_SESSION_KEY);
+        setIsReminderBarVisible(true);
+      }
+    }, SUBSCRIPTION_BROWSE_BAR_DELAY_MS);
+
+    return () => window.clearTimeout(barTimer);
+  }, []);
+
+  useEffect(() => {
+    if (!isPremiumGateEnabled() || hasActivePremiumPass()) return;
+
+    const pathKey = `${location.pathname}${location.search}`;
+    if (lastTrackedPathRef.current !== pathKey) {
+      lastTrackedPathRef.current = pathKey;
+      sessionPageViewsRef.current += 1;
+    }
+
+    if (
+      !returnReminderEligibleRef.current ||
+      sessionPageViewsRef.current < 2 ||
+      getSessionFlag(SUBSCRIPTION_RETURN_REMINDER_SESSION_KEY) ||
+      isOpen ||
+      subscriptionReminder
+    ) {
+      return;
+    }
+
+    const detail = {
+      feature: "return_subscription_reminder",
+      title: "رجعت تكمل بحثك؟",
+      source: "return_visit",
+    };
+
+    setSessionFlag(SUBSCRIPTION_RETURN_REMINDER_SESSION_KEY);
+    setStoredReminderTimestamp(SUBSCRIPTION_RETURN_REMINDER_SHOWN_PREFIX);
+    reminderDetailRef.current = { detail, accessStatus: {} };
+    setIsReminderBarVisible(false);
+    setSubscriptionReminder({
+      detail,
+      accessStatus: {},
+      mode: "return_visit",
+    });
+    trackEvent("subscription_reminder_shown", {
+      metadata: {
+        feature: detail.feature,
+        title: detail.title,
+        source: detail.source,
+        mode: "return_visit",
+        pageViews: sessionPageViewsRef.current,
+      },
+    });
+  }, [isOpen, location.pathname, location.search, subscriptionReminder]);
 
   useEffect(() => {
     const handlePremiumRequest = (event) => {
@@ -396,21 +482,36 @@ export default function PremiumAccessGate() {
 
       if (isSubscriptionReminderCandidate(detail, accessStatus)) {
         pendingActionRef.current = null;
-        setIsOpen(false);
         setMessage("");
         setIsLoginOnly(false);
         setShowCheckoutForm(false);
         setIsResetMode(false);
         setResetToken("");
+        setSubscriptionReminder(null);
+        reminderDetailRef.current = { detail, accessStatus };
 
-        if (shouldShowSubscriptionReminder(accessStatus)) {
-          reminderDetailRef.current = { detail, accessStatus };
-          setSubscriptionReminder({ detail, accessStatus });
+        if (!getSessionFlag(SUBSCRIPTION_LIMIT_GATE_DISMISSED_SESSION_KEY)) {
+          setFeature(detail.feature || "limited_content");
           setIsReminderBarVisible(false);
+          setIsLimitGateOpen(true);
+          setIsOpen(true);
+          setMessage(
+            accessStatus.message ||
+              "وقفت هنا... وباقي أهم التجارب والفرص. فعّل دربك+ وكمل استكشافك."
+          );
           markSubscriptionReminderShown(detail, accessStatus);
-        } else if (shouldShowReminderBar()) {
-          reminderDetailRef.current = { detail, accessStatus };
-          setIsReminderBarVisible(true);
+          trackEventOncePerSession(
+            "premium_gate_opened",
+            {
+              metadata: {
+                feature: detail.feature || "",
+                title: detail.title || "",
+                source: detail.source || "",
+                gateType: "daily_limit_gate",
+              },
+            },
+            "daily_limit_gate"
+          );
         }
 
         return;
@@ -420,6 +521,7 @@ export default function PremiumAccessGate() {
 
       pendingActionRef.current = detail.onGranted || null;
       setFeature(detail.feature || "");
+      setIsLimitGateOpen(false);
       setIsLoginOnly(Boolean(detail.loginOnly));
       setShowCheckoutForm(false);
       setIsResetMode(false);
@@ -462,8 +564,12 @@ export default function PremiumAccessGate() {
           feature,
           source: isLoginOnly ? "login_only" : "premium_gate",
           planId: selectedPlan.id,
+          isLimitGate: isLimitGateOpen,
         },
       });
+    }
+    if (isLimitGateOpen) {
+      setSessionFlag(SUBSCRIPTION_LIMIT_GATE_DISMISSED_SESSION_KEY);
     }
     setIsOpen(false);
     setMessage("");
@@ -475,6 +581,7 @@ export default function PremiumAccessGate() {
     setShowCheckoutForm(false);
     setIsResetMode(false);
     setResetToken("");
+    setIsLimitGateOpen(false);
   };
 
   const updateField = (field, value) => {
@@ -492,6 +599,7 @@ export default function PremiumAccessGate() {
     setIsOpen(false);
     setMessage("");
     setIsLoginOnly(false);
+    setIsLimitGateOpen(false);
     setSubscriptionReminder(null);
     setIsReminderBarVisible(false);
     reminderDetailRef.current = null;
@@ -905,11 +1013,14 @@ export default function PremiumAccessGate() {
             </button>
             <div className="subscription-reminder-badge">دربك+</div>
             <h2 id="subscription-reminder-title">
-              كل يوم تجربة وفرصة؟ افتحها كلها اليوم 👀
+              {subscriptionReminder.mode === "return_visit"
+                ? "رجعت تكمل بحثك؟ 👀"
+                : "كل يوم تجربة وفرصة؟ افتحها كلها اليوم 👀"}
             </h2>
             <p>
-              وصلت لحدك المجاني اليوم. اشترك وافتح جميع تجارب التدريب والفرص
-              والمقابلات ومعلومات الجهات بـ5.99 ر.س شهريًا.
+              {subscriptionReminder.mode === "return_visit"
+                ? "افتح جميع التجارب والفرص المناسبة لتخصصك بدل الانتظار يوميًا."
+                : "وصلت لحدك المجاني اليوم. اشترك وافتح جميع تجارب التدريب والفرص والمقابلات ومعلومات الجهات بـ5.99 ر.س شهريًا."}
             </p>
             <div className="subscription-reminder-actions">
               <button
@@ -1240,7 +1351,8 @@ export default function PremiumAccessGate() {
             className="subscription-reminder-bar-content"
             onClick={() => openSubscriptionFromReminder("bottom_bar")}
           >
-            <span>باقي تجارب وفرص كثيرة تناسب تخصصك — افتحها بـ5.99 ر.س</span>
+            <strong>لا تنتظر تجربة جديدة كل يوم</strong>
+            <span>افتح جميع التجارب والفرص بـ5.99 ر.س</span>
           </button>
         </div>
       )}
