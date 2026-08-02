@@ -33,11 +33,6 @@ const uniqueSorted = (values = []) =>
     a.localeCompare(b, "ar")
   );
 
-const getOrganizationInitial = (name = "") => {
-  const firstLetter = name.trim().replace(/[^\u0600-\u06FFA-Za-z0-9]/g, "")[0];
-  return firstLetter || "م";
-};
-
 export default function InterviewsPage() {
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +41,7 @@ export default function InterviewsPage() {
   const [selectedMajor, setSelectedMajor] = useState("");
   const [selectedCity, setSelectedCity] = useState("");
   const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [selectedInterview, setSelectedInterview] = useState(null);
   const [questionForm, setQuestionForm] = useState(emptyQuestionForm);
   const [submittingQuestion, setSubmittingQuestion] = useState(false);
   const [questionMessage, setQuestionMessage] = useState("");
@@ -160,6 +156,19 @@ export default function InterviewsPage() {
     trackEvent("interview_questions_started", {
       metadata: {
         source: "interviews_page_cta",
+      },
+    });
+  };
+
+  const openInterviewDetails = (item) => {
+    setSelectedInterview(item);
+    trackEvent("interview_details_opened", {
+      organizationName: item.organizationName,
+      major: item.major,
+      city: Array.isArray(item.cities) ? item.cities[0] || "" : "",
+      metadata: {
+        questionsCount: item.questionsCount || item.questions?.length || 0,
+        sourcesCount: item.sourcesCount || 0,
       },
     });
   };
@@ -299,47 +308,80 @@ export default function InterviewsPage() {
               className="interview-card"
               key={`${item.organizationName}-${item.major}`}
             >
-              <div className="interview-card-head">
-                <span className="interview-organization-logo" aria-hidden="true">
-                  {getOrganizationInitial(item.organizationName)}
-                </span>
-                <div className="interview-card-main">
-                  <div className="interview-card-title-row">
-                    <div>
-                      <span className="interview-card-label">جهة المقابلة</span>
-                      <h2>{item.organizationName}</h2>
-                    </div>
-                    <span className="interview-count">
-                      {item.experiencesCount > 0
-                        ? `${item.experiencesCount} تجربة`
-                        : `${item.interviewSubmissionsCount || 1} مشاركة`}
-                    </span>
-                  </div>
-                  <p className="interview-card-subtitle">
-                    أسئلة مقابلة مرتبطة بالتخصص والجهة من تجارب دربك.
-                  </p>
-                </div>
+              <div className="interview-card-simple">
+                <span className="interview-card-label">اسم الشركة</span>
+                <h2>{item.organizationName}</h2>
+                <span className="interview-major-chip">{item.major}</span>
               </div>
 
-              <div className="interview-tags">
-                <span>{item.major}</span>
-                {item.majorCategory && <span>{item.majorCategory}</span>}
-                {Array.isArray(item.cities) &&
-                  item.cities.slice(0, 2).map((city) => (
-                    <span key={`${item.organizationName}-${city}`}>{city}</span>
-                  ))}
-              </div>
-
-              <div className="interview-questions">
-                {(item.questions || []).slice(0, 5).map((question, index) => (
-                  <p key={`${item.organizationName}-${item.major}-${index}`}>
-                    {question}
-                  </p>
-                ))}
+              <div className="interview-card-footer">
+                <button
+                  type="button"
+                  onClick={() => openInterviewDetails(item)}
+                >
+                  عرض التفاصيل
+                </button>
               </div>
             </article>
           ))}
         </section>
+      )}
+
+      {selectedInterview && (
+        <div
+          className="interview-question-modal-overlay"
+          onMouseDown={() => setSelectedInterview(null)}
+        >
+          <article
+            className="interview-details-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="interview-question-modal-close"
+              onClick={() => setSelectedInterview(null)}
+              aria-label="إغلاق"
+            >
+              ×
+            </button>
+
+            <div className="interview-details-head">
+              <span>تفاصيل مقابلة</span>
+              <h2>{selectedInterview.organizationName}</h2>
+              <p>
+                أسئلة مرتبطة بتخصص {selectedInterview.major}
+                {Array.isArray(selectedInterview.cities) &&
+                selectedInterview.cities.length > 0
+                  ? ` في ${selectedInterview.cities.join("، ")}`
+                  : ""}.
+              </p>
+            </div>
+
+            <div className="interview-details-meta">
+              <span>{selectedInterview.major}</span>
+              {selectedInterview.majorCategory && (
+                <span>{selectedInterview.majorCategory}</span>
+              )}
+              <span>
+                {selectedInterview.sourcesCount || 1} مصدر
+              </span>
+              <span>
+                {selectedInterview.questionsCount ||
+                  selectedInterview.questions?.length ||
+                  0}{" "}
+                سؤال
+              </span>
+            </div>
+
+            <div className="interview-details-questions">
+              {(selectedInterview.questions || []).map((question, index) => (
+                <p key={`${selectedInterview.organizationName}-detail-${index}`}>
+                  {question}
+                </p>
+              ))}
+            </div>
+          </article>
+        </div>
       )}
 
       {showQuestionModal && (
