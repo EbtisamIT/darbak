@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors"; // قائمة التخصصات
 import API_BASE_URL from "../config/api";
 import { trackEvent } from "../utils/analytics";
+import { buildAddExperienceSeoMeta, setPageSeo } from "../utils/seoMetadata";
 
 const EXPERIENCE_DRAFT_KEY = "darbak_add_experience_draft_v1";
 
@@ -65,6 +67,8 @@ const normalizeLinkedInProfileUrl = (value = "") => {
 };
 
 export default function AddExperienceModal({ onClose, onSaved }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const savedDraft = useMemo(() => getSavedDraft(), []);
   const [introAccepted, setIntroAccepted] = useState(Boolean(savedDraft));
   const [step, setStep] = useState(savedDraft?.step || 0);
@@ -116,6 +120,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const hasClearMajor = finalMajor.length > 0 && !isUnclearMajorText(finalMajor);
   const selectedMajorCategory = majors.find((item) => item.name === majorCategory);
   const subMajorOptions = selectedMajorCategory?.subMajors || [];
+  const isStandaloneAddExperiencePage =
+    location.pathname === "/add-experience" ||
+    location.pathname === "/AddExperienceModal";
 
   useEffect(() => {
     trackEvent("add_experience_started", {
@@ -125,6 +132,11 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!isStandaloneAddExperiencePage) return;
+    setPageSeo(buildAddExperienceSeoMeta());
+  }, [isStandaloneAddExperiencePage]);
 
   useEffect(() => {
     if (hadReward !== "yes" && rewardAmount) {
@@ -326,6 +338,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
   const handleClose = () => {
     if (onClose) onClose();
+    else if (isStandaloneAddExperiencePage) navigate("/experiences");
   };
 
   const hasDraftContent = useMemo(
@@ -807,7 +820,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 lineHeight: 1.45,
               }}
             >
-              طالب قبلك كتب تجربته...
+              خلصت تدريبك؟ اكتب تجربتك
             </h2>
 
             <p
@@ -818,7 +831,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 lineHeight: 1.8,
               }}
             >
-              واليوم استفاد منها <strong style={{ color: "var(--app-brand)" }}>1000 طالبًا</strong>.
+              تجربة بسيطة منك قد تفيد الطلاب المقبلين على التدريب، واليوم
+              استفاد من تجارب دربك{" "}
+              <strong style={{ color: "var(--app-brand)" }}>1000 طالبًا</strong>.
             </p>
 
             <div style={{ fontSize: 28, margin: "8px 0" }}>🤍</div>

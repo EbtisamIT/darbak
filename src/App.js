@@ -1477,6 +1477,7 @@ function AppLayout({ theme, setTheme }) {
             <Route path="/legal" element={<LegalPage />} />
             <Route path="/terms" element={<LegalPage />} />
             <Route path="/privacy" element={<LegalPage />} />
+            <Route path="/add-experience" element={<AddExperienceModal />} />
             <Route path="/AddExperienceModal" element={<AddExperienceModal />} />
           </Routes>
         </div>
