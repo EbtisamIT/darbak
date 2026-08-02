@@ -95,7 +95,7 @@ export default function FeaturedAmbassadorsSection({
 
     axios
       .get(`${API_BASE_URL}/api/experiences/featured-ambassadors`, {
-        params: { limit: 3 },
+        params: { limit: 4 },
       })
       .then(({ data }) => {
         if (!isMounted) return;
@@ -110,7 +110,7 @@ export default function FeaturedAmbassadorsSection({
     };
   }, []);
 
-  const visibleItems = useMemo(() => items.slice(0, 3), [items]);
+  const visibleItems = useMemo(() => items.slice(0, 4), [items]);
 
   if (visibleItems.length === 0) return null;
 
@@ -462,6 +462,7 @@ export default function FeaturedAmbassadorsSection({
         }
 
         .featured-ambassadors.is-compact .featured-ambassadors-grid {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 12px;
         }
 
