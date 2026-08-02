@@ -445,54 +445,55 @@ export default function FeaturedAmbassadorsSection({
         }
 
         .featured-ambassadors.is-compact {
-          width: min(100%, 1040px);
+          width: min(100%, 980px);
+          padding: 12px 10px 16px;
         }
 
         .featured-ambassadors.is-compact .featured-ambassadors-head {
-          margin-bottom: 12px;
+          margin-bottom: 10px;
         }
 
         .featured-ambassadors.is-compact .featured-ambassadors-head h2 {
-          font-size: 21px;
+          font-size: 20px;
         }
 
         .featured-ambassadors.is-compact .featured-ambassadors-head p {
-          font-size: 13px;
-          max-width: 360px;
+          font-size: 12px;
+          max-width: 320px;
         }
 
         .featured-ambassadors.is-compact .featured-ambassadors-grid {
           grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 12px;
+          gap: 10px;
         }
 
         .featured-ambassadors.is-compact .featured-ambassador-card {
-          min-height: 318px;
-          gap: 11px;
-          border-radius: 24px;
-          padding: 22px 18px 18px;
-          box-shadow: 0 16px 34px rgba(0,0,0,0.18);
+          min-height: 248px;
+          gap: 9px;
+          border-radius: 20px;
+          padding: 18px 14px 14px;
+          box-shadow: 0 12px 26px rgba(0,0,0,0.16);
         }
 
         .featured-ambassadors.is-compact .featured-card-badge {
-          top: 14px;
-          inset-inline-start: 14px;
-          padding: 5px 10px;
-          font-size: 10px;
+          top: 12px;
+          inset-inline-start: 12px;
+          padding: 4px 8px;
+          font-size: 9.5px;
         }
 
         .featured-ambassadors.is-compact .featured-card-logo {
-          width: 108px;
-          height: 58px;
-          border-radius: 15px;
+          width: 88px;
+          height: 48px;
+          border-radius: 13px;
         }
 
         .featured-ambassadors.is-compact .featured-card-logo span {
-          font-size: 24px;
+          font-size: 21px;
         }
 
         .featured-ambassadors.is-compact .featured-ambassador-card h3 {
-          font-size: 20px;
+          font-size: 17px;
           line-height: 1.35;
           display: -webkit-box;
           -webkit-line-clamp: 2;
@@ -501,50 +502,43 @@ export default function FeaturedAmbassadorsSection({
         }
 
         .featured-ambassadors.is-compact .featured-card-summary {
-          min-height: 42px;
-          max-width: 260px;
-          font-size: 12.5px;
-          line-height: 1.65;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
+          display: none;
         }
 
         .featured-ambassadors.is-compact .featured-card-tags {
-          gap: 6px;
-          min-height: 30px;
+          gap: 5px;
+          min-height: 26px;
         }
 
         .featured-ambassadors.is-compact .featured-card-tags span {
-          min-height: 27px;
-          padding: 4px 10px;
-          font-size: 10.5px;
+          min-height: 24px;
+          padding: 3px 8px;
+          font-size: 9.8px;
         }
 
         .featured-ambassadors.is-compact .featured-card-footer {
-          gap: 9px;
+          gap: 7px;
         }
 
         .featured-ambassadors.is-compact .featured-card-ambassador-row {
-          min-height: 30px;
-          gap: 6px;
+          min-height: 26px;
+          gap: 5px;
         }
 
         .featured-ambassadors.is-compact .featured-card-owner {
-          font-size: 11px;
+          display: none;
         }
 
         .featured-ambassadors.is-compact .featured-card-linkedin {
-          min-height: 28px;
-          padding: 4px 10px;
-          font-size: 10.5px;
+          min-height: 26px;
+          padding: 4px 9px;
+          font-size: 10px;
         }
 
         .featured-ambassadors.is-compact .featured-ambassador-button {
-          min-height: 44px;
-          font-size: 13px;
-          box-shadow: 0 10px 22px rgba(0,0,0,0.16);
+          min-height: 38px;
+          font-size: 12px;
+          box-shadow: 0 8px 18px rgba(0,0,0,0.15);
         }
 
         @media (max-width: 980px) {
@@ -627,23 +621,22 @@ export default function FeaturedAmbassadorsSection({
           }
 
           .featured-ambassadors.is-compact .featured-ambassador-card {
-            flex-basis: min(74vw, 280px);
-            min-height: 318px;
-            padding: 22px 16px 18px;
+            flex-basis: min(64vw, 238px);
+            min-height: 252px;
+            padding: 18px 13px 14px;
           }
 
           .featured-ambassadors.is-compact .featured-card-logo {
-            width: 98px;
-            height: 54px;
+            width: 82px;
+            height: 46px;
           }
 
           .featured-ambassadors.is-compact .featured-ambassador-card h3 {
-            font-size: 19px;
+            font-size: 16px;
           }
 
           .featured-ambassadors.is-compact .featured-card-summary {
-            min-height: 40px;
-            font-size: 12px;
+            display: none;
           }
         }
       `}</style>
