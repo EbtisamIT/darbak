@@ -315,6 +315,16 @@ const emptyUserManagement = {
   returnedSubscriptions: 0,
 };
 
+const emptyTelegramContent = {
+  date: "",
+  summary: {
+    totalExperiences: 0,
+    totalOpportunities: 0,
+    totalInterviews: 0,
+  },
+  data: [],
+};
+
 const analyticsEventLabels = {
   page_view: "زيارة صفحة",
   where_to_train_search: "بحث وين أتدرب",
@@ -1037,6 +1047,8 @@ export default function AdminReviewPage() {
   const [opportunities, setOpportunities] = useState([]);
   const [interviewQuestions, setInterviewQuestions] = useState([]);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
+  const [telegramContent, setTelegramContent] = useState(emptyTelegramContent);
+  const [copiedTelegramCardId, setCopiedTelegramCardId] = useState("");
   const [analyticsDays, setAnalyticsDays] = useState("30");
   const [userManagement, setUserManagement] = useState(emptyUserManagement);
   const [userStatus, setUserStatus] = useState("all");
@@ -1097,6 +1109,8 @@ export default function AdminReviewPage() {
       ? interviewQuestions.length
       : adminView === "opportunities"
       ? opportunities.length
+      : adminView === "telegramContent"
+      ? (telegramContent.data || []).length
       : adminView === "analytics"
       ? analytics.totalEvents
       : adminView === "users"
@@ -1117,6 +1131,8 @@ export default function AdminReviewPage() {
       ? "أسئلة مقابلة"
       : adminView === "opportunities"
       ? "فرصة"
+      : adminView === "telegramContent"
+      ? "منشور جاهز"
       : adminView === "analytics"
       ? "حدث"
       : adminView === "users"
@@ -1361,6 +1377,42 @@ export default function AdminReviewPage() {
     }
   };
 
+  const fetchTelegramContent = async () => {
+    if (!password) {
+      setMessage("اكتب كلمة المرور لعرض المحتوى.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      sessionStorage.setItem("darbak_admin_password", password);
+
+      const { data } = await axios.get(`${API_BASE_URL}/api/admin/telegram-content`, {
+        headers: authHeaders,
+      });
+
+      setTelegramContent({
+        ...emptyTelegramContent,
+        ...data,
+        summary: {
+          ...emptyTelegramContent.summary,
+          ...(data.summary || {}),
+        },
+        data: Array.isArray(data.data) ? data.data : [],
+      });
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.status === 401
+          ? "كلمة المرور غير صحيحة."
+          : "تعذر تحميل محتوى القناة."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!password) return;
 
@@ -1376,6 +1428,8 @@ export default function AdminReviewPage() {
       fetchAnalytics();
     } else if (adminView === "users") {
       fetchUserManagement();
+    } else if (adminView === "telegramContent") {
+      fetchTelegramContent();
     } else {
       fetchExperiences();
     }
@@ -1421,6 +1475,11 @@ export default function AdminReviewPage() {
 
     if (adminView === "users") {
       fetchUserManagement();
+      return;
+    }
+
+    if (adminView === "telegramContent") {
+      fetchTelegramContent();
       return;
     }
 
@@ -2237,6 +2296,228 @@ export default function AdminReviewPage() {
     );
   };
 
+  const copyTelegramPost = async (card) => {
+    const text = card?.body || "";
+    if (!text) return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedTelegramCardId(card.id);
+      setMessage("تم نسخ منشور القناة.");
+      window.setTimeout(() => setCopiedTelegramCardId(""), 1800);
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر النسخ تلقائيًا، انسخي النص يدويًا من المربع.");
+    }
+  };
+
+  const renderTelegramContent = () => {
+    const cards = telegramContent.data || [];
+    const summary = {
+      ...emptyTelegramContent.summary,
+      ...(telegramContent.summary || {}),
+    };
+
+    return (
+      <div style={{ display: "grid", gap: "12px" }}>
+        <section
+          style={{
+            ...cardStyle,
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "12px",
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+              محتوى قناة التليجرام اليوم
+            </h2>
+            <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.7 }}>
+              منشورات جاهزة من بيانات دربك نفسها، تتغير يوميًا وتناسب النشر السريع في القناة.
+            </p>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              alignItems: "center",
+              flexWrap: "wrap",
+              justifyContent: "flex-end",
+            }}
+          >
+            {[
+              ["التجارب", summary.totalExperiences],
+              ["الفرص", summary.totalOpportunities],
+              ["المقابلات", summary.totalInterviews],
+            ].map(([label, value]) => (
+              <span
+                key={label}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  border: `1px solid ${adminColors.inputBorder}`,
+                  borderRadius: "999px",
+                  padding: "8px 11px",
+                  color: adminColors.text,
+                  background: "rgba(102,208,195,0.08)",
+                  fontSize: 13,
+                  fontWeight: 900,
+                }}
+              >
+                <strong style={{ color: adminColors.brand }}>
+                  {Number(value || 0).toLocaleString("en-US")}
+                </strong>
+                {label}
+              </span>
+            ))}
+          </div>
+        </section>
+
+        {cards.length === 0 && !loading ? (
+          <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
+            لا توجد منشورات جاهزة حاليًا.
+          </div>
+        ) : (
+          <section
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gap: "12px",
+            }}
+          >
+            {cards.map((card) => {
+              const isCopied = copiedTelegramCardId === card.id;
+
+              return (
+                <article
+                  key={card.id}
+                  style={{
+                    ...cardStyle,
+                    display: "grid",
+                    gap: "12px",
+                    minHeight: "100%",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "10px",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <div>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          border: `1px solid ${adminColors.inputBorder}`,
+                          borderRadius: "999px",
+                          padding: "5px 9px",
+                          color: adminColors.brand,
+                          fontSize: 12,
+                          fontWeight: 900,
+                          marginBottom: "8px",
+                        }}
+                      >
+                        {card.type}
+                      </span>
+                      <h3 style={{ color: adminColors.text, margin: "0 0 4px" }}>
+                        {card.title}
+                      </h3>
+                      <p style={{ color: adminColors.textSoft, margin: 0, lineHeight: 1.7 }}>
+                        {card.subtitle || "منصة دربك"}
+                      </p>
+                    </div>
+                    <small
+                      style={{
+                        color: adminColors.muted,
+                        lineHeight: 1.6,
+                        textAlign: "left",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {card.sourceCount
+                        ? `${Number(card.sourceCount).toLocaleString("en-US")} ${
+                            card.sourceLabel || ""
+                          }`
+                        : formatAdminDateTime(telegramContent.date)}
+                    </small>
+                  </div>
+
+                  <textarea
+                    value={card.body || ""}
+                    readOnly
+                    rows={10}
+                    style={{
+                      width: "100%",
+                      minHeight: 220,
+                      boxSizing: "border-box",
+                      resize: "vertical",
+                      background: adminColors.inputBg,
+                      border: `1px solid ${adminColors.inputBorder}`,
+                      borderRadius: "12px",
+                      color: adminColors.text,
+                      padding: "12px",
+                      fontFamily: "inherit",
+                      lineHeight: 1.8,
+                      direction: "rtl",
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "auto",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => copyTelegramPost(card)}
+                      style={{
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "10px 14px",
+                        background: isCopied ? "#22c55e" : adminColors.brand,
+                        color: "#07100e",
+                        fontWeight: 900,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {isCopied ? "تم النسخ" : "نسخ المنشور"}
+                    </button>
+                    {card.url ? (
+                      <a
+                        href={card.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          border: `1px solid ${adminColors.inputBorder}`,
+                          borderRadius: "10px",
+                          padding: "10px 14px",
+                          color: adminColors.brand,
+                          textDecoration: "none",
+                          fontWeight: 900,
+                        }}
+                      >
+                        فتح المصدر
+                      </a>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        )}
+      </div>
+    );
+  };
+
   const renderUserManagement = () => {
     const summary = {
       ...emptyUserManagement.summary,
@@ -2977,6 +3258,7 @@ export default function AdminReviewPage() {
           <option value="contactMessages">رسائل التواصل</option>
           <option value="opportunities">الفرص</option>
           <option value="interviewQuestions">أسئلة المقابلات</option>
+          <option value="telegramContent">محتوى قناة التليجرام</option>
           <option value="users">المستخدمين والاشتراكات</option>
           <option value="analytics">التحليلات</option>
         </select>
@@ -3041,6 +3323,20 @@ export default function AdminReviewPage() {
               }}
             />
           </>
+        ) : adminView === "telegramContent" ? (
+          <span
+            style={{
+              color: adminColors.textSoft,
+              border: `1px solid ${adminColors.inputBorder}`,
+              borderRadius: "999px",
+              padding: "10px 13px",
+              background: "rgba(102,208,195,0.08)",
+              fontSize: 13,
+              fontWeight: 900,
+            }}
+          >
+            منشورات اليوم جاهزة للنسخ
+          </span>
         ) : (
           <select
             value={adminView === "opportunities" ? opportunityStatus : status}
@@ -3649,6 +3945,8 @@ export default function AdminReviewPage() {
             )}
           </section>
         </div>
+      ) : adminView === "telegramContent" ? (
+        renderTelegramContent()
       ) : adminView === "users" ? (
         renderUserManagement()
       ) : adminView === "suggestions" ? (

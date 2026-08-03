@@ -8452,6 +8452,218 @@ app.get('/api/admin/contact-messages', requireAdmin, async (req, res) => {
   }
 });
 
+const normalizeTelegramPostText = (value = "") =>
+  value
+    .toString()
+    .replace(/\r/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const limitTelegramText = (value = "", maxLength = 260) => {
+  const text = normalizeTelegramPostText(value);
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trim()}...`;
+};
+
+const getDailyContentItem = (items = [], salt = 0) => {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const todayKey = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const seed =
+    Number(todayKey) +
+    salt +
+    todayKey.split("").reduce((total, digit) => total + Number(digit || 0), 0);
+  return items[seed % items.length];
+};
+
+const getTelegramUrl = (path = "/") => `${getFrontendUrl()}${path}`;
+
+const joinPostValues = (values = [], fallback = "غير محدد") => {
+  const sourceValues = Array.isArray(values) ? values : [values];
+  const cleaned = sourceValues
+    .flatMap((value) => (Array.isArray(value) ? value : [value]))
+    .map((value) => (value || "").toString().trim())
+    .filter(Boolean);
+
+  return cleaned.length > 0 ? [...new Set(cleaned)].slice(0, 4).join("، ") : fallback;
+};
+
+const getOpportunityTelegramCities = (opportunity = {}) =>
+  joinPostValues([opportunity.cities, opportunity.city], "كل المدن");
+
+const getOpportunityTelegramSpecialties = (opportunity = {}) => {
+  const specialties = joinPostValues(opportunity.specialties, "");
+  if (specialties) return specialties;
+
+  return joinPostValues(opportunity.majorCategories, "تخصصات متعددة");
+};
+
+const buildTelegramContentCard = ({
+  type,
+  title,
+  subtitle,
+  body,
+  url = "",
+  sourceCount = 0,
+  sourceLabel = "",
+}) => ({
+  id: crypto
+    .createHash("sha1")
+    .update(`${type}:${title}:${url}:${body}`)
+    .digest("hex")
+    .slice(0, 14),
+  type,
+  title,
+  subtitle,
+  body: normalizeTelegramPostText(body),
+  url,
+  sourceCount,
+  sourceLabel,
+});
+
+app.get('/api/admin/telegram-content', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    await markExpiredOpportunities();
+
+    const approvedFilter = getApprovedExperiencesFilter();
+    const activeOpportunityFilter = { status: "active" };
+    const [
+      totalExperiences,
+      totalOpportunities,
+      totalInterviews,
+      recentExperiences,
+      activeOpportunities,
+      approvedInterviews,
+    ] = await Promise.all([
+      Experience.countDocuments(approvedFilter),
+      Opportunity.countDocuments(activeOpportunityFilter),
+      InterviewQuestion.countDocuments({ status: "approved" }),
+      Experience.find(approvedFilter)
+        .sort({ reviewedAt: -1, createdAt: -1 })
+        .limit(80)
+        .lean(),
+      Opportunity.find(activeOpportunityFilter)
+        .sort({ featured: -1, updatedAt: -1, createdAt: -1 })
+        .limit(80)
+        .lean(),
+      InterviewQuestion.find({ status: "approved" })
+        .sort({ reviewedAt: -1, createdAt: -1 })
+        .limit(60)
+        .lean(),
+    ]);
+
+    const experience = getDailyContentItem(recentExperiences, 7);
+    const opportunity = getDailyContentItem(activeOpportunities, 17);
+    const interview = getDailyContentItem(approvedInterviews, 27);
+    const cards = [];
+
+    if (opportunity) {
+      const cities = getOpportunityTelegramCities(opportunity);
+      const specialties = getOpportunityTelegramSpecialties(opportunity);
+      const deadline = opportunity.deadline
+        ? `\nآخر موعد: ${new Date(opportunity.deadline).toLocaleDateString("ar-SA")}`
+        : "";
+      const reward =
+        opportunity.hasReward === "yes"
+          ? "\nالمكافأة: يوجد"
+          : opportunity.hasReward === "no"
+          ? "\nالمكافأة: لا يوجد"
+          : "";
+      const url = getTelegramUrl(`/where-to-train/opportunity/${opportunity._id}`);
+
+      cards.push(
+        buildTelegramContentCard({
+          type: "فرصة",
+          title: "فرصة تدريب اليوم",
+          subtitle: opportunity.organizationName,
+          url,
+          sourceCount: totalOpportunities,
+          sourceLabel: "فرصة نشطة",
+          body: `فرصة تدريب اليوم في دربك\n\n${opportunity.title}\nالجهة: ${opportunity.organizationName}\nالمدينة: ${cities}\nمناسبة لـ: ${specialties}${reward}${deadline}\n\nتابع التفاصيل من دربك:\n${url}`,
+        })
+      );
+    }
+
+    if (experience) {
+      const url = getTelegramUrl(`/experiences/${experience._id}`);
+      const snippet = limitTelegramText(experience.description, 190);
+      const rating = experience.starRating ? `\nالتقييم: ${experience.starRating}/5` : "";
+
+      cards.push(
+        buildTelegramContentCard({
+          type: "تجربة",
+          title: "تجربة مختصرة للنشر",
+          subtitle: experience.organizationName,
+          url,
+          sourceCount: totalExperiences,
+          sourceLabel: "تجربة منشورة",
+          body: `من تجارب دربك\n\nتجربة في ${experience.organizationName}\nالتخصص: ${experience.major || experience.majorCategory || "غير محدد"}\nالمدينة: ${experience.city || "غير محددة"}${rating}\n\n${snippet}\n\nاقرأ التجربة كاملة:\n${url}`,
+        })
+      );
+    }
+
+    if (interview) {
+      const question = limitTelegramText((interview.questions || [])[0], 180);
+      const url = getTelegramUrl("/interviews");
+
+      cards.push(
+        buildTelegramContentCard({
+          type: "مقابلة",
+          title: "سؤال مقابلة اليوم",
+          subtitle: interview.organizationName,
+          url,
+          sourceCount: totalInterviews,
+          sourceLabel: "مجموعة أسئلة",
+          body: `سؤال مقابلة من دربك\n\nالجهة: ${interview.organizationName}\nالتخصص: ${interview.major}\n${interview.city ? `المدينة: ${interview.city}\n` : ""}\nالسؤال:\n${question}\n\nاستعد للمقابلات من صفحة مقابلات دربك:\n${url}`,
+        })
+      );
+    }
+
+    const finderUrl = getTelegramUrl("/where-to-train");
+    cards.push(
+      buildTelegramContentCard({
+        type: "وين أتدرب",
+        title: "منشور بحث عن جهات",
+        subtitle: "دعوة لاستخدام صفحة وين أتدرب",
+        url: finderUrl,
+        sourceCount: totalOpportunities,
+        sourceLabel: "فرصة وجهة",
+        body: `ما تعرف وين تبدأ تدريبك؟\n\nفي صفحة وين أتدرب تقدر تختار تخصصك ومدينتك، وتشوف جهات وفرص وتجارب تساعدك تبدأ بخطوة أوضح.\n\nابدأ من هنا:\n${finderUrl}`,
+      })
+    );
+
+    const addExperienceUrl = getTelegramUrl("/add-experience");
+    cards.push(
+      buildTelegramContentCard({
+        type: "مشاركة",
+        title: "دعوة لإضافة تجربة",
+        subtitle: "لزيادة محتوى دربك",
+        url: addExperienceUrl,
+        sourceCount: totalExperiences,
+        sourceLabel: "تجربة منشورة",
+        body: `خلصت تدريبك؟\n\nاكتب تجربتك في دربك، يمكن تكون سبب في طمأنة طالب قبل أول يوم تدريب أو تساعده يختار جهة مناسبة.\n\nشارك تجربتك هنا:\n${addExperienceUrl}`,
+      })
+    );
+
+    res.json({
+      date: new Date().toISOString(),
+      summary: {
+        totalExperiences,
+        totalOpportunities,
+        totalInterviews,
+      },
+      data: cards,
+    });
+  } catch (err) {
+    console.error("❌ Admin Telegram content error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/opportunities', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
