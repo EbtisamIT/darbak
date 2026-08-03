@@ -47,6 +47,8 @@ const panelButtonStyle = (active = false) => ({
   whiteSpace: "nowrap",
 });
 
+const TELEGRAM_CHANNEL_URL = "https://t.me/darbak_1";
+
 export default function Footer() {
   const [activePanel, setActivePanel] = useState("");
   const [suggestionText, setSuggestionText] = useState("");
@@ -73,6 +75,12 @@ export default function Footer() {
     setActivePanel((current) => (current === panelName ? "" : panelName));
     if (panelName === "contact") trackEvent("contact_form_opened");
     if (panelName === "suggestion") trackEvent("suggestion_form_opened");
+  };
+
+  const trackTelegramClick = (source) => {
+    trackEvent("telegram_channel_clicked", {
+      metadata: { source },
+    });
   };
 
   const submitSuggestion = async (event) => {
@@ -180,11 +188,20 @@ export default function Footer() {
               صوتك يطور دربك
             </strong>
             <span style={{ color: "var(--app-text-soft)", fontSize: "13px" }}>
-              أرسل اقتراحًا سريعًا أو تواصل معنا بخصوص أي ملاحظة.
+              أرسل اقتراحًا سريعًا أو تابع قناة الفرص والتنبيهات.
             </span>
           </div>
 
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <a
+              href={TELEGRAM_CHANNEL_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackTelegramClick("footer")}
+              style={{ textDecoration: "none" }}
+            >
+              <span style={panelButtonStyle(true)}>قناة الفرص</span>
+            </a>
             <button
               type="button"
               onClick={() => openPanel("suggestion")}

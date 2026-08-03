@@ -337,6 +337,7 @@ const analyticsEventLabels = {
   diagnosis_store_click: "ضغط إعلان ملف المتدرب",
   training_guide_opportunities_banner_click: "ضغط إعلان ملف المتدرب",
   training_guide_banner_click: "ضغط إعلان ملف المتدرب",
+  telegram_channel_clicked: "ضغط قناة تيليجرام",
   diagnosis_cv_product_click: "ضغط إعلان السيرة الذاتية",
   share_item_clicked: "مشاركة عنصر",
   subscription_reminder_shown: "ظهور تذكير الاشتراك",

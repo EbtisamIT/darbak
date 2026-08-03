@@ -12,6 +12,8 @@ import { trackEvent } from "../utils/analytics";
 import logo from "./logo.png";
 import AddExperienceModal from "./AddExperienceModal";
 
+const TELEGRAM_CHANNEL_URL = "https://t.me/darbak_1";
+
 const Navbar = ({ theme = "dark", setTheme }) => {
   const [showModal, setShowModal] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
@@ -199,6 +201,16 @@ const Navbar = ({ theme = "dark", setTheme }) => {
 
   const openPortfolioAnnouncement = () => {
     window.dispatchEvent(new Event("darbak:open-portfolio-announcement"));
+    setFloatingMenuOpen(false);
+  };
+
+  const trackTelegramClick = (source) => {
+    trackEvent("telegram_channel_clicked", {
+      metadata: {
+        source,
+        path: location.pathname,
+      },
+    });
     setFloatingMenuOpen(false);
   };
 
@@ -398,6 +410,22 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             {isMobile ? "وين أتدرب" : "🎯 وين أتدرب؟"}
           </Link>
 
+          {!isMobile && (
+            <a
+              href={TELEGRAM_CHANNEL_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackTelegramClick("navbar")}
+              style={{
+                ...quietActionButtonStyle,
+                color: "var(--app-brand)",
+                textDecoration: "none",
+              }}
+            >
+              قناة الفرص
+            </a>
+          )}
+
           <button
             type="button"
             onClick={openTrainingDiagnosis}
@@ -504,6 +532,20 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 <span>وين أتدرب؟</span>
                 <span aria-hidden="true">🎯</span>
               </Link>
+
+              <a
+                href={TELEGRAM_CHANNEL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackTelegramClick("floating_nav")}
+                style={{
+                  ...floatingLinkStyle("/telegram-channel"),
+                  color: "var(--app-brand)",
+                }}
+              >
+                <span>قناة فرص التدريب</span>
+                <span aria-hidden="true">↗</span>
+              </a>
 
               <button
                 type="button"

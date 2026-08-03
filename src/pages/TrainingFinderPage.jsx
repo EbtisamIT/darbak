@@ -72,6 +72,7 @@ export const cityOptions = [
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_FINDER_FAQ = false;
+const TELEGRAM_CHANNEL_URL = "https://t.me/darbak_1";
 const LOCKED_OPPORTUNITY_PREVIEW =
   "هذه معاينة مختصرة للفرصة. فعّل دربك+ للوصول إلى تفاصيل الفرصة وروابط التقديم المباشرة.";
 const WHERE_TO_TRAIN_PREMIUM_TITLE = "باقي تفاصيل الفرص والجهات 👀";
@@ -2704,6 +2705,39 @@ export default function TrainingFinderPage() {
     });
   };
 
+  const trackTelegramChannelClick = (source) => {
+    trackEvent("telegram_channel_clicked", {
+      major: selectedSpecialtyLabel,
+      city,
+      resultsCount: visibleOpportunities.length,
+      metadata: {
+        selectedSpecialty,
+        source,
+      },
+    });
+  };
+
+  const renderTelegramChannelBanner = () => (
+    <aside className="telegram-channel-banner" aria-label="قناة دربك في تيليجرام">
+      <div className="telegram-channel-copy">
+        <span>تنبيهات الفرص</span>
+        <strong>وصلك جديد التدريب أول بأول</strong>
+        <p>
+          انضم لقناة دربك على تيليجرام لمتابعة فرص التدريب، الجهات الجديدة،
+          وتذكيرات التقديم بدون ما تضيع بين القروبات.
+        </p>
+      </div>
+      <a
+        href={TELEGRAM_CHANNEL_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => trackTelegramChannelClick("where_to_train_banner")}
+      >
+        انضم للقناة
+      </a>
+    </aside>
+  );
+
   const renderOpportunityGuideBanner = () => (
     <aside
       className="opportunity-guide-inline-banner"
@@ -2855,6 +2889,8 @@ export default function TrainingFinderPage() {
               : "اختَر تخصصك والمدينة، وشاهد الجهات والفرص بطريقة مرتبة."}
           </p>
         </header>
+
+        {renderTelegramChannelBanner()}
 
         <form
           onSubmit={fetchTrainingTargets}
@@ -5777,7 +5813,87 @@ export default function TrainingFinderPage() {
           transform: translateY(-1px);
         }
 
+        .telegram-channel-banner {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 12px;
+          padding: 13px 15px;
+          border-radius: 16px;
+          border: 1px solid var(--app-border);
+          background:
+            linear-gradient(135deg, var(--app-brand-soft), transparent 68%),
+            var(--app-card);
+          box-shadow: 0 12px 28px var(--app-shadow);
+          text-align: right;
+        }
+
+        .telegram-channel-copy {
+          min-width: 0;
+          display: grid;
+          gap: 4px;
+        }
+
+        .telegram-channel-copy span {
+          width: fit-content;
+          color: var(--app-brand);
+          font-size: 12px;
+          font-weight: 900;
+          line-height: 1.4;
+        }
+
+        .telegram-channel-copy strong {
+          color: var(--app-text);
+          font-size: 16px;
+          line-height: 1.55;
+          font-weight: 900;
+        }
+
+        .telegram-channel-copy p {
+          margin: 0;
+          color: var(--app-text-soft);
+          font-size: 12.5px;
+          font-weight: 750;
+          line-height: 1.75;
+        }
+
+        .telegram-channel-banner a {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 40px;
+          border: 1px solid var(--app-brand-border);
+          border-radius: 999px;
+          background: var(--app-brand);
+          color: #071315;
+          padding: 9px 15px;
+          text-decoration: none;
+          font-size: 13px;
+          font-weight: 900;
+          white-space: nowrap;
+          box-shadow: 0 10px 24px rgba(125, 219, 205, 0.16);
+        }
+
         @media (max-width: 760px) {
+          .telegram-channel-banner {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+            padding: 12px !important;
+          }
+
+          .telegram-channel-banner a {
+            width: 100% !important;
+            box-sizing: border-box;
+          }
+
+          .telegram-channel-copy strong {
+            font-size: 15px !important;
+          }
+
+          .telegram-channel-copy p {
+            font-size: 12px !important;
+          }
+
           .opportunity-guide-inline-banner {
             grid-template-columns: 1fr !important;
           }
