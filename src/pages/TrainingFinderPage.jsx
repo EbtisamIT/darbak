@@ -86,6 +86,7 @@ const emptyOpportunityRequest = {
   title: "",
   city: "",
   specialty: "",
+  targetAudience: "",
   applicationUrl: "",
   sourceUrl: "",
   deadline: "",
@@ -683,6 +684,12 @@ const OrganizationLogo = ({
 };
 
 const opportunityLabels = {
+  targetAudience: {
+    all: "للجميع",
+    women: "للبنات",
+    men: "للرجال",
+    "": "غير محدد",
+  },
   trainingEnvironment: {
     mixed: "مختلطة",
     women: "نساء",
@@ -727,6 +734,18 @@ const getOpportunityDisplayLabel = (field, value) => {
   return hiddenOpportunityLabels.has(String(label).trim().toLowerCase())
     ? ""
     : label;
+};
+
+const getOpportunityAudienceBadge = (opportunity = {}) => {
+  if (opportunity.targetAudience === "women") {
+    return { label: "للبنات", tone: "women" };
+  }
+
+  if (opportunity.targetAudience === "men") {
+    return { label: "للرجال", tone: "men" };
+  }
+
+  return null;
 };
 
 const formatOpportunityDate = (value) => {
@@ -2060,6 +2079,7 @@ export default function TrainingFinderPage() {
         applicationUrl: opportunityRequest.applicationUrl,
         sourceUrl: opportunityRequest.sourceUrl,
         deadline: opportunityRequest.deadline,
+        targetAudience: opportunityRequest.targetAudience,
         applicationMethod: opportunityRequest.applicationMethod,
         note: opportunityRequest.note,
         submitterContact: opportunityRequest.submitterContact,
@@ -2371,6 +2391,9 @@ export default function TrainingFinderPage() {
         selectedOpportunity.status
       )
     : null;
+  const selectedOpportunityAudienceBadge = selectedOpportunity
+    ? getOpportunityAudienceBadge(selectedOpportunity)
+    : null;
   const selectedOpportunityLogoUrl = selectedOpportunity
     ? selectedOpportunity.applicationUrl ||
       selectedOpportunity.sourceUrl ||
@@ -2378,6 +2401,7 @@ export default function TrainingFinderPage() {
     : "";
   const selectedOpportunityChips = selectedOpportunity
     ? [
+        ["targetAudience", "الفئة", "🎯"],
         ["trainingEnvironment", "البيئة", "👥"],
         ["trainingMode", "النوع", "💻"],
         ["hasReward", "المكافأة", "💰"],
@@ -3162,6 +3186,8 @@ export default function TrainingFinderPage() {
                   );
                   const opportunityFreshnessLabel =
                     getOpportunityFreshnessLabel(opportunity);
+                  const opportunityAudienceBadge =
+                    getOpportunityAudienceBadge(opportunity);
 
                   return (
                     <React.Fragment
@@ -3296,6 +3322,13 @@ export default function TrainingFinderPage() {
                               {opportunity.organizationName}
                             </h3>
                             <div className="opportunity-card-badges">
+                              {opportunityAudienceBadge && (
+                                <span
+                                  className={`opportunity-audience-badge ${opportunityAudienceBadge.tone}`}
+                                >
+                                  {opportunityAudienceBadge.label}
+                                </span>
+                              )}
                               <span
                                 className={`opportunity-status ${applicationState.tone}`}
                               >
@@ -4401,6 +4434,13 @@ export default function TrainingFinderPage() {
                   {getOpportunityFreshnessLabel(selectedOpportunity)}
                 </span>
               )}
+              {selectedOpportunityAudienceBadge && (
+                <span
+                  className={`opportunity-audience-badge ${selectedOpportunityAudienceBadge.tone}`}
+                >
+                  {selectedOpportunityAudienceBadge.label}
+                </span>
+              )}
               {selectedOpportunityStatus && (
                 <span className={`opportunity-status ${selectedOpportunityStatus.tone}`}>
                   {selectedOpportunityStatus.label}
@@ -4698,6 +4738,41 @@ export default function TrainingFinderPage() {
                       {cityName}
                     </option>
                   ))}
+                </select>
+              </label>
+
+              <label
+                style={{
+                  display: "grid",
+                  gap: "6px",
+                  color: "var(--app-text-soft)",
+                  fontSize: "13px",
+                  fontWeight: "800",
+                }}
+              >
+                الفئة المناسبة
+                <select
+                  value={opportunityRequest.targetAudience}
+                  onChange={(event) =>
+                    updateOpportunityRequestField(
+                      "targetAudience",
+                      event.target.value
+                    )
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "11px 12px",
+                    borderRadius: "12px",
+                    border: "1px solid var(--app-border)",
+                    background: "var(--app-input-bg)",
+                    color: "var(--app-text)",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <option value="">غير محدد</option>
+                  <option value="all">للجميع</option>
+                  <option value="women">بنات</option>
+                  <option value="men">رجال</option>
                 </select>
               </label>
 
@@ -5268,7 +5343,8 @@ export default function TrainingFinderPage() {
         }
 
         .opportunity-status,
-        .opportunity-featured-badge {
+        .opportunity-featured-badge,
+        .opportunity-audience-badge {
           border-radius: 999px;
           padding: 5px 8px;
           font-size: 11px;
@@ -5293,6 +5369,30 @@ export default function TrainingFinderPage() {
           background: rgba(250,204,21,0.12);
           border: 1px solid rgba(250,204,21,0.28);
           color: #fde68a;
+        }
+
+        .opportunity-audience-badge.women {
+          background: rgba(187, 247, 208, 0.18);
+          border: 1px solid rgba(134, 239, 172, 0.42);
+          color: #bbf7d0;
+        }
+
+        .opportunity-audience-badge.men {
+          background: rgba(34, 211, 238, 0.15);
+          border: 1px solid rgba(34, 211, 238, 0.38);
+          color: #67e8f9;
+        }
+
+        :root[data-theme="light"] .opportunity-audience-badge.women {
+          background: rgba(187, 247, 208, 0.72);
+          border-color: rgba(34, 197, 94, 0.34);
+          color: #166534;
+        }
+
+        :root[data-theme="light"] .opportunity-audience-badge.men {
+          background: rgba(207, 250, 254, 0.84);
+          border-color: rgba(14, 116, 144, 0.28);
+          color: #0e7490;
         }
 
         .opportunity-chip-grid {
@@ -6110,7 +6210,8 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-status,
-          .opportunity-featured-badge {
+          .opportunity-featured-badge,
+          .opportunity-audience-badge {
             padding: 4px 6px !important;
             font-size: 9px !important;
           }

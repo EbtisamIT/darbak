@@ -1263,6 +1263,9 @@ const sanitizeOpportunityPayload = (body = {}) => {
     )
       ? body.trainingEnvironment
       : "",
+    targetAudience: ["all", "women", "men", ""].includes(body.targetAudience)
+      ? body.targetAudience
+      : "",
     trainingMode: ["onsite", "remote", "hybrid", ""].includes(body.trainingMode)
       ? body.trainingMode
       : "",

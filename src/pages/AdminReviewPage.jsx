@@ -128,6 +128,7 @@ const defaultOpportunityForm = {
   majorCategories: [],
   specialties: ["__all_specialties__"],
   trainingEnvironment: "",
+  targetAudience: "",
   trainingMode: "",
   hasReward: "",
   applicationMethod: "",
@@ -605,6 +606,16 @@ const opportunityFilterStatusOptions = [
 ];
 
 const opportunitySelectFields = [
+  {
+    field: "targetAudience",
+    label: "الفئة المناسبة",
+    options: [
+      ["", "غير محدد"],
+      ["all", "الجميع"],
+      ["women", "بنات"],
+      ["men", "رجال"],
+    ],
+  },
   {
     field: "trainingEnvironment",
     label: "بيئة التدريب",
@@ -2228,6 +2239,7 @@ export default function AdminReviewPage() {
       majorCategories: normalizeFormArray(opportunity.majorCategories),
       specialties: getOpportunitySpecialtiesForForm(opportunity),
       trainingEnvironment: opportunity.trainingEnvironment || "",
+      targetAudience: opportunity.targetAudience || "",
       trainingMode: opportunity.trainingMode || "",
       hasReward: opportunity.hasReward || "",
       applicationMethod: opportunity.applicationMethod || "",
@@ -5785,6 +5797,7 @@ export default function AdminReviewPage() {
                     <span style={getOpportunityBadgeStyle("open")}>مميزة</span>
                   )}
                   {[
+                    ["targetAudience", "الفئة"],
                     ["trainingEnvironment", "البيئة"],
                     ["trainingMode", "النوع"],
                     ["hasReward", "المكافأة"],

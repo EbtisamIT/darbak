@@ -34,6 +34,11 @@ const opportunitySchema = new mongoose.Schema(
       enum: ["mixed", "women", "men", ""],
       default: "",
     },
+    targetAudience: {
+      type: String,
+      enum: ["all", "women", "men", ""],
+      default: "",
+    },
     trainingMode: {
       type: String,
       enum: ["onsite", "remote", "hybrid", ""],
