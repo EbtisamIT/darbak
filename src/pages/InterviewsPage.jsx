@@ -403,6 +403,10 @@ export default function InterviewsPage() {
               ×
             </button>
 
+            <div className="interview-question-encouragement">
+              أضف تجربتك… وبندعي لك بالوظيفة اللي تتمناها 🤍😎
+            </div>
+
             <div className="interview-question-modal-head">
               <span>مشاركة معرفة</span>
               <h2>أضف أسئلة مقابلة تدريب</h2>

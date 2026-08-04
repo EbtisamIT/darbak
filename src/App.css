@@ -532,6 +532,18 @@ body {
   line-height: 1;
 }
 
+.interview-question-encouragement {
+  margin-left: 40px;
+  padding: 12px 14px;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 16px;
+  background: var(--app-brand-soft);
+  color: var(--app-text);
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.7;
+}
+
 .interview-question-modal-head {
   display: grid;
   gap: 7px;
@@ -788,6 +800,11 @@ body {
   .interview-question-modal {
     padding: 18px 14px 14px;
     border-radius: 20px;
+  }
+
+  .interview-question-encouragement {
+    margin-left: 36px;
+    font-size: 15px;
   }
 
   .interview-question-form-grid {

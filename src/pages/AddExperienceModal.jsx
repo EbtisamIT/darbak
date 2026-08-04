@@ -820,7 +820,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 lineHeight: 1.45,
               }}
             >
-              خلصت تدريبك؟ اكتب تجربتك
+              أضف تجربتك… وبندعي لك بالوظيفة اللي تتمناها 🤍😎
             </h2>
 
             <p
