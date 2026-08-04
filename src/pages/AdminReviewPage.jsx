@@ -88,6 +88,12 @@ const normalizeTagLines = (value = "") =>
     .filter(Boolean)
     .slice(0, 4);
 
+const limitText = (value = "", maxLength = 160) => {
+  const text = value.toString().trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trim()}...`;
+};
+
 const compressAdminImageToDataUrl = (file, maxSize = 320, quality = 0.76) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -317,12 +323,77 @@ const emptyUserManagement = {
 
 const emptyTelegramContent = {
   date: "",
+  settings: {
+    autoPublishingEnabled: false,
+    draftApprovalRequired: true,
+    botPublishingEnabled: false,
+    opportunityTime: "11:00",
+    contentTime: "19:00",
+    contentDays: [0, 2, 4],
+    maxPostsPerDay: 2,
+  },
   summary: {
     totalExperiences: 0,
     totalOpportunities: 0,
-    totalInterviews: 0,
+    draftPosts: 0,
+    scheduledPosts: 0,
+    publishedPosts: 0,
+    failedPosts: 0,
+    botConfigured: false,
+    botPublishingEnabled: false,
   },
-  data: [],
+  posts: [],
+  contentItems: [],
+  candidates: {
+    opportunities: [],
+    experiences: [],
+  },
+};
+
+const telegramPostTypeOptions = [
+  ["opportunity", "فرصة تدريب"],
+  ["experience", "مقتطف تجربة"],
+  ["reassurance", "تطمين"],
+  ["tip", "نصيحة"],
+  ["portfolio", "Portfolio"],
+  ["product", "منتج / خدمة"],
+];
+
+const telegramPostStatusLabels = {
+  draft: "مسودة",
+  scheduled: "مجدول",
+  published: "منشور",
+  failed: "فشل",
+};
+
+const telegramDayOptions = [
+  [0, "الأحد"],
+  [1, "الاثنين"],
+  [2, "الثلاثاء"],
+  [3, "الأربعاء"],
+  [4, "الخميس"],
+  [5, "الجمعة"],
+  [6, "السبت"],
+];
+
+const defaultTelegramPostForm = {
+  type: "opportunity",
+  sourceType: "manual",
+  sourceId: "",
+  title: "",
+  body: "",
+  ctaLabel: "",
+  ctaUrl: "",
+  scheduledAt: "",
+};
+
+const defaultTelegramContentItemForm = {
+  type: "reassurance",
+  title: "",
+  body: "",
+  ctaLabel: "",
+  ctaUrl: "",
+  isActive: true,
 };
 
 const analyticsEventLabels = {
@@ -967,6 +1038,14 @@ const formatAdminDateTime = (value) => {
   });
 };
 
+const toDateTimeLocalValue = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
 const formatDuration = (seconds = 0) => {
   const totalSeconds = Math.max(0, Math.round(Number(seconds) || 0));
   if (!totalSeconds) return "-";
@@ -1049,6 +1128,16 @@ export default function AdminReviewPage() {
   const [analytics, setAnalytics] = useState(emptyAnalytics);
   const [telegramContent, setTelegramContent] = useState(emptyTelegramContent);
   const [copiedTelegramCardId, setCopiedTelegramCardId] = useState("");
+  const [telegramDraftType, setTelegramDraftType] = useState("opportunity");
+  const [telegramDraftSourceId, setTelegramDraftSourceId] = useState("");
+  const [telegramPostForm, setTelegramPostForm] = useState(defaultTelegramPostForm);
+  const [editingTelegramPostId, setEditingTelegramPostId] = useState("");
+  const [telegramContentItemForm, setTelegramContentItemForm] = useState(
+    defaultTelegramContentItemForm
+  );
+  const [editingTelegramContentItemId, setEditingTelegramContentItemId] =
+    useState("");
+  const [savingTelegram, setSavingTelegram] = useState(false);
   const [analyticsDays, setAnalyticsDays] = useState("30");
   const [userManagement, setUserManagement] = useState(emptyUserManagement);
   const [userStatus, setUserStatus] = useState("all");
@@ -1110,7 +1199,7 @@ export default function AdminReviewPage() {
       : adminView === "opportunities"
       ? opportunities.length
       : adminView === "telegramContent"
-      ? (telegramContent.data || []).length
+      ? (telegramContent.posts || []).length
       : adminView === "analytics"
       ? analytics.totalEvents
       : adminView === "users"
@@ -1395,11 +1484,20 @@ export default function AdminReviewPage() {
       setTelegramContent({
         ...emptyTelegramContent,
         ...data,
+        settings: {
+          ...emptyTelegramContent.settings,
+          ...(data.settings || {}),
+        },
         summary: {
           ...emptyTelegramContent.summary,
           ...(data.summary || {}),
         },
-        data: Array.isArray(data.data) ? data.data : [],
+        posts: Array.isArray(data.posts) ? data.posts : [],
+        contentItems: Array.isArray(data.contentItems) ? data.contentItems : [],
+        candidates: {
+          ...emptyTelegramContent.candidates,
+          ...(data.candidates || {}),
+        },
       });
     } catch (err) {
       console.error(err);
@@ -2296,13 +2394,57 @@ export default function AdminReviewPage() {
     );
   };
 
-  const copyTelegramPost = async (card) => {
-    const text = card?.body || "";
+  const getTelegramPostTypeLabel = (type) =>
+    telegramPostTypeOptions.find(([value]) => value === type)?.[1] || type;
+
+  const getTelegramCandidateOptions = (type) => {
+    if (type === "opportunity") {
+      return telegramContent.candidates?.opportunities || [];
+    }
+
+    if (type === "experience") {
+      return telegramContent.candidates?.experiences || [];
+    }
+
+    return (telegramContent.contentItems || []).filter(
+      (item) => item.type === type && item.isActive
+    );
+  };
+
+  const updateTelegramPostForm = (field, value) => {
+    setTelegramPostForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateTelegramContentItemForm = (field, value) => {
+    setTelegramContentItemForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const fillTelegramPostForm = (post) => {
+    setEditingTelegramPostId(post?._id || "");
+    setTelegramPostForm({
+      type: post?.type || "opportunity",
+      sourceType: post?.sourceType || "manual",
+      sourceId: post?.sourceId || "",
+      title: post?.title || "",
+      body: post?.body || "",
+      ctaLabel: post?.ctaLabel || "",
+      ctaUrl: post?.ctaUrl || "",
+      scheduledAt: toDateTimeLocalValue(post?.scheduledAt),
+    });
+  };
+
+  const resetTelegramPostForm = () => {
+    setEditingTelegramPostId("");
+    setTelegramPostForm(defaultTelegramPostForm);
+  };
+
+  const copyTelegramPost = async (post) => {
+    const text = post?.body || "";
     if (!text) return;
 
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedTelegramCardId(card.id);
+      setCopiedTelegramCardId(post._id);
       setMessage("تم نسخ منشور القناة.");
       window.setTimeout(() => setCopiedTelegramCardId(""), 1800);
     } catch (err) {
@@ -2311,12 +2453,261 @@ export default function AdminReviewPage() {
     }
   };
 
+  const saveTelegramSettings = async (nextSettings = telegramContent.settings) => {
+    try {
+      setSavingTelegram(true);
+      const { data } = await axios.patch(
+        `${API_BASE_URL}/api/admin/telegram/settings`,
+        nextSettings,
+        { headers: authHeaders }
+      );
+      setTelegramContent((prev) => ({
+        ...prev,
+        settings: { ...emptyTelegramContent.settings, ...(data || {}) },
+      }));
+      setMessage("تم حفظ إعدادات التليجرام.");
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.error || "تعذر حفظ إعدادات التليجرام.");
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
+  const createTelegramDraft = async () => {
+    try {
+      setSavingTelegram(true);
+      setMessage("");
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/telegram/posts/draft`,
+        {
+          type: telegramDraftType,
+          sourceId: telegramDraftSourceId,
+        },
+        { headers: authHeaders }
+      );
+      fillTelegramPostForm(data);
+      setMessage("تم إنشاء مسودة جاهزة للمراجعة.");
+      await fetchTelegramContent();
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.error || "تعذر إنشاء المسودة.");
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
+  const saveTelegramPost = async ({ silent = false } = {}) => {
+    const payload = {
+      ...telegramPostForm,
+      sourceType: telegramPostForm.sourceType || "manual",
+      createdAutomatically: false,
+    };
+
+    try {
+      setSavingTelegram(true);
+      const request = editingTelegramPostId
+        ? axios.patch(
+            `${API_BASE_URL}/api/admin/telegram/posts/${editingTelegramPostId}`,
+            payload,
+            { headers: authHeaders }
+          )
+        : axios.post(`${API_BASE_URL}/api/admin/telegram/posts`, payload, {
+            headers: authHeaders,
+          });
+      const { data } = await request;
+      fillTelegramPostForm(data);
+      if (!silent) setMessage("تم حفظ المنشور.");
+      await fetchTelegramContent();
+      return data;
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.error || "تعذر حفظ المنشور.");
+      return null;
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
+  const scheduleTelegramPost = async () => {
+    const savedPost =
+      editingTelegramPostId && telegramPostForm.scheduledAt
+        ? { _id: editingTelegramPostId }
+        : await saveTelegramPost({ silent: true });
+
+    if (!savedPost?._id || !telegramPostForm.scheduledAt) {
+      setMessage("احفظي المنشور واختاري وقت الجدولة أولًا.");
+      return;
+    }
+
+    try {
+      setSavingTelegram(true);
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/telegram/posts/${savedPost._id}/schedule`,
+        { scheduledAt: telegramPostForm.scheduledAt },
+        { headers: authHeaders }
+      );
+      fillTelegramPostForm(data);
+      setMessage("تمت جدولة المنشور.");
+      await fetchTelegramContent();
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.error || "تعذر جدولة المنشور.");
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
+  const publishTelegramPostNow = async (postId = editingTelegramPostId) => {
+    if (!postId) {
+      setMessage("اختاري منشورًا محفوظًا قبل النشر.");
+      return;
+    }
+
+    try {
+      setSavingTelegram(true);
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/telegram/posts/${postId}/publish`,
+        {},
+        { headers: authHeaders }
+      );
+      fillTelegramPostForm(data);
+      setMessage("تم نشر المنشور في تيليجرام.");
+      await fetchTelegramContent();
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.data?.error ||
+          "النشر الحقيقي جاهز لكنه غير مفعل حاليًا، وهذا مقصود إلى أن نربط البوت."
+      );
+      await fetchTelegramContent();
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
+  const retryTelegramPost = async (postId) => {
+    try {
+      setSavingTelegram(true);
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/telegram/posts/${postId}/retry`,
+        {},
+        { headers: authHeaders }
+      );
+      fillTelegramPostForm(data);
+      setMessage("رجعت المنشور لمسودة للمراجعة.");
+      await fetchTelegramContent();
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.error || "تعذر إعادة المحاولة.");
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
+  const deleteTelegramPost = async (postId) => {
+    if (!window.confirm("حذف منشور التليجرام من السجل؟")) return;
+
+    try {
+      setSavingTelegram(true);
+      await axios.delete(`${API_BASE_URL}/api/admin/telegram/posts/${postId}`, {
+        headers: authHeaders,
+      });
+      if (editingTelegramPostId === postId) resetTelegramPostForm();
+      setMessage("تم حذف المنشور.");
+      await fetchTelegramContent();
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.error || "تعذر حذف المنشور.");
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
+  const saveTelegramContentItem = async () => {
+    try {
+      setSavingTelegram(true);
+      const request = editingTelegramContentItemId
+        ? axios.patch(
+            `${API_BASE_URL}/api/admin/telegram/content-items/${editingTelegramContentItemId}`,
+            telegramContentItemForm,
+            { headers: authHeaders }
+          )
+        : axios.post(
+            `${API_BASE_URL}/api/admin/telegram/content-items`,
+            telegramContentItemForm,
+            { headers: authHeaders }
+          );
+      await request;
+      setTelegramContentItemForm(defaultTelegramContentItemForm);
+      setEditingTelegramContentItemId("");
+      setMessage("تم حفظ قالب المحتوى.");
+      await fetchTelegramContent();
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.error || "تعذر حفظ قالب المحتوى.");
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
+  const editTelegramContentItem = (item) => {
+    setEditingTelegramContentItemId(item._id);
+    setTelegramContentItemForm({
+      type: item.type || "reassurance",
+      title: item.title || "",
+      body: item.body || "",
+      ctaLabel: item.ctaLabel || "",
+      ctaUrl: item.ctaUrl || "",
+      isActive: item.isActive !== false,
+    });
+  };
+
+  const deleteTelegramContentItem = async (itemId) => {
+    if (!window.confirm("حذف هذا القالب من بنك المحتوى؟")) return;
+
+    try {
+      setSavingTelegram(true);
+      await axios.delete(`${API_BASE_URL}/api/admin/telegram/content-items/${itemId}`, {
+        headers: authHeaders,
+      });
+      if (editingTelegramContentItemId === itemId) {
+        setTelegramContentItemForm(defaultTelegramContentItemForm);
+        setEditingTelegramContentItemId("");
+      }
+      setMessage("تم حذف القالب.");
+      await fetchTelegramContent();
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.error || "تعذر حذف القالب.");
+    } finally {
+      setSavingTelegram(false);
+    }
+  };
+
   const renderTelegramContent = () => {
-    const cards = telegramContent.data || [];
+    const posts = telegramContent.posts || [];
+    const contentItems = telegramContent.contentItems || [];
+    const settings = {
+      ...emptyTelegramContent.settings,
+      ...(telegramContent.settings || {}),
+    };
     const summary = {
       ...emptyTelegramContent.summary,
       ...(telegramContent.summary || {}),
     };
+    const candidateOptions = getTelegramCandidateOptions(telegramDraftType);
+    const telegramInputStyle = {
+      width: "100%",
+      boxSizing: "border-box",
+      background: adminColors.inputBg,
+      border: `1px solid ${adminColors.inputBorder}`,
+      borderRadius: "10px",
+      color: adminColors.text,
+      padding: "10px 11px",
+      fontFamily: "inherit",
+    };
+    const previewHasButton = Boolean(telegramPostForm.ctaLabel && telegramPostForm.ctaUrl);
 
     return (
       <div style={{ display: "grid", gap: "12px" }}>
@@ -2332,10 +2723,10 @@ export default function AdminReviewPage() {
         >
           <div>
             <h2 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
-              محتوى قناة التليجرام اليوم
+              إدارة محتوى قناة التليجرام
             </h2>
             <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.7 }}>
-              منشورات جاهزة من بيانات دربك نفسها، تتغير يوميًا وتناسب النشر السريع في القناة.
+              مسودات، بنك رسائل، جدولة، وسجل نشر. النشر الحقيقي مجهز لكنه غير مفعل الآن إلى أن نربط البوت.
             </p>
           </div>
           <div
@@ -2348,9 +2739,10 @@ export default function AdminReviewPage() {
             }}
           >
             {[
-              ["التجارب", summary.totalExperiences],
-              ["الفرص", summary.totalOpportunities],
-              ["المقابلات", summary.totalInterviews],
+              ["مسودات", summary.draftPosts],
+              ["مجدولة", summary.scheduledPosts],
+              ["منشورة", summary.publishedPosts],
+              ["فاشلة", summary.failedPosts],
             ].map(([label, value]) => (
               <span
                 key={label}
@@ -2376,28 +2768,597 @@ export default function AdminReviewPage() {
           </div>
         </section>
 
-        {cards.length === 0 && !loading ? (
-          <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
-            لا توجد منشورات جاهزة حاليًا.
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+            gap: "12px",
+          }}
+        >
+          <div style={cardStyle}>
+            <h3 style={{ color: adminColors.brand, margin: "0 0 10px" }}>
+              إعدادات النشر
+            </h3>
+            <div style={{ display: "grid", gap: "10px" }}>
+              {[
+                ["autoPublishingEnabled", "تفعيل النشر التلقائي"],
+                ["draftApprovalRequired", "المسودات تحتاج موافقتي"],
+                ["botPublishingEnabled", "تفعيل إرسال البوت لاحقًا"],
+              ].map(([field, label]) => (
+                <label
+                  key={field}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                    color: adminColors.text,
+                    fontSize: 13,
+                  }}
+                >
+                  {label}
+                  <input
+                    type="checkbox"
+                    checked={Boolean(settings[field])}
+                    onChange={(e) =>
+                      setTelegramContent((prev) => ({
+                        ...prev,
+                        settings: { ...settings, [field]: e.target.checked },
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+                  gap: "8px",
+                }}
+              >
+                <label style={{ color: adminColors.textSoft, fontSize: 12 }}>
+                  وقت الفرص
+                  <input
+                    type="time"
+                    value={settings.opportunityTime || "11:00"}
+                    onChange={(e) =>
+                      setTelegramContent((prev) => ({
+                        ...prev,
+                        settings: { ...settings, opportunityTime: e.target.value },
+                      }))
+                    }
+                    style={telegramInputStyle}
+                  />
+                </label>
+                <label style={{ color: adminColors.textSoft, fontSize: 12 }}>
+                  وقت المحتوى
+                  <input
+                    type="time"
+                    value={settings.contentTime || "19:00"}
+                    onChange={(e) =>
+                      setTelegramContent((prev) => ({
+                        ...prev,
+                        settings: { ...settings, contentTime: e.target.value },
+                      }))
+                    }
+                    style={telegramInputStyle}
+                  />
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {telegramDayOptions.map(([day, label]) => {
+                  const active = (settings.contentDays || []).includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        const currentDays = new Set(settings.contentDays || []);
+                        if (currentDays.has(day)) currentDays.delete(day);
+                        else currentDays.add(day);
+                        setTelegramContent((prev) => ({
+                          ...prev,
+                          settings: {
+                            ...settings,
+                            contentDays: Array.from(currentDays).sort(),
+                          },
+                        }));
+                      }}
+                      style={{
+                        border: `1px solid ${adminColors.inputBorder}`,
+                        borderRadius: "999px",
+                        padding: "7px 10px",
+                        background: active ? adminColors.brand : "transparent",
+                        color: active ? "#07100e" : adminColors.textSoft,
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => saveTelegramSettings(settings)}
+                disabled={savingTelegram}
+                style={{
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "10px 14px",
+                  background: adminColors.brand,
+                  color: "#07100e",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                حفظ الإعدادات
+              </button>
+              <small style={{ color: adminColors.muted, lineHeight: 1.7 }}>
+                البوت: {summary.botConfigured ? "متغيراته موجودة" : "لم تضبط المتغيرات بعد"} ·
+                الإرسال الحقيقي: {summary.botPublishingEnabled ? "مفعل" : "معطل"}
+              </small>
+            </div>
           </div>
-        ) : (
-          <section
+
+          <div style={cardStyle}>
+            <h3 style={{ color: adminColors.brand, margin: "0 0 10px" }}>
+              إنشاء مسودة اليوم
+            </h3>
+            <div style={{ display: "grid", gap: "9px" }}>
+              <select
+                value={telegramDraftType}
+                onChange={(e) => {
+                  setTelegramDraftType(e.target.value);
+                  setTelegramDraftSourceId("");
+                }}
+                style={telegramInputStyle}
+              >
+                {telegramPostTypeOptions.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={telegramDraftSourceId}
+                onChange={(e) => setTelegramDraftSourceId(e.target.value)}
+                style={telegramInputStyle}
+              >
+                <option value="">اختيار تلقائي مناسب</option>
+                {candidateOptions.map((item) => (
+                  <option key={item._id} value={item._id}>
+                    {item.label || item.title || item.organizationName}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={createTelegramDraft}
+                disabled={savingTelegram}
+                style={{
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "11px 14px",
+                  background: adminColors.brand,
+                  color: "#07100e",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                إنشاء مسودة اليوم
+              </button>
+              <small style={{ color: adminColors.muted, lineHeight: 1.7 }}>
+                الفرص المنتهية والمكررة لا تدخل في الاختيار التلقائي.
+              </small>
+            </div>
+          </div>
+        </section>
+
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(280px, 1fr) minmax(260px, 0.8fr)",
+            gap: "12px",
+          }}
+        >
+          <div style={cardStyle}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "10px",
+                flexWrap: "wrap",
+                marginBottom: "10px",
+              }}
+            >
+              <h3 style={{ color: adminColors.brand, margin: 0 }}>
+                تعديل المنشور قبل النشر
+              </h3>
+              <button
+                type="button"
+                onClick={resetTelegramPostForm}
+                style={{
+                  border: `1px solid ${adminColors.inputBorder}`,
+                  borderRadius: "999px",
+                  padding: "7px 11px",
+                  background: "transparent",
+                  color: adminColors.brand,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                منشور جديد
+              </button>
+            </div>
+            <div style={{ display: "grid", gap: "9px" }}>
+              <select
+                value={telegramPostForm.type}
+                onChange={(e) => updateTelegramPostForm("type", e.target.value)}
+                style={telegramInputStyle}
+              >
+                {telegramPostTypeOptions.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={telegramPostForm.title}
+                onChange={(e) => updateTelegramPostForm("title", e.target.value)}
+                placeholder="عنوان داخلي للمنشور"
+                style={telegramInputStyle}
+              />
+              <textarea
+                value={telegramPostForm.body}
+                onChange={(e) => updateTelegramPostForm("body", e.target.value)}
+                placeholder="نص المنشور كما سيظهر في تيليجرام"
+                rows={9}
+                style={{
+                  ...telegramInputStyle,
+                  minHeight: 180,
+                  resize: "vertical",
+                  lineHeight: 1.8,
+                }}
+              />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                  gap: "8px",
+                }}
+              >
+                <input
+                  value={telegramPostForm.ctaLabel}
+                  onChange={(e) => updateTelegramPostForm("ctaLabel", e.target.value)}
+                  placeholder="نص الزر"
+                  style={telegramInputStyle}
+                />
+                <input
+                  value={telegramPostForm.ctaUrl}
+                  onChange={(e) => updateTelegramPostForm("ctaUrl", e.target.value)}
+                  placeholder="رابط الزر"
+                  style={telegramInputStyle}
+                />
+                <input
+                  type="datetime-local"
+                  value={telegramPostForm.scheduledAt}
+                  onChange={(e) => updateTelegramPostForm("scheduledAt", e.target.value)}
+                  style={telegramInputStyle}
+                />
+              </div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => saveTelegramPost()}
+                  disabled={savingTelegram}
+                  style={{
+                    border: "none",
+                    borderRadius: "10px",
+                    padding: "10px 14px",
+                    background: adminColors.brand,
+                    color: "#07100e",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  حفظ
+                </button>
+                <button
+                  type="button"
+                  onClick={scheduleTelegramPost}
+                  disabled={savingTelegram}
+                  style={{
+                    border: `1px solid ${adminColors.inputBorder}`,
+                    borderRadius: "10px",
+                    padding: "10px 14px",
+                    background: "transparent",
+                    color: adminColors.brand,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  جدولة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => publishTelegramPostNow()}
+                  disabled={savingTelegram}
+                  style={{
+                    border: `1px solid rgba(52,211,153,0.35)`,
+                    borderRadius: "10px",
+                    padding: "10px 14px",
+                    background: "rgba(52,211,153,0.1)",
+                    color: "#86efac",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  نشر الآن
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <h3 style={{ color: adminColors.brand, margin: "0 0 10px" }}>
+              معاينة تيليجرام
+            </h3>
+            <div
+              style={{
+                background: "#0f172a",
+                border: "1px solid rgba(102,208,195,0.25)",
+                borderRadius: "18px",
+                padding: "14px",
+                color: "#e5f4f1",
+                minHeight: 250,
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.8,
+              }}
+            >
+              {telegramPostForm.body || "ستظهر معاينة المنشور هنا..."}
+            </div>
+            {previewHasButton ? (
+              <a
+                href={telegramPostForm.ctaUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: "block",
+                  marginTop: "10px",
+                  textAlign: "center",
+                  borderRadius: "12px",
+                  padding: "11px",
+                  background: adminColors.brand,
+                  color: "#07100e",
+                  textDecoration: "none",
+                  fontWeight: 900,
+                }}
+              >
+                {telegramPostForm.ctaLabel}
+              </a>
+            ) : null}
+          </div>
+        </section>
+
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(260px, 0.85fr) minmax(300px, 1.15fr)",
+            gap: "12px",
+          }}
+        >
+          <div style={cardStyle}>
+            <h3 style={{ color: adminColors.brand, margin: "0 0 10px" }}>
+              بنك رسائل التطمين والنصائح
+            </h3>
+            <div style={{ display: "grid", gap: "9px" }}>
+              <select
+                value={telegramContentItemForm.type}
+                onChange={(e) => updateTelegramContentItemForm("type", e.target.value)}
+                style={telegramInputStyle}
+              >
+                {telegramPostTypeOptions
+                  .filter(([value]) =>
+                    ["reassurance", "tip", "portfolio", "product"].includes(value)
+                  )
+                  .map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+              </select>
+              <input
+                value={telegramContentItemForm.title}
+                onChange={(e) => updateTelegramContentItemForm("title", e.target.value)}
+                placeholder="عنوان داخلي"
+                style={telegramInputStyle}
+              />
+              <textarea
+                value={telegramContentItemForm.body}
+                onChange={(e) => updateTelegramContentItemForm("body", e.target.value)}
+                placeholder="النص المعتمد في بنك المحتوى"
+                rows={6}
+                style={{ ...telegramInputStyle, resize: "vertical", lineHeight: 1.8 }}
+              />
+              <input
+                value={telegramContentItemForm.ctaLabel}
+                onChange={(e) => updateTelegramContentItemForm("ctaLabel", e.target.value)}
+                placeholder="زر اختياري"
+                style={telegramInputStyle}
+              />
+              <input
+                value={telegramContentItemForm.ctaUrl}
+                onChange={(e) => updateTelegramContentItemForm("ctaUrl", e.target.value)}
+                placeholder="رابط اختياري"
+                style={telegramInputStyle}
+              />
+              <label style={{ color: adminColors.textSoft, fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={telegramContentItemForm.isActive}
+                  onChange={(e) =>
+                    updateTelegramContentItemForm("isActive", e.target.checked)
+                  }
+                />{" "}
+                مفعل للاختيار التلقائي
+              </label>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={saveTelegramContentItem}
+                  disabled={savingTelegram}
+                  style={{
+                    border: "none",
+                    borderRadius: "10px",
+                    padding: "10px 14px",
+                    background: adminColors.brand,
+                    color: "#07100e",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {editingTelegramContentItemId ? "حفظ التعديل" : "إضافة للبنك"}
+                </button>
+                {editingTelegramContentItemId ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTelegramContentItemForm(defaultTelegramContentItemForm);
+                      setEditingTelegramContentItemId("");
+                    }}
+                    style={{
+                      border: `1px solid ${adminColors.inputBorder}`,
+                      borderRadius: "10px",
+                      padding: "10px 14px",
+                      background: "transparent",
+                      color: adminColors.brand,
+                      fontFamily: "inherit",
+                      cursor: "pointer",
+                    }}
+                  >
+                    إلغاء
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <h3 style={{ color: adminColors.brand, margin: "0 0 10px" }}>
+              القوالب الحالية
+            </h3>
+            <div style={{ display: "grid", gap: "9px", maxHeight: 430, overflow: "auto" }}>
+              {contentItems.length === 0 ? (
+                <p style={{ color: adminColors.muted, margin: 0 }}>لا توجد قوالب بعد.</p>
+              ) : (
+                contentItems.map((item) => (
+                  <article
+                    key={item._id}
+                    style={{
+                      border: `1px solid ${adminColors.cardBorder}`,
+                      borderRadius: "12px",
+                      padding: "10px",
+                      display: "grid",
+                      gap: "7px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "8px",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <strong style={{ color: adminColors.text }}>
+                        {item.title || getTelegramPostTypeLabel(item.type)}
+                      </strong>
+                      <span style={{ color: adminColors.brand, fontSize: 12 }}>
+                        {getTelegramPostTypeLabel(item.type)} ·{" "}
+                        {item.isActive ? "مفعل" : "معطل"}
+                      </span>
+                    </div>
+                    <p style={{ color: adminColors.textSoft, margin: 0, lineHeight: 1.7 }}>
+                      {limitText(item.body, 180)}
+                    </p>
+                    <small style={{ color: adminColors.muted }}>
+                      استخدم {item.usageCount || 0} مرة · آخر استخدام:{" "}
+                      {formatAdminDateTime(item.lastUsedAt)}
+                    </small>
+                    <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        onClick={() => editTelegramContentItem(item)}
+                        style={{
+                          border: `1px solid ${adminColors.inputBorder}`,
+                          borderRadius: "999px",
+                          padding: "7px 10px",
+                          background: "transparent",
+                          color: adminColors.brand,
+                          fontFamily: "inherit",
+                          cursor: "pointer",
+                        }}
+                      >
+                        تعديل
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteTelegramContentItem(item._id)}
+                        style={{
+                          border: "1px solid rgba(244,63,94,0.25)",
+                          borderRadius: "999px",
+                          padding: "7px 10px",
+                          background: "rgba(244,63,94,0.08)",
+                          color: "#fecdd3",
+                          fontFamily: "inherit",
+                          cursor: "pointer",
+                        }}
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <h3 style={{ color: adminColors.brand, margin: "0 0 10px" }}>
+            سجل المنشورات
+          </h3>
+          {posts.length === 0 && !loading ? (
+            <p style={{ color: adminColors.muted, margin: 0 }}>لا توجد منشورات بعد.</p>
+          ) : (
+            <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-              gap: "12px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "10px",
             }}
           >
-            {cards.map((card) => {
-              const isCopied = copiedTelegramCardId === card.id;
+            {posts.map((post) => {
+              const isCopied = copiedTelegramCardId === post._id;
 
               return (
                 <article
-                  key={card.id}
+                  key={post._id}
                   style={{
-                    ...cardStyle,
+                    border: `1px solid ${adminColors.cardBorder}`,
+                    borderRadius: "13px",
+                    padding: "12px",
                     display: "grid",
-                    gap: "12px",
+                    gap: "9px",
                     minHeight: "100%",
                   }}
                 >
@@ -2422,13 +3383,14 @@ export default function AdminReviewPage() {
                           marginBottom: "8px",
                         }}
                       >
-                        {card.type}
+                        {getTelegramPostTypeLabel(post.type)}
                       </span>
                       <h3 style={{ color: adminColors.text, margin: "0 0 4px" }}>
-                        {card.title}
+                        {post.title}
                       </h3>
                       <p style={{ color: adminColors.textSoft, margin: 0, lineHeight: 1.7 }}>
-                        {card.subtitle || "منصة دربك"}
+                        {telegramPostStatusLabels[post.status] || post.status}
+                        {post.sourceType ? ` · ${post.sourceType}` : ""}
                       </p>
                     </div>
                     <small
@@ -2439,33 +3401,35 @@ export default function AdminReviewPage() {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {card.sourceCount
-                        ? `${Number(card.sourceCount).toLocaleString("en-US")} ${
-                            card.sourceLabel || ""
-                          }`
-                        : formatAdminDateTime(telegramContent.date)}
+                      {post.publishedAt
+                        ? formatAdminDateTime(post.publishedAt)
+                        : post.scheduledAt
+                        ? formatAdminDateTime(post.scheduledAt)
+                        : formatAdminDateTime(post.createdAt)}
                     </small>
                   </div>
 
-                  <textarea
-                    value={card.body || ""}
-                    readOnly
-                    rows={10}
+                  <p
                     style={{
-                      width: "100%",
-                      minHeight: 220,
-                      boxSizing: "border-box",
-                      resize: "vertical",
-                      background: adminColors.inputBg,
-                      border: `1px solid ${adminColors.inputBorder}`,
-                      borderRadius: "12px",
-                      color: adminColors.text,
-                      padding: "12px",
-                      fontFamily: "inherit",
+                      color: adminColors.textSoft,
+                      margin: 0,
                       lineHeight: 1.8,
-                      direction: "rtl",
+                      whiteSpace: "pre-wrap",
                     }}
-                  />
+                  >
+                    {limitText(post.body, 220)}
+                  </p>
+
+                  {post.telegramMessageId ? (
+                    <small style={{ color: adminColors.brand }}>
+                      Telegram ID: {post.telegramMessageId}
+                    </small>
+                  ) : null}
+                  {post.errorMessage ? (
+                    <small style={{ color: "#fecdd3", lineHeight: 1.6 }}>
+                      {post.errorMessage}
+                    </small>
+                  ) : null}
 
                   <div
                     style={{
@@ -2477,7 +3441,7 @@ export default function AdminReviewPage() {
                   >
                     <button
                       type="button"
-                      onClick={() => copyTelegramPost(card)}
+                      onClick={() => copyTelegramPost(post)}
                       style={{
                         border: "none",
                         borderRadius: "10px",
@@ -2491,29 +3455,78 @@ export default function AdminReviewPage() {
                     >
                       {isCopied ? "تم النسخ" : "نسخ المنشور"}
                     </button>
-                    {card.url ? (
-                      <a
-                        href={card.url}
-                        target="_blank"
-                        rel="noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => fillTelegramPostForm(post)}
+                      style={{
+                        border: `1px solid ${adminColors.inputBorder}`,
+                        borderRadius: "10px",
+                        padding: "10px 14px",
+                        background: "transparent",
+                        color: adminColors.brand,
+                        fontWeight: 900,
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                      }}
+                    >
+                      تعديل
+                    </button>
+                    {post.status === "failed" ? (
+                      <button
+                        type="button"
+                        onClick={() => retryTelegramPost(post._id)}
                         style={{
                           border: `1px solid ${adminColors.inputBorder}`,
                           borderRadius: "10px",
                           padding: "10px 14px",
+                          background: "rgba(102,208,195,0.08)",
                           color: adminColors.brand,
-                          textDecoration: "none",
                           fontWeight: 900,
+                          fontFamily: "inherit",
+                          cursor: "pointer",
                         }}
                       >
-                        فتح المصدر
-                      </a>
+                        إعادة محاولة
+                      </button>
                     ) : null}
+                    <button
+                      type="button"
+                      onClick={() => publishTelegramPostNow(post._id)}
+                      style={{
+                        border: "1px solid rgba(52,211,153,0.25)",
+                        borderRadius: "10px",
+                        padding: "10px 14px",
+                        background: "rgba(52,211,153,0.08)",
+                        color: "#86efac",
+                        fontWeight: 900,
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                      }}
+                    >
+                      نشر الآن
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteTelegramPost(post._id)}
+                      style={{
+                        border: "1px solid rgba(244,63,94,0.25)",
+                        borderRadius: "10px",
+                        padding: "10px 14px",
+                        background: "rgba(244,63,94,0.08)",
+                        color: "#fecdd3",
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                      }}
+                    >
+                      حذف
+                    </button>
                   </div>
                 </article>
               );
             })}
-          </section>
-        )}
+            </div>
+          )}
+        </section>
       </div>
     );
   };

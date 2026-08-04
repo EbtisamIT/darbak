@@ -14,6 +14,9 @@ const Subscription = require('./models/Subscription');
 const User = require('./models/User');
 const Portfolio = require('./models/Portfolio');
 const PortfolioAsset = require('./models/PortfolioAsset');
+const TelegramPost = require('./models/TelegramPost');
+const TelegramContentItem = require('./models/TelegramContentItem');
+const TelegramSettings = require('./models/TelegramSettings');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -90,6 +93,11 @@ const CONTACT_EMAIL_TO = process.env.CONTACT_EMAIL_TO || "info@darbak.space";
 const CONTACT_EMAIL_FROM =
   process.env.CONTACT_EMAIL_FROM || "Darbak <no-reply@darbak.space>";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || "";
+const TELEGRAM_CRON_SECRET = process.env.TELEGRAM_CRON_SECRET || "";
+const TELEGRAM_BOT_PUBLISHING_ENABLED =
+  process.env.TELEGRAM_BOT_PUBLISHING_ENABLED === "true";
 const CONTACT_REASONS = new Set([
   "استفسار عام",
   "مشكلة تقنية",
@@ -8452,6 +8460,79 @@ app.get('/api/admin/contact-messages', requireAdmin, async (req, res) => {
   }
 });
 
+const TELEGRAM_POST_TYPES = [
+  "opportunity",
+  "experience",
+  "reassurance",
+  "tip",
+  "portfolio",
+  "product",
+];
+const TELEGRAM_TEMPLATE_TYPES = ["reassurance", "tip", "portfolio", "product"];
+const TELEGRAM_CONTENT_ROTATION = [
+  "experience",
+  "reassurance",
+  "tip",
+  "portfolio",
+  "product",
+];
+const TELEGRAM_PRODUCT_URLS = {
+  guide:
+    "https://darbakk.com/%D8%AD%D8%B2%D9%85%D8%A9-%D8%AF%D8%B1%D8%A8%D9%83-%D9%84%D9%84%D8%AA%D9%82%D8%AF%D9%8A%D9%85-%D8%B9%D9%84%D9%89-%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8-%D8%A7%D9%84%D8%AA%D8%B9%D8%A7%D9%88%D9%86%D9%8A-%D8%AC%D9%87%D8%A7%D8%AA-%D8%A5%D9%8A%D9%85%D9%8A%D9%84%D8%A7%D8%AA-%D8%B1%D9%88%D8%A7%D8%A8%D8%B7-%D9%85%D8%AA%D8%A7%D8%A8%D8%B9%D8%A9/p2135973764",
+  cv:
+    "https://darbakk.com/%D8%B3%D9%8A%D8%B1%D8%A9-%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8-%D8%A7%D9%84%D8%AA%D8%B9%D8%A7%D9%88%D9%86%D9%8A/p1027158085",
+};
+const TELEGRAM_DEFAULT_CONTENT_ITEMS = [
+  {
+    type: "reassurance",
+    title: "تطمين عن تأخر الرد",
+    body:
+      "تأخر رد الجهات لا يعني أن فرصك انتهت، بعض الجهات تتواصل قبل بداية التدريب بفترة قصيرة. استمر بالتقديم ولا توقف على جهة واحدة 🤍",
+  },
+  {
+    type: "reassurance",
+    title: "لا توقف على جهة واحدة",
+    body:
+      "لا تنتظر رد جهة واحدة. قدم على عدة جهات وسجل كل جهة قدمت عليها وتاريخ التقديم عشان تكون خطواتك أوضح.",
+  },
+  {
+    type: "tip",
+    title: "سيرة بدون خبرات كثيرة",
+    body:
+      "إذا ما عندك خبرات كثيرة، ركز في سيرتك على مشاريع الجامعة والمهارات والأدوات التي استخدمتها. الجهة تحتاج تشوف طريقة تفكيرك، مو عدد الخبرات فقط.",
+  },
+  {
+    type: "tip",
+    title: "إيميل التقديم",
+    body:
+      "لا تكتفِ بالتقديم من الموقع فقط. إذا كان عندك إيميل الجهة، أرسل خطاب التدريب وسيرتك الذاتية بصياغة مختصرة وواضحة.",
+  },
+  {
+    type: "portfolio",
+    title: "الملف المهني",
+    body:
+      "عندك مشاريع وشهادات لكنها متفرقة؟ 👀\n\nفي دربك تقدر تنشئ ملفك المهني وتجمع فيه مشاريعك، شهاداتك، مهاراتك، سيرتك الذاتية وحساب لينكدإن، وترسل للجهة رابطًا واحدًا مرتبًا بدل عدة ملفات.",
+    ctaLabel: "أنشئ ملفك المهني",
+    ctaUrl: "/portfolio",
+  },
+  {
+    type: "product",
+    title: "ملف رحلة التدريب",
+    body:
+      "أكثر شيء يضيّع وقت الطلاب هو البحث عن الجهات وروابطها وإيميلاتها ومواعيد التقديم.\n\nلذلك جمعنا في ملف رحلة التدريب جهات من مختلف مناطق المملكة، مع روابط ومعلومات تساعدك ترتب تقديمك.",
+    ctaLabel: "اطلع على ملف رحلة التدريب",
+    ctaUrl: TELEGRAM_PRODUCT_URLS.guide,
+  },
+  {
+    type: "product",
+    title: "خدمة السيرة الذاتية",
+    body:
+      "ترسل سيرتك لجهات كثيرة وما يجيك رد؟\n\nقبل ما تفترض أن المشكلة بخبرتك، تأكد أن سيرتك واضحة، مختصرة ومتوافقة مع أنظمة ATS. تتوفر في دربك خدمة مراجعة وتجهيز السيرة الذاتية.",
+    ctaLabel: "اطلب خدمة السيرة الذاتية",
+    ctaUrl: TELEGRAM_PRODUCT_URLS.cv,
+  },
+];
+
 const normalizeTelegramPostText = (value = "") =>
   value
     .toString()
@@ -8466,17 +8547,26 @@ const limitTelegramText = (value = "", maxLength = 260) => {
   return `${text.slice(0, maxLength).trim()}...`;
 };
 
-const getDailyContentItem = (items = [], salt = 0) => {
-  if (!Array.isArray(items) || items.length === 0) return null;
-  const todayKey = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const seed =
-    Number(todayKey) +
-    salt +
-    todayKey.split("").reduce((total, digit) => total + Number(digit || 0), 0);
-  return items[seed % items.length];
-};
+const escapeTelegramHtml = (value = "") =>
+  value
+    .toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 
-const getTelegramUrl = (path = "/") => `${getFrontendUrl()}${path}`;
+const getTelegramTrackedUrl = (path = "/", type = "telegram") => {
+  const isAbsolute = /^https?:\/\//i.test(path);
+  const baseUrl = isAbsolute ? path : `${getFrontendUrl()}${path}`;
+
+  try {
+    const url = new URL(baseUrl);
+    url.searchParams.set("source", "telegram");
+    url.searchParams.set("type", type);
+    return url.toString();
+  } catch {
+    return baseUrl;
+  }
+};
 
 const joinPostValues = (values = [], fallback = "غير محدد") => {
   const sourceValues = Array.isArray(values) ? values : [values];
@@ -8498,28 +8588,506 @@ const getOpportunityTelegramSpecialties = (opportunity = {}) => {
   return joinPostValues(opportunity.majorCategories, "تخصصات متعددة");
 };
 
-const buildTelegramContentCard = ({
-  type,
-  title,
-  subtitle,
-  body,
-  url = "",
-  sourceCount = 0,
-  sourceLabel = "",
-}) => ({
-  id: crypto
-    .createHash("sha1")
-    .update(`${type}:${title}:${url}:${body}`)
-    .digest("hex")
-    .slice(0, 14),
-  type,
-  title,
-  subtitle,
-  body: normalizeTelegramPostText(body),
-  url,
-  sourceCount,
-  sourceLabel,
+const getTelegramDayKey = (date = new Date()) => {
+  const localDate = new Date(date);
+  localDate.setHours(localDate.getHours() + 3);
+  return localDate.toISOString().slice(0, 10);
+};
+
+const getTelegramStartOfDay = (date = new Date()) => {
+  const day = new Date(date);
+  day.setHours(0, 0, 0, 0);
+  return day;
+};
+
+const getTelegramPostTitle = (type, source = {}) => {
+  if (type === "opportunity") return "فرصة تدريب جديدة";
+  if (type === "experience") return "من تجربة متدرب";
+  if (type === "portfolio") return source.title || "الملف المهني في دربك";
+  if (type === "product") return source.title || "من منتجات دربك";
+  if (type === "tip") return source.title || "نصيحة تدريب";
+  return source.title || "رسالة للطلاب";
+};
+
+const mapTelegramPost = (post = {}) => ({
+  _id: post._id?.toString?.() || "",
+  type: post.type || "",
+  sourceType: post.sourceType || "",
+  sourceId: post.sourceId || "",
+  title: post.title || "",
+  body: post.body || "",
+  ctaLabel: post.ctaLabel || "",
+  ctaUrl: post.ctaUrl || "",
+  status: post.status || "draft",
+  scheduledAt: post.scheduledAt || null,
+  publishedAt: post.publishedAt || null,
+  telegramMessageId: post.telegramMessageId || "",
+  createdAutomatically: Boolean(post.createdAutomatically),
+  errorMessage: post.errorMessage || "",
+  metadata: post.metadata || {},
+  createdAt: post.createdAt,
+  updatedAt: post.updatedAt,
 });
+
+const mapTelegramContentItem = (item = {}) => ({
+  _id: item._id?.toString?.() || "",
+  type: item.type || "",
+  title: item.title || "",
+  body: item.body || "",
+  ctaLabel: item.ctaLabel || "",
+  ctaUrl: item.ctaUrl || "",
+  isActive: Boolean(item.isActive),
+  lastUsedAt: item.lastUsedAt || null,
+  usageCount: Number(item.usageCount || 0),
+  createdAt: item.createdAt,
+  updatedAt: item.updatedAt,
+});
+
+const mapTelegramOpportunityCandidate = (opportunity = {}) => ({
+  _id: opportunity._id?.toString?.() || "",
+  label: `${opportunity.organizationName || "جهة"} - ${
+    opportunity.title || "فرصة تدريب"
+  }`,
+  organizationName: opportunity.organizationName || "",
+  title: opportunity.title || "",
+  city: getOpportunityTelegramCities(opportunity),
+  specialties: getOpportunityTelegramSpecialties(opportunity),
+  deadline: opportunity.deadline || null,
+});
+
+const mapTelegramExperienceCandidate = (experience = {}) => ({
+  _id: experience._id?.toString?.() || "",
+  label: `${experience.organizationName || "جهة"} - ${
+    experience.major || experience.majorCategory || "تخصص"
+  }`,
+  organizationName: experience.organizationName || "",
+  title: experience.title || "",
+  city: experience.city || "",
+  major: experience.major || experience.majorCategory || "",
+});
+
+const ensureTelegramDefaults = async () => {
+  let settings = await TelegramSettings.findOne({ key: "default" });
+  if (!settings) {
+    settings = await TelegramSettings.create({ key: "default" });
+  }
+
+  const existingTemplates = await TelegramContentItem.countDocuments();
+  if (existingTemplates === 0) {
+    await TelegramContentItem.insertMany(TELEGRAM_DEFAULT_CONTENT_ITEMS);
+  }
+
+  return settings;
+};
+
+const getTelegramOpportunityCandidates = async (limit = 20) => {
+  await markExpiredOpportunities();
+
+  const recentOrgCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const usedSourceIds = await TelegramPost.distinct("sourceId", {
+    type: "opportunity",
+    sourceType: "opportunity",
+    sourceId: { $ne: "" },
+    status: { $in: ["draft", "scheduled", "published"] },
+  });
+  const recentOrganizationNames = await TelegramPost.distinct(
+    "metadata.organizationName",
+    {
+      type: "opportunity",
+      sourceType: "opportunity",
+      publishedAt: { $gte: recentOrgCutoff },
+      status: "published",
+    }
+  );
+  const recentOrganizationKeys = new Set(
+    recentOrganizationNames.map(normalizeSearchText).filter(Boolean)
+  );
+  const usedSourceIdSet = new Set(usedSourceIds.map((id) => id.toString()));
+  const opportunities = await Opportunity.find({ status: "active" })
+    .sort({ createdAt: -1, deadline: 1 })
+    .limit(150)
+    .lean();
+  const now = Date.now();
+
+  return opportunities
+    .filter((opportunity) => {
+      const sourceId = opportunity._id?.toString?.() || "";
+      if (!sourceId || usedSourceIdSet.has(sourceId)) return false;
+      if (opportunity.deadline && isClosedByDeadline(opportunity.deadline)) return false;
+
+      const orgKey = normalizeSearchText(opportunity.organizationName);
+      if (recentOrganizationKeys.has(orgKey)) return false;
+
+      return true;
+    })
+    .sort((a, b) => {
+      const aCreated = new Date(a.createdAt || 0).getTime();
+      const bCreated = new Date(b.createdAt || 0).getTime();
+      if (bCreated !== aCreated) return bCreated - aCreated;
+
+      const aDeadline = a.deadline ? new Date(a.deadline).getTime() : now + 9999999999;
+      const bDeadline = b.deadline ? new Date(b.deadline).getTime() : now + 9999999999;
+      return aDeadline - bDeadline;
+    })
+    .slice(0, limit);
+};
+
+const getTelegramExperienceSnippet = (description = "") => {
+  const cleanDescription = normalizeTelegramPostText(description)
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 40 && !containsBlockedTerms(line))
+    .join(" ");
+
+  return limitTelegramText(cleanDescription || description, 230);
+};
+
+const getTelegramExperienceCandidates = async (limit = 20) => {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const recentlyUsedSourceIds = await TelegramPost.distinct("sourceId", {
+    type: "experience",
+    sourceType: "experience",
+    sourceId: { $ne: "" },
+    status: { $in: ["draft", "scheduled", "published"] },
+    createdAt: { $gte: cutoff },
+  });
+  const usedSourceIdSet = new Set(recentlyUsedSourceIds.map((id) => id.toString()));
+
+  const experiences = await Experience.find(getApprovedExperiencesFilter())
+    .sort({ reviewedAt: -1, createdAt: -1 })
+    .limit(160)
+    .lean();
+
+  return experiences
+    .filter((experience) => {
+      const sourceId = experience._id?.toString?.() || "";
+      if (!sourceId || usedSourceIdSet.has(sourceId)) return false;
+      if (containsBlockedTerms(experience.description || "")) return false;
+      return getTelegramExperienceSnippet(experience.description).length >= 50;
+    })
+    .slice(0, limit);
+};
+
+const getNextTelegramContentType = async () => {
+  const latest = await TelegramPost.findOne({
+    type: { $in: TELEGRAM_CONTENT_ROTATION },
+    status: { $in: ["scheduled", "published"] },
+  })
+    .sort({ publishedAt: -1, scheduledAt: -1, createdAt: -1 })
+    .lean();
+
+  if (!latest?.type) return "experience";
+  const currentIndex = TELEGRAM_CONTENT_ROTATION.indexOf(latest.type);
+  return TELEGRAM_CONTENT_ROTATION[
+    (Math.max(currentIndex, 0) + 1) % TELEGRAM_CONTENT_ROTATION.length
+  ];
+};
+
+const canGenerateTelegramType = async (type) => {
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  if (type === "portfolio") {
+    const portfolioCount = await TelegramPost.countDocuments({
+      type: "portfolio",
+      status: { $in: ["scheduled", "published"] },
+      createdAt: { $gte: oneWeekAgo },
+    });
+    return portfolioCount === 0;
+  }
+
+  if (type === "product") {
+    const [weeklyCount, yesterdayCount] = await Promise.all([
+      TelegramPost.countDocuments({
+        type: "product",
+        status: { $in: ["scheduled", "published"] },
+        createdAt: { $gte: oneWeekAgo },
+      }),
+      TelegramPost.countDocuments({
+        type: "product",
+        status: { $in: ["scheduled", "published"] },
+        createdAt: { $gte: yesterday },
+      }),
+    ]);
+    return weeklyCount < 2 && yesterdayCount === 0;
+  }
+
+  return true;
+};
+
+const getTelegramTemplateCandidate = async (type) => {
+  if (!(await canGenerateTelegramType(type))) return null;
+
+  return TelegramContentItem.findOne({
+    type,
+    isActive: true,
+  })
+    .sort({ lastUsedAt: 1, usageCount: 1, createdAt: 1 })
+    .lean();
+};
+
+const buildTelegramOpportunityDraft = (opportunity) => {
+  const cities = getOpportunityTelegramCities(opportunity);
+  const specialties = getOpportunityTelegramSpecialties(opportunity);
+  const deadline = opportunity.deadline
+    ? `\nآخر موعد: ${new Date(opportunity.deadline).toLocaleDateString("ar-SA")}`
+    : "";
+  const ctaUrl = getTelegramTrackedUrl(
+    `/where-to-train/opportunity/${opportunity._id}`,
+    "opportunity"
+  );
+
+  return {
+    type: "opportunity",
+    sourceType: "opportunity",
+    sourceId: opportunity._id.toString(),
+    title: "فرصة تدريب جديدة",
+    body: `🎓 فرصة تدريب جديدة\n\nالجهة: ${opportunity.organizationName}\nالفرصة: ${opportunity.title}\nالمدينة: ${cities}\nالتخصصات: ${specialties}${deadline}\n\nالتفاصيل وطريقة التقديم عبر دربك 👇`,
+    ctaLabel: "عرض الفرصة في دربك",
+    ctaUrl,
+    metadata: {
+      organizationName: opportunity.organizationName,
+      title: opportunity.title,
+      city: cities,
+      deadline: opportunity.deadline || null,
+    },
+  };
+};
+
+const buildTelegramExperienceDraft = (experience) => {
+  const ctaUrl = getTelegramTrackedUrl(`/experiences/${experience._id}`, "experience");
+  const snippet = getTelegramExperienceSnippet(experience.description);
+
+  return {
+    type: "experience",
+    sourceType: "experience",
+    sourceId: experience._id.toString(),
+    title: "من تجربة متدرب",
+    body: `💬 من تجربة متدرب\n\n"${snippet}"\n\nمن تجربة تدريب في ${experience.organizationName} لتخصص ${
+      experience.major || experience.majorCategory || "غير محدد"
+    }.\n\nلقراءة التجربة كاملة 👇`,
+    ctaLabel: "عرض التجربة",
+    ctaUrl,
+    metadata: {
+      organizationName: experience.organizationName,
+      major: experience.major || experience.majorCategory || "",
+      city: experience.city || "",
+    },
+  };
+};
+
+const buildTelegramTemplateDraft = (template) => {
+  const trackedUrl = template.ctaUrl
+    ? getTelegramTrackedUrl(template.ctaUrl, template.type)
+    : "";
+
+  return {
+    type: template.type,
+    sourceType: "template",
+    sourceId: template._id.toString(),
+    title: getTelegramPostTitle(template.type, template),
+    body: template.body,
+    ctaLabel: template.ctaLabel,
+    ctaUrl: trackedUrl,
+    metadata: {
+      templateTitle: template.title || "",
+    },
+  };
+};
+
+const buildTelegramDraftPayload = async (requestedType = "", sourceId = "") => {
+  const type = TELEGRAM_POST_TYPES.includes(requestedType)
+    ? requestedType
+    : await getNextTelegramContentType();
+
+  if (type === "opportunity") {
+    const opportunities = sourceId
+      ? [await Opportunity.findById(sourceId).lean()].filter(Boolean)
+      : await getTelegramOpportunityCandidates(1);
+    const opportunity = opportunities[0];
+    if (!opportunity || opportunity.status !== "active" || isClosedByDeadline(opportunity.deadline)) {
+      throw new Error("لا توجد فرصة جديدة مناسبة للنشر الآن.");
+    }
+    return buildTelegramOpportunityDraft(opportunity);
+  }
+
+  if (type === "experience") {
+    const experiences = sourceId
+      ? [await Experience.findOne({ _id: sourceId, ...getApprovedExperiencesFilter() }).lean()].filter(Boolean)
+      : await getTelegramExperienceCandidates(1);
+    const experience = experiences[0];
+    if (!experience) {
+      throw new Error("لا توجد تجربة مناسبة للنشر الآن.");
+    }
+    return buildTelegramExperienceDraft(experience);
+  }
+
+  if (!TELEGRAM_TEMPLATE_TYPES.includes(type)) {
+    throw new Error("نوع المنشور غير مدعوم.");
+  }
+
+  const template = sourceId
+    ? await TelegramContentItem.findOne({ _id: sourceId, type, isActive: true }).lean()
+    : await getTelegramTemplateCandidate(type);
+
+  if (!template) {
+    throw new Error("لا يوجد قالب مناسب لهذا النوع الآن.");
+  }
+
+  return buildTelegramTemplateDraft(template);
+};
+
+const validateTelegramPostPayload = (body = {}) => {
+  const type = TELEGRAM_POST_TYPES.includes(body.type) ? body.type : "tip";
+  const postBody = normalizeTelegramPostText(body.body);
+  const title = (body.title || getTelegramPostTitle(type)).toString().trim();
+  const ctaLabel = (body.ctaLabel || "").toString().trim();
+  const ctaUrl = (body.ctaUrl || "").toString().trim();
+
+  if (postBody.length < 8) {
+    throw new Error("اكتبي نص المنشور بشكل أوضح.");
+  }
+
+  if ([postBody, title, ctaLabel].some(containsBlockedTerms)) {
+    throw new Error("النص يحتوي على عبارات غير مناسبة.");
+  }
+
+  return {
+    type,
+    sourceType: ["opportunity", "experience", "template", "manual", ""].includes(
+      body.sourceType
+    )
+      ? body.sourceType
+      : "manual",
+    sourceId: (body.sourceId || "").toString().trim(),
+    title,
+    body: postBody,
+    ctaLabel,
+    ctaUrl,
+    status: ["draft", "scheduled", "published", "failed"].includes(body.status)
+      ? body.status
+      : "draft",
+    scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
+    createdAutomatically: Boolean(body.createdAutomatically),
+    metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : {},
+  };
+};
+
+const assertTelegramSourceNotDuplicated = async (payload, existingId = "") => {
+  if (!payload.sourceId || !payload.sourceType) return;
+
+  const duplicate = await TelegramPost.findOne({
+    _id: existingId ? { $ne: existingId } : { $exists: true },
+    sourceType: payload.sourceType,
+    sourceId: payload.sourceId,
+    type: payload.type,
+    status: { $in: ["draft", "scheduled", "published"] },
+  }).lean();
+
+  if (duplicate) {
+    throw new Error("هذا المصدر موجود مسبقًا في منشور تيليجرام.");
+  }
+};
+
+const getTelegramPostHtml = (post = {}) => escapeTelegramHtml(post.body || "");
+
+const sendTelegramPostToChannel = async (post = {}, settings = {}) => {
+  if (!settings.botPublishingEnabled || !TELEGRAM_BOT_PUBLISHING_ENABLED) {
+    throw new Error(
+      "Telegram Bot API جاهز لكنه غير مفعل الآن. فعّلي botPublishingEnabled و TELEGRAM_BOT_PUBLISHING_ENABLED لاحقًا."
+    );
+  }
+
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHANNEL_ID) {
+    throw new Error("TELEGRAM_BOT_TOKEN أو TELEGRAM_CHANNEL_ID غير مضبوط.");
+  }
+
+  const payload = {
+    chat_id: TELEGRAM_CHANNEL_ID,
+    text: getTelegramPostHtml(post),
+    parse_mode: "HTML",
+    disable_web_page_preview: false,
+  };
+
+  if (post.ctaLabel && post.ctaUrl) {
+    payload.reply_markup = {
+      inline_keyboard: [
+        [
+          {
+            text: post.ctaLabel,
+            url: post.ctaUrl,
+          },
+        ],
+      ],
+    };
+  }
+
+  const response = await fetch(
+    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.ok) {
+    throw new Error(data.description || "فشل إرسال المنشور إلى تيليجرام.");
+  }
+
+  return data.result;
+};
+
+const publishTelegramPost = async (postId) => {
+  const settings = await ensureTelegramDefaults();
+  const post = await TelegramPost.findById(postId);
+  if (!post) {
+    const notFoundError = new Error("المنشور غير موجود.");
+    notFoundError.statusCode = 404;
+    throw notFoundError;
+  }
+
+  if (post.status === "published") return post;
+
+  try {
+    const result = await sendTelegramPostToChannel(post.toObject(), settings.toObject());
+    post.status = "published";
+    post.publishedAt = new Date();
+    post.telegramMessageId = result.message_id?.toString?.() || "";
+    post.errorMessage = "";
+    await post.save();
+
+    if (post.sourceType === "template" && post.sourceId) {
+      await TelegramContentItem.findByIdAndUpdate(post.sourceId, {
+        $set: { lastUsedAt: new Date() },
+        $inc: { usageCount: 1 },
+      });
+    }
+
+    return post;
+  } catch (err) {
+    post.status = "failed";
+    post.errorMessage = err.message;
+    await post.save();
+    throw err;
+  }
+};
+
+const requireTelegramCronSecret = (req, res, next) => {
+  if (!TELEGRAM_CRON_SECRET) {
+    return res.status(500).json({ error: "Telegram cron secret is not configured" });
+  }
+
+  const providedSecret =
+    req.headers["x-telegram-cron-secret"] || req.body?.secret || req.query?.secret;
+
+  if (providedSecret !== TELEGRAM_CRON_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  next();
+};
 
 app.get('/api/admin/telegram-content', requireAdmin, async (req, res) => {
   try {
@@ -8527,142 +9095,363 @@ app.get('/api/admin/telegram-content', requireAdmin, async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    await markExpiredOpportunities();
+    const settings = await ensureTelegramDefaults();
+    const [posts, contentItems, opportunityCandidates, experienceCandidates, summary] =
+      await Promise.all([
+        TelegramPost.find({})
+          .sort({ scheduledAt: -1, createdAt: -1 })
+          .limit(80)
+          .lean(),
+        TelegramContentItem.find({})
+          .sort({ type: 1, isActive: -1, updatedAt: -1 })
+          .limit(120)
+          .lean(),
+        getTelegramOpportunityCandidates(20),
+        getTelegramExperienceCandidates(20),
+        Promise.all([
+          Experience.countDocuments(getApprovedExperiencesFilter()),
+          Opportunity.countDocuments({ status: "active" }),
+          TelegramPost.countDocuments({ status: "draft" }),
+          TelegramPost.countDocuments({ status: "scheduled" }),
+          TelegramPost.countDocuments({ status: "published" }),
+          TelegramPost.countDocuments({ status: "failed" }),
+        ]),
+      ]);
 
-    const approvedFilter = getApprovedExperiencesFilter();
-    const activeOpportunityFilter = { status: "active" };
     const [
       totalExperiences,
       totalOpportunities,
-      totalInterviews,
-      recentExperiences,
-      activeOpportunities,
-      approvedInterviews,
-    ] = await Promise.all([
-      Experience.countDocuments(approvedFilter),
-      Opportunity.countDocuments(activeOpportunityFilter),
-      InterviewQuestion.countDocuments({ status: "approved" }),
-      Experience.find(approvedFilter)
-        .sort({ reviewedAt: -1, createdAt: -1 })
-        .limit(80)
-        .lean(),
-      Opportunity.find(activeOpportunityFilter)
-        .sort({ featured: -1, updatedAt: -1, createdAt: -1 })
-        .limit(80)
-        .lean(),
-      InterviewQuestion.find({ status: "approved" })
-        .sort({ reviewedAt: -1, createdAt: -1 })
-        .limit(60)
-        .lean(),
-    ]);
-
-    const experience = getDailyContentItem(recentExperiences, 7);
-    const opportunity = getDailyContentItem(activeOpportunities, 17);
-    const interview = getDailyContentItem(approvedInterviews, 27);
-    const cards = [];
-
-    if (opportunity) {
-      const cities = getOpportunityTelegramCities(opportunity);
-      const specialties = getOpportunityTelegramSpecialties(opportunity);
-      const deadline = opportunity.deadline
-        ? `\nآخر موعد: ${new Date(opportunity.deadline).toLocaleDateString("ar-SA")}`
-        : "";
-      const reward =
-        opportunity.hasReward === "yes"
-          ? "\nالمكافأة: يوجد"
-          : opportunity.hasReward === "no"
-          ? "\nالمكافأة: لا يوجد"
-          : "";
-      const url = getTelegramUrl(`/where-to-train/opportunity/${opportunity._id}`);
-
-      cards.push(
-        buildTelegramContentCard({
-          type: "فرصة",
-          title: "فرصة تدريب اليوم",
-          subtitle: opportunity.organizationName,
-          url,
-          sourceCount: totalOpportunities,
-          sourceLabel: "فرصة نشطة",
-          body: `فرصة تدريب اليوم في دربك\n\n${opportunity.title}\nالجهة: ${opportunity.organizationName}\nالمدينة: ${cities}\nمناسبة لـ: ${specialties}${reward}${deadline}\n\nتابع التفاصيل من دربك:\n${url}`,
-        })
-      );
-    }
-
-    if (experience) {
-      const url = getTelegramUrl(`/experiences/${experience._id}`);
-      const snippet = limitTelegramText(experience.description, 190);
-      const rating = experience.starRating ? `\nالتقييم: ${experience.starRating}/5` : "";
-
-      cards.push(
-        buildTelegramContentCard({
-          type: "تجربة",
-          title: "تجربة مختصرة للنشر",
-          subtitle: experience.organizationName,
-          url,
-          sourceCount: totalExperiences,
-          sourceLabel: "تجربة منشورة",
-          body: `من تجارب دربك\n\nتجربة في ${experience.organizationName}\nالتخصص: ${experience.major || experience.majorCategory || "غير محدد"}\nالمدينة: ${experience.city || "غير محددة"}${rating}\n\n${snippet}\n\nاقرأ التجربة كاملة:\n${url}`,
-        })
-      );
-    }
-
-    if (interview) {
-      const question = limitTelegramText((interview.questions || [])[0], 180);
-      const url = getTelegramUrl("/interviews");
-
-      cards.push(
-        buildTelegramContentCard({
-          type: "مقابلة",
-          title: "سؤال مقابلة اليوم",
-          subtitle: interview.organizationName,
-          url,
-          sourceCount: totalInterviews,
-          sourceLabel: "مجموعة أسئلة",
-          body: `سؤال مقابلة من دربك\n\nالجهة: ${interview.organizationName}\nالتخصص: ${interview.major}\n${interview.city ? `المدينة: ${interview.city}\n` : ""}\nالسؤال:\n${question}\n\nاستعد للمقابلات من صفحة مقابلات دربك:\n${url}`,
-        })
-      );
-    }
-
-    const finderUrl = getTelegramUrl("/where-to-train");
-    cards.push(
-      buildTelegramContentCard({
-        type: "وين أتدرب",
-        title: "منشور بحث عن جهات",
-        subtitle: "دعوة لاستخدام صفحة وين أتدرب",
-        url: finderUrl,
-        sourceCount: totalOpportunities,
-        sourceLabel: "فرصة وجهة",
-        body: `ما تعرف وين تبدأ تدريبك؟\n\nفي صفحة وين أتدرب تقدر تختار تخصصك ومدينتك، وتشوف جهات وفرص وتجارب تساعدك تبدأ بخطوة أوضح.\n\nابدأ من هنا:\n${finderUrl}`,
-      })
-    );
-
-    const addExperienceUrl = getTelegramUrl("/add-experience");
-    cards.push(
-      buildTelegramContentCard({
-        type: "مشاركة",
-        title: "دعوة لإضافة تجربة",
-        subtitle: "لزيادة محتوى دربك",
-        url: addExperienceUrl,
-        sourceCount: totalExperiences,
-        sourceLabel: "تجربة منشورة",
-        body: `خلصت تدريبك؟\n\nاكتب تجربتك في دربك، يمكن تكون سبب في طمأنة طالب قبل أول يوم تدريب أو تساعده يختار جهة مناسبة.\n\nشارك تجربتك هنا:\n${addExperienceUrl}`,
-      })
-    );
+      draftPosts,
+      scheduledPosts,
+      publishedPosts,
+      failedPosts,
+    ] = summary;
 
     res.json({
       date: new Date().toISOString(),
+      settings: settings.toObject(),
       summary: {
         totalExperiences,
         totalOpportunities,
-        totalInterviews,
+        draftPosts,
+        scheduledPosts,
+        publishedPosts,
+        failedPosts,
+        botConfigured: Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_CHANNEL_ID),
+        botPublishingEnabled:
+          Boolean(settings.botPublishingEnabled) && TELEGRAM_BOT_PUBLISHING_ENABLED,
       },
-      data: cards,
+      posts: posts.map(mapTelegramPost),
+      contentItems: contentItems.map(mapTelegramContentItem),
+      candidates: {
+        opportunities: opportunityCandidates.map(mapTelegramOpportunityCandidate),
+        experiences: experienceCandidates.map(mapTelegramExperienceCandidate),
+      },
     });
   } catch (err) {
     console.error("❌ Admin Telegram content error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
+app.patch('/api/admin/telegram/settings', requireAdmin, async (req, res) => {
+  try {
+    const settings = await ensureTelegramDefaults();
+    const updates = {};
+
+    [
+      "autoPublishingEnabled",
+      "draftApprovalRequired",
+      "botPublishingEnabled",
+    ].forEach((field) => {
+      if (typeof req.body[field] === "boolean") {
+        updates[field] = req.body[field];
+      }
+    });
+
+    if (/^\d{2}:\d{2}$/.test((req.body.opportunityTime || "").toString())) {
+      updates.opportunityTime = req.body.opportunityTime;
+    }
+    if (/^\d{2}:\d{2}$/.test((req.body.contentTime || "").toString())) {
+      updates.contentTime = req.body.contentTime;
+    }
+    if (Array.isArray(req.body.contentDays)) {
+      updates.contentDays = req.body.contentDays
+        .map((day) => Number(day))
+        .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+    }
+    if (req.body.maxPostsPerDay) {
+      const maxPostsPerDay = Number(req.body.maxPostsPerDay);
+      if (maxPostsPerDay >= 1 && maxPostsPerDay <= 4) {
+        updates.maxPostsPerDay = maxPostsPerDay;
+      }
+    }
+
+    const updated = await TelegramSettings.findByIdAndUpdate(
+      settings._id,
+      { $set: updates },
+      { new: true }
+    ).lean();
+
+    res.json(updated);
+  } catch (err) {
+    console.error("❌ Telegram settings update error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/telegram/content-items', requireAdmin, async (req, res) => {
+  try {
+    const type = TELEGRAM_TEMPLATE_TYPES.includes(req.body.type)
+      ? req.body.type
+      : "tip";
+    const title = (req.body.title || "").toString().trim();
+    const body = normalizeTelegramPostText(req.body.body || "");
+    const ctaLabel = (req.body.ctaLabel || "").toString().trim();
+    const ctaUrl = (req.body.ctaUrl || "").toString().trim();
+
+    if (body.length < 8) {
+      return res.status(400).json({ error: "اكتبي نص القالب بشكل أوضح." });
+    }
+    if ([title, body, ctaLabel].some(containsBlockedTerms)) {
+      return res.status(400).json({ error: "النص يحتوي على عبارات غير مناسبة." });
+    }
+
+    const item = await TelegramContentItem.create({
+      type,
+      title,
+      body,
+      ctaLabel,
+      ctaUrl,
+      isActive: req.body.isActive !== false,
+    });
+
+    res.json(mapTelegramContentItem(item));
+  } catch (err) {
+    console.error("❌ Telegram content item create error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/telegram/content-items/:id', requireAdmin, async (req, res) => {
+  try {
+    const updates = {};
+    if (TELEGRAM_TEMPLATE_TYPES.includes(req.body.type)) updates.type = req.body.type;
+    if (typeof req.body.title === "string") updates.title = req.body.title.trim();
+    if (typeof req.body.body === "string") {
+      updates.body = normalizeTelegramPostText(req.body.body);
+      if (updates.body.length < 8) {
+        return res.status(400).json({ error: "اكتبي نص القالب بشكل أوضح." });
+      }
+    }
+    if (typeof req.body.ctaLabel === "string") updates.ctaLabel = req.body.ctaLabel.trim();
+    if (typeof req.body.ctaUrl === "string") updates.ctaUrl = req.body.ctaUrl.trim();
+    if (typeof req.body.isActive === "boolean") updates.isActive = req.body.isActive;
+
+    if (
+      [updates.title, updates.body, updates.ctaLabel]
+        .filter(Boolean)
+        .some(containsBlockedTerms)
+    ) {
+      return res.status(400).json({ error: "النص يحتوي على عبارات غير مناسبة." });
+    }
+
+    const item = await TelegramContentItem.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      { new: true }
+    ).lean();
+
+    if (!item) return res.status(404).json({ error: "القالب غير موجود." });
+    res.json(mapTelegramContentItem(item));
+  } catch (err) {
+    console.error("❌ Telegram content item update error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/telegram/content-items/:id', requireAdmin, async (req, res) => {
+  try {
+    const item = await TelegramContentItem.findByIdAndDelete(req.params.id).lean();
+    if (!item) return res.status(404).json({ error: "القالب غير موجود." });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("❌ Telegram content item delete error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/telegram/posts/draft', requireAdmin, async (req, res) => {
+  try {
+    const settings = await ensureTelegramDefaults();
+    const payload = await buildTelegramDraftPayload(req.body.type, req.body.sourceId);
+    await assertTelegramSourceNotDuplicated(payload);
+
+    const post = await TelegramPost.create({
+      ...payload,
+      status:
+        req.body.status === "scheduled" && !settings.draftApprovalRequired
+          ? "scheduled"
+          : "draft",
+      scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined,
+      createdAutomatically: true,
+    });
+
+    if (post.sourceType === "template" && post.sourceId) {
+      await TelegramContentItem.findByIdAndUpdate(post.sourceId, {
+        $set: { lastUsedAt: new Date() },
+        $inc: { usageCount: 1 },
+      });
+    }
+
+    res.json(mapTelegramPost(post));
+  } catch (err) {
+    console.error("❌ Telegram draft create error:", err);
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/telegram/posts', requireAdmin, async (req, res) => {
+  try {
+    const payload = validateTelegramPostPayload(req.body);
+    await assertTelegramSourceNotDuplicated(payload);
+    const post = await TelegramPost.create(payload);
+    res.json(mapTelegramPost(post));
+  } catch (err) {
+    console.error("❌ Telegram post create error:", err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/telegram/posts/:id', requireAdmin, async (req, res) => {
+  try {
+    const payload = validateTelegramPostPayload(req.body);
+    await assertTelegramSourceNotDuplicated(payload, req.params.id);
+    const post = await TelegramPost.findByIdAndUpdate(
+      req.params.id,
+      { $set: payload },
+      { new: true }
+    ).lean();
+
+    if (!post) return res.status(404).json({ error: "المنشور غير موجود." });
+    res.json(mapTelegramPost(post));
+  } catch (err) {
+    console.error("❌ Telegram post update error:", err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/telegram/posts/:id/schedule', requireAdmin, async (req, res) => {
+  try {
+    const scheduledAt = req.body.scheduledAt ? new Date(req.body.scheduledAt) : null;
+    if (!scheduledAt || Number.isNaN(scheduledAt.getTime())) {
+      return res.status(400).json({ error: "اختاري وقت جدولة صحيح." });
+    }
+
+    const post = await TelegramPost.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          status: "scheduled",
+          scheduledAt,
+          errorMessage: "",
+        },
+      },
+      { new: true }
+    ).lean();
+
+    if (!post) return res.status(404).json({ error: "المنشور غير موجود." });
+    res.json(mapTelegramPost(post));
+  } catch (err) {
+    console.error("❌ Telegram post schedule error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/telegram/posts/:id/publish', requireAdmin, async (req, res) => {
+  try {
+    const post = await publishTelegramPost(req.params.id);
+    res.json(mapTelegramPost(post));
+  } catch (err) {
+    console.error("❌ Telegram post publish error:", err);
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/telegram/posts/:id/retry', requireAdmin, async (req, res) => {
+  try {
+    const post = await TelegramPost.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: "draft", errorMessage: "" } },
+      { new: true }
+    ).lean();
+
+    if (!post) return res.status(404).json({ error: "المنشور غير موجود." });
+    res.json(mapTelegramPost(post));
+  } catch (err) {
+    console.error("❌ Telegram post retry error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/telegram/posts/:id', requireAdmin, async (req, res) => {
+  try {
+    const post = await TelegramPost.findByIdAndDelete(req.params.id).lean();
+    if (!post) return res.status(404).json({ error: "المنشور غير موجود." });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("❌ Telegram post delete error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post(
+  '/api/admin/telegram/run-scheduled-posts',
+  requireTelegramCronSecret,
+  async (req, res) => {
+    try {
+      const settings = await ensureTelegramDefaults();
+      if (!settings.autoPublishingEnabled) {
+        return res.json({ ok: true, published: 0, skipped: "auto_disabled" });
+      }
+      if (!settings.botPublishingEnabled || !TELEGRAM_BOT_PUBLISHING_ENABLED) {
+        return res.json({ ok: true, published: 0, skipped: "bot_disabled" });
+      }
+
+      const todayStart = getTelegramStartOfDay();
+      const publishedToday = await TelegramPost.countDocuments({
+        status: "published",
+        publishedAt: { $gte: todayStart },
+      });
+      const remaining = Math.max((settings.maxPostsPerDay || 2) - publishedToday, 0);
+      if (remaining <= 0) {
+        return res.json({ ok: true, published: 0, skipped: "daily_limit" });
+      }
+
+      const scheduledPosts = await TelegramPost.find({
+        status: "scheduled",
+        scheduledAt: { $lte: new Date() },
+      })
+        .sort({ scheduledAt: 1 })
+        .limit(remaining);
+
+      const results = [];
+      for (const post of scheduledPosts) {
+        try {
+          const publishedPost = await publishTelegramPost(post._id);
+          results.push({ id: post._id.toString(), status: "published", telegramMessageId: publishedPost.telegramMessageId });
+        } catch (err) {
+          results.push({ id: post._id.toString(), status: "failed", error: err.message });
+        }
+      }
+
+      res.json({ ok: true, published: results.filter((item) => item.status === "published").length, results });
+    } catch (err) {
+      console.error("❌ Telegram scheduled run error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 app.get('/api/admin/opportunities', requireAdmin, async (req, res) => {
   try {
