@@ -331,9 +331,10 @@ const HomePage = () => {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: "12px",
-          width: "min(100%, 760px)",
-          marginTop: "30px",
+          gap: "18px",
+          width: "min(100%, 860px)",
+          marginTop: "34px",
+          alignItems: "start",
         }}
       >
         {homeStats.map((stat) => (
@@ -343,51 +344,70 @@ const HomePage = () => {
             className="home-stat-card"
             aria-label={`${stat.label} في دربك`}
             style={{
-              display: "block",
+              display: "grid",
+              justifyItems: "center",
+              alignContent: "start",
               textDecoration: "none",
-              border: "1px solid var(--app-brand-border)",
-              borderRadius: "10px",
-              padding: "14px 10px",
-              backgroundColor: "var(--app-surface)",
-              boxShadow: "0 8px 20px var(--app-shadow)",
-              transition: "transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease",
+              padding: "8px 8px 10px",
+              minHeight: "112px",
+              transition: "transform 0.2s ease",
               cursor: "pointer",
             }}
           >
             <strong
+              className="home-stat-number"
               style={{
                 display: "block",
-                color: "var(--app-brand)",
-                fontSize: "22px",
-                lineHeight: 1.2,
-                fontWeight: 700,
-                marginBottom: "6px",
+                color: "var(--app-brand-strong)",
+                fontSize: "42px",
+                lineHeight: 1,
+                fontWeight: 900,
+                letterSpacing: "0",
+                marginBottom: "14px",
               }}
             >
               {typeof stat.value === "number" ? (
-                <AnimatedCount value={stat.value} suffix="+" />
+                <AnimatedCount value={stat.value} prefix="+" />
               ) : (
                 "..."
               )}
             </strong>
             <span
+              className="home-stat-line"
+              aria-hidden="true"
               style={{
                 display: "block",
-                color: "var(--app-muted-2)",
-                fontSize: "13px",
+                width: "44px",
+                height: "2px",
+                borderRadius: "999px",
+                background:
+                  "linear-gradient(90deg, transparent, var(--app-brand), transparent)",
+                opacity: 0.75,
+                marginBottom: "11px",
+                transition: "width 0.2s ease, opacity 0.2s ease",
+              }}
+            />
+            <span
+              className="home-stat-label"
+              style={{
+                display: "block",
+                color: "var(--app-text-soft)",
+                fontSize: "14px",
                 lineHeight: 1.5,
+                fontWeight: 800,
               }}
             >
               {stat.label}
             </span>
             {stat.caption && (
               <small
+                className="home-stat-caption"
                 style={{
                   display: "block",
                   color: "var(--app-muted)",
-                  fontSize: "11px",
+                  fontSize: "11.5px",
                   lineHeight: 1.45,
-                  marginTop: "2px",
+                  marginTop: "3px",
                 }}
               >
                 {stat.caption}
@@ -402,10 +422,14 @@ const HomePage = () => {
       <style>{`
         .home-stat-card:hover,
         .home-stat-card:focus-visible {
-          transform: translateY(-4px) scale(1.02);
-          border-color: var(--app-brand);
-          box-shadow: 0 14px 30px var(--app-shadow), 0 0 18px var(--app-brand-border) !important;
+          transform: translateY(-3px);
           outline: none;
+        }
+
+        .home-stat-card:hover .home-stat-line,
+        .home-stat-card:focus-visible .home-stat-line {
+          width: 62px !important;
+          opacity: 1 !important;
         }
 
         .home-stat-card:active {
@@ -465,25 +489,32 @@ const HomePage = () => {
           }
 
           .home-stats {
-            width: min(100%, 340px) !important;
+            width: min(100%, 380px) !important;
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 8px !important;
-            margin-top: 22px !important;
+            gap: 14px 8px !important;
+            margin-top: 24px !important;
           }
 
           .home-stat-card {
-            padding: 10px 6px !important;
+            min-height: 96px !important;
+            padding: 8px 4px !important;
           }
 
-          .home-stat-card strong {
-            font-size: 18px !important;
+          .home-stat-number {
+            font-size: 30px !important;
+            margin-bottom: 10px !important;
           }
 
-          .home-stat-card span {
-            font-size: 11px !important;
+          .home-stat-line {
+            width: 36px !important;
+            margin-bottom: 8px !important;
           }
 
-          .home-stat-card small {
+          .home-stat-label {
+            font-size: 12px !important;
+          }
+
+          .home-stat-caption {
             font-size: 10px !important;
           }
 
