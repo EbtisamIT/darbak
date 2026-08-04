@@ -225,7 +225,7 @@ const HomePage = () => {
           typeof studentsAppliedCount === "number"
             ? studentsAppliedCount
             : null,
-        label: "طالب قدم عبر دربك",
+        label: "تقديم عبر دربك",
         caption: "من الفرص والبرامج",
         to: "/where-to-train",
       },
