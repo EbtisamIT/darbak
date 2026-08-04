@@ -7231,11 +7231,18 @@ app.post('/api/contact', async (req, res) => {
     const reason = CONTACT_REASONS.has(requestedReason)
       ? requestedReason
       : "أخرى";
-    const contact = (req.body.contact || "").toString().trim().slice(0, 160);
+    const rawContact = (req.body.contact || "").toString().trim().slice(0, 160);
+    const contact = normalizeEmail(rawContact);
     const message = (req.body.message || "").toString().trim();
 
     if (message.length < 5) {
       return res.status(400).json({ error: "اكتب رسالتك بشكل أوضح قبل الإرسال." });
+    }
+
+    if (!isValidEmail(rawContact)) {
+      return res.status(400).json({
+        error: "اكتب بريدًا إلكترونيًا صحيحًا للرد. رقم الجوال غير مسموح.",
+      });
     }
 
     if (message.length > 1800) {

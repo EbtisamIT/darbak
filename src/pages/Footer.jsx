@@ -20,6 +20,9 @@ const contactReasons = [
   "أخرى",
 ];
 
+const isValidContactEmail = (value = "") =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
+
 const inputStyle = {
   width: "100%",
   boxSizing: "border-box",
@@ -109,9 +112,15 @@ export default function Footer() {
   const submitContact = async (event) => {
     event.preventDefault();
     const message = contactForm.message.trim();
+    const contactEmail = contactForm.contact.trim();
 
     if (message.length < 5) {
       setContactStatus("اكتب رسالتك بشكل أوضح قبل الإرسال.");
+      return;
+    }
+
+    if (!isValidContactEmail(contactEmail)) {
+      setContactStatus("اكتب بريدًا إلكترونيًا صحيحًا للرد. رقم الجوال غير مسموح.");
       return;
     }
 
@@ -120,7 +129,7 @@ export default function Footer() {
       setContactStatus("");
       await axios.post(`${API_BASE_URL}/api/contact`, {
         reason: contactForm.reason,
-        contact: contactForm.contact,
+        contact: contactEmail,
         message,
       });
       setContactForm({
@@ -278,8 +287,11 @@ export default function Footer() {
             </label>
 
             <label style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)" }}>
-              <span style={{ fontSize: "12px", fontWeight: "800" }}>وسيلة الرد، اختياري</span>
+              <span style={{ fontSize: "12px", fontWeight: "800" }}>
+                البريد الإلكتروني للرد
+              </span>
               <input
+                type="email"
                 value={contactForm.contact}
                 onChange={(event) =>
                   setContactForm((current) => ({
@@ -287,8 +299,9 @@ export default function Footer() {
                     contact: event.target.value,
                   }))
                 }
-                placeholder="بريدك أو رقمك للرد"
+                placeholder="name@example.com"
                 style={inputStyle}
+                required
               />
             </label>
 
