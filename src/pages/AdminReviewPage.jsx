@@ -23,6 +23,21 @@ const cardStyle = {
   textAlign: "right",
 };
 
+const companyApplicationStatusOptions = [
+  ["all", "كل الطلبات"],
+  ["new", "جديد"],
+  ["reviewed", "تمت المراجعة"],
+  ["shortlisted", "مرشح"],
+  ["rejected", "مرفوض"],
+];
+
+const companyApplicationStatusLabels = {
+  new: "جديد",
+  reviewed: "تمت المراجعة",
+  shortlisted: "مرشح",
+  rejected: "مرفوض",
+};
+
 const defaultRejectionReason =
   "لم يتم قبول التجربة بسبب وجود عبارات شخصية أو صياغة قد تُفهم كتجريح أو تشهير. يمكنك إعادة إرسالها بصياغة تركّز على الوقائع والتجربة بدون وصف أشخاص أو هويات.";
 
@@ -1134,6 +1149,10 @@ export default function AdminReviewPage() {
   const [experiences, setExperiences] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [contactMessages, setContactMessages] = useState([]);
+  const [companyApplications, setCompanyApplications] = useState([]);
+  const [companyApplicationStatus, setCompanyApplicationStatus] =
+    useState("new");
+  const [companyApplicationSearch, setCompanyApplicationSearch] = useState("");
   const [opportunities, setOpportunities] = useState([]);
   const [interviewQuestions, setInterviewQuestions] = useState([]);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
@@ -1205,6 +1224,8 @@ export default function AdminReviewPage() {
       ? suggestions.length
       : adminView === "contactMessages"
       ? contactMessages.length
+      : adminView === "companyApplications"
+      ? companyApplications.length
       : adminView === "interviewQuestions"
       ? interviewQuestions.length
       : adminView === "opportunities"
@@ -1227,6 +1248,8 @@ export default function AdminReviewPage() {
       ? "اقتراح"
       : adminView === "contactMessages"
       ? "رسالة تواصل"
+      : adminView === "companyApplications"
+      ? "طلب شركة"
       : adminView === "interviewQuestions"
       ? "أسئلة مقابلة"
       : adminView === "opportunities"
@@ -1318,6 +1341,42 @@ export default function AdminReviewPage() {
         err.response?.status === 401
           ? "كلمة المرور غير صحيحة."
           : "تعذر تحميل رسائل التواصل."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCompanyApplications = async () => {
+    if (!password) {
+      setMessage("اكتب كلمة المرور لعرض المحتوى.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      sessionStorage.setItem("darbak_admin_password", password);
+
+      const { data } = await axios.get(
+        `${API_BASE_URL}/api/admin/company-applications`,
+        {
+          params: {
+            status:
+              companyApplicationStatus === "all" ? "" : companyApplicationStatus,
+            search: companyApplicationSearch.trim(),
+          },
+          headers: authHeaders,
+        }
+      );
+
+      setCompanyApplications(Array.isArray(data.data) ? data.data : []);
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.status === 401
+          ? "كلمة المرور غير صحيحة."
+          : "تعذر تحميل طلبات الشركات."
       );
     } finally {
       setLoading(false);
@@ -1529,6 +1588,8 @@ export default function AdminReviewPage() {
       fetchSuggestions();
     } else if (adminView === "contactMessages") {
       fetchContactMessages();
+    } else if (adminView === "companyApplications") {
+      fetchCompanyApplications();
     } else if (adminView === "interviewQuestions") {
       fetchInterviewQuestions();
     } else if (adminView === "opportunities") {
@@ -1551,6 +1612,7 @@ export default function AdminReviewPage() {
     opportunityRewardFilter,
     opportunityFeaturedFilter,
     opportunityFilterVersion,
+    companyApplicationStatus,
     analyticsDays,
     userStatus,
     adminView,
@@ -1564,6 +1626,11 @@ export default function AdminReviewPage() {
 
     if (adminView === "contactMessages") {
       fetchContactMessages();
+      return;
+    }
+
+    if (adminView === "companyApplications") {
+      fetchCompanyApplications();
       return;
     }
 
@@ -1987,6 +2054,43 @@ export default function AdminReviewPage() {
     } catch (err) {
       console.error(err);
       setMessage("تعذر حذف رسالة التواصل.");
+    }
+  };
+
+  const updateCompanyApplicationStatus = async (id, nextStatus) => {
+    try {
+      setMessage("");
+      const { data } = await axios.patch(
+        `${API_BASE_URL}/api/admin/company-applications/${id}/status`,
+        { status: nextStatus },
+        { headers: authHeaders }
+      );
+
+      setCompanyApplications((prev) =>
+        prev.map((item) => (item._id === id ? data.data || item : item))
+      );
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر تحديث حالة الطلب.");
+    }
+  };
+
+  const deleteCompanyApplication = async (id) => {
+    const confirmed = window.confirm(
+      "هل أنت متأكد من حذف طلب الشركة؟ لا يمكن التراجع عن الحذف."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setMessage("");
+      await axios.delete(`${API_BASE_URL}/api/admin/company-applications/${id}`, {
+        headers: authHeaders,
+      });
+      setCompanyApplications((prev) => prev.filter((item) => item._id !== id));
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر حذف طلب الشركة.");
     }
   };
 
@@ -4281,6 +4385,7 @@ export default function AdminReviewPage() {
           <option value="experiences">التجارب</option>
           <option value="suggestions">الاقتراحات</option>
           <option value="contactMessages">رسائل التواصل</option>
+          <option value="companyApplications">طلبات الشركات</option>
           <option value="opportunities">الفرص</option>
           <option value="interviewQuestions">أسئلة المقابلات</option>
           <option value="telegramContent">محتوى قناة التليجرام</option>
@@ -4339,6 +4444,47 @@ export default function AdminReviewPage() {
               placeholder="بحث بالبريد"
               style={{
                 minWidth: "220px",
+                background: adminColors.inputBg,
+                border: `1px solid ${adminColors.inputBorder}`,
+                borderRadius: "10px",
+                color: adminColors.text,
+                padding: "11px 12px",
+                fontFamily: "inherit",
+              }}
+            />
+          </>
+        ) : adminView === "companyApplications" ? (
+          <>
+            <select
+              value={companyApplicationStatus}
+              onChange={(e) => setCompanyApplicationStatus(e.target.value)}
+              style={{
+                background: adminColors.inputBg,
+                border: `1px solid ${adminColors.inputBorder}`,
+                borderRadius: "10px",
+                color: adminColors.text,
+                padding: "11px 12px",
+                fontFamily: "inherit",
+              }}
+            >
+              {companyApplicationStatusOptions.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <input
+              value={companyApplicationSearch}
+              onChange={(e) => setCompanyApplicationSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  fetchCompanyApplications();
+                }
+              }}
+              placeholder="بحث باسم الجهة، الطالب، البريد، المدينة أو التخصص"
+              style={{
+                minWidth: "300px",
                 background: adminColors.inputBg,
                 border: `1px solid ${adminColors.inputBorder}`,
                 borderRadius: "10px",
@@ -5135,6 +5281,232 @@ export default function AdminReviewPage() {
                   <button
                     type="button"
                     onClick={() => deleteContactMessage(item._id)}
+                    style={{
+                      background: "rgba(127,29,29,0.2)",
+                      color: "#fecaca",
+                      border: "1px solid rgba(248,113,113,0.35)",
+                      borderRadius: "10px",
+                      padding: "9px 14px",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    حذف
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      ) : adminView === "companyApplications" ? (
+        <div style={{ display: "grid", gap: "12px" }}>
+          {companyApplications.length === 0 && !loading ? (
+            <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
+              لا توجد طلبات شركات في هذا العرض.
+            </div>
+          ) : (
+            companyApplications.map((item) => (
+              <article key={item._id} style={cardStyle}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div>
+                    <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                      {item.organizationName || "جهة تدريبية"}
+                    </h3>
+                    <p style={{ margin: 0, color: adminColors.textSoft, fontSize: 13 }}>
+                      {item.opportunityTitle || "التدريب التعاوني"}
+                    </p>
+                  </div>
+                  <div
+                    style={{
+                      color: adminColors.muted,
+                      fontSize: 13,
+                      lineHeight: 1.8,
+                      textAlign: "left",
+                    }}
+                  >
+                    <div>أضيف:</div>
+                    <strong style={{ color: adminColors.textSoft, fontWeight: 600 }}>
+                      {formatAdminDateTime(item.createdAt)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+                    gap: 10,
+                    marginBottom: 12,
+                  }}
+                >
+                  {[
+                    ["اسم الطالب", item.fullName || "غير مذكور"],
+                    ["البريد", item.email || "غير مذكور"],
+                    ["التخصص", item.major || "غير مذكور"],
+                    ["المدينة", item.city || "غير مذكورة"],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      style={{
+                        border: `1px solid ${adminColors.inputBorder}`,
+                        borderRadius: 12,
+                        padding: "10px 12px",
+                        background: "rgba(255,255,255,0.025)",
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: "0 0 4px",
+                          color: adminColors.brand,
+                          fontSize: 12,
+                          fontWeight: 900,
+                        }}
+                      >
+                        {label}
+                      </p>
+                      <strong
+                        style={{
+                          color: adminColors.text,
+                          fontSize: 14,
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                {item.note && (
+                  <p
+                    style={{
+                      color: adminColors.text,
+                      lineHeight: 1.9,
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "anywhere",
+                      margin: "0 0 12px",
+                    }}
+                  >
+                    {item.note}
+                  </p>
+                )}
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    marginBottom: 12,
+                  }}
+                >
+                  {item.email && (
+                    <a
+                      href={`mailto:${item.email}`}
+                      style={{
+                        color: adminColors.brandStrong,
+                        textDecoration: "none",
+                        border: `1px solid ${adminColors.inputBorder}`,
+                        borderRadius: 999,
+                        padding: "8px 11px",
+                        fontSize: 12,
+                        fontWeight: 900,
+                      }}
+                    >
+                      مراسلة بالإيميل
+                    </a>
+                  )}
+                  {item.portfolioUrl && (
+                    <a
+                      href={item.portfolioUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        color: adminColors.brandStrong,
+                        textDecoration: "none",
+                        border: `1px solid ${adminColors.inputBorder}`,
+                        borderRadius: 999,
+                        padding: "8px 11px",
+                        fontSize: 12,
+                        fontWeight: 900,
+                      }}
+                    >
+                      ملف الأعمال
+                    </a>
+                  )}
+                  {item.linkedinUrl && (
+                    <a
+                      href={item.linkedinUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        color: adminColors.brandStrong,
+                        textDecoration: "none",
+                        border: `1px solid ${adminColors.inputBorder}`,
+                        borderRadius: 999,
+                        padding: "8px 11px",
+                        fontSize: 12,
+                        fontWeight: 900,
+                      }}
+                    >
+                      LinkedIn
+                    </a>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <select
+                    value={item.status || "new"}
+                    onChange={(e) =>
+                      updateCompanyApplicationStatus(item._id, e.target.value)
+                    }
+                    style={{
+                      background: adminColors.inputBg,
+                      border: `1px solid ${adminColors.inputBorder}`,
+                      borderRadius: 10,
+                      color: adminColors.text,
+                      padding: "9px 11px",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {companyApplicationStatusOptions
+                      .filter(([value]) => value !== "all")
+                      .map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                  </select>
+
+                  <span
+                    style={{
+                      color: adminColors.muted,
+                      fontSize: 12,
+                      fontWeight: 800,
+                    }}
+                  >
+                    الحالة الحالية:{" "}
+                    {companyApplicationStatusLabels[item.status] || item.status || "جديد"}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => deleteCompanyApplication(item._id)}
                     style={{
                       background: "rgba(127,29,29,0.2)",
                       color: "#fecaca",

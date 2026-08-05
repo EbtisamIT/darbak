@@ -7,6 +7,7 @@ require('dotenv').config();
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
 const ContactMessage = require('./models/ContactMessage');
+const CompanyApplication = require('./models/CompanyApplication');
 const Opportunity = require('./models/Opportunity');
 const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
@@ -227,6 +228,81 @@ const isValidSubscriberContact = (value = "") =>
 
 const isLegacyMobileSubscriberContact = (value = "") =>
   !isValidEmail(value) && Boolean(normalizeSaudiMobile(value));
+
+const normalizeCompanyApplicationSlug = (value = "") => {
+  const normalized = normalizeSearchText(value)
+    .replace(/[^a-z0-9\u0600-\u06FF]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+
+  return normalized || "company";
+};
+
+const sanitizeExternalUrl = (value = "") => {
+  const text = value.toString().trim().slice(0, 300);
+  if (!text) return "";
+
+  const withProtocol = /^https?:\/\//i.test(text)
+    ? text
+    : `https://${text.replace(/^\/+/, "")}`;
+
+  try {
+    const url = new URL(withProtocol);
+    if (!["http:", "https:"].includes(url.protocol)) return "";
+    return url.toString().slice(0, 300);
+  } catch {
+    return "";
+  }
+};
+
+const sanitizeCompanyApplicationPayload = (body = {}) => {
+  const organizationName = (body.organizationName || body.company || "")
+    .toString()
+    .trim()
+    .slice(0, 180);
+  const opportunityTitle = (body.opportunityTitle || body.role || body.title || "")
+    .toString()
+    .trim()
+    .slice(0, 180);
+  const fullName = (body.fullName || "")
+    .toString()
+    .trim()
+    .slice(0, 120);
+  const rawEmail = (body.email || "").toString().trim();
+  const email = isValidEmail(rawEmail) ? normalizeEmail(rawEmail) : "";
+  const major = (body.major || body.specialty || "")
+    .toString()
+    .trim()
+    .slice(0, 140);
+  const city = (body.city || "").toString().trim().slice(0, 120);
+  const portfolioUrl = sanitizeExternalUrl(body.portfolioUrl || "");
+  const linkedinUrl = body.linkedinUrl
+    ? normalizeLinkedInProfileUrl(body.linkedinUrl)
+    : "";
+  const note = (body.note || "").toString().trim().slice(0, 1200);
+  const companySlug = normalizeCompanyApplicationSlug(
+    body.companySlug || organizationName
+  );
+  const opportunityId =
+    body.opportunityId && mongoose.Types.ObjectId.isValid(body.opportunityId)
+      ? body.opportunityId
+      : null;
+
+  return {
+    companySlug,
+    organizationName,
+    opportunityTitle,
+    opportunityId,
+    fullName,
+    email,
+    major,
+    city,
+    portfolioUrl,
+    linkedinUrl,
+    note,
+    consent: body.consent === true || body.consent === "true",
+  };
+};
 
 const escapeHtml = (value = "") =>
   value
@@ -7224,6 +7300,64 @@ app.post('/api/suggestions', async (req, res) => {
   }
 });
 
+app.post('/api/company-applications', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const payload = sanitizeCompanyApplicationPayload(req.body || {});
+
+    if (!payload.organizationName || payload.organizationName.length < 2) {
+      return res.status(400).json({ error: "اسم الجهة غير واضح." });
+    }
+
+    if (!payload.fullName || payload.fullName.length < 3) {
+      return res.status(400).json({ error: "اكتب اسمك بشكل واضح." });
+    }
+
+    if (!payload.email) {
+      return res.status(400).json({ error: "اكتب بريدًا إلكترونيًا صحيحًا." });
+    }
+
+    if (!payload.consent) {
+      return res.status(400).json({
+        error: "يجب الموافقة على مشاركة بيانات الطلب مع الجهة لغرض التقديم.",
+      });
+    }
+
+    const fieldsToCheck = [
+      payload.organizationName,
+      payload.opportunityTitle,
+      payload.fullName,
+      payload.major,
+      payload.city,
+      payload.note,
+      payload.email,
+    ];
+
+    if (fieldsToCheck.some(containsBlockedTerms)) {
+      return res.status(400).json({
+        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة ثم المحاولة مرة أخرى.",
+      });
+    }
+
+    const application = await CompanyApplication.create(payload);
+
+    res.json({
+      status: "ok",
+      data: {
+        id: application._id,
+        organizationName: application.organizationName,
+        status: application.status,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Error saving company application:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/contact', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -8466,6 +8600,45 @@ app.get('/api/admin/contact-messages', requireAdmin, async (req, res) => {
     res.json({ data: messages });
   } catch (err) {
     console.error("❌ Admin contact messages fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/company-applications', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const status =
+      typeof req.query.status === "string" ? req.query.status : "new";
+    const search = normalizeSearchText(req.query.search || "");
+    const filter = {};
+
+    if (["new", "reviewed", "shortlisted", "rejected"].includes(status)) {
+      filter.status = status;
+    }
+
+    if (search) {
+      const regex = new RegExp(escapeRegex(search), "i");
+      filter.$or = [
+        { organizationName: regex },
+        { opportunityTitle: regex },
+        { fullName: regex },
+        { email: regex },
+        { major: regex },
+        { city: regex },
+      ];
+    }
+
+    const applications = await CompanyApplication.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+
+    res.json({ data: applications });
+  } catch (err) {
+    console.error("❌ Admin company applications fetch error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -10053,6 +10226,63 @@ app.delete('/api/admin/contact-messages/:id', requireAdmin, async (req, res) => 
     res.json({ success: true, id: req.params.id });
   } catch (err) {
     console.error("❌ Admin contact message delete error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/company-applications/:id/status', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid application id" });
+    }
+
+    const status = (req.body.status || "").toString();
+    const allowedStatuses = ["new", "reviewed", "shortlisted", "rejected"];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ error: "Invalid application status" });
+    }
+
+    const updated = await CompanyApplication.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Company application not found" });
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error("❌ Admin company application status update error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/company-applications/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid application id" });
+    }
+
+    const deleted = await CompanyApplication.findByIdAndDelete(req.params.id).lean();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Company application not found" });
+    }
+
+    res.json({ success: true, id: req.params.id });
+  } catch (err) {
+    console.error("❌ Admin company application delete error:", err);
     res.status(500).json({ error: err.message });
   }
 });

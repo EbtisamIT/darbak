@@ -20,6 +20,7 @@ import LegalPage from "./pages/LegalPage";
 import AdminReviewPage from "./pages/AdminReviewPage";
 import PortfolioPage from "./pages/PortfolioPage";
 import PortfolioBuilderPage from "./pages/PortfolioBuilderPage";
+import CompanyApplyPage from "./pages/CompanyApplyPage";
 import Footer from "./pages/Footer";
 import { guideUrl } from "./components/TrainingGuideBanner";
 import PremiumAccessGate from "./components/PremiumAccessGate";
@@ -1473,6 +1474,7 @@ function AppLayout({ theme, setTheme }) {
               path="/where-to-train/city/:citySlug/major/:majorSlug"
               element={<TrainingFinderPage />}
             />
+            <Route path="/apply/:companySlug" element={<CompanyApplyPage />} />
             <Route path="/p/:slug" element={<PortfolioPage />} />
             <Route path="/legal" element={<LegalPage />} />
             <Route path="/terms" element={<LegalPage />} />
