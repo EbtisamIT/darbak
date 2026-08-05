@@ -849,6 +849,29 @@ export const specializationOptions = Array.from(
     .values()
 ).sort((a, b) => a.label.localeCompare(b.label, "ar"));
 
+const findSpecializationOptionByInput = (value = "") => {
+  const normalizedValue = normalizeName(value);
+  if (!normalizedValue) return null;
+  const looseValue = normalizedValue.replace(/\bال/g, "");
+
+  return (
+    specializationOptions.find(
+      (option) => normalizeName(option.value) === normalizedValue
+    ) ||
+    specializationOptions.find((option) => {
+      const normalizedOption = normalizeName(option.value);
+      const looseOption = normalizedOption.replace(/\bال/g, "");
+      return (
+        normalizedOption.includes(normalizedValue) ||
+        normalizedValue.includes(normalizedOption) ||
+        looseOption.includes(looseValue) ||
+        looseValue.includes(looseOption)
+      );
+    }) ||
+    null
+  );
+};
+
 const getSpecialtiesForCategories = (categoryNames = []) => {
   const normalizedCategories = new Set(categoryNames.map(normalizeName));
 
@@ -1813,7 +1836,11 @@ export default function TrainingFinderPage() {
       ?.categories || [];
 
   const runTrainingTargetSearch = async (specialtyValue, cityValue = "") => {
-    if (!specialtyValue) {
+    const matchedSpecialty = findSpecializationOptionByInput(specialtyValue);
+    const resolvedSpecialtyValue =
+      matchedSpecialty?.value || specialtyValue.toString().trim();
+
+    if (!resolvedSpecialtyValue) {
       setError("اختَر تخصصك أولًا.");
       return;
     }
@@ -1823,9 +1850,13 @@ export default function TrainingFinderPage() {
       setError("");
       setSearched(true);
 
-      const majorCategories = getSpecialtyCategories(specialtyValue);
+      if (matchedSpecialty && selectedSpecialty !== matchedSpecialty.value) {
+        setSelectedSpecialty(matchedSpecialty.value);
+      }
+
+      const majorCategories = getSpecialtyCategories(resolvedSpecialtyValue);
       const queryParams = {
-        major: specialtyValue,
+        major: resolvedSpecialtyValue,
         majorCategory: majorCategories[0] || "",
         majorCategories: majorCategories.join(","),
         city: cityValue,
@@ -1849,7 +1880,7 @@ export default function TrainingFinderPage() {
       setTargets(nextTargets);
       setOpportunities(nextOpportunities);
       trackEvent("where_to_train_search", {
-        major: specialtyValue,
+        major: resolvedSpecialtyValue,
         majorCategory: majorCategories[0] || "",
         city: cityValue,
         resultsCount: nextTargets.length,
@@ -2932,12 +2963,14 @@ export default function TrainingFinderPage() {
         >
           <label style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}>
             التخصص
-            <select
+            <input
+              list="training-specialties-list"
               value={selectedSpecialty}
               onChange={(event) => {
                 setSelectedSpecialty(event.target.value);
                 setShowSearchInsightModal(false);
               }}
+              placeholder="اكتب تخصصك أو اختره"
               style={{
                 width: "100%",
                 padding: "12px",
@@ -2947,14 +2980,14 @@ export default function TrainingFinderPage() {
                 color: "var(--app-text)",
                 fontFamily: "inherit",
               }}
-            >
-              <option value="">اختر تخصصك</option>
+            />
+            <datalist id="training-specialties-list">
               {specializationOptions.map((specialization) => (
                 <option key={specialization.value} value={specialization.value}>
                   {specialization.label}
                 </option>
               ))}
-            </select>
+            </datalist>
           </label>
 
           <label style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}>
