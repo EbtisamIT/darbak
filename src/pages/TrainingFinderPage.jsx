@@ -1683,7 +1683,7 @@ export default function TrainingFinderPage() {
   };
   const showResultsPanel = opportunitiesLoading || opportunities.length > 0 || searched;
   const showSuggestionsWithOpportunities =
-    Boolean(selectedSpecialty) && suggestedOrganizations.length > 0;
+    Boolean(selectedSpecialty || city) && suggestedOrganizations.length > 0;
   const resultTabs = [
     {
       key: "opportunities",
@@ -1840,11 +1840,6 @@ export default function TrainingFinderPage() {
     const resolvedSpecialtyValue =
       matchedSpecialty?.value || specialtyValue.toString().trim();
 
-    if (!resolvedSpecialtyValue) {
-      setError("اختَر تخصصك أولًا.");
-      return;
-    }
-
     try {
       setLoading(true);
       setError("");
@@ -1861,10 +1856,15 @@ export default function TrainingFinderPage() {
         majorCategories: majorCategories.join(","),
         city: cityValue,
       };
+      const shouldFetchTrainingTargets = Boolean(
+        resolvedSpecialtyValue || majorCategories.length > 0
+      );
       const [targetsResponse, opportunitiesResponse] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/training-targets`, {
-          params: queryParams,
-        }),
+        shouldFetchTrainingTargets
+          ? axios.get(`${API_BASE_URL}/api/training-targets`, {
+              params: queryParams,
+            })
+          : Promise.resolve({ data: { data: [] } }),
         axios.get(`${API_BASE_URL}/api/opportunities`, {
           params: queryParams,
         }),
@@ -1880,7 +1880,7 @@ export default function TrainingFinderPage() {
       setTargets(nextTargets);
       setOpportunities(nextOpportunities);
       trackEvent("where_to_train_search", {
-        major: resolvedSpecialtyValue,
+        major: resolvedSpecialtyValue || "",
         majorCategory: majorCategories[0] || "",
         city: cityValue,
         resultsCount: nextTargets.length,
@@ -1897,7 +1897,7 @@ export default function TrainingFinderPage() {
           ? "targets"
           : "opportunities"
       );
-      setShowSearchInsightModal(true);
+      setShowSearchInsightModal(Boolean(resolvedSpecialtyValue || cityValue));
     } catch (err) {
       console.error(err);
       setError("تعذر عرض النتائج حاليًا.");
@@ -2941,7 +2941,7 @@ export default function TrainingFinderPage() {
           >
             {routeSpecialty || routeCity
               ? "شاهد الجهات والفرص والتجارب المقترحة بناءً على اختياراتك، ثم وسّع البحث أو غيّر المدينة والتخصص من الفلاتر."
-              : "اختَر تخصصك والمدينة، وشاهد الجهات والفرص بطريقة مرتبة."}
+              : "اختَر التخصص أو المدينة، أو اجمع بينهم، وشاهد الجهات والفرص بطريقة مرتبة."}
           </p>
         </header>
 
@@ -4171,7 +4171,7 @@ export default function TrainingFinderPage() {
         )}
       </section>
 
-      {showSearchInsightModal && selectedSpecialty && searched && !loading && (
+      {showSearchInsightModal && (selectedSpecialty || city) && searched && !loading && (
         <div
           role="dialog"
           aria-modal="true"
