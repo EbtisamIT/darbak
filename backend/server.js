@@ -4601,7 +4601,7 @@ app.get('/api/home-stats', async (req, res) => {
       organizationNames,
       organizationsCount: organizationNames.length,
       currentProgramsCount,
-      studentsAppliedCount: opportunityApplyUniqueVisitorsCount,
+      studentsAppliedCount: opportunityApplyClicksCount,
       opportunityApplyClicksCount,
       opportunityApplyUniqueVisitorsCount,
       activeSubscribersCount: activeSubscriberEmails.filter(Boolean).length,
