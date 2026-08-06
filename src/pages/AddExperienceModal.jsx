@@ -5,6 +5,11 @@ import majors from "../majors"; // قائمة التخصصات
 import API_BASE_URL from "../config/api";
 import { trackEvent } from "../utils/analytics";
 import { buildAddExperienceSeoMeta, setPageSeo } from "../utils/seoMetadata";
+import {
+  getAccessHeaders,
+  getStoredAccessIdentity,
+  saveAccessIdentity,
+} from "../utils/premiumAccess";
 
 const EXPERIENCE_DRAFT_KEY = "darbak_add_experience_draft_v1";
 
@@ -40,31 +45,11 @@ const isUnclearMajorText = (value = "") => {
 const getYesNoDraftValue = (value = "") =>
   ["yes", "no"].includes(value) ? value : "";
 
-const normalizeLinkedInProfileUrl = (value = "") => {
-  const text = value.toString().trim();
-  if (!text) return "";
+const isValidEmail = (value = "") =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.toString().trim());
 
-  const withProtocol = /^https?:\/\//i.test(text)
-    ? text
-    : `https://${text.replace(/^\/+/, "")}`;
-
-  try {
-    const url = new URL(withProtocol);
-    const hostname = url.hostname.replace(/^www\./i, "").toLowerCase();
-
-    if (hostname !== "linkedin.com") return "";
-    if (!url.pathname.toLowerCase().startsWith("/in/")) return "";
-
-    url.protocol = "https:";
-    url.hostname = "www.linkedin.com";
-    url.search = "";
-    url.hash = "";
-
-    return url.toString();
-  } catch {
-    return "";
-  }
-};
+const isValidAccessCode = (value = "") =>
+  /^[A-Za-z0-9]{4,12}$/.test(value.toString().trim());
 
 export default function AddExperienceModal({ onClose, onSaved }) {
   const location = useLocation();
@@ -98,12 +83,19 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     getYesNoDraftValue(savedDraft?.wouldRecommend)
   );
   const [trainingMode, setTrainingMode] = useState(savedDraft?.trainingMode || "");
-  const [ambassadorConsent, setAmbassadorConsent] = useState(
-    savedDraft?.ambassadorConsent || "no"
+  const [publicationConsent, setPublicationConsent] = useState(
+    Boolean(savedDraft?.publicationConsent)
   );
-  const [ambassadorLinkedInUrl, setAmbassadorLinkedInUrl] = useState(
-    savedDraft?.ambassadorLinkedInUrl || ""
-  );
+  const [rewardIdentity, setRewardIdentity] = useState(() => getStoredAccessIdentity());
+  const [rewardForm, setRewardForm] = useState(() => {
+    const identity = getStoredAccessIdentity();
+    return {
+      email: identity.contact || identity.email || "",
+      accessCode: identity.accessCode || "",
+    };
+  });
+  const [rewardAccountMessage, setRewardAccountMessage] = useState("");
+  const [rewardAccountLoading, setRewardAccountLoading] = useState(false);
   
 
   const [loading, setLoading] = useState(false);
@@ -118,6 +110,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const hasClearMajorCategory =
     finalMajorCategory.length > 0 && !isUnclearMajorText(finalMajorCategory);
   const hasClearMajor = finalMajor.length > 0 && !isUnclearMajorText(finalMajor);
+  const rewardContact =
+    rewardIdentity?.contact || rewardIdentity?.email || rewardForm.email || "";
+  const hasRewardAccount =
+    isValidEmail(rewardContact) && isValidAccessCode(rewardIdentity?.accessCode || "");
   const selectedMajorCategory = majors.find((item) => item.name === majorCategory);
   const subMajorOptions = selectedMajorCategory?.subMajors || [];
   const isStandaloneAddExperiencePage =
@@ -138,17 +134,48 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     setPageSeo(buildAddExperienceSeoMeta());
   }, [isStandaloneAddExperiencePage]);
 
+  const createRewardAccount = async () => {
+    const email = rewardForm.email.trim();
+    const accessCode = rewardForm.accessCode.trim();
+
+    if (!isValidEmail(email)) {
+      setRewardAccountMessage("اكتب بريدًا إلكترونيًا صحيحًا عشان نربط المكافأة بحسابك.");
+      return false;
+    }
+
+    if (!isValidAccessCode(accessCode)) {
+      setRewardAccountMessage("اختَر رمز دخول بسيط من 4 إلى 12 رقم أو حرف إنجليزي.");
+      return false;
+    }
+
+    try {
+      setRewardAccountLoading(true);
+      setRewardAccountMessage("");
+      await axios.post(`${API_BASE_URL}/api/account/reward-identity`, {
+        email,
+        accessCode,
+      });
+      saveAccessIdentity({ contact: email, accessCode });
+      const nextIdentity = getStoredAccessIdentity();
+      setRewardIdentity(nextIdentity);
+      setRewardAccountMessage("تم حفظ حسابك. إذا اعتمدت التجربة، بنفعّل الشهر المجاني عليه.");
+      trackEvent("experience_reward_account_saved");
+      return true;
+    } catch (err) {
+      setRewardAccountMessage(
+        err.response?.data?.error || "تعذر حفظ الحساب الآن. حاولي مرة أخرى."
+      );
+      return false;
+    } finally {
+      setRewardAccountLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (hadReward !== "yes" && rewardAmount) {
       setRewardAmount("");
     }
   }, [hadReward, rewardAmount]);
-
-  useEffect(() => {
-    if (ambassadorConsent !== "yes" && ambassadorLinkedInUrl) {
-      setAmbassadorLinkedInUrl("");
-    }
-  }, [ambassadorConsent, ambassadorLinkedInUrl]);
 
   const howAppliedOptions = [
     "موقع الجهة الرسمي",
@@ -363,8 +390,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           benefitedFromTraining.trim() ||
           wouldRecommend.trim() ||
           trainingMode.trim() ||
-          ambassadorConsent === "yes" ||
-          ambassadorLinkedInUrl.trim() ||
+          publicationConsent ||
           starRating > 0
       ),
     [
@@ -387,8 +413,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       benefitedFromTraining,
       wouldRecommend,
       trainingMode,
-      ambassadorConsent,
-      ambassadorLinkedInUrl,
+      publicationConsent,
       starRating,
     ]
   );
@@ -422,8 +447,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       benefitedFromTraining,
       wouldRecommend,
       trainingMode,
-      ambassadorConsent,
-      ambassadorLinkedInUrl,
+      publicationConsent,
       starRating,
       updatedAt: new Date().toISOString(),
     };
@@ -456,8 +480,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     benefitedFromTraining,
     wouldRecommend,
     trainingMode,
-    ambassadorConsent,
-    ambassadorLinkedInUrl,
+    publicationConsent,
     starRating,
   ]);
 
@@ -507,12 +530,19 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       return;
     }
 
-    const normalizedAmbassadorLinkedInUrl =
-      normalizeLinkedInProfileUrl(ambassadorLinkedInUrl);
-
-    if (ambassadorConsent === "yes" && !normalizedAmbassadorLinkedInUrl) {
-      setError("أدخل/ي رابط LinkedIn صحيح يبدأ عادة بـ linkedin.com/in/ أو اختَر/ي البقاء مجهول.");
+    if (!publicationConsent) {
+      setError("قبل الإرسال، وافق/ي على نشر التجربة ضمن منصة دربك.");
       return;
+    }
+
+    const typedRewardAccount =
+      rewardForm.email.trim().length > 0 || rewardForm.accessCode.trim().length > 0;
+    if (!hasRewardAccount && typedRewardAccount) {
+      const accountSaved = await createRewardAccount();
+      if (!accountSaved) {
+        setError("احفظ/ي حساب المكافأة أو اترك/ي الحقول فارغة لإرسال التجربة بدون شهر مجاني.");
+        return;
+      }
     }
 
     const payload = {
@@ -531,10 +561,10 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       benefitedFromTraining,
       wouldRecommend,
       trainingMode,
-      ambassadorConsent: ambassadorConsent === "yes" ? "yes" : "no",
-      ambassadorLinkedInUrl:
-        ambassadorConsent === "yes" ? normalizedAmbassadorLinkedInUrl : "",
+      ambassadorConsent: "no",
+      ambassadorLinkedInUrl: "",
       ambassadorProfileImageUrl: "",
+      publicationConsent,
       ratings,        // ممكن تخلينه أو تحذفينه لاحقًا
       starRating,     // ⭐ الجديد
       description,
@@ -544,7 +574,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
     try {
       setLoading(true);
-      const res = await axios.post(`${API_BASE_URL}/api/experiences`, payload);
+      const res = await axios.post(`${API_BASE_URL}/api/experiences`, payload, {
+        headers: getAccessHeaders({}),
+      });
 
       if (!res.data || typeof res.data !== "object" || !res.data._id) {
         throw new Error("Unexpected API response");
@@ -564,7 +596,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           trainingEnvironment,
           trainingMode,
           starRating,
-          ambassadorConsent: ambassadorConsent === "yes" ? "yes" : "no",
+          rewardAccountLinked: hasRewardAccount,
         },
       });
       clearSavedDraft();
@@ -626,7 +658,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     );
   };
 
-  const AmbassadorOptInCard = ({ compact = false }) => (
+  const RewardAccountCard = ({ compact = false }) => (
     <div
       style={{
         marginTop: compact ? 14 : 18,
@@ -646,7 +678,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           fontSize: compact ? 15 : 16,
         }}
       >
-        هل تحب تظهر كسفير دربك؟
+        تبغى شهر وصول كامل مجانًا؟
       </h4>
       <p
         style={{
@@ -656,76 +688,127 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           margin: "0 0 12px",
         }}
       >
-        إذا وافقت، نحفظ رابط LinkedIn لعرضه لاحقًا ضمن سفراء دربك. وإذا فضلت
-        الخصوصية، تبقى تجربتك مجهولة بالكامل.
+        أنشئ/ي حسابًا بسيطًا بالبريد ورمز دخول قبل إرسال التجربة. بعد اعتماد
+        تجربة أصلية ومفيدة، نفعّل لك 30 يومًا من الوصول الكامل تلقائيًا على
+        نفس الحساب.
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-          gap: 8,
-        }}
-      >
-        {[
-          { value: "no", label: "البقاء مجهول" },
-          { value: "yes", label: "أوافق على عرض حسابي" },
-        ].map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => setAmbassadorConsent(option.value)}
+      {hasRewardAccount ? (
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: 11,
+            background: "rgba(34,197,94,0.12)",
+            border: "1px solid rgba(34,197,94,0.28)",
+            color: "#86efac",
+            fontSize: 13,
+            fontWeight: 800,
+          }}
+        >
+          حساب المكافأة محفوظ: {rewardContact}
+        </div>
+      ) : (
+        <>
+          <div
             style={{
-              padding: "10px 12px",
-              borderRadius: 11,
-              background:
-                ambassadorConsent === option.value
-                  ? "linear-gradient(90deg,var(--app-muted),var(--app-brand))"
-                  : "var(--app-input-bg)",
-              color:
-                ambassadorConsent === option.value ? "#07100e" : "var(--app-text)",
-              border: "1px solid var(--app-border-soft)",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontWeight: 800,
+              display: "grid",
+              gridTemplateColumns: compact
+                ? "1fr"
+                : "minmax(0, 1.4fr) minmax(120px, 0.8fr)",
+              gap: 8,
             }}
           >
-            {option.label}
-          </button>
-        ))}
-      </div>
+            <input
+              type="email"
+              value={rewardForm.email}
+              onChange={(e) =>
+                setRewardForm((current) => ({ ...current, email: e.target.value }))
+              }
+              placeholder="بريدك الإلكتروني"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "10px 11px",
+                borderRadius: 10,
+                background: "var(--app-input-bg)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-border-soft)",
+                fontFamily: "inherit",
+                fontSize: 13,
+              }}
+            />
+            <input
+              type="text"
+              value={rewardForm.accessCode}
+              onChange={(e) =>
+                setRewardForm((current) => ({
+                  ...current,
+                  accessCode: e.target.value,
+                }))
+              }
+              placeholder="رمز دخول"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "10px 11px",
+                borderRadius: 10,
+                background: "var(--app-input-bg)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-border-soft)",
+                fontFamily: "inherit",
+                fontSize: 13,
+              }}
+            />
+          </div>
 
-      {ambassadorConsent === "yes" && (
-        <div style={{ marginTop: 10 }}>
-          <input
-            type="url"
-            value={ambassadorLinkedInUrl}
-            onChange={(e) => setAmbassadorLinkedInUrl(e.target.value)}
-            placeholder="رابط LinkedIn مثل: linkedin.com/in/username"
+          <button
+            type="button"
+            onClick={createRewardAccount}
+            disabled={rewardAccountLoading}
             style={{
               width: "100%",
-              boxSizing: "border-box",
-              padding: "10px 11px",
-              borderRadius: 10,
-              background: "var(--app-input-bg)",
-              color: "var(--app-text)",
-              border: "1px solid var(--app-border-soft)",
+              marginTop: 9,
+              padding: "10px 12px",
+              borderRadius: 11,
+              background: rewardAccountLoading
+                ? "rgba(125,125,125,0.45)"
+                : "linear-gradient(90deg,var(--app-muted),var(--app-brand))",
+              color: "#07100e",
+              border: "none",
+              cursor: rewardAccountLoading ? "not-allowed" : "pointer",
               fontFamily: "inherit",
-              fontSize: 13,
-            }}
-          />
-          <p
-            style={{
-              color: "var(--app-muted)",
-              fontSize: 12,
-              margin: "6px 0 0",
-              lineHeight: 1.7,
+              fontWeight: 900,
             }}
           >
-            نستخدم الرابط فقط إذا اعتمدت التجربة وقررت لاحقًا عرض سفراء دربك.
-          </p>
-        </div>
+            {rewardAccountLoading ? "جاري حفظ الحساب..." : "حفظ حساب المكافأة"}
+          </button>
+        </>
       )}
+
+      {rewardAccountMessage && (
+        <p
+          style={{
+            color: rewardAccountMessage.includes("تم حفظ") ? "#86efac" : "#fca5a5",
+            fontSize: 12,
+            margin: "8px 0 0",
+            lineHeight: 1.7,
+          }}
+        >
+          {rewardAccountMessage}
+        </p>
+      )}
+
+      <p
+        style={{
+          color: "var(--app-muted)",
+          fontSize: 12,
+          margin: "8px 0 0",
+          lineHeight: 1.7,
+        }}
+      >
+        تقدر/ين إرسال التجربة بدون حساب، لكن الشهر المجاني يحتاج حساب محفوظ
+        عشان نعرف نفعّله لك بعد الاعتماد.
+      </p>
     </div>
   );
 
@@ -820,7 +903,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 lineHeight: 1.45,
               }}
             >
-              أضف تجربتك… وبندعي لك بالوظيفة اللي تتمناها 🤍😎
+              شارك تجربتك وخذ شهر وصول كامل مجانًا 🤍
             </h2>
 
             <p
@@ -831,9 +914,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 lineHeight: 1.8,
               }}
             >
-              تجربة بسيطة منك قد تفيد الطلاب المقبلين على التدريب، واليوم
-              استفاد من تجارب دربك{" "}
-              <strong style={{ color: "var(--app-brand)" }}>1000 طالبًا</strong>.
+              بعد مراجعة تجربتك واعتمادها، بنفعّل لك 30 يومًا من الوصول
+              الكامل، وتقدر خلالها تشوف تجارب التدريب والجهات وطرق التقديم
+              والفرص المناسبة لتخصصك.
             </p>
 
             <div style={{ fontSize: 28, margin: "8px 0" }}>🤍</div>
@@ -851,7 +934,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               اكتب تجربتك، ويمكن تكون سببًا في قبول شخص أو طمأنته قبل أول يوم تدريب.
             </p>
 
-            <AmbassadorOptInCard />
+            <RewardAccountCard />
 
             <button
               type="button"
@@ -892,8 +975,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 maxWidth: 500,
               }}
             >
-              ظهورك كسفير دربك يساعد الطلاب يعرفون أشخاص صنعوا أثرًا حقيقيًا،
-              وقد يلفت انتباه جهات تبحث عن طلاب مبادرين.
+              تُفعّل المكافأة بعد اعتماد تجربة أصلية ومفيدة، ولا تشمل التجارب
+              المنسوخة أو المكررة. إذا ما تبغى الشهر المجاني، تقدر ترسل تجربتك
+              مباشرة وتبقى مجهولة.
             </div>
           </div>
         </div>
@@ -1475,16 +1559,51 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 ))}
               </div>
 
-              <AmbassadorOptInCard compact />
+              <RewardAccountCard compact />
+
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  marginTop: 14,
+                  padding: "12px 13px",
+                  borderRadius: 12,
+                  background: "var(--app-brand-soft)",
+                  border: "1px solid var(--app-brand-border)",
+                  color: "var(--app-text)",
+                  cursor: "pointer",
+                  lineHeight: 1.8,
+                  fontSize: 13,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={publicationConsent}
+                  onChange={(e) => setPublicationConsent(e.target.checked)}
+                  style={{
+                    width: 18,
+                    height: 18,
+                    marginTop: 4,
+                    accentColor: "var(--app-brand)",
+                    flexShrink: 0,
+                  }}
+                />
+                <span>
+                  أوافق على نشر تجربتي وتحريرها وعرضها ضمن منصة دربك، وأؤكد
+                  أنها تجربة حقيقية تخصني.
+                </span>
+              </label>
             </div>
           )}
 
           {/* بعد الحفظ */}
           {step >= totalSteps && (
             <div style={{ textAlign: "center", padding: 20 }}>
-              <h3 style={{ color: "var(--app-text)" }}>وصلتنا تجربتك 🎉</h3>
+              <h3 style={{ color: "var(--app-text)" }}>وصلتنا تجربتك 🤍</h3>
               <p style={{ color: "#a9c0d6" }}>
-                شكراً لمشاركتك! ستظهر تجربتك بعد مراجعتها واعتمادها.
+                بنراجعها، وإذا تم اعتمادها وكانت مرتبطة بحسابك بنفعّل لك شهرًا
+                كاملًا من الوصول تلقائيًا، وبيوصلك إشعار داخل دربك.
               </p>
               <button
                 onClick={handleClose}
@@ -1585,7 +1704,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                     cursor: loading ? "not-allowed" : "pointer",
                   }}
                 >
-                  {loading ? "جاري النشر..." : "نشر التجربة"}
+                  {loading ? "جاري الإرسال..." : "أرسل تجربتي للمراجعة"}
                 </button>
               </div>
             ) : (

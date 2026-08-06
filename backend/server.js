@@ -4570,6 +4570,7 @@ app.get('/api/home-stats', async (req, res) => {
       opportunityOrganizationNames,
       currentProgramsCount,
       opportunityApplyClicksCount,
+      opportunityApplyVisitorIds,
       activeSubscriberEmails,
     ] =
       await Promise.all([
@@ -4582,20 +4583,27 @@ app.get('/api/home-stats', async (req, res) => {
         AnalyticsEvent.countDocuments({
           eventName: "opportunity_apply_clicked",
         }),
+        AnalyticsEvent.distinct("visitorId", {
+          eventName: "opportunity_apply_clicked",
+          visitorId: { $type: "string", $nin: [""] },
+        }),
         Subscription.distinct("email", activeSubscriptionFilter),
       ]);
     const organizationNames = uniqueTruthy([
       ...experienceOrganizationNames,
       ...opportunityOrganizationNames,
     ]);
+    const opportunityApplyUniqueVisitorsCount =
+      opportunityApplyVisitorIds.filter(Boolean).length;
 
     res.json({
       experiencesCount,
       organizationNames,
       organizationsCount: organizationNames.length,
       currentProgramsCount,
-      studentsAppliedCount: opportunityApplyClicksCount,
+      studentsAppliedCount: opportunityApplyUniqueVisitorsCount,
       opportunityApplyClicksCount,
+      opportunityApplyUniqueVisitorsCount,
       activeSubscribersCount: activeSubscriberEmails.filter(Boolean).length,
     });
   } catch (err) {
@@ -4826,6 +4834,43 @@ app.post('/api/access/reminder-shown', async (req, res) => {
     res.json({ ok: true, subscriptionReminderLastShownAt: now });
   } catch (err) {
     console.error("❌ Access reminder update error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/account/reward-identity', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const rawEmail = req.body.email || req.body.contact;
+    const contact = normalizeSubscriberContact(rawEmail);
+    const accessCode = normalizeAccessCode(req.body.accessCode);
+    const visitorId = sanitizeAnalyticsText(req.body.visitorId, 90);
+
+    if (!isValidEmail(rawEmail)) {
+      return res.status(400).json({
+        error: "اكتب بريدًا إلكترونيًا صحيحًا لحساب مكافأة التجربة.",
+      });
+    }
+
+    if (!isValidAccessCode(accessCode)) {
+      return res.status(400).json({
+        error: "اختَر رمز دخول من 4 إلى 12 رقم أو حرف إنجليزي.",
+      });
+    }
+
+    const user = await ensureAccessUser({ contact, accessCode, visitorId });
+
+    res.json({
+      ok: true,
+      contact,
+      userId: user?._id,
+      message: "تم حفظ حساب مكافأة التجربة.",
+    });
+  } catch (err) {
+    console.error("❌ Reward identity create error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -8054,25 +8099,30 @@ app.post('/api/experiences', async (req, res) => {
 
     const rewardAmount =
       typeof req.body.rewardAmount === "string" ? req.body.rewardAmount.trim() : "";
-    const ambassadorConsent = req.body.ambassadorConsent === "yes" ? "yes" : "no";
-    const ambassadorLinkedInUrl =
-      ambassadorConsent === "yes"
-        ? normalizeLinkedInProfileUrl(req.body.ambassadorLinkedInUrl)
-        : "";
+    const accessIdentity = getAccessIdentityFromRequest(req);
+    let submittedByUser = null;
 
-    if (ambassadorConsent === "yes" && !ambassadorLinkedInUrl) {
-      return res.status(400).json({
-        error: "رابط LinkedIn غير صحيح. استخدم رابط ملف شخصي يبدأ بـ linkedin.com/in/ أو اختر البقاء مجهول.",
-      });
+    if (
+      isValidSubscriberContact(accessIdentity.contact) &&
+      isValidAccessCode(accessIdentity.accessCode)
+    ) {
+      submittedByUser = await ensureAccessUser(accessIdentity);
     }
+
+    const rewardEligible = Boolean(submittedByUser?._id);
 
     const newExp = new Experience({
       ...req.body,
       interviewQuestions: normalizeInterviewQuestions(req.body.interviewQuestions),
       rewardAmount: req.body.hadReward === "yes" ? rewardAmount : "",
-      ambassadorConsent,
-      ambassadorLinkedInUrl,
+      ambassadorConsent: "no",
+      ambassadorLinkedInUrl: "",
       ambassadorProfileImageUrl: "",
+      submittedByUserId: submittedByUser?._id,
+      submissionStatus: "pending",
+      rewardEligible,
+      rewardStatus: rewardEligible ? "pending" : "not_eligible",
+      publicationConsent: req.body.publicationConsent === true,
       sourceType: "direct",
       status: "pending",
     });

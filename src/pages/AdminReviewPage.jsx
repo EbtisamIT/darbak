@@ -23,6 +23,8 @@ const cardStyle = {
   textAlign: "right",
 };
 
+const FEATURED_AMBASSADORS_ENABLED = false;
+
 const companyApplicationStatusOptions = [
   ["all", "كل الطلبات"],
   ["new", "جديد"],
@@ -6386,7 +6388,9 @@ export default function AdminReviewPage() {
                   ["trainingMode", "النوع"],
                   ["benefitedFromTraining", "استفاد؟"],
                   ["wouldRecommend", "ينصح؟"],
-                  ["ambassadorConsent", "سفير دربك"],
+                  ...(FEATURED_AMBASSADORS_ENABLED
+                    ? [["ambassadorConsent", "سفير دربك"]]
+                    : []),
                   ["sourceType", "المصدر"],
                 ].map(([field, label]) => (
                   <span
@@ -6409,7 +6413,9 @@ export default function AdminReviewPage() {
                 ))}
               </div>
 
-              {exp.ambassadorConsent === "yes" && exp.ambassadorLinkedInUrl && (
+              {FEATURED_AMBASSADORS_ENABLED &&
+                exp.ambassadorConsent === "yes" &&
+                exp.ambassadorLinkedInUrl && (
                 <a
                   href={exp.ambassadorLinkedInUrl}
                   target="_blank"
@@ -6437,7 +6443,7 @@ export default function AdminReviewPage() {
                 </a>
               )}
 
-              {isActiveFeaturedAmbassador(exp) && (
+              {FEATURED_AMBASSADORS_ENABLED && isActiveFeaturedAmbassador(exp) && (
                 <div
                   style={{
                     display: "inline-flex",
@@ -6549,16 +6555,17 @@ export default function AdminReviewPage() {
                     ))}
                   </div>
 
-                  <section
-                    style={{
-                      display: "grid",
-                      gap: "12px",
-                      border: `1px solid ${adminColors.cardBorder}`,
-                      borderRadius: "14px",
-                      padding: "14px",
-                      background: "rgba(125,219,205,0.035)",
-                    }}
-                  >
+                  {FEATURED_AMBASSADORS_ENABLED && (
+                    <section
+                      style={{
+                        display: "grid",
+                        gap: "12px",
+                        border: `1px solid ${adminColors.cardBorder}`,
+                        borderRadius: "14px",
+                        padding: "14px",
+                        background: "rgba(125,219,205,0.035)",
+                      }}
+                    >
                     <div>
                       <strong style={{ color: adminColors.brandStrong }}>
                         بطاقة سفير دربك
@@ -6767,7 +6774,8 @@ export default function AdminReviewPage() {
                         </>
                       )}
                     </div>
-                  </section>
+                    </section>
+                  )}
 
                   <label style={{ color: adminColors.textSoft, fontSize: "13px" }}>
                     وصف التجربة
@@ -6987,47 +6995,49 @@ export default function AdminReviewPage() {
                     >
                       تعديل
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleFeaturedAmbassador(exp)}
-                      disabled={
-                        updatingFeaturedExperienceId === exp._id ||
-                        (exp.status || "approved") !== "approved"
-                      }
-                      title={
-                        (exp.status || "approved") !== "approved"
-                          ? "اختاري من التجارب المقبولة فقط"
-                          : ""
-                      }
-                      style={{
-                        background: isActiveFeaturedAmbassador(exp)
-                          ? "rgba(245,158,11,0.12)"
-                          : "rgba(125,219,205,0.08)",
-                        color: isActiveFeaturedAmbassador(exp)
-                          ? "#fde68a"
-                          : adminColors.brand,
-                        border: isActiveFeaturedAmbassador(exp)
-                          ? "1px solid rgba(245,158,11,0.35)"
-                          : "1px solid rgba(125,219,205,0.35)",
-                        borderRadius: "10px",
-                        padding: "9px 14px",
-                        cursor:
+                    {FEATURED_AMBASSADORS_ENABLED && (
+                      <button
+                        type="button"
+                        onClick={() => toggleFeaturedAmbassador(exp)}
+                        disabled={
                           updatingFeaturedExperienceId === exp._id ||
                           (exp.status || "approved") !== "approved"
-                            ? "not-allowed"
-                            : "pointer",
-                        opacity:
-                          (exp.status || "approved") !== "approved" ? 0.45 : 1,
-                        fontFamily: "inherit",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {updatingFeaturedExperienceId === exp._id
-                        ? "تحديث..."
-                        : isActiveFeaturedAmbassador(exp)
-                        ? "إلغاء سفير الأسبوع"
-                        : "تمييز كسفير أسبوع"}
-                    </button>
+                        }
+                        title={
+                          (exp.status || "approved") !== "approved"
+                            ? "اختاري من التجارب المقبولة فقط"
+                            : ""
+                        }
+                        style={{
+                          background: isActiveFeaturedAmbassador(exp)
+                            ? "rgba(245,158,11,0.12)"
+                            : "rgba(125,219,205,0.08)",
+                          color: isActiveFeaturedAmbassador(exp)
+                            ? "#fde68a"
+                            : adminColors.brand,
+                          border: isActiveFeaturedAmbassador(exp)
+                            ? "1px solid rgba(245,158,11,0.35)"
+                            : "1px solid rgba(125,219,205,0.35)",
+                          borderRadius: "10px",
+                          padding: "9px 14px",
+                          cursor:
+                            updatingFeaturedExperienceId === exp._id ||
+                            (exp.status || "approved") !== "approved"
+                              ? "not-allowed"
+                              : "pointer",
+                          opacity:
+                            (exp.status || "approved") !== "approved" ? 0.45 : 1,
+                          fontFamily: "inherit",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {updatingFeaturedExperienceId === exp._id
+                          ? "تحديث..."
+                          : isActiveFeaturedAmbassador(exp)
+                          ? "إلغاء سفير الأسبوع"
+                          : "تمييز كسفير أسبوع"}
+                      </button>
+                    )}
                     {status !== "rejected" && (
                       <button
                         type="button"

@@ -100,6 +100,45 @@ const experienceSchema = new mongoose.Schema(
       type: Date,
       index: true,
     },
+    submittedByUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+    },
+    submissionStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+      index: true,
+    },
+    rewardEligible: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    rewardStatus: {
+      type: String,
+      enum: ["pending", "granted", "not_eligible", "revoked"],
+      default: "not_eligible",
+      index: true,
+    },
+    rewardGrantedAt: {
+      type: Date,
+    },
+    rewardStartsAt: {
+      type: Date,
+    },
+    rewardExpiresAt: {
+      type: Date,
+    },
+    rewardGrantedBy: {
+      type: String,
+      default: "",
+    },
+    publicationConsent: {
+      type: Boolean,
+      default: false,
+    },
     starRating: {
       type: Number,
       required: true,
