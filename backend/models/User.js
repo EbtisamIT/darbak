@@ -34,6 +34,20 @@ const userSchema = new mongoose.Schema(
     premiumExpiresAt: {
       type: Date,
     },
+    accessSource: {
+      type: String,
+      default: "",
+      trim: true,
+      index: true,
+    },
+    accessGrantedAt: {
+      type: Date,
+    },
+    accessGrantedBy: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     lastViewedDate: {
       type: String,
       default: "",

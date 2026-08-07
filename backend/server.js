@@ -542,6 +542,12 @@ const addSubscriptionDays = (days = SUBSCRIPTION_DURATION_DAYS) => {
   return expiresAt;
 };
 
+const addDaysFromDate = (date = new Date(), days = SUBSCRIPTION_DURATION_DAYS) => {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + Number(days || 30));
+  return nextDate;
+};
+
 const getSubscriptionPlan = (planId = "") =>
   SUBSCRIPTION_PLANS[planId] || SUBSCRIPTION_PLANS.monthly;
 
@@ -658,25 +664,141 @@ const syncSubscriptionUser = async (subscription = {}) => {
     subscription.expiresAt &&
     new Date(subscription.expiresAt) > new Date();
 
+  const userPayload = {
+    contact: normalizeSubscriberContact(subscription.email),
+    accessCodeHash: subscription.accessCodeHash,
+    isPremium: Boolean(isActive),
+    isAdmin: isAdminSubscriptionHash(
+      subscription.email,
+      subscription.accessCodeHash
+    ),
+    premiumExpiresAt: subscription.expiresAt,
+    accessSource: isActive ? "paid_subscription" : "",
+  };
+
+  if (isActive) {
+    userPayload.accessGrantedAt = new Date();
+    userPayload.accessGrantedBy = subscription.provider || "subscription";
+  }
+
   return User.findOneAndUpdate(
     {
       contact: normalizeSubscriberContact(subscription.email),
       accessCodeHash: subscription.accessCodeHash,
     },
     {
-      $set: {
-        contact: normalizeSubscriberContact(subscription.email),
-        accessCodeHash: subscription.accessCodeHash,
-        isPremium: Boolean(isActive),
-        isAdmin: isAdminSubscriptionHash(
-          subscription.email,
-          subscription.accessCodeHash
-        ),
-        premiumExpiresAt: subscription.expiresAt,
-      },
+      $set: userPayload,
     },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );
+};
+
+const getUserManualAccessType = (user = {}) => {
+  if (user?.accessSource === "experience_reward") return "experience_reward";
+  if (user?.accessSource === "admin_grant") return "admin_grant";
+  return "premium";
+};
+
+const getActiveManualAccessWindow = (user = {}, now = new Date()) => {
+  if (!user?.isPremium) return null;
+
+  const expiresAt = user.premiumExpiresAt ? new Date(user.premiumExpiresAt) : null;
+
+  if (expiresAt && expiresAt <= now) return null;
+
+  return {
+    accessType: getUserManualAccessType(user),
+    expiresAt: expiresAt || null,
+  };
+};
+
+const grantExperienceRewardAccess = async (
+  experience = {},
+  { grantedBy = "admin" } = {}
+) => {
+  if (!experience?._id || !experience.submittedByUserId) {
+    return { granted: false, reason: "missing_user_link" };
+  }
+
+  if (experience.rewardStatus === "granted") {
+    return { granted: false, reason: "already_granted" };
+  }
+
+  const user = await User.findById(experience.submittedByUserId).lean();
+  if (!user) {
+    const updatedExperience = await Experience.findByIdAndUpdate(
+      experience._id,
+      {
+        $set: {
+          rewardEligible: false,
+          rewardStatus: "not_eligible",
+        },
+      },
+      { new: true }
+    ).lean();
+
+    return {
+      granted: false,
+      reason: "user_not_found",
+      experience: updatedExperience,
+    };
+  }
+
+  const now = new Date();
+  const currentExpiry = user.premiumExpiresAt
+    ? new Date(user.premiumExpiresAt)
+    : null;
+  const startsAt = currentExpiry && currentExpiry > now ? currentExpiry : now;
+  const expiresAt = addDaysFromDate(startsAt, 30);
+
+  await User.findByIdAndUpdate(user._id, {
+    $set: {
+      isPremium: true,
+      premiumExpiresAt: expiresAt,
+      accessSource: "experience_reward",
+      accessGrantedAt: now,
+      accessGrantedBy: grantedBy,
+    },
+  });
+
+  const updatedExperience = await Experience.findByIdAndUpdate(
+    experience._id,
+    {
+      $set: {
+        rewardEligible: true,
+        rewardStatus: "granted",
+        rewardGrantedAt: now,
+        rewardStartsAt: startsAt,
+        rewardExpiresAt: expiresAt,
+        rewardGrantedBy: grantedBy,
+      },
+    },
+    { new: true }
+  ).lean();
+
+  await AnalyticsEvent.create({
+    eventName: "experience_reward_granted",
+    visitorId: "",
+    page: "/admin/experiences",
+    deviceType: "admin",
+    metadata: sanitizeAnalyticsMetadata({
+      experienceId: experience._id.toString(),
+      userId: user._id.toString(),
+      organizationName: experience.organizationName || "",
+      startsAt: startsAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    }),
+  }).catch((analyticsErr) =>
+    console.error("❌ Experience reward analytics error:", analyticsErr)
+  );
+
+  return {
+    granted: true,
+    user,
+    experience: updatedExperience,
+    startsAt,
+    expiresAt,
+  };
 };
 
 const getAccessIdentityFromRequest = (req = {}) => ({
@@ -772,10 +894,8 @@ const evaluateContentAccess = async ({
 
   const now = new Date();
   const isAdmin = Boolean(user?.isAdmin) || isAdminContact(contact, accessCode);
-  const hasManualPremium =
-    user?.isPremium &&
-    (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > now);
-  const isPremium = Boolean(activeSubscription) || hasManualPremium;
+  const manualAccess = getActiveManualAccessWindow(user, now);
+  const isPremium = Boolean(activeSubscription) || Boolean(manualAccess);
 
   if (isAdmin) {
     return {
@@ -790,10 +910,10 @@ const evaluateContentAccess = async ({
   if (isPremium) {
     return {
       granted: true,
-      accessType: "premium",
+      accessType: activeSubscription ? "premium" : manualAccess.accessType,
       isAdmin: false,
       isPremium: true,
-      expiresAt: activeSubscription?.expiresAt || user.premiumExpiresAt,
+      expiresAt: activeSubscription?.expiresAt || manualAccess.expiresAt,
       dailyLimit: FREE_DAILY_DETAIL_LIMIT,
     };
   }
@@ -1527,10 +1647,8 @@ const getPortfolioAccessStatus = async (portfolio = {}) => {
   const isAdmin =
     Boolean(user?.isAdmin) ||
     isAdminSubscriptionHash(portfolio.contact, portfolio.accessCodeHash);
-  const hasManualPremium =
-    user?.isPremium &&
-    (!user.premiumExpiresAt || new Date(user.premiumExpiresAt) > now);
-  const isPremium = Boolean(activeSubscription) || Boolean(hasManualPremium);
+  const manualAccess = getActiveManualAccessWindow(user, now);
+  const isPremium = Boolean(activeSubscription) || Boolean(manualAccess);
 
   return {
     isActive: Boolean(portfolio.isPublished && (isAdmin || isPremium)),
@@ -5267,6 +5385,9 @@ app.post('/api/subscriptions/verify', async (req, res) => {
         isAdmin: true,
         isPremium: true,
         premiumExpiresAt: adminExpiresAt,
+        accessSource: "admin_grant",
+        accessGrantedAt: new Date(),
+        accessGrantedBy: "admin_login",
       });
 
       return res.json({
@@ -5287,6 +5408,34 @@ app.post('/api/subscriptions/verify', async (req, res) => {
     ).lean();
 
     if (!subscription) {
+      const manualAccess = getActiveManualAccessWindow(accessUser, new Date());
+
+      if (manualAccess) {
+        const expiresAt = manualAccess.expiresAt || addSubscriptionDays(3650);
+        const durationDays = Math.max(
+          1,
+          Math.ceil((new Date(expiresAt) - new Date()) / (24 * 60 * 60 * 1000))
+        );
+
+        return res.json({
+          active: true,
+          contact,
+          email: contact,
+          expiresAt,
+          accessType: manualAccess.accessType,
+          isAdmin: false,
+          planId: manualAccess.accessType,
+          priceSar: 0,
+          durationDays,
+          provider: manualAccess.accessType,
+          providerPaymentId: "",
+          message:
+            manualAccess.accessType === "experience_reward"
+              ? "تم اعتماد تجربتك وتفعيل شهر الوصول الكامل لك 🤍"
+              : "تم تفعيل الوصول الكامل لحسابك.",
+        });
+      }
+
       const pendingSubscription = await Subscription.findOne({
         email: contact,
         accessCodeHash,
@@ -6481,7 +6630,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         .sort({ updatedAt: -1 })
         .limit(180)
         .select(
-          "contact visitorId accessCodeHash isPremium isAdmin premiumExpiresAt lastViewedDate dailyViewsCount dailyViewItemKeys subscriptionReminderLastShownAt createdAt updatedAt"
+          "contact visitorId accessCodeHash isPremium isAdmin premiumExpiresAt accessSource accessGrantedAt accessGrantedBy lastViewedDate dailyViewsCount dailyViewItemKeys subscriptionReminderLastShownAt createdAt updatedAt"
         )
         .lean(),
       Subscription.find(subscriptionFilter)
@@ -6539,13 +6688,16 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         accessType: user.isAdmin
           ? "admin"
           : hasActivePremium
-          ? "premium"
+          ? user.accessSource || "premium"
           : user.contact
           ? "free"
           : "visitor",
         isPremium: hasActivePremium,
         isAdmin: Boolean(user.isAdmin),
         premiumExpiresAt: user.premiumExpiresAt || null,
+        accessSource: user.accessSource || "",
+        accessGrantedAt: user.accessGrantedAt || null,
+        accessGrantedBy: user.accessGrantedBy || "",
         lastViewedDate: user.lastViewedDate || "",
         subscriptionReminderLastShownAt:
           user.subscriptionReminderLastShownAt || null,
@@ -9880,12 +10032,28 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
       return res.status(400).json({ error: "Invalid status" });
     }
 
-    const updated = await Experience.findByIdAndUpdate(
+    const experience = await Experience.findById(req.params.id).lean();
+
+    if (!experience) {
+      return res.status(404).json({ error: "Experience not found" });
+    }
+
+    const reviewDate = new Date();
+    let updated = await Experience.findByIdAndUpdate(
       req.params.id,
       {
-        status,
-        reviewedAt: new Date(),
-        rejectionReason: status === "rejected" ? rejectionReason.trim() : "",
+        $set: {
+          status,
+          submissionStatus: status,
+          reviewedAt: reviewDate,
+          rejectionReason: status === "rejected" ? rejectionReason.trim() : "",
+          ...(status === "rejected" && experience.rewardStatus !== "granted"
+            ? { rewardStatus: "not_eligible" }
+            : {}),
+          ...(status === "pending" && experience.rewardStatus !== "granted"
+            ? { rewardStatus: experience.rewardEligible ? "pending" : "not_eligible" }
+            : {}),
+        },
       },
       { new: true }
     ).lean();
@@ -9894,7 +10062,23 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
       return res.status(404).json({ error: "Experience not found" });
     }
 
-    res.json(updated);
+    let rewardGrant = null;
+    if (
+      status === "approved" &&
+      updated.rewardEligible &&
+      updated.submittedByUserId &&
+      updated.rewardStatus !== "granted"
+    ) {
+      rewardGrant = await grantExperienceRewardAccess(updated, {
+        grantedBy: "admin_experience_approval",
+      });
+
+      if (rewardGrant?.experience) {
+        updated = rewardGrant.experience;
+      }
+    }
+
+    res.json({ ...updated, rewardGrant });
   } catch (err) {
     console.error("❌ Admin update error:", err);
     res.status(500).json({ error: err.message });

@@ -561,6 +561,9 @@ const userStatusOptions = [
 const accessTypeLabels = {
   admin: "إدارة",
   premium: "مشترك",
+  paid_subscription: "مشترك",
+  experience_reward: "هدية مشاركة تجربة",
+  admin_grant: "منحة إدارة",
   free: "مجاني",
   visitor: "زائر",
 };
@@ -1055,6 +1058,18 @@ const getAdminRewardLabel = (exp = {}) => {
   const amount = formatRewardAmount(exp.rewardAmount);
 
   return exp.hadReward === "yes" && amount ? `${baseLabel} - ${amount}` : baseLabel;
+};
+
+const experienceRewardStatusLabels = {
+  pending: "بانتظار الاعتماد",
+  granted: "تم منح شهر الوصول",
+  not_eligible: "غير مؤهلة",
+  revoked: "ملغاة",
+};
+
+const getExperienceRewardLabel = (exp = {}) => {
+  if (!exp.rewardEligible) return "غير مرتبطة بحساب";
+  return experienceRewardStatusLabels[exp.rewardStatus] || "بانتظار الاعتماد";
 };
 
 const formatAdminDateTime = (value) => {
@@ -1815,19 +1830,46 @@ export default function AdminReviewPage() {
     }
   };
 
-  const updateStatus = async (id, nextStatus, rejectionReason = "") => {
+  const updateStatus = async (id, nextStatus, rejectionReason = "", options = {}) => {
     try {
       setMessage("");
-      await axios.patch(
+      const { data } = await axios.patch(
         `${API_BASE_URL}/api/admin/experiences/${id}/status`,
         { status: nextStatus, rejectionReason },
         { headers: authHeaders }
       );
-      setExperiences((prev) => prev.filter((exp) => exp._id !== id));
+
+      const shouldStayInList = options.keepInList || status === nextStatus;
+      setExperiences((prev) =>
+        shouldStayInList
+          ? prev.map((exp) => (exp._id === id ? data : exp))
+          : prev.filter((exp) => exp._id !== id)
+      );
+
+      if (data.rewardGrant?.granted) {
+        setMessage("تم اعتماد التجربة ومنح الطالب شهر وصول كامل كهدية.");
+      } else if (data.rewardGrant?.reason === "already_granted") {
+        setMessage("هذه التجربة حصلت على مكافأتها مسبقًا.");
+      } else if (nextStatus === "approved") {
+        setMessage("تم اعتماد التجربة.");
+      } else if (nextStatus === "rejected") {
+        setMessage("تم رفض التجربة.");
+      }
     } catch (err) {
       console.error(err);
-      setMessage("تعذر تحديث حالة التجربة.");
+      setMessage(err.response?.data?.error || "تعذر تحديث حالة التجربة.");
     }
+  };
+
+  const grantRewardForApprovedExperience = (exp) => {
+    if (!exp?._id) return;
+
+    const confirmed = window.confirm(
+      "هل تريدين منح صاحب هذه التجربة 30 يومًا من الوصول الكامل؟"
+    );
+    if (!confirmed) return;
+
+    updateStatus(exp._id, "approved", "", { keepInList: true });
   };
 
   const toggleFeaturedAmbassador = async (exp) => {
@@ -4160,7 +4202,9 @@ export default function AdminReviewPage() {
             ) : (
               users.map((user) => {
                 const statusTone =
-                  user.accessType === "premium" || user.accessType === "admin"
+                  ["premium", "paid_subscription", "experience_reward", "admin_grant", "admin"].includes(
+                    user.accessType
+                  )
                     ? "active"
                     : user.accessType === "free"
                     ? "neutral"
@@ -6411,6 +6455,35 @@ export default function AdminReviewPage() {
                       : getAdminOptionLabel(field, exp[field])}
                   </span>
                 ))}
+                <span
+                  style={{
+                    background:
+                      exp.rewardStatus === "granted"
+                        ? "rgba(34,197,94,0.12)"
+                        : exp.rewardEligible
+                        ? "rgba(251,191,36,0.1)"
+                        : "rgba(148,163,184,0.08)",
+                    border:
+                      exp.rewardStatus === "granted"
+                        ? "1px solid rgba(34,197,94,0.28)"
+                        : exp.rewardEligible
+                        ? "1px solid rgba(251,191,36,0.25)"
+                        : "1px solid rgba(148,163,184,0.18)",
+                    borderRadius: "999px",
+                    color:
+                      exp.rewardStatus === "granted"
+                        ? "#bbf7d0"
+                        : exp.rewardEligible
+                        ? "#fde68a"
+                        : adminColors.textSoft,
+                    padding: "6px 9px",
+                    fontSize: "12px",
+                    lineHeight: 1.4,
+                    fontWeight: 800,
+                  }}
+                >
+                  مكافأة التجربة: {getExperienceRewardLabel(exp)}
+                </span>
               </div>
 
               {FEATURED_AMBASSADORS_ENABLED &&
@@ -6995,6 +7068,27 @@ export default function AdminReviewPage() {
                     >
                       تعديل
                     </button>
+                    {(exp.status || status) === "approved" &&
+                      exp.rewardEligible &&
+                      exp.submittedByUserId &&
+                      exp.rewardStatus !== "granted" && (
+                        <button
+                          type="button"
+                          onClick={() => grantRewardForApprovedExperience(exp)}
+                          style={{
+                            background: "rgba(34,197,94,0.12)",
+                            color: "#bbf7d0",
+                            border: "1px solid rgba(34,197,94,0.35)",
+                            borderRadius: "10px",
+                            padding: "9px 14px",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          منح شهر الوصول
+                        </button>
+                      )}
                     {FEATURED_AMBASSADORS_ENABLED && (
                       <button
                         type="button"

@@ -50,6 +50,14 @@ const isValidSaudiMobile = (value = "") => {
 const isValidContact = (value = "") =>
   isValidEmail(value) || isValidSaudiMobile(value);
 
+const getAccessTypeLabel = (accessType = "", status = "free") => {
+  if (status === "admin" || accessType === "admin") return "إدارة";
+  if (accessType === "experience_reward") return "هدية مشاركة تجربة";
+  if (accessType === "admin_grant") return "منحة إدارة";
+  if (accessType === "paid_subscription" || accessType === "premium") return "دربك+";
+  return status === "active" ? "دربك+" : "مجاني";
+};
+
 export default function AccountModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [identity, setIdentity] = useState({});
@@ -130,7 +138,7 @@ export default function AccountModal() {
       });
       savePremiumPass(data);
       setPass(getStoredPremiumPass());
-      setMessage("تم تحديث حالة حسابك.");
+      setMessage(data.message || "تم تحديث حالة حسابك.");
     } catch (err) {
       setPass(null);
       setMessage(
@@ -173,7 +181,7 @@ export default function AccountModal() {
       savePremiumPass(data);
       setIdentity(getStoredAccessIdentity());
       setPass(getStoredPremiumPass());
-      setMessage("تم تسجيل الدخول وتفعيل مزايا حسابك.");
+      setMessage(data.message || "تم تسجيل الدخول وتفعيل مزايا حسابك.");
       trackEvent("account_login_success");
     } catch (err) {
       setPass(null);
@@ -239,6 +247,8 @@ export default function AccountModal() {
   if (!isOpen) return null;
 
   const isActive = status === "active" || status === "admin";
+  const isExperienceReward = pass?.accessType === "experience_reward" && isActive;
+  const accessTypeLabel = getAccessTypeLabel(pass?.accessType, status);
 
   return (
     <div
@@ -272,14 +282,30 @@ export default function AccountModal() {
           <span>
             {status === "admin"
               ? "حساب إدارة"
+              : isExperienceReward
+              ? "هدية مشاركة تجربة"
               : isActive
               ? "دربك+ فعال"
               : "حساب مجاني"}
           </span>
           <strong>
-            {isActive ? "وصول كامل للمزايا المتقدمة" : "يمكنك الترقية متى احتجت"}
+            {isExperienceReward
+              ? "وصول كامل لمدة 30 يومًا بعد اعتماد تجربتك"
+              : isActive
+              ? "وصول كامل للمزايا المتقدمة"
+              : "يمكنك الترقية متى احتجت"}
           </strong>
         </div>
+
+        {isExperienceReward && (
+          <div className="account-reward-note">
+            <strong>تم اعتماد تجربتك 🎉</strong>
+            <span>
+              شكرًا لأنك شاركت تجربتك وساعدت الطلاب اللي بعدك. وصولك الكامل
+              مفعّل الآن حتى تاريخ الانتهاء الموضح هنا.
+            </span>
+          </div>
+        )}
 
         <dl className="account-details">
           <div>
@@ -292,13 +318,7 @@ export default function AccountModal() {
           </div>
           <div>
             <dt>نوع الوصول</dt>
-            <dd>
-              {pass?.accessType === "admin" || status === "admin"
-                ? "إدارة"
-                : isActive
-                ? "دربك+"
-                : "مجاني"}
-            </dd>
+            <dd>{accessTypeLabel}</dd>
           </div>
         </dl>
 
