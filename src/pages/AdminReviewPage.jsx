@@ -414,112 +414,6 @@ const defaultTelegramContentItemForm = {
   isActive: true,
 };
 
-const analyticsEventLabels = {
-  page_view: "زيارة صفحة",
-  where_to_train_search: "بحث وين أتدرب",
-  experience_search: "بحث التجارب",
-  diagnosis_completed: "إكمال التشخيص",
-  add_experience_started: "بدء إضافة تجربة",
-  add_experience_submitted: "إرسال تجربة",
-  session_ping: "زائر نشط",
-  session_duration: "مدة الجلسة",
-  opportunity_details_clicked: "فتح تفاصيل فرصة",
-  opportunity_apply_clicked: "ضغط تقديم فرصة",
-  opportunity_submission_started: "بدء إرسال فرصة",
-  opportunity_submitted: "إرسال فرصة للمراجعة",
-  experience_card_opened: "فتح تجربة",
-  interviews_page_viewed: "زيارة صفحة المقابلات",
-  interviews_search: "بحث المقابلات",
-  interview_questions_started: "بدء إضافة أسئلة مقابلة",
-  interview_questions_submitted: "إرسال أسئلة مقابلة",
-  smart_assistant_query: "سؤال دليل دربك",
-  diagnosis_store_click: "ضغط إعلان ملف المتدرب",
-  training_guide_opportunities_banner_click: "ضغط إعلان ملف المتدرب",
-  training_guide_banner_click: "ضغط إعلان ملف المتدرب",
-  telegram_channel_clicked: "ضغط قناة تيليجرام",
-  diagnosis_cv_product_click: "ضغط إعلان السيرة الذاتية",
-  share_item_clicked: "مشاركة عنصر",
-  subscription_reminder_shown: "ظهور تذكير الاشتراك",
-  subscription_reminder_clicked: "ضغط تذكير الاشتراك",
-  premium_gate_opened: "ظهور نافذة الاشتراك",
-  premium_gate_closed: "إغلاق نافذة الاشتراك",
-  premium_nav_cta_clicked: "ضغط زر دربك+",
-  premium_experiences_banner_clicked: "ضغط بنر دربك+ في التجارب",
-  premium_where_to_train_opportunities_banner_clicked:
-    "ضغط بنر دربك+ في الفرص",
-  premium_plan_selected: "اختيار باقة دربك+",
-  checkout_started: "بدء الدفع",
-  premium_checkout_started: "بدء الدفع",
-  premium_checkout_failed: "تعذر بدء الدفع",
-  premium_payment_returned: "رجوع من ميسر",
-  subscription_completed: "اكتمال الاشتراك",
-  premium_access_verified: "تفعيل اشتراك",
-  premium_payment_email_attempt: "محاولة إرسال إيميل الدفع",
-  premium_payment_email_sent: "إيميل دفع مرسل",
-  premium_access_help_requested: "نسيان رمز دربك+",
-  premium_access_reset_clicked: "ضغط نسيت الرمز",
-  premium_access_reset_requested: "طلب إعادة تعيين الرمز",
-  premium_access_reset_email_sent: "إيميل إعادة تعيين مرسل",
-  premium_access_reset_email_failed: "فشل إيميل إعادة التعيين",
-  premium_access_code_reset: "تم تغيير رمز الدخول",
-  account_access_reset_requested: "طلب استعادة من حسابي",
-  admin_email_test: "اختبار بريد الإدارة",
-  account_modal_opened: "فتح حسابي",
-  account_login_success: "دخول حساب ناجح",
-  account_login_failed: "دخول حساب فاشل",
-  account_logout_clicked: "تسجيل خروج",
-  account_access_help_requested: "نسيان الرمز من حسابي",
-  portfolio_announcement_viewed: "ظهور إعلان ملف الأعمال",
-  portfolio_announcement_cta_clicked: "ضغط إعلان ملف الأعمال",
-  portfolio_builder_opened: "فتح بناء ملف الأعمال",
-  portfolio_saved_from_page: "حفظ ملف الأعمال من الصفحة",
-  portfolio_saved: "حفظ ملف الأعمال",
-  portfolio_file_uploaded: "رفع ملف أعمال",
-  portfolio_public_viewed: "مشاهدة ملف أعمال عام",
-  portfolio_inactive_opened: "فتح ملف غير مفعل",
-  portfolio_native_share_clicked: "مشاركة ملف الأعمال",
-  portfolio_link_copied: "نسخ رابط ملف الأعمال",
-  portfolio_linkedin_share_clicked: "مشاركة LinkedIn للملف",
-  portfolio_referral_link_copied: "نسخ رابط إحالة الملف",
-  portfolio_badge_downloaded: "تحميل بطاقة ملف الأعمال",
-};
-
-const premiumFunnelSteps = [
-  ["subscription_reminder_shown", "شاهدوا تذكير الاشتراك"],
-  ["subscription_reminder_clicked", "ضغطوا التذكير"],
-  ["premium_gate_opened", "ظهرت نافذة دربك+"],
-  ["premium_nav_cta_clicked", "ضغطوا زر دربك+"],
-  ["premium_where_to_train_opportunities_banner_clicked", "ضغطوا بنر الفرص"],
-  ["premium_plan_selected", "اختاروا باقة"],
-  ["checkout_started", "بدأوا الدفع"],
-  ["premium_payment_returned", "رجعوا من ميسر"],
-  ["subscription_completed", "اكتمل الاشتراك"],
-  ["premium_payment_email_attempt", "محاولات إيميل الدفع"],
-];
-
-const premiumSupportSteps = [
-  ["premium_gate_closed", "أغلقوا النافذة"],
-  ["premium_checkout_failed", "تعذر بدء الدفع"],
-  ["premium_payment_email_sent", "إيميل دفع مرسل"],
-  ["admin_email_test", "اختبار بريد الإدارة"],
-  ["account_login_success", "دخول مشترك ناجح"],
-  ["account_login_failed", "محاولة دخول فاشلة"],
-  ["premium_access_help_requested", "طلب نسيت الرمز"],
-  ["account_access_help_requested", "نسيت الرمز من حسابي"],
-];
-
-const portfolioFunnelSteps = [
-  ["portfolio_announcement_viewed", "شاهدوا إعلان الميزة"],
-  ["portfolio_announcement_cta_clicked", "ضغطوا إعلان الميزة"],
-  ["portfolio_builder_opened", "فتحوا صفحة البناء"],
-  ["portfolio_saved", "حفظوا ملف أعمال"],
-  ["portfolio_file_uploaded", "رفعوا ملف أو صورة"],
-  ["portfolio_public_viewed", "مشاهدات الرابط العام"],
-  ["portfolio_linkedin_share_clicked", "شاركوا في LinkedIn"],
-  ["portfolio_badge_downloaded", "حمّلوا البطاقة"],
-  ["portfolio_referral_link_copied", "نسخوا رابط الإحالة"],
-];
-
 const premiumPlanLabels = {
   monthly: "دربك+ شهري",
   one_time_90: "دربك+ 3 أشهر",
@@ -573,36 +467,6 @@ const subscriptionStatusLabels = {
   pending: "بانتظار الدفع",
   expired: "منتهي",
   cancelled: "ملغي",
-};
-
-const assistantIntentLabels = {
-  apply: "طريقة التقديم",
-  best: "أفضل الجهات",
-  compare: "مقارنة جهات",
-  exists: "وجود تجارب",
-  interview: "المقابلة",
-  problems: "المشاكل",
-  recommend: "هل تنصح",
-  reward: "المكافأة",
-  summary: "ملخص جهة",
-  tasks: "المهام",
-};
-
-const diagnosisFearLabels = {
-  unknownTargets: "ما أعرف الجهات",
-  noCv: "ما عندي CV",
-  rejection: "أخاف ما أنقبل",
-  email: "ما أعرف أرسل إيميل",
-  late: "البداية متأخرة",
-};
-
-const shareActionLabels = {
-  menu_open: "فتح قائمة المشاركة",
-  native: "مشاركة الجهاز / AirDrop",
-  copy: "نسخ الرابط",
-  whatsapp: "واتساب",
-  snapchat: "سناب",
-  instagram: "انستقرام",
 };
 
 const analyticsRangeOptions = [
@@ -1087,25 +951,6 @@ const toDateTimeLocalValue = (value) => {
   if (Number.isNaN(date.getTime())) return "";
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
-};
-
-const formatDuration = (seconds = 0) => {
-  const totalSeconds = Math.max(0, Math.round(Number(seconds) || 0));
-  if (!totalSeconds) return "-";
-
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const remainingSeconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}س ${minutes}د`;
-  }
-
-  if (minutes > 0) {
-    return `${minutes}د ${remainingSeconds}ث`;
-  }
-
-  return `${remainingSeconds}ث`;
 };
 
 const formatAdminCurrency = (value = 0) =>
@@ -2193,95 +2038,6 @@ export default function AdminReviewPage() {
       )}
     </section>
   );
-
-  const getPremiumEventStats = (eventName) => {
-    const item = (analytics.premiumEventCounts || []).find(
-      (event) => event.label === eventName
-    );
-
-    return {
-      count: item?.count || 0,
-      uniqueVisitors: item?.uniqueVisitors || 0,
-    };
-  };
-
-  const getPortfolioEventStats = (eventName) => {
-    const item = (analytics.portfolioEventCounts || []).find(
-      (event) => event.label === eventName
-    );
-
-    return {
-      count: item?.count || 0,
-      uniqueVisitors: item?.uniqueVisitors || 0,
-    };
-  };
-
-  const renderPremiumStep = ([eventName, label], index) => {
-    const stats = getPremiumEventStats(eventName);
-
-    return (
-      <article
-        key={eventName}
-        style={{
-          background: "rgba(102,208,195,0.055)",
-          border: "1px solid rgba(102,208,195,0.14)",
-          borderRadius: "14px",
-          padding: "14px",
-          minHeight: "92px",
-          display: "grid",
-          gap: "8px",
-          alignContent: "space-between",
-        }}
-      >
-        <span
-          style={{
-            color: adminColors.muted,
-            fontSize: 12,
-            fontWeight: 800,
-          }}
-        >
-          خطوة {index + 1}
-        </span>
-        <strong style={{ color: adminColors.brand, fontSize: 28 }}>
-          {stats.count}
-        </strong>
-        <span style={{ color: adminColors.text, fontSize: 13, lineHeight: 1.7 }}>
-          {label}
-        </span>
-        <small style={{ color: adminColors.muted, lineHeight: 1.6 }}>
-          {stats.uniqueVisitors} مستخدم فريد
-        </small>
-      </article>
-    );
-  };
-
-  const renderPortfolioStep = ([eventName, label]) => {
-    const stats = getPortfolioEventStats(eventName);
-
-    return (
-      <article
-        key={eventName}
-        style={{
-          background: "rgba(102,208,195,0.055)",
-          border: "1px solid rgba(102,208,195,0.14)",
-          borderRadius: "14px",
-          padding: "12px",
-          display: "grid",
-          gap: "7px",
-        }}
-      >
-        <span style={{ color: adminColors.textSoft, fontSize: 12, fontWeight: 800 }}>
-          {label}
-        </span>
-        <strong style={{ color: adminColors.brand, fontSize: 24 }}>
-          {stats.count}
-        </strong>
-        <small style={{ color: adminColors.muted }}>
-          {stats.uniqueVisitors} مستخدم فريد
-        </small>
-      </article>
-    );
-  };
 
   const updateOpportunityField = (field, value) => {
     if (field === "cities") {
@@ -4653,52 +4409,15 @@ export default function AdminReviewPage() {
             }}
           >
             {[
-              ["زوار مميزين من البداية", analytics.allTimeVisitors],
               ["جميع الزيارات من البداية", analytics.allTimePageVisits],
-              [
-                "النشطين الآن",
-                `${analytics.activeVisitors} خلال آخر ${
-                  analytics.activeWindowMinutes || 5
-                } دقائق`,
-              ],
-              [
-                "متوسط وقت الجلسة",
-                formatDuration(analytics.averageSessionSeconds),
-              ],
-              ["جلسات مقاسة", analytics.sessionDurationSamples || 0],
-              ["زوار مميزين في الفترة", analytics.uniqueVisitors],
-              ["جميع الزيارات في الفترة", analytics.pageVisits],
-              ["الأحداث", analytics.totalEvents],
+              ["زيارات الفترة", analytics.pageVisits],
+              ["الأحداث المهمة", analytics.totalEvents],
               ["أسئلة دليل دربك", analytics.assistantQueries || 0],
-              ["متابعات فهمها الدليل", analytics.assistantContextUses || 0],
-              ["أسئلة بلا نتائج", analytics.assistantZeroResultQueries || 0],
               ["زيارات صفحة المقابلات", analytics.interviewPageViews || 0],
-              ["زوار المقابلات", analytics.interviewVisitors || 0],
               ["بحث المقابلات", analytics.interviewSearches || 0],
-              ["بدأوا إضافة أسئلة", analytics.interviewQuestionStarts || 0],
-              ["أرسلوا أسئلة مقابلة", analytics.interviewQuestionSubmissions || 0],
               ["ضغطوا إعلان الملف", analytics.guideFileAdClicks || 0],
               ["ضغطوا إعلان السيرة", analytics.cvProductAdClicks || 0],
-              ["فتحوا مشاركة تجربة", analytics.experienceShareMenuOpens || 0],
-              ["شاركوا تجربة فعليًا", analytics.experienceShareActions || 0],
-              ["فتحوا مشاركة فرصة", analytics.opportunityShareMenuOpens || 0],
-              ["شاركوا فرصة فعليًا", analytics.opportunityShareActions || 0],
-              ["فتحوا مشاركة جهة", analytics.trainingTargetShareMenuOpens || 0],
-              ["شاركوا جهة فعليًا", analytics.trainingTargetShareActions || 0],
-              ["إجمالي فتح المشاركة", analytics.shareMenuOpens || 0],
-              ["إجمالي المشاركات", analytics.shareActions || 0],
-              ...(analytics.rawEvents > analytics.totalEvents
-                ? [["الأحداث الخام", analytics.rawEvents]]
-                : []),
               ["الفترة", analytics.rangeLabel || `${analytics.days} يوم`],
-              [
-                "أقوى ساعة",
-                analytics.hourlyActivity.length
-                  ? `${analytics.hourlyActivity.reduce((max, item) =>
-                      item.count > max.count ? item : max
-                    ).hour}:00`
-                  : "-",
-              ],
             ].map(([label, value]) => (
               <div key={label} style={cardStyle}>
                 <p style={{ color: adminColors.muted, margin: "0 0 8px", fontSize: 13 }}>
@@ -4724,7 +4443,7 @@ export default function AdminReviewPage() {
             >
               <div>
                 <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
-                  مسار دربك+
+                  تذكير الاشتراك ودربك+
                 </h3>
                 <p
                   style={{
@@ -4734,8 +4453,8 @@ export default function AdminReviewPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  يوضح لك أين يتوقف الطالب: هل شاهد العرض، بدأ الدفع، رجع من ميسر،
-                  أو تفعل اشتراكه.
+                  أهم الأرقام فقط: كم مرة ظهر التذكير، كم ضغطوا عليه، وكم وصلوا
+                  للدفع أو اكتمل اشتراكهم.
                 </p>
               </div>
               <strong
@@ -4762,7 +4481,7 @@ export default function AdminReviewPage() {
             >
               {[
                 [
-                  "شاهدوا تذكير الاشتراك",
+                  "ظهر تذكير الاشتراك",
                   analytics.premiumFunnelSummary?.reminderShown?.events || 0,
                   `${analytics.premiumFunnelSummary?.reminderShown?.uniqueVisitors || 0} مستخدم فريد`,
                 ],
@@ -4777,6 +4496,11 @@ export default function AdminReviewPage() {
                   `${analytics.premiumFunnelSummary?.gateOpened?.uniqueVisitors || 0} مستخدم فريد`,
                 ],
                 [
+                  "اختاروا باقة",
+                  analytics.premiumFunnelSummary?.planSelected?.events || 0,
+                  `${analytics.premiumFunnelSummary?.planSelected?.uniqueVisitors || 0} مستخدم فريد`,
+                ],
+                [
                   "بدأوا الدفع",
                   analytics.premiumFunnelSummary?.checkoutStarted?.events || 0,
                   `${analytics.premiumFunnelSummary?.checkoutStarted?.uniqueVisitors || 0} مستخدم فريد`,
@@ -4786,262 +4510,30 @@ export default function AdminReviewPage() {
                   analytics.premiumFunnelSummary?.paymentSuccessful?.events || 0,
                   "مشتركين حقيقيين فقط",
                 ],
-                [
-                  "تفعيلات يدوية",
-                  analytics.premiumFunnelSummary?.manualActiveSubscriptions || 0,
-                  "منفصلة عن ميسر",
-                ],
-                [
-                  "حسابات إدارة/تجربة",
-                  analytics.premiumFunnelSummary?.adminAccessUsers || 0,
-                  "لا تدخل في المدفوعات",
-                ],
               ].map(([label, value, hint]) => renderAdminMetricCard([label, value, hint]))}
             </div>
 
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: "10px",
-                marginBottom: "14px",
-              }}
-            >
-              {premiumFunnelSteps.map(renderPremiumStep)}
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
                 gap: "12px",
               }}
             >
-              {renderAnalyticsList(
-                "تفاصيل إضافية لدربك+",
-                premiumSupportSteps.map(([eventName, label]) => ({
-                  label,
-                  count: getPremiumEventStats(eventName).count,
-                }))
-              )}
               {renderAnalyticsList(
                 "الباقات الأكثر اختيارًا",
                 analytics.topPremiumPlans || [],
                 (label) => premiumPlanLabels[label] || label
               )}
-            </div>
-          </section>
-
-          <section style={cardStyle}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: "12px",
-                alignItems: "flex-start",
-                flexWrap: "wrap",
-                marginBottom: "14px",
-              }}
-            >
-              <div>
-                <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
-                  ملفات الأعمال Portfolio
+              <section style={cardStyle}>
+                <h3 style={{ color: adminColors.brand, margin: "0 0 12px" }}>
+                  ملاحظة التحديث
                 </h3>
-                <p
-                  style={{
-                    color: adminColors.muted,
-                    margin: 0,
-                    fontSize: 13,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  متابعة بناء الملفات، الطلاب، التخصصات، الملفات المرفوعة،
-                  ومشاركة LinkedIn والبطاقة الرقمية.
+                <p style={{ color: adminColors.textSoft, margin: 0, lineHeight: 1.8 }}>
+                  هذه الأرقام مخزنة مؤقتًا لتخفيف الضغط على قاعدة البيانات، وتُحدّث
+                  أسبوعيًا تقريبًا أو عند إعادة تشغيل الخدمة.
                 </p>
-              </div>
-              <strong
-                style={{
-                  color: adminColors.text,
-                  background: "rgba(102,208,195,0.12)",
-                  border: "1px solid rgba(102,208,195,0.2)",
-                  borderRadius: "999px",
-                  padding: "8px 12px",
-                  fontSize: 13,
-                }}
-              >
-                {analytics.portfolioSummary?.totalPortfolios || 0} ملف
-              </strong>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                gap: "10px",
-                marginBottom: "14px",
-              }}
-            >
-              {[
-                [
-                  "إجمالي ملفات الأعمال",
-                  analytics.portfolioSummary?.totalPortfolios || 0,
-                  "كل الملفات المحفوظة",
-                ],
-                [
-                  "ملفات منشورة",
-                  analytics.portfolioSummary?.publishedPortfolios || 0,
-                  "اختاروا نشر الرابط",
-                ],
-                [
-                  "ملفات جديدة في الفترة",
-                  analytics.portfolioSummary?.recentPortfoliosCreated || 0,
-                  analytics.rangeLabel || `${analytics.days} يوم`,
-                ],
-                [
-                  "مع سيرة ذاتية",
-                  analytics.portfolioSummary?.portfoliosWithCv || 0,
-                  "PDF مرفوع",
-                ],
-                [
-                  "مع صورة شخصية",
-                  analytics.portfolioSummary?.portfoliosWithAvatar || 0,
-                  "صورة مضغوطة",
-                ],
-                [
-                  "مع مشاريع",
-                  analytics.portfolioSummary?.portfoliosWithProjects || 0,
-                  "فيها مشروع واحد على الأقل",
-                ],
-                [
-                  "مع شهادات",
-                  analytics.portfolioSummary?.portfoliosWithCertifications || 0,
-                  "دورات أو شهادات",
-                ],
-                [
-                  "مشاهدات الروابط العامة",
-                  analytics.portfolioSummary?.totalPublicViews || 0,
-                  `متوسط ${analytics.portfolioSummary?.averagePublicViews || 0}`,
-                ],
-              ].map(renderAdminMetricCard)}
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: "10px",
-                marginBottom: "14px",
-              }}
-            >
-              {portfolioFunnelSteps.map(renderPortfolioStep)}
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: "12px",
-                marginBottom: "14px",
-              }}
-            >
-              {renderAnalyticsList("تخصصات ملفات الأعمال", analytics.topPortfolioMajors)}
-              {renderAnalyticsList("مدن ملفات الأعمال", analytics.topPortfolioCities)}
-              {renderAnalyticsList(
-                "جامعات ملفات الأعمال",
-                analytics.topPortfolioUniversities
-              )}
-              {renderAnalyticsList(
-                "حالات الجاهزية",
-                analytics.topPortfolioReadiness
-              )}
-              {renderAnalyticsList(
-                "أكثر ملفات الأعمال مشاهدة",
-                analytics.topViewedPortfolios
-              )}
-            </div>
-
-            <div
-              style={{
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: "14px",
-                overflowX: "auto",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "minmax(160px, 1.2fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(150px, 1fr)",
-                  gap: "10px",
-                  padding: "10px 12px",
-                  color: adminColors.muted,
-                  fontSize: 12,
-                  fontWeight: 900,
-                  borderBottom: "1px solid rgba(255,255,255,0.07)",
-                  minWidth: "760px",
-                }}
-              >
-                <span>الطالب</span>
-                <span>التخصص</span>
-                <span>المدينة / الجامعة</span>
-                <span>الملفات والمحتوى</span>
-                <span>الحالة</span>
-              </div>
-              <div>
-                {(analytics.recentPortfolios || []).length === 0 ? (
-                  <p style={{ color: adminColors.muted, margin: 0, padding: "14px" }}>
-                    لا توجد ملفات أعمال بعد.
-                  </p>
-                ) : (
-                  analytics.recentPortfolios.map((portfolio) => (
-                    <article
-                      key={portfolio.id || portfolio.slug}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "minmax(160px, 1.2fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(150px, 1fr)",
-                        gap: "10px",
-                        minWidth: "760px",
-                        padding: "12px",
-                        borderBottom: "1px solid rgba(255,255,255,0.06)",
-                        color: adminColors.text,
-                        alignItems: "start",
-                      }}
-                    >
-                      <div style={{ display: "grid", gap: "4px" }}>
-                        <strong style={{ color: adminColors.brand }}>
-                          {portfolio.fullName || "بدون اسم"}
-                        </strong>
-                        <small style={{ color: adminColors.muted, direction: "ltr" }}>
-                          {portfolio.email || portfolio.slug || "-"}
-                        </small>
-                      </div>
-                      <span style={{ lineHeight: 1.7 }}>
-                        {portfolio.major || "-"}
-                        {portfolio.degreeLevel ? ` · ${portfolio.degreeLevel}` : ""}
-                      </span>
-                      <span style={{ lineHeight: 1.7 }}>
-                        {[portfolio.city, portfolio.university].filter(Boolean).join(" · ") ||
-                          "-"}
-                      </span>
-                      <span style={{ lineHeight: 1.8, color: adminColors.textSoft }}>
-                        {portfolio.hasCv ? "CV" : "بدون CV"} ·{" "}
-                        {portfolio.hasAvatar ? "صورة" : "بدون صورة"} ·{" "}
-                        {portfolio.projectsCount || 0} مشاريع ·{" "}
-                        {portfolio.certificationsCount || 0} شهادات
-                      </span>
-                      <span style={{ lineHeight: 1.8, color: adminColors.textSoft }}>
-                        {portfolio.isPublished ? "منشور" : "غير منشور"} ·{" "}
-                        {portfolio.viewCount || 0} مشاهدة
-                        <br />
-                        <small style={{ color: adminColors.muted }}>
-                          {formatAdminDateTime(portfolio.updatedAt)}
-                        </small>
-                      </span>
-                    </article>
-                  ))
-                )}
-              </div>
+              </section>
             </div>
           </section>
 
@@ -5052,40 +4544,13 @@ export default function AdminReviewPage() {
               gap: "12px",
             }}
           >
-            {renderAnalyticsList(
-              "أكثر الأحداث",
-              analytics.topEvents,
-              (label) => analyticsEventLabels[label] || label
-            )}
             {renderAnalyticsList("أكثر التخصصات بحثًا", analytics.topMajors)}
-            {renderAnalyticsList("أكثر المدن", analytics.topCities)}
+            {renderAnalyticsList("أكثر المدن بحثًا", analytics.topCities)}
             {renderAnalyticsList("أكثر الجهات تفاعلًا", analytics.topOrganizations)}
             {renderAnalyticsList("أكثر كلمات البحث", analytics.topSearches)}
-            {renderAnalyticsList(
-              "نوايا دليل دربك",
-              analytics.topAssistantIntents,
-              (label) => assistantIntentLabels[label] || label
-            )}
-            {renderAnalyticsList(
-              "أكثر أسئلة دليل دربك",
-              analytics.topAssistantQuestions
-            )}
-            {renderAnalyticsList("نقرات الإعلانات", analytics.topAdClicks)}
-            {renderAnalyticsList(
-              "طرق المشاركة",
-              analytics.topShareActions,
-              (label) => shareActionLabels[label] || label
-            )}
             {renderAnalyticsList("أكثر التجارب مشاركة", analytics.topSharedExperiences)}
             {renderAnalyticsList("أكثر الفرص مشاركة", analytics.topSharedOpportunities)}
-            {renderAnalyticsList(
-              "أكثر جهات وين أتدرب مشاركة",
-              analytics.topSharedTrainingTargets
-            )}
-            {renderAnalyticsList(
-              "جهات أسئلة المقابلات",
-              analytics.topInterviewQuestionOrganizations
-            )}
+            {renderAnalyticsList("نقرات الإعلانات", analytics.topAdClicks)}
             {renderAnalyticsList("أكثر الصفحات", analytics.topPages)}
             {renderAnalyticsList(
               "الأجهزة",
@@ -5094,71 +4559,6 @@ export default function AdminReviewPage() {
                 ({ mobile: "جوال", tablet: "تابلت", desktop: "لابتوب", unknown: "غير معروف" }[
                   label
                 ] || label)
-            )}
-            {renderAnalyticsList("نتائج التشخيص", analytics.topDiagnosis)}
-            {renderAnalyticsList(
-              "أكثر مخاوف التشخيص",
-              analytics.topFears,
-              (label) => diagnosisFearLabels[label] || label
-            )}
-          </section>
-
-          <section style={cardStyle}>
-            <h3 style={{ color: adminColors.brand, margin: "0 0 12px" }}>
-              آخر 5 أحداث
-            </h3>
-            <p
-              style={{
-                color: adminColors.muted,
-                margin: "-4px 0 12px",
-                fontSize: 13,
-                lineHeight: 1.7,
-              }}
-            >
-              عرض سريع للحركة الحالية فقط، بدون تفاصيل حساسة أو قائمة طويلة.
-            </p>
-            {analytics.recentEvents.length === 0 ? (
-              <p style={{ color: adminColors.muted, margin: 0 }}>
-                لا توجد أحداث مسجلة بعد.
-              </p>
-            ) : (
-              <div style={{ display: "grid", gap: "10px" }}>
-                {analytics.recentEvents.map((event) => (
-                  <article
-                    key={event._id}
-                    style={{
-                      border: "1px solid rgba(255,255,255,0.07)",
-                      borderRadius: "12px",
-                      padding: "10px",
-                      color: adminColors.text,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: "10px",
-                        flexWrap: "wrap",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      <strong style={{ color: adminColors.brand }}>
-                        {analyticsEventLabels[event.eventName] || event.eventName}
-                      </strong>
-                      <span style={{ color: adminColors.muted, fontSize: 12 }}>
-                        {formatAdminDateTime(event.createdAt)}
-                      </span>
-                    </div>
-                    <p style={{ margin: 0, color: adminColors.textSoft, lineHeight: 1.7 }}>
-                      {event.major ? `التخصص: ${event.major} · ` : ""}
-                      {event.city ? `المدينة: ${event.city} · ` : ""}
-                      {event.searchQuery ? `البحث: ${event.searchQuery} · ` : ""}
-                      {event.resultsCount ? `النتائج: ${event.resultsCount} · ` : ""}
-                      {event.page || ""}
-                    </p>
-                  </article>
-                ))}
-              </div>
             )}
           </section>
         </div>

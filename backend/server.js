@@ -24,6 +24,12 @@ const PORT = process.env.PORT || 3001;
 const DEFAULT_EXPERIENCES_LIMIT = 36;
 const MAX_EXPERIENCES_LIMIT = 60;
 const READ_CACHE_TTL_MS = Number(process.env.READ_CACHE_TTL_MS || 45 * 1000);
+const HOME_STATS_CACHE_TTL_MS = Number(
+  process.env.HOME_STATS_CACHE_TTL_MS || 48 * 60 * 60 * 1000
+);
+const ADMIN_ANALYTICS_CACHE_TTL_MS = Number(
+  process.env.ADMIN_ANALYTICS_CACHE_TTL_MS || 7 * 24 * 60 * 60 * 1000
+);
 const readCache = new Map();
 let lastExpiredOpportunitySweepAt = 0;
 const EXPERIENCE_PUBLIC_FIELDS =
@@ -4717,7 +4723,7 @@ app.get('/api/home-stats', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const cachedStats = getReadCache("home-stats");
+    const cachedStats = getReadCache("home-stats:v2");
     if (cachedStats) {
       return res.json(cachedStats);
     }
@@ -4783,7 +4789,7 @@ app.get('/api/home-stats', async (req, res) => {
       activeSubscribersCount: activeSubscriberEmails.filter(Boolean).length,
     };
 
-    res.json(setReadCache("home-stats", payload, 60 * 1000));
+    res.json(setReadCache("home-stats:v2", payload, HOME_STATS_CACHE_TTL_MS));
   } catch (err) {
     console.error("❌ Home stats error:", err);
     res.status(500).json({ error: err.message });
@@ -6822,7 +6828,15 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
 
     const { days, rangeLabel, match } = getAnalyticsDateScope(req.query.days);
     const cleanMatch = getCleanAnalyticsMatch(match);
-    const allTimeCleanMatch = getCleanAnalyticsMatch({});
+    const analyticsCacheKey = getRequestCacheKey(
+      "admin-analytics-light:v2",
+      req.query
+    );
+    const cachedAnalytics = getReadCache(analyticsCacheKey);
+    if (cachedAnalytics) {
+      return res.json(cachedAnalytics);
+    }
+
     const assistantMatch = {
       ...cleanMatch,
       eventName: "smart_assistant_query",
@@ -6855,21 +6869,6 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       "account_logout_clicked",
       "account_access_help_requested",
     ];
-    const portfolioEventNames = [
-      "portfolio_announcement_viewed",
-      "portfolio_announcement_cta_clicked",
-      "portfolio_builder_opened",
-      "portfolio_saved_from_page",
-      "portfolio_saved",
-      "portfolio_file_uploaded",
-      "portfolio_public_viewed",
-      "portfolio_inactive_opened",
-      "portfolio_native_share_clicked",
-      "portfolio_link_copied",
-      "portfolio_linkedin_share_clicked",
-      "portfolio_referral_link_copied",
-      "portfolio_badge_downloaded",
-    ];
     const interviewPageMatch = {
       ...cleanMatch,
       eventName: "interviews_page_viewed",
@@ -6882,158 +6881,40 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       ...shareMatch,
       "metadata.action": { $nin: [null, "", "menu_open"] },
     };
-    const activeWindowMinutes = 5;
-    const activeVisitorsMatch = {
-      createdAt: {
-        $gte: new Date(Date.now() - activeWindowMinutes * 60 * 1000),
-      },
-      visitorId: { $nin: [null, ""] },
-    };
     const subscriptionDateMatch = match.createdAt
       ? { updatedAt: match.createdAt }
       : {};
-    const portfolioDateMatch = match.createdAt
-      ? { createdAt: match.createdAt }
-      : {};
 
     const [
-      rawEvents,
       totalEvents,
       pageVisits,
       allTimePageVisits,
-      uniqueVisitors,
-      allTimeVisitors,
-      activeVisitors,
-      sessionDurationStats,
-      topEvents,
       topMajors,
       topCities,
       topSearches,
       topPages,
       topDevices,
-      topDiagnosis,
-      topFears,
       topOrganizations,
       assistantQueries,
-      assistantContextUses,
-      assistantZeroResultQueries,
-      topAssistantIntents,
-      topAssistantQuestions,
       interviewPageViews,
-      interviewVisitors,
       interviewSearches,
-      interviewQuestionStarts,
-      interviewQuestionSubmissions,
-      topInterviewQuestionOrganizations,
       guideFileAdClicks,
       cvProductAdClicks,
       topAdClicks,
       premiumEventCounts,
       topPremiumPlans,
       paidMoyasarSubscriptions,
-      manualActiveSubscriptions,
-      adminAccessUsers,
-      shareMenuOpens,
-      shareActions,
-      experienceShareMenuOpens,
-      experienceShareActions,
-      opportunityShareMenuOpens,
-      opportunityShareActions,
-      trainingTargetShareMenuOpens,
-      trainingTargetShareActions,
-      topShareActions,
       topSharedExperiences,
       topSharedOpportunities,
-      topSharedTrainingTargets,
-      portfolioEventCounts,
-      totalPortfolios,
-      publishedPortfolios,
-      recentPortfoliosCreated,
-      portfoliosWithCv,
-      portfoliosWithAvatar,
-      portfoliosWithProjects,
-      portfoliosWithCertifications,
-      portfolioViewStats,
-      topPortfolioMajors,
-      topPortfolioCities,
-      topPortfolioUniversities,
-      topPortfolioReadiness,
-      recentPortfolios,
-      topViewedPortfolios,
-      hourlyActivity,
-      recentEvents,
     ] = await Promise.all([
-      AnalyticsEvent.countDocuments(match),
       AnalyticsEvent.countDocuments(cleanMatch),
       AnalyticsEvent.countDocuments({ ...match, eventName: "page_view" }),
       AnalyticsEvent.countDocuments({ eventName: "page_view" }),
-      AnalyticsEvent.distinct("visitorId", cleanMatch),
-      AnalyticsEvent.distinct("visitorId", allTimeCleanMatch),
-      AnalyticsEvent.distinct("visitorId", activeVisitorsMatch),
-      AnalyticsEvent.aggregate([
-        {
-          $match: {
-            ...match,
-            eventName: "session_duration",
-            resultsCount: { $gte: 5, $lte: 3 * 60 * 60 },
-            "metadata.sessionId": { $nin: [null, ""] },
-          },
-        },
-        {
-          $group: {
-            _id: "$metadata.sessionId",
-            durationSeconds: { $max: "$resultsCount" },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            averageSeconds: { $avg: "$durationSeconds" },
-            totalSeconds: { $sum: "$durationSeconds" },
-            sessions: { $sum: 1 },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            averageSeconds: { $round: ["$averageSeconds", 0] },
-            totalSeconds: { $round: ["$totalSeconds", 0] },
-            sessions: 1,
-          },
-        },
-      ]),
-      getAnalyticsGroup(cleanMatch, "eventName", 12),
       getAnalyticsGroup(cleanMatch, "major", 12),
       getAnalyticsGroup(cleanMatch, "city", 12),
       getAnalyticsSearches(match, 12),
       getAnalyticsGroup(cleanMatch, "page", 12),
       getAnalyticsGroup(cleanMatch, "deviceType", 4),
-      AnalyticsEvent.aggregate([
-        {
-          $match: {
-            ...cleanMatch,
-            eventName: "diagnosis_completed",
-            "metadata.diagnosisName": { $nin: [null, ""] },
-          },
-        },
-        { $group: { _id: "$metadata.diagnosisName", count: { $sum: 1 } } },
-        { $sort: { count: -1, _id: 1 } },
-        { $limit: 10 },
-        { $project: { _id: 0, label: "$_id", count: 1 } },
-      ]),
-      AnalyticsEvent.aggregate([
-        {
-          $match: {
-            ...cleanMatch,
-            eventName: "diagnosis_completed",
-            "metadata.fear": { $nin: [null, ""] },
-          },
-        },
-        { $group: { _id: "$metadata.fear", count: { $sum: 1 } } },
-        { $sort: { count: -1, _id: 1 } },
-        { $limit: 10 },
-        { $project: { _id: 0, label: "$_id", count: 1 } },
-      ]),
       AnalyticsEvent.aggregate([
         {
           $match: {
@@ -7047,80 +6928,11 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $project: { _id: 0, label: "$_id", count: 1 } },
       ]),
       AnalyticsEvent.countDocuments(assistantMatch),
-      AnalyticsEvent.countDocuments({
-        ...assistantMatch,
-        "metadata.usedContext": true,
-      }),
-      AnalyticsEvent.countDocuments({
-        ...assistantMatch,
-        resultsCount: { $lte: 0 },
-      }),
-      AnalyticsEvent.aggregate([
-        {
-          $match: {
-            ...assistantMatch,
-            "metadata.intent": { $nin: [null, ""] },
-          },
-        },
-        { $group: { _id: "$metadata.intent", count: { $sum: 1 } } },
-        { $sort: { count: -1, _id: 1 } },
-        { $limit: 10 },
-        { $project: { _id: 0, label: "$_id", count: 1 } },
-      ]),
-      AnalyticsEvent.aggregate([
-        {
-          $match: {
-            ...assistantMatch,
-            searchQuery: { $nin: [null, ""] },
-          },
-        },
-        {
-          $addFields: {
-            cleanSearchQuery: {
-              $trim: {
-                input: "$searchQuery",
-              },
-            },
-          },
-        },
-        {
-          $addFields: {
-            searchLength: { $strLenCP: "$cleanSearchQuery" },
-          },
-        },
-        { $match: { searchLength: { $gte: 4 } } },
-        { $group: { _id: "$cleanSearchQuery", count: { $sum: 1 } } },
-        { $sort: { count: -1, _id: 1 } },
-        { $limit: 10 },
-        { $project: { _id: 0, label: "$_id", count: 1 } },
-      ]),
       AnalyticsEvent.countDocuments(interviewPageMatch),
-      AnalyticsEvent.distinct("visitorId", interviewPageMatch),
       AnalyticsEvent.countDocuments({
         ...cleanMatch,
         eventName: "interviews_search",
       }),
-      AnalyticsEvent.countDocuments({
-        ...cleanMatch,
-        eventName: "interview_questions_started",
-      }),
-      AnalyticsEvent.countDocuments({
-        ...cleanMatch,
-        eventName: "interview_questions_submitted",
-      }),
-      AnalyticsEvent.aggregate([
-        {
-          $match: {
-            ...cleanMatch,
-            eventName: "interview_questions_submitted",
-            "metadata.organizationName": { $nin: [null, ""] },
-          },
-        },
-        { $group: { _id: "$metadata.organizationName", count: { $sum: 1 } } },
-        { $sort: { count: -1, _id: 1 } },
-        { $limit: 10 },
-        { $project: { _id: 0, label: "$_id", count: 1 } },
-      ]),
       AnalyticsEvent.countDocuments({
         ...cleanMatch,
         eventName: { $in: guideAdEventNames },
@@ -7185,58 +6997,6 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         status: "active",
         providerPaymentId: { $nin: [null, ""] },
       }),
-      Subscription.countDocuments({
-        ...subscriptionDateMatch,
-        provider: "manual",
-        status: "active",
-      }),
-      User.countDocuments({
-        isAdmin: true,
-      }),
-      AnalyticsEvent.countDocuments({
-        ...shareMatch,
-        "metadata.action": "menu_open",
-      }),
-      AnalyticsEvent.countDocuments(shareActionMatch),
-      AnalyticsEvent.countDocuments({
-        ...shareMatch,
-        "metadata.itemType": "experience",
-        "metadata.action": "menu_open",
-      }),
-      AnalyticsEvent.countDocuments({
-        ...shareActionMatch,
-        "metadata.itemType": "experience",
-      }),
-      AnalyticsEvent.countDocuments({
-        ...shareMatch,
-        "metadata.itemType": "opportunity",
-        "metadata.action": "menu_open",
-      }),
-      AnalyticsEvent.countDocuments({
-        ...shareActionMatch,
-        "metadata.itemType": "opportunity",
-      }),
-      AnalyticsEvent.countDocuments({
-        ...shareMatch,
-        "metadata.itemType": "training-target",
-        "metadata.action": "menu_open",
-      }),
-      AnalyticsEvent.countDocuments({
-        ...shareActionMatch,
-        "metadata.itemType": "training-target",
-      }),
-      AnalyticsEvent.aggregate([
-        {
-          $match: {
-            ...shareMatch,
-            "metadata.action": { $nin: [null, ""] },
-          },
-        },
-        { $group: { _id: "$metadata.action", count: { $sum: 1 } } },
-        { $sort: { count: -1, _id: 1 } },
-        { $limit: 8 },
-        { $project: { _id: 0, label: "$_id", count: 1 } },
-      ]),
       AnalyticsEvent.aggregate([
         {
           $match: {
@@ -7295,77 +7055,6 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         { $limit: 10 },
         { $project: { _id: 0, label: "$_id", count: 1 } },
       ]),
-      AnalyticsEvent.aggregate([
-        {
-          $match: {
-            ...shareActionMatch,
-            "metadata.itemType": "training-target",
-            "metadata.organizationName": { $nin: [null, ""] },
-          },
-        },
-        { $group: { _id: "$metadata.organizationName", count: { $sum: 1 } } },
-        { $sort: { count: -1, _id: 1 } },
-        { $limit: 10 },
-        { $project: { _id: 0, label: "$_id", count: 1 } },
-      ]),
-      getSimpleEventAnalytics(cleanMatch, portfolioEventNames),
-      Portfolio.countDocuments({}),
-      Portfolio.countDocuments({ isPublished: true }),
-      Portfolio.countDocuments(portfolioDateMatch),
-      Portfolio.countDocuments({ cvAssetId: { $ne: null } }),
-      Portfolio.countDocuments({ avatarAssetId: { $ne: null } }),
-      Portfolio.countDocuments({ "projects.0": { $exists: true } }),
-      Portfolio.countDocuments({ "certifications.0": { $exists: true } }),
-      Portfolio.aggregate([
-        {
-          $group: {
-            _id: null,
-            totalViews: { $sum: { $ifNull: ["$viewCount", 0] } },
-            averageViews: { $avg: { $ifNull: ["$viewCount", 0] } },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            totalViews: 1,
-            averageViews: { $round: ["$averageViews", 1] },
-          },
-        },
-      ]),
-      getPortfolioFieldGroup("major", 10),
-      getPortfolioFieldGroup("city", 10),
-      getPortfolioFieldGroup("university", 10),
-      getPortfolioFieldGroup("readinessStatus", 10),
-      Portfolio.find({})
-        .sort({ updatedAt: -1 })
-        .limit(12)
-        .select(
-          "fullName major university city degreeLevel readinessStatus email slug isPublished viewCount cvAssetId avatarAssetId projects certifications linkedinUrl createdAt updatedAt"
-        )
-        .lean(),
-      Portfolio.find({ viewCount: { $gt: 0 } })
-        .sort({ viewCount: -1, updatedAt: -1 })
-        .limit(10)
-        .select("fullName major city slug viewCount")
-        .lean(),
-      AnalyticsEvent.aggregate([
-        { $match: cleanMatch },
-        {
-          $group: {
-            _id: { $hour: { date: "$createdAt", timezone: "Asia/Riyadh" } },
-            count: { $sum: 1 },
-          },
-        },
-        { $sort: { _id: 1 } },
-        { $project: { _id: 0, hour: "$_id", count: 1 } },
-      ]),
-      AnalyticsEvent.find(cleanMatch)
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select(
-          "eventName page deviceType major city searchQuery resultsCount createdAt"
-        )
-        .lean(),
     ]);
 
     const getPremiumEventSummary = (eventName) => {
@@ -7378,76 +7067,52 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         uniqueVisitors: item?.uniqueVisitors || 0,
       };
     };
-    const getPortfolioEventSummary = (eventName) => {
-      const item = (portfolioEventCounts || []).find(
-        (event) => event.label === eventName
-      );
 
-      return {
-        events: item?.count || 0,
-        uniqueVisitors: item?.uniqueVisitors || 0,
-      };
+    const checkoutStartedSummary = {
+      events:
+        getPremiumEventSummary("checkout_started").events +
+        getPremiumEventSummary("premium_checkout_started").events,
+      uniqueVisitors: Math.max(
+        getPremiumEventSummary("checkout_started").uniqueVisitors,
+        getPremiumEventSummary("premium_checkout_started").uniqueVisitors
+      ),
     };
-
-    const sanitizeAdminPortfolio = (portfolio = {}) => ({
-      id: portfolio._id?.toString?.() || "",
-      fullName: portfolio.fullName || "بدون اسم",
-      major: portfolio.major || "",
-      university: portfolio.university || "",
-      city: portfolio.city || "",
-      degreeLevel: portfolio.degreeLevel || "",
-      readinessStatus: portfolio.readinessStatus || "",
-      email: portfolio.email || "",
-      slug: portfolio.slug || "",
-      isPublished: Boolean(portfolio.isPublished),
-      viewCount: Number(portfolio.viewCount || 0),
-      hasCv: Boolean(portfolio.cvAssetId),
-      hasAvatar: Boolean(portfolio.avatarAssetId),
-      projectsCount: Array.isArray(portfolio.projects)
-        ? portfolio.projects.length
-        : 0,
-      certificationsCount: Array.isArray(portfolio.certifications)
-        ? portfolio.certifications.length
-        : 0,
-      hasLinkedIn: Boolean(portfolio.linkedinUrl),
-      createdAt: portfolio.createdAt,
-      updatedAt: portfolio.updatedAt,
-    });
-
-    res.json({
+    const subscriptionCompletedSummary =
+      getPremiumEventSummary("subscription_completed");
+    const premiumAnalyticsPayload = {
       days,
       rangeLabel,
-      rawEvents,
+      rawEvents: 0,
       totalEvents,
       pageVisits,
       allTimePageVisits,
-      uniqueVisitors: uniqueVisitors.filter(Boolean).length,
-      allTimeVisitors: allTimeVisitors.filter(Boolean).length,
-      activeVisitors: activeVisitors.filter(Boolean).length,
-      activeWindowMinutes,
-      averageSessionSeconds: sessionDurationStats[0]?.averageSeconds || 0,
-      totalSessionSeconds: sessionDurationStats[0]?.totalSeconds || 0,
-      sessionDurationSamples: sessionDurationStats[0]?.sessions || 0,
-      topEvents,
+      uniqueVisitors: 0,
+      allTimeVisitors: 0,
+      activeVisitors: 0,
+      activeWindowMinutes: 0,
+      averageSessionSeconds: 0,
+      totalSessionSeconds: 0,
+      sessionDurationSamples: 0,
+      topEvents: [],
       topMajors,
       topCities,
       topSearches,
       topPages,
       topDevices,
-      topDiagnosis,
-      topFears,
+      topDiagnosis: [],
+      topFears: [],
       topOrganizations,
       assistantQueries,
-      assistantContextUses,
-      assistantZeroResultQueries,
-      topAssistantIntents,
-      topAssistantQuestions,
+      assistantContextUses: 0,
+      assistantZeroResultQueries: 0,
+      topAssistantIntents: [],
+      topAssistantQuestions: [],
       interviewPageViews,
-      interviewVisitors: interviewVisitors.filter(Boolean).length,
+      interviewVisitors: 0,
       interviewSearches,
-      interviewQuestionStarts,
-      interviewQuestionSubmissions,
-      topInterviewQuestionOrganizations,
+      interviewQuestionStarts: 0,
+      interviewQuestionSubmissions: 0,
+      topInterviewQuestionOrganizations: [],
       guideFileAdClicks,
       cvProductAdClicks,
       topAdClicks,
@@ -7457,74 +7122,73 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         reminderClicked: getPremiumEventSummary("subscription_reminder_clicked"),
         gateOpened: getPremiumEventSummary("premium_gate_opened"),
         planSelected: getPremiumEventSummary("premium_plan_selected"),
-        checkoutStarted: getPremiumEventSummary("checkout_started"),
+        checkoutStarted: checkoutStartedSummary,
         paymentReturned: getPremiumEventSummary("premium_payment_returned"),
-        subscriptionCompleted: getPremiumEventSummary("subscription_completed"),
+        subscriptionCompleted: subscriptionCompletedSummary,
         paymentSuccessful: {
-          events: paidMoyasarSubscriptions,
+          events: Math.max(
+            paidMoyasarSubscriptions,
+            subscriptionCompletedSummary.events
+          ),
           uniqueVisitors:
-            getPremiumEventSummary("subscription_completed").uniqueVisitors ||
+            subscriptionCompletedSummary.uniqueVisitors ||
             getPremiumEventSummary("premium_access_verified").uniqueVisitors,
         },
-        manualActiveSubscriptions,
-        adminAccessUsers,
+        manualActiveSubscriptions: 0,
+        adminAccessUsers: 0,
       },
       topPremiumPlans,
-      shareMenuOpens,
-      shareActions,
-      experienceShareMenuOpens,
-      experienceShareActions,
-      opportunityShareMenuOpens,
-      opportunityShareActions,
-      trainingTargetShareMenuOpens,
-      trainingTargetShareActions,
-      topShareActions,
+      shareMenuOpens: 0,
+      shareActions: 0,
+      experienceShareMenuOpens: 0,
+      experienceShareActions: 0,
+      opportunityShareMenuOpens: 0,
+      opportunityShareActions: 0,
+      trainingTargetShareMenuOpens: 0,
+      trainingTargetShareActions: 0,
+      topShareActions: [],
       topSharedExperiences,
       topSharedOpportunities,
-      topSharedTrainingTargets,
-      portfolioEventCounts,
+      topSharedTrainingTargets: [],
+      portfolioEventCounts: [],
       portfolioSummary: {
-        totalPortfolios,
-        publishedPortfolios,
-        recentPortfoliosCreated,
-        portfoliosWithCv,
-        portfoliosWithAvatar,
-        portfoliosWithProjects,
-        portfoliosWithCertifications,
-        totalPublicViews: portfolioViewStats[0]?.totalViews || 0,
-        averagePublicViews: portfolioViewStats[0]?.averageViews || 0,
-        builderOpened: getPortfolioEventSummary("portfolio_builder_opened"),
-        saved: getPortfolioEventSummary("portfolio_saved"),
-        savedFromPage: getPortfolioEventSummary("portfolio_saved_from_page"),
-        fileUploaded: getPortfolioEventSummary("portfolio_file_uploaded"),
-        publicViewed: getPortfolioEventSummary("portfolio_public_viewed"),
-        linkedInShared: getPortfolioEventSummary(
-          "portfolio_linkedin_share_clicked"
-        ),
-        referralCopied: getPortfolioEventSummary(
-          "portfolio_referral_link_copied"
-        ),
-        badgeDownloaded: getPortfolioEventSummary("portfolio_badge_downloaded"),
-        nativeShared: getPortfolioEventSummary("portfolio_native_share_clicked"),
-        linkCopied: getPortfolioEventSummary("portfolio_link_copied"),
+        totalPortfolios: 0,
+        publishedPortfolios: 0,
+        recentPortfoliosCreated: 0,
+        portfoliosWithCv: 0,
+        portfoliosWithAvatar: 0,
+        portfoliosWithProjects: 0,
+        portfoliosWithCertifications: 0,
+        totalPublicViews: 0,
+        averagePublicViews: 0,
+        builderOpened: { events: 0, uniqueVisitors: 0 },
+        saved: { events: 0, uniqueVisitors: 0 },
+        savedFromPage: { events: 0, uniqueVisitors: 0 },
+        fileUploaded: { events: 0, uniqueVisitors: 0 },
+        publicViewed: { events: 0, uniqueVisitors: 0 },
+        linkedInShared: { events: 0, uniqueVisitors: 0 },
+        referralCopied: { events: 0, uniqueVisitors: 0 },
+        badgeDownloaded: { events: 0, uniqueVisitors: 0 },
+        nativeShared: { events: 0, uniqueVisitors: 0 },
+        linkCopied: { events: 0, uniqueVisitors: 0 },
       },
-      topPortfolioMajors,
-      topPortfolioCities,
-      topPortfolioUniversities,
-      topPortfolioReadiness,
-      recentPortfolios: recentPortfolios.map(sanitizeAdminPortfolio),
-      topViewedPortfolios: topViewedPortfolios.map((portfolio) => ({
-        id: portfolio._id?.toString?.() || "",
-        label:
-          portfolio.fullName ||
-          portfolio.slug ||
-          [portfolio.major, portfolio.city].filter(Boolean).join(" - ") ||
-          "ملف أعمال",
-        count: Number(portfolio.viewCount || 0),
-      })),
-      hourlyActivity,
-      recentEvents,
-    });
+      topPortfolioMajors: [],
+      topPortfolioCities: [],
+      topPortfolioUniversities: [],
+      topPortfolioReadiness: [],
+      recentPortfolios: [],
+      topViewedPortfolios: [],
+      hourlyActivity: [],
+      recentEvents: [],
+    };
+
+    res.json(
+      setReadCache(
+        analyticsCacheKey,
+        premiumAnalyticsPayload,
+        ADMIN_ANALYTICS_CACHE_TTL_MS
+      )
+    );
   } catch (err) {
     console.error("❌ Admin analytics error:", err);
     res.status(500).json({ error: err.message });
