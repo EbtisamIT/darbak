@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors"; // قائمة التخصصات
@@ -51,6 +51,293 @@ const isValidEmail = (value = "") =>
 const isValidAccessCode = (value = "") =>
   /^[A-Za-z0-9]{4,12}$/.test(value.toString().trim());
 
+const RewardAccountCard = ({
+  compact = false,
+  hasRewardAccount,
+  rewardContact,
+  initialEmail = "",
+  initialAccessCode = "",
+  rewardAccountLoading,
+  rewardAccountMessage,
+  onCredentialsChange,
+  onSave,
+}) => {
+  const [email, setEmail] = useState(initialEmail);
+  const [accessCode, setAccessCode] = useState(initialAccessCode);
+  const [showAccessCode, setShowAccessCode] = useState(false);
+
+  useEffect(() => {
+    setEmail(initialEmail);
+    setAccessCode(initialAccessCode);
+  }, [initialEmail, initialAccessCode]);
+
+  const updateCredentials = (nextEmail, nextAccessCode) => {
+    onCredentialsChange?.({
+      email: nextEmail,
+      accessCode: nextAccessCode,
+    });
+  };
+
+  const handleEmailChange = (event) => {
+    const nextEmail = event.target.value;
+    setEmail(nextEmail);
+    updateCredentials(nextEmail, accessCode);
+  };
+
+  const handleAccessCodeChange = (event) => {
+    const nextAccessCode = event.target.value;
+    setAccessCode(nextAccessCode);
+    updateCredentials(email, nextAccessCode);
+  };
+
+  const handleSave = (event) => {
+    event.preventDefault();
+    onSave?.({ email, accessCode });
+  };
+
+  return (
+    <div
+      className={`reward-account-card${compact ? " is-compact" : ""}`}
+      style={{
+        marginTop: compact ? 14 : 18,
+        padding: compact ? 14 : 16,
+        borderRadius: 14,
+        background: compact
+          ? "var(--app-brand-soft)"
+          : "rgba(255,255,255,0.035)",
+        border: "1px solid var(--app-border-soft)",
+        textAlign: "right",
+      }}
+    >
+      <h4
+        style={{
+          color: "var(--app-text)",
+          margin: "0 0 6px",
+          fontSize: compact ? 15 : 16,
+        }}
+      >
+        تبغى شهر وصول كامل مجانًا؟
+      </h4>
+      <p
+        style={{
+          color: "var(--app-muted)",
+          fontSize: 13,
+          lineHeight: 1.8,
+          margin: "0 0 12px",
+        }}
+      >
+        أنشئ حسابًا بسيطًا بالبريد ورمز دخول قبل إرسال التجربة. بعد اعتماد
+        تجربة أصلية ومفيدة، نفعّل لك 30 يومًا من الوصول الكامل تلقائيًا على
+        نفس الحساب.
+      </p>
+
+      {hasRewardAccount ? (
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: 11,
+            background: "rgba(34,197,94,0.12)",
+            border: "1px solid rgba(34,197,94,0.28)",
+            color: "#86efac",
+            fontSize: 13,
+            fontWeight: 800,
+          }}
+        >
+          حساب المكافأة محفوظ: {rewardContact}
+        </div>
+      ) : (
+        <form onSubmit={handleSave}>
+          <div className="reward-account-fields">
+            <label className="reward-account-field">
+              <span>البريد الإلكتروني</span>
+              <input
+                type="email"
+                value={email}
+                onChange={handleEmailChange}
+                placeholder="name@email.com"
+                autoComplete="email"
+                dir="ltr"
+                spellCheck="false"
+              />
+            </label>
+
+            <label className="reward-account-field">
+              <span>رمز الدخول</span>
+              <div className="reward-code-control">
+                <input
+                  type={showAccessCode ? "text" : "password"}
+                  value={accessCode}
+                  onChange={handleAccessCodeChange}
+                  placeholder="ABCD1234"
+                  autoComplete="new-password"
+                  dir="ltr"
+                  spellCheck="false"
+                />
+                <button
+                  type="button"
+                  className="reward-code-toggle"
+                  onClick={() => setShowAccessCode((current) => !current)}
+                  aria-label={showAccessCode ? "إخفاء رمز الدخول" : "إظهار رمز الدخول"}
+                >
+                  {showAccessCode ? "إخفاء" : "إظهار"}
+                </button>
+              </div>
+            </label>
+          </div>
+
+          <p className="reward-account-hint">
+            الرمز يكون من 4 إلى 12 حرفًا أو رقمًا إنجليزيًا، واحفظه لأنه مفتاح دخولك لاحقًا.
+          </p>
+
+          <button
+            type="submit"
+            disabled={rewardAccountLoading}
+            style={{
+              width: "100%",
+              marginTop: 9,
+              padding: "10px 12px",
+              borderRadius: 11,
+              background: rewardAccountLoading
+                ? "rgba(125,125,125,0.45)"
+                : "linear-gradient(90deg,var(--app-muted),var(--app-brand))",
+              color: "#07100e",
+              border: "none",
+              cursor: rewardAccountLoading ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              fontWeight: 900,
+            }}
+          >
+            {rewardAccountLoading ? "جاري حفظ الحساب..." : "حفظ حساب المكافأة"}
+          </button>
+        </form>
+      )}
+
+      {rewardAccountMessage && (
+        <p
+          style={{
+            color: rewardAccountMessage.includes("تم حفظ") ? "#86efac" : "#fca5a5",
+            fontSize: 12,
+            margin: "8px 0 0",
+            lineHeight: 1.7,
+          }}
+        >
+          {rewardAccountMessage}
+        </p>
+      )}
+
+      <p
+        style={{
+          color: "var(--app-muted)",
+          fontSize: 12,
+          margin: "8px 0 0",
+          lineHeight: 1.7,
+        }}
+      >
+        تقدر ترسل التجربة بدون حساب، لكن الشهر المجاني يحتاج حساب محفوظ عشان
+        نعرف نفعّله لك بعد الاعتماد.
+      </p>
+
+      <style>{`
+        .reward-account-fields {
+          display: grid;
+          grid-template-columns: minmax(0, 1.4fr) minmax(150px, 0.9fr);
+          gap: 10px;
+          align-items: end;
+        }
+
+        .reward-account-card.is-compact .reward-account-fields {
+          grid-template-columns: 1fr;
+        }
+
+        .reward-account-field {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          color: var(--app-muted) !important;
+          font-size: 12px;
+          font-weight: 800;
+          line-height: 1.4;
+          margin: 0;
+        }
+
+        .reward-account-field span {
+          color: var(--app-muted);
+        }
+
+        .reward-account-field input,
+        .reward-code-control input {
+          width: 100%;
+          min-height: 42px;
+          box-sizing: border-box;
+          padding: 10px 11px;
+          border-radius: 11px;
+          background: var(--app-input-bg) !important;
+          color: var(--app-text) !important;
+          border: 1px solid var(--app-border-soft) !important;
+          font-family: inherit;
+          font-size: 13px;
+          outline: none;
+          text-align: left;
+        }
+
+        .reward-account-field input:focus,
+        .reward-code-control input:focus {
+          border-color: var(--app-brand-border) !important;
+          box-shadow: 0 0 0 3px rgba(125, 219, 205, 0.12);
+        }
+
+        .reward-code-control {
+          position: relative;
+        }
+
+        .reward-code-control input {
+          padding-right: 68px;
+        }
+
+        .reward-code-toggle {
+          position: absolute;
+          top: 50%;
+          right: 7px;
+          transform: translateY(-50%);
+          border: 1px solid var(--app-border-soft);
+          background: var(--app-surface);
+          color: var(--app-brand);
+          border-radius: 9px;
+          padding: 5px 9px;
+          font-size: 11px;
+          font-weight: 900;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .reward-account-hint {
+          margin: 8px 0 0;
+          color: var(--app-muted) !important;
+          font-size: 11.5px;
+          line-height: 1.7;
+        }
+
+        @media (max-width: 640px) {
+          .reward-account-fields {
+            grid-template-columns: 1fr;
+            gap: 9px;
+          }
+
+          .reward-account-card {
+            padding: 13px !important;
+          }
+
+          .reward-account-field input,
+          .reward-code-control input {
+            min-height: 40px;
+            font-size: 12.5px;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
 export default function AddExperienceModal({ onClose, onSaved }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -87,13 +374,14 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     Boolean(savedDraft?.publicationConsent)
   );
   const [rewardIdentity, setRewardIdentity] = useState(() => getStoredAccessIdentity());
-  const [rewardForm, setRewardForm] = useState(() => {
+  const initialRewardForm = useMemo(() => {
     const identity = getStoredAccessIdentity();
     return {
       email: identity.contact || identity.email || "",
       accessCode: identity.accessCode || "",
     };
-  });
+  }, []);
+  const rewardFormRef = useRef(initialRewardForm);
   const [rewardAccountMessage, setRewardAccountMessage] = useState("");
   const [rewardAccountLoading, setRewardAccountLoading] = useState(false);
   
@@ -111,7 +399,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     finalMajorCategory.length > 0 && !isUnclearMajorText(finalMajorCategory);
   const hasClearMajor = finalMajor.length > 0 && !isUnclearMajorText(finalMajor);
   const rewardContact =
-    rewardIdentity?.contact || rewardIdentity?.email || rewardForm.email || "";
+    rewardIdentity?.contact || rewardIdentity?.email || rewardFormRef.current.email || "";
   const hasRewardAccount =
     isValidEmail(rewardContact) && isValidAccessCode(rewardIdentity?.accessCode || "");
   const selectedMajorCategory = majors.find((item) => item.name === majorCategory);
@@ -134,9 +422,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     setPageSeo(buildAddExperienceSeoMeta());
   }, [isStandaloneAddExperiencePage]);
 
-  const createRewardAccount = async () => {
-    const email = rewardForm.email.trim();
-    const accessCode = rewardForm.accessCode.trim();
+  const createRewardAccount = async (credentials = rewardFormRef.current) => {
+    const email = credentials.email.trim();
+    const accessCode = credentials.accessCode.trim();
 
     if (!isValidEmail(email)) {
       setRewardAccountMessage("اكتب بريدًا إلكترونيًا صحيحًا عشان نربط المكافأة بحسابك.");
@@ -155,6 +443,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
         email,
         accessCode,
       });
+      rewardFormRef.current = { email, accessCode };
       saveAccessIdentity({ contact: email, accessCode });
       const nextIdentity = getStoredAccessIdentity();
       setRewardIdentity(nextIdentity);
@@ -536,7 +825,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     }
 
     const typedRewardAccount =
-      rewardForm.email.trim().length > 0 || rewardForm.accessCode.trim().length > 0;
+      rewardFormRef.current.email.trim().length > 0 ||
+      rewardFormRef.current.accessCode.trim().length > 0;
     if (!hasRewardAccount && typedRewardAccount) {
       const accountSaved = await createRewardAccount();
       if (!accountSaved) {
@@ -658,159 +948,18 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     );
   };
 
-  const RewardAccountCard = ({ compact = false }) => (
-    <div
-      style={{
-        marginTop: compact ? 14 : 18,
-        padding: compact ? 14 : 16,
-        borderRadius: 14,
-        background: compact
-          ? "var(--app-brand-soft)"
-          : "rgba(255,255,255,0.035)",
-        border: "1px solid var(--app-border-soft)",
-        textAlign: "right",
-      }}
-    >
-      <h4
-        style={{
-          color: "var(--app-text)",
-          margin: "0 0 6px",
-          fontSize: compact ? 15 : 16,
-        }}
-      >
-        تبغى شهر وصول كامل مجانًا؟
-      </h4>
-      <p
-        style={{
-          color: "var(--app-muted)",
-          fontSize: 13,
-          lineHeight: 1.8,
-          margin: "0 0 12px",
-        }}
-      >
-        أنشئ/ي حسابًا بسيطًا بالبريد ورمز دخول قبل إرسال التجربة. بعد اعتماد
-        تجربة أصلية ومفيدة، نفعّل لك 30 يومًا من الوصول الكامل تلقائيًا على
-        نفس الحساب.
-      </p>
-
-      {hasRewardAccount ? (
-        <div
-          style={{
-            padding: "10px 12px",
-            borderRadius: 11,
-            background: "rgba(34,197,94,0.12)",
-            border: "1px solid rgba(34,197,94,0.28)",
-            color: "#86efac",
-            fontSize: 13,
-            fontWeight: 800,
-          }}
-        >
-          حساب المكافأة محفوظ: {rewardContact}
-        </div>
-      ) : (
-        <>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: compact
-                ? "1fr"
-                : "minmax(0, 1.4fr) minmax(120px, 0.8fr)",
-              gap: 8,
-            }}
-          >
-            <input
-              type="email"
-              value={rewardForm.email}
-              onChange={(e) =>
-                setRewardForm((current) => ({ ...current, email: e.target.value }))
-              }
-              placeholder="بريدك الإلكتروني"
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: "10px 11px",
-                borderRadius: 10,
-                background: "var(--app-input-bg)",
-                color: "var(--app-text)",
-                border: "1px solid var(--app-border-soft)",
-                fontFamily: "inherit",
-                fontSize: 13,
-              }}
-            />
-            <input
-              type="text"
-              value={rewardForm.accessCode}
-              onChange={(e) =>
-                setRewardForm((current) => ({
-                  ...current,
-                  accessCode: e.target.value,
-                }))
-              }
-              placeholder="رمز دخول"
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: "10px 11px",
-                borderRadius: 10,
-                background: "var(--app-input-bg)",
-                color: "var(--app-text)",
-                border: "1px solid var(--app-border-soft)",
-                fontFamily: "inherit",
-                fontSize: 13,
-              }}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={createRewardAccount}
-            disabled={rewardAccountLoading}
-            style={{
-              width: "100%",
-              marginTop: 9,
-              padding: "10px 12px",
-              borderRadius: 11,
-              background: rewardAccountLoading
-                ? "rgba(125,125,125,0.45)"
-                : "linear-gradient(90deg,var(--app-muted),var(--app-brand))",
-              color: "#07100e",
-              border: "none",
-              cursor: rewardAccountLoading ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
-              fontWeight: 900,
-            }}
-          >
-            {rewardAccountLoading ? "جاري حفظ الحساب..." : "حفظ حساب المكافأة"}
-          </button>
-        </>
-      )}
-
-      {rewardAccountMessage && (
-        <p
-          style={{
-            color: rewardAccountMessage.includes("تم حفظ") ? "#86efac" : "#fca5a5",
-            fontSize: 12,
-            margin: "8px 0 0",
-            lineHeight: 1.7,
-          }}
-        >
-          {rewardAccountMessage}
-        </p>
-      )}
-
-      <p
-        style={{
-          color: "var(--app-muted)",
-          fontSize: 12,
-          margin: "8px 0 0",
-          lineHeight: 1.7,
-        }}
-      >
-        تقدر/ين إرسال التجربة بدون حساب، لكن الشهر المجاني يحتاج حساب محفوظ
-        عشان نعرف نفعّله لك بعد الاعتماد.
-      </p>
-    </div>
-  );
+  const rewardAccountCardProps = {
+    hasRewardAccount,
+    rewardContact,
+    initialEmail: rewardFormRef.current.email,
+    initialAccessCode: rewardFormRef.current.accessCode,
+    rewardAccountLoading,
+    rewardAccountMessage,
+    onCredentialsChange: (credentials) => {
+      rewardFormRef.current = credentials;
+    },
+    onSave: createRewardAccount,
+  };
 
   if (!introAccepted && step < totalSteps) {
     return (
@@ -934,7 +1083,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               اكتب تجربتك، ويمكن تكون سببًا في قبول شخص أو طمأنته قبل أول يوم تدريب.
             </p>
 
-            <RewardAccountCard />
+            <RewardAccountCard {...rewardAccountCardProps} />
 
             <button
               type="button"
@@ -1559,7 +1708,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 ))}
               </div>
 
-              <RewardAccountCard compact />
+              <RewardAccountCard compact {...rewardAccountCardProps} />
 
               <label
                 style={{
