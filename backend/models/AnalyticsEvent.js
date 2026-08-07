@@ -23,5 +23,8 @@ const AnalyticsEventSchema = new mongoose.Schema(
 
 AnalyticsEventSchema.index({ createdAt: -1 });
 AnalyticsEventSchema.index({ eventName: 1, createdAt: -1 });
+AnalyticsEventSchema.index({ eventName: 1, "metadata.experienceId": 1 });
+AnalyticsEventSchema.index({ eventName: 1, "metadata.opportunityId": 1 });
+AnalyticsEventSchema.index({ eventName: 1, "metadata.organizationName": 1 });
 
 module.exports = mongoose.model("AnalyticsEvent", AnalyticsEventSchema);

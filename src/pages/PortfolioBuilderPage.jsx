@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import QRCode from "qrcode";
 import API_BASE_URL from "../config/api";
-import { cityOptions, specializationOptions } from "./TrainingFinderPage";
+import { cityOptions, specializationOptions } from "../data/trainingOptions";
 import {
   getStoredAccessIdentity,
   saveAccessIdentity,

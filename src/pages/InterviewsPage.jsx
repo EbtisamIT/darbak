@@ -3,7 +3,7 @@ import axios from "axios";
 import API_BASE_URL from "../config/api";
 import { trackEvent } from "../utils/analytics";
 import majors from "../majors";
-import { cityOptions as trainingCityOptions } from "./TrainingFinderPage";
+import { cityOptions as trainingCityOptions } from "../data/trainingOptions";
 
 const emptyQuestionForm = {
   organizationName: "",

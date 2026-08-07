@@ -14,6 +14,10 @@ import ShareButton from "../components/ShareButton";
 import PremiumInlineNotice from "../components/PremiumInlineNotice";
 import { guideUrl } from "../components/TrainingGuideBanner";
 import {
+  cityOptions,
+  specializationOptions,
+} from "../data/trainingOptions";
+import {
   darbakGuideMeta,
   darbakGuideOrganizations,
 } from "../data/darbakGuideSuggestions";
@@ -44,32 +48,6 @@ import {
   getSeoSpecialtyBySlug,
 } from "../utils/seoRoutes";
 import { buildTrainingFinderSeoMeta, setPageSeo } from "../utils/seoMetadata";
-
-export const cityOptions = [
-  "الرياض",
-  "جدة",
-  "مكة المكرمة",
-  "المدينة المنورة",
-  "الدمام",
-  "الخبر",
-  "الظهران",
-  "الأحساء",
-  "الجبيل",
-  "الطائف",
-  "أبها",
-  "خميس مشيط",
-  "نجران",
-  "جازان",
-  "تبوك",
-  "حائل",
-  "بريدة",
-  "الباحة",
-  "سكاكا",
-  "عرعر",
-  "ينبع",
-  "الخرج",
-  "العلا",
-];
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_FINDER_FAQ = false;
@@ -846,32 +824,6 @@ const getOpportunityCityText = (opportunity = {}) => {
   if (cities.length <= 2) return cities.join("، ");
   return `${cities.slice(0, 2).join("، ")} +${cities.length - 2}`;
 };
-
-export const specializationOptions = Array.from(
-  majors
-    .reduce((optionsMap, majorGroup) => {
-      (majorGroup.subMajors || []).forEach((specialization) => {
-        const key = normalizeName(specialization);
-        const existingOption = optionsMap.get(key);
-
-        if (existingOption) {
-          if (!existingOption.categories.includes(majorGroup.name)) {
-            existingOption.categories.push(majorGroup.name);
-          }
-          return;
-        }
-
-        optionsMap.set(key, {
-          value: specialization,
-          label: specialization,
-          categories: [majorGroup.name],
-        });
-      });
-
-      return optionsMap;
-    }, new Map())
-    .values()
-).sort((a, b) => a.label.localeCompare(b.label, "ar"));
 
 const findSpecializationOptionByInput = (value = "") => {
   const normalizedValue = normalizeName(value);

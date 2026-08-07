@@ -103,4 +103,12 @@ const opportunitySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+opportunitySchema.index({ status: 1, featured: -1, createdAt: -1 });
+opportunitySchema.index({ status: 1, deadline: 1 });
+opportunitySchema.index({ status: 1, city: 1, createdAt: -1 });
+opportunitySchema.index({ status: 1, cities: 1, createdAt: -1 });
+opportunitySchema.index({ status: 1, specialties: 1, createdAt: -1 });
+opportunitySchema.index({ status: 1, majorCategories: 1, createdAt: -1 });
+opportunitySchema.index({ organizationName: 1 });
+
 module.exports = mongoose.model("opportunities", opportunitySchema);

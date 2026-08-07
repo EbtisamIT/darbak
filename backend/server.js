@@ -23,6 +23,9 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const DEFAULT_EXPERIENCES_LIMIT = 36;
 const MAX_EXPERIENCES_LIMIT = 60;
+const READ_CACHE_TTL_MS = Number(process.env.READ_CACHE_TTL_MS || 45 * 1000);
+const readCache = new Map();
+let lastExpiredOpportunitySweepAt = 0;
 const EXPERIENCE_PUBLIC_FIELDS =
   "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl ambassadorDisplayName featuredAmbassadorLogoUrl featuredAmbassadorCardTitle featuredAmbassadorCardSummary featuredAmbassadorCardTags featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
 const OPPORTUNITY_PUBLIC_FIELDS =
@@ -107,6 +110,37 @@ const CONTACT_REASONS = new Set([
   "تعاون أو إعلان",
   "أخرى",
 ]);
+
+const getReadCache = (key) => {
+  const entry = readCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    readCache.delete(key);
+    return null;
+  }
+  return entry.value;
+};
+
+const setReadCache = (key, value, ttlMs = READ_CACHE_TTL_MS) => {
+  if (!key || ttlMs <= 0) return value;
+  readCache.set(key, {
+    value,
+    expiresAt: Date.now() + ttlMs,
+  });
+  return value;
+};
+
+const getRequestCacheKey = (scope, query = {}) => {
+  const queryPart = Object.keys(query)
+    .sort()
+    .map((key) => {
+      const value = query[key];
+      return `${key}=${Array.isArray(value) ? value.join(",") : value ?? ""}`;
+    })
+    .join("&");
+
+  return `${scope}:${queryPart}`;
+};
 const GENERAL_SPECIALTY_MARKERS = [
   "__all_specialties__",
   "جميع التخصصات",
@@ -1408,6 +1442,9 @@ const getExpiredOpportunityCutoff = () => {
 
 const markExpiredOpportunities = async () => {
   if (mongoose.connection.readyState !== 1) return;
+  const now = Date.now();
+  if (now - lastExpiredOpportunitySweepAt < 60 * 1000) return;
+  lastExpiredOpportunitySweepAt = now;
 
   await Opportunity.updateMany(
     {
@@ -2434,6 +2471,9 @@ const getItemInteractionStats = async (itemType, ids = []) => {
 
   const { metadataField, eventBuckets } = config;
   const eventNames = Object.keys(eventBuckets);
+  const cacheKey = `item-stats:${itemType}:${cleanIds.sort().join(",")}`;
+  const cachedStats = getReadCache(cacheKey);
+  if (cachedStats) return cachedStats;
 
   const rows = await AnalyticsEvent.aggregate([
     {
@@ -2453,7 +2493,7 @@ const getItemInteractionStats = async (itemType, ids = []) => {
     },
   ]);
 
-  return rows.reduce((statsMap, row) => {
+  const stats = rows.reduce((statsMap, row) => {
     const itemId = row?._id?.itemId;
     const eventName = row?._id?.eventName;
     const bucket = eventBuckets[eventName];
@@ -2467,9 +2507,11 @@ const getItemInteractionStats = async (itemType, ids = []) => {
     statsMap.set(itemId, current);
     return statsMap;
   }, new Map());
+
+  return setReadCache(cacheKey, stats);
 };
 
-const getOrganizationInteractionStats = async (items = []) => {
+const getOrganizationInteractionStats = async (items = [], itemType = "") => {
   const wantedNames = Array.from(
     new Set(
       items
@@ -2484,11 +2526,20 @@ const getOrganizationInteractionStats = async (items = []) => {
   );
 
   if (wantedNames.length === 0) return new Map();
+  const eventNames = itemInteractionConfig[itemType]?.eventBuckets
+    ? Object.keys(itemInteractionConfig[itemType].eventBuckets)
+    : [];
+  const cacheKey = `organization-stats:${itemType}:${wantedNames
+    .sort()
+    .join("|")}`;
+  const cachedStats = getReadCache(cacheKey);
+  if (cachedStats) return cachedStats;
 
   const rows = await AnalyticsEvent.aggregate([
     {
       $match: {
-        eventName: { $ne: "session_ping" },
+        eventName:
+          eventNames.length > 0 ? { $in: eventNames } : { $ne: "session_ping" },
         "metadata.organizationName": { $nin: [null, ""] },
       },
     },
@@ -2508,7 +2559,7 @@ const getOrganizationInteractionStats = async (items = []) => {
     }))
     .filter((row) => row.key.length >= 2);
 
-  return wantedNames.reduce((statsMap, wantedName) => {
+  const stats = wantedNames.reduce((statsMap, wantedName) => {
     const total = normalizedRows.reduce((sum, row) => {
       const isSameOrganization = row.variants.some((variant) =>
         isSameOrganizationName(wantedName, variant)
@@ -2520,6 +2571,8 @@ const getOrganizationInteractionStats = async (items = []) => {
     statsMap.set(wantedName, total);
     return statsMap;
   }, new Map());
+
+  return setReadCache(cacheKey, stats);
 };
 
 const attachItemInteractionCounts = async (itemType, items = []) => {
@@ -2529,7 +2582,7 @@ const attachItemInteractionCounts = async (itemType, items = []) => {
       itemType,
       safeItems.map((item) => item?._id)
     ),
-    getOrganizationInteractionStats(safeItems),
+    getOrganizationInteractionStats(safeItems, itemType),
   ]);
 
   return safeItems.map((item) => {
@@ -4664,6 +4717,11 @@ app.get('/api/home-stats', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
+    const cachedStats = getReadCache("home-stats");
+    if (cachedStats) {
+      return res.json(cachedStats);
+    }
+
     const approvedFilter = {
       $or: [{ status: "approved" }, { status: { $exists: false } }],
     };
@@ -4714,7 +4772,7 @@ app.get('/api/home-stats', async (req, res) => {
     const opportunityApplyUniqueVisitorsCount =
       opportunityApplyVisitorIds.filter(Boolean).length;
 
-    res.json({
+    const payload = {
       experiencesCount,
       organizationNames,
       organizationsCount: organizationNames.length,
@@ -4723,7 +4781,9 @@ app.get('/api/home-stats', async (req, res) => {
       opportunityApplyClicksCount,
       opportunityApplyUniqueVisitorsCount,
       activeSubscribersCount: activeSubscriberEmails.filter(Boolean).length,
-    });
+    };
+
+    res.json(setReadCache("home-stats", payload, 60 * 1000));
   } catch (err) {
     console.error("❌ Home stats error:", err);
     res.status(500).json({ error: err.message });
@@ -7730,6 +7790,12 @@ app.get('/api/training-targets', async (req, res) => {
         cityValues.length > 1 ? { $in: cityValues } : cityValues[0] || city;
     }
 
+    const cacheKey = getRequestCacheKey("training-targets", req.query);
+    const cachedResponse = getReadCache(cacheKey);
+    if (cachedResponse) {
+      return res.json(cachedResponse);
+    }
+
     const experiences = await Experience.find(filter)
       .select("organizationName city major majorCategory howApplied")
       .sort({ createdAt: -1 })
@@ -7785,7 +7851,7 @@ app.get('/api/training-targets', async (req, res) => {
       )
       .slice(0, 30);
 
-    res.json({ data, total: data.length });
+    res.json(setReadCache(cacheKey, { data, total: data.length }));
   } catch (err) {
     console.error("❌ Training targets error:", err);
     res.status(500).json({ error: err.message });
@@ -8060,6 +8126,12 @@ app.get('/api/opportunities', async (req, res) => {
       });
     }
 
+    const cacheKey = getRequestCacheKey("opportunities", req.query);
+    const cachedResponse = getReadCache(cacheKey);
+    if (cachedResponse) {
+      return res.json(cachedResponse);
+    }
+
     const opportunities = await Opportunity.find({ $and: andFilters })
       .select(`${OPPORTUNITY_PUBLIC_FIELDS} applicationUrl`)
       .sort({ featured: -1, createdAt: -1 })
@@ -8090,7 +8162,7 @@ app.get('/api/opportunities', async (req, res) => {
       sortedOpportunities
     );
 
-    res.json({
+    const payload = {
       data: opportunitiesWithCounts.map((opportunity = {}) => {
         const { applicationUrl, sourceUrl, note, ...publicOpportunity } =
           opportunity;
@@ -8101,7 +8173,9 @@ app.get('/api/opportunities', async (req, res) => {
         };
       }),
       total: opportunitiesWithCounts.length,
-    });
+    };
+
+    res.json(setReadCache(cacheKey, payload));
   } catch (err) {
     console.error("❌ Opportunities fetch error:", err);
     res.status(500).json({ error: err.message });
@@ -8295,6 +8369,12 @@ app.get('/api/experiences/featured-ambassadors', async (req, res) => {
 
     const requestedLimit = parseInt(req.query.limit, 10) || 3;
     const limit = Math.min(Math.max(requestedLimit, 1), 12);
+    const cacheKey = getRequestCacheKey("featured-ambassadors", req.query);
+    const cachedResponse = getReadCache(cacheKey);
+    if (cachedResponse) {
+      return res.json(cachedResponse);
+    }
+
     const experiences = await Experience.find(getActiveFeaturedAmbassadorFilter())
       .select(EXPERIENCE_PUBLIC_FIELDS)
       .sort({ featuredAmbassadorAt: -1, reviewedAt: -1, createdAt: -1 })
@@ -8306,7 +8386,7 @@ app.get('/api/experiences/featured-ambassadors', async (req, res) => {
       experiences
     );
 
-    res.json({ data: experiencesWithCounts });
+    res.json(setReadCache(cacheKey, { data: experiencesWithCounts }));
   } catch (err) {
     console.error("❌ Featured ambassadors fetch error:", err);
     res.status(500).json({ error: err.message });
@@ -8342,6 +8422,12 @@ app.get('/api/experiences', async (req, res) => {
       : "";
     const ambassadorsOnly =
       req.query.ambassadors === "1" || req.query.ambassadors === "true";
+
+    const cacheKey = getRequestCacheKey("experiences", req.query);
+    const cachedResponse = getReadCache(cacheKey);
+    if (cachedResponse) {
+      return res.json(cachedResponse);
+    }
 
     const baseFilter = ambassadorsOnly
       ? getActiveFeaturedAmbassadorFilter()
@@ -8427,13 +8513,15 @@ app.get('/api/experiences', async (req, res) => {
 
     console.log("✅ Data fetched:", experiences.length);
 
-    res.json({
+    const payload = {
       data: experiences,
       page,
       limit,
       total,
       hasMore: skip + experiences.length < total,
-    });
+    };
+
+    res.json(setReadCache(cacheKey, payload));
   } catch (err) {
     console.error("❌ FULL ERROR:", err);
     res.status(500).json({ error: err.message });
@@ -8449,6 +8537,11 @@ app.get('/api/interviews', async (req, res) => {
     const query = normalizeSearchText(req.query.q || "");
     const majorFilter = (req.query.major || "").toString().trim();
     const cityFilter = (req.query.city || "").toString().trim();
+    const cacheKey = getRequestCacheKey("interviews", req.query);
+    const cachedResponse = getReadCache(cacheKey);
+    if (cachedResponse) {
+      return res.json(cachedResponse);
+    }
 
     const [experiences, interviewQuestionSubmissions] = await Promise.all([
       Experience.find({
@@ -8589,7 +8682,7 @@ app.get('/api/interviews', async (req, res) => {
         );
       });
 
-    res.json({ data, total: data.length });
+    res.json(setReadCache(cacheKey, { data, total: data.length }));
   } catch (err) {
     console.error("❌ Interviews fetch error:", err);
     res.status(500).json({ error: err.message });

@@ -1,4 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -9,26 +17,28 @@ import {
 import "./App.css";
 import Navbar from "./pages/Navbar";
 import HomePage from "./pages/HomePage";
-import ExperiencesPage from "./pages/ExperiencesPage";
-import InterviewsPage from "./pages/InterviewsPage";
-import TrainingFinderPage, {
-  cityOptions as trainingCityOptions,
-  specializationOptions,
-} from "./pages/TrainingFinderPage";
-import AddExperienceModal from "./pages/AddExperienceModal";
-import LegalPage from "./pages/LegalPage";
-import AdminReviewPage from "./pages/AdminReviewPage";
-import PortfolioPage from "./pages/PortfolioPage";
-import PortfolioBuilderPage from "./pages/PortfolioBuilderPage";
-import CompanyApplyPage from "./pages/CompanyApplyPage";
 import Footer from "./pages/Footer";
 import { guideUrl } from "./components/TrainingGuideBanner";
-import PremiumAccessGate from "./components/PremiumAccessGate";
-import AccountModal from "./components/AccountModal";
-import SavedItemsDrawer from "./components/SavedItemsDrawer";
-import DarbakAssistant from "./components/DarbakAssistant";
+import {
+  cityOptions as trainingCityOptions,
+  specializationOptions,
+} from "./data/trainingOptions";
 import { trackEvent } from "./utils/analytics";
 import { PREMIUM_ACCESS_EVENT } from "./utils/premiumAccess";
+
+const ExperiencesPage = lazy(() => import("./pages/ExperiencesPage"));
+const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
+const TrainingFinderPage = lazy(() => import("./pages/TrainingFinderPage"));
+const AddExperienceModal = lazy(() => import("./pages/AddExperienceModal"));
+const LegalPage = lazy(() => import("./pages/LegalPage"));
+const AdminReviewPage = lazy(() => import("./pages/AdminReviewPage"));
+const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
+const PortfolioBuilderPage = lazy(() => import("./pages/PortfolioBuilderPage"));
+const CompanyApplyPage = lazy(() => import("./pages/CompanyApplyPage"));
+const PremiumAccessGate = lazy(() => import("./components/PremiumAccessGate"));
+const AccountModal = lazy(() => import("./components/AccountModal"));
+const SavedItemsDrawer = lazy(() => import("./components/SavedItemsDrawer"));
+const DarbakAssistant = lazy(() => import("./components/DarbakAssistant"));
 
 const PLATFORM_UPDATE_NOTICE_KEY = "darbak_portfolio_announcement_seen_v1";
 const PORTFOLIO_ANNOUNCEMENT_EVENT = "darbak:open-portfolio-announcement";
@@ -193,6 +203,21 @@ const markPlatformUpdateNoticeSeen = () => {
     // Ignore storage quota or private browsing errors.
   }
 };
+
+const PageLoadingFallback = () => (
+  <div
+    style={{
+      minHeight: "260px",
+      display: "grid",
+      placeItems: "center",
+      color: "var(--app-text-soft)",
+      fontFamily: "'Aniq', 'Cairo', sans-serif",
+      fontWeight: 800,
+    }}
+  >
+    جارِ التحميل...
+  </div>
+);
 
 function PageBanner() {
   const location = useLocation();
@@ -1417,9 +1442,11 @@ function AppLayout({ theme, setTheme }) {
             padding: "34px 16px",
           }}
         >
-          <Routes>
-            <Route path={ADMIN_REVIEW_PATH} element={<AdminReviewPage />} />
-          </Routes>
+          <Suspense fallback={<PageLoadingFallback />}>
+            <Routes>
+              <Route path={ADMIN_REVIEW_PATH} element={<AdminReviewPage />} />
+            </Routes>
+          </Suspense>
         </div>
       </div>
     );
@@ -1431,57 +1458,63 @@ function AppLayout({ theme, setTheme }) {
 
       <PageBanner />
       {!isPublicPortfolioPage && <PlatformUpdateNotice />}
-      {!isPublicPortfolioPage && <PremiumAccessGate />}
-      {!isPublicPortfolioPage && <AccountModal />}
-      {!isPublicPortfolioPage && <SavedItemsDrawer />}
-      {!isPublicPortfolioPage && <DarbakAssistant />}
+      {!isPublicPortfolioPage && (
+        <Suspense fallback={null}>
+          <PremiumAccessGate />
+          <AccountModal />
+          <SavedItemsDrawer />
+          <DarbakAssistant />
+        </Suspense>
+      )}
 
       {/* المحتوى */}
       <div style={contentContainer}>
         <div className="app-content-frame" style={contentStyle}>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/experiences" element={<ExperiencesPage />} />
-            <Route path="/experiences/city/:citySlug" element={<ExperiencesPage />} />
-            <Route path="/experiences/major/:majorSlug" element={<ExperiencesPage />} />
-            <Route
-              path="/experiences/city/:citySlug/major/:majorSlug"
-              element={<ExperiencesPage />}
-            />
-            <Route path="/experiences/:experienceId" element={<ExperiencesPage />} />
-            <Route path="/interviews" element={<InterviewsPage />} />
-            <Route path="/where-to-train" element={<TrainingFinderPage />} />
-            <Route path="/subscribe" element={<SubscribeRoute />} />
-            <Route path="/portofoili" element={<PortfolioBuilderPage />} />
-            <Route path="/portfolio" element={<PortfolioBuilderPage />} />
-            <Route
-              path="/where-to-train/opportunity/:organizationSlug/:opportunityId"
-              element={<TrainingFinderPage />}
-            />
-            <Route
-              path="/where-to-train/opportunity/:opportunityId"
-              element={<TrainingFinderPage />}
-            />
-            <Route
-              path="/where-to-train/city/:citySlug"
-              element={<TrainingFinderPage />}
-            />
-            <Route
-              path="/where-to-train/major/:majorSlug"
-              element={<TrainingFinderPage />}
-            />
-            <Route
-              path="/where-to-train/city/:citySlug/major/:majorSlug"
-              element={<TrainingFinderPage />}
-            />
-            <Route path="/apply/:companySlug" element={<CompanyApplyPage />} />
-            <Route path="/p/:slug" element={<PortfolioPage />} />
-            <Route path="/legal" element={<LegalPage />} />
-            <Route path="/terms" element={<LegalPage />} />
-            <Route path="/privacy" element={<LegalPage />} />
-            <Route path="/add-experience" element={<AddExperienceModal />} />
-            <Route path="/AddExperienceModal" element={<AddExperienceModal />} />
-          </Routes>
+          <Suspense fallback={<PageLoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/experiences" element={<ExperiencesPage />} />
+              <Route path="/experiences/city/:citySlug" element={<ExperiencesPage />} />
+              <Route path="/experiences/major/:majorSlug" element={<ExperiencesPage />} />
+              <Route
+                path="/experiences/city/:citySlug/major/:majorSlug"
+                element={<ExperiencesPage />}
+              />
+              <Route path="/experiences/:experienceId" element={<ExperiencesPage />} />
+              <Route path="/interviews" element={<InterviewsPage />} />
+              <Route path="/where-to-train" element={<TrainingFinderPage />} />
+              <Route path="/subscribe" element={<SubscribeRoute />} />
+              <Route path="/portofoili" element={<PortfolioBuilderPage />} />
+              <Route path="/portfolio" element={<PortfolioBuilderPage />} />
+              <Route
+                path="/where-to-train/opportunity/:organizationSlug/:opportunityId"
+                element={<TrainingFinderPage />}
+              />
+              <Route
+                path="/where-to-train/opportunity/:opportunityId"
+                element={<TrainingFinderPage />}
+              />
+              <Route
+                path="/where-to-train/city/:citySlug"
+                element={<TrainingFinderPage />}
+              />
+              <Route
+                path="/where-to-train/major/:majorSlug"
+                element={<TrainingFinderPage />}
+              />
+              <Route
+                path="/where-to-train/city/:citySlug/major/:majorSlug"
+                element={<TrainingFinderPage />}
+              />
+              <Route path="/apply/:companySlug" element={<CompanyApplyPage />} />
+              <Route path="/p/:slug" element={<PortfolioPage />} />
+              <Route path="/legal" element={<LegalPage />} />
+              <Route path="/terms" element={<LegalPage />} />
+              <Route path="/privacy" element={<LegalPage />} />
+              <Route path="/add-experience" element={<AddExperienceModal />} />
+              <Route path="/AddExperienceModal" element={<AddExperienceModal />} />
+            </Routes>
+          </Suspense>
         </div>
       </div>
 

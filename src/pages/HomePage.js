@@ -2,44 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
-import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirectory";
-import { darbakGuideOrganizations } from "../data/darbakGuideSuggestions";
-import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDirectory";
-import {
-  suggestedOrganizationsByMajorCategory,
-  suggestedOrganizationsByRegion,
-} from "./TrainingFinderPage";
 
 const homeFont = "'Aniq', 'Cairo', sans-serif";
-
-const normalizeOrganizationName = (value = "") =>
-  value
-    .toString()
-    .toLowerCase()
-    .trim()
-    .replace(/[أإآا]/g, "ا")
-    .replace(/ى/g, "ي")
-    .replace(/ة/g, "ه")
-    .replace(/ؤ/g, "و")
-    .replace(/ئ/g, "ي")
-    .replace(/ـ/g, "")
-    .replace(/[\u064B-\u065F]/g, "")
-    .replace(/\s+/g, " ");
-
-const countUniqueOrganizations = (names = []) =>
-  new Set(names.map(normalizeOrganizationName).filter(Boolean)).size;
-
-const suggestedOrganizationNames = [
-  ...Object.values(suggestedOrganizationsByRegion)
-    .flat()
-    .map((organization) => organization.name),
-  ...Object.values(suggestedOrganizationsByMajorCategory)
-    .flat()
-    .map((organization) => organization.name),
-  ...darbakGuideOrganizations.map((organization) => organization.name),
-  ...darbakContactDirectoryOrganizations.map((organization) => organization.name),
-  ...trainingInteractiveOrganizations.map((organization) => organization.name),
-];
 
 const MovingGreenPath = () => {
   return (
@@ -157,10 +121,9 @@ const MovingGreenPath = () => {
 
 const HomePage = () => {
   const [experiencesCount, setExperiencesCount] = useState(null);
+  const [organizationsCount, setOrganizationsCount] = useState(null);
   const [currentProgramsCount, setCurrentProgramsCount] = useState(null);
   const [studentsAppliedCount, setStudentsAppliedCount] = useState(null);
-  const [experienceOrganizationNames, setExperienceOrganizationNames] =
-    useState([]);
 
   useEffect(() => {
     const fetchHomeStats = async () => {
@@ -172,6 +135,10 @@ const HomePage = () => {
           setExperiencesCount(data.experiencesCount);
         }
 
+        if (typeof data.organizationsCount === "number") {
+          setOrganizationsCount(data.organizationsCount);
+        }
+
         if (typeof data.currentProgramsCount === "number") {
           setCurrentProgramsCount(data.currentProgramsCount);
         }
@@ -180,9 +147,6 @@ const HomePage = () => {
           setStudentsAppliedCount(data.studentsAppliedCount);
         }
 
-        if (Array.isArray(data.organizationNames)) {
-          setExperienceOrganizationNames(data.organizationNames);
-        }
       } catch (error) {
         console.error("تعذر جلب إحصائيات الصفحة الرئيسية:", error);
       }
@@ -190,15 +154,6 @@ const HomePage = () => {
 
     fetchHomeStats();
   }, []);
-
-  const organizationsCount = useMemo(
-    () =>
-      countUniqueOrganizations([
-        ...suggestedOrganizationNames,
-        ...experienceOrganizationNames,
-      ]),
-    [experienceOrganizationNames]
-  );
 
   const homeStats = useMemo(
     () => [

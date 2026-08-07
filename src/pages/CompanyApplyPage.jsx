@@ -6,7 +6,7 @@ import { trackEvent } from "../utils/analytics";
 import {
   cityOptions as trainingCityOptions,
   specializationOptions,
-} from "./TrainingFinderPage";
+} from "../data/trainingOptions";
 
 const pageFont = "'Aniq', 'Cairo', sans-serif";
 
