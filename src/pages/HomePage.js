@@ -4,6 +4,7 @@ import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
 import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirectory";
 import { darbakGuideOrganizations } from "../data/darbakGuideSuggestions";
+import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDirectory";
 import {
   suggestedOrganizationsByMajorCategory,
   suggestedOrganizationsByRegion,
@@ -37,6 +38,7 @@ const suggestedOrganizationNames = [
     .map((organization) => organization.name),
   ...darbakGuideOrganizations.map((organization) => organization.name),
   ...darbakContactDirectoryOrganizations.map((organization) => organization.name),
+  ...trainingInteractiveOrganizations.map((organization) => organization.name),
 ];
 
 const MovingGreenPath = () => {

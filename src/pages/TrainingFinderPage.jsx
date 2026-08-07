@@ -18,6 +18,7 @@ import {
   darbakGuideOrganizations,
 } from "../data/darbakGuideSuggestions";
 import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirectory";
+import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDirectory";
 import { getOrganizationLogoCandidates } from "../data/organizationLogos";
 import { trackEvent } from "../utils/analytics";
 import {
@@ -155,6 +156,9 @@ const uniqueEmails = (emails = []) =>
     ).values()
   );
 
+const getFirstPresent = (...values) =>
+  values.find((value) => value !== undefined && value !== null && value !== "") || "";
+
 const mergeGuideDirectoryOrganizations = (organizations = []) => {
   const organizationMap = new Map();
 
@@ -207,6 +211,25 @@ const mergeGuideDirectoryOrganizations = (organizations = []) => {
       ]),
       contactType: current.contactType || organization.contactType || "",
       sourceLabel: current.sourceLabel || organization.sourceLabel || "",
+      url: getFirstPresent(current.url, organization.url),
+      sourceUrl: getFirstPresent(current.sourceUrl, organization.sourceUrl),
+      applicationUrl: getFirstPresent(
+        current.applicationUrl,
+        organization.applicationUrl
+      ),
+      applicationWindow: getFirstPresent(
+        current.applicationWindow,
+        organization.applicationWindow
+      ),
+      confidence: getFirstPresent(current.confidence, organization.confidence),
+      premiumReady:
+        current.premiumReady !== undefined
+          ? current.premiumReady
+          : organization.premiumReady,
+      lastVerified: getFirstPresent(
+        current.lastVerified,
+        organization.lastVerified
+      ),
       note: current.note || organization.note || "",
       usage: current.usage || organization.usage || "",
       guideSummary: current.guideSummary || organization.guideSummary || "",
@@ -219,6 +242,7 @@ const mergeGuideDirectoryOrganizations = (organizations = []) => {
 const guideDirectoryOrganizations = mergeGuideDirectoryOrganizations([
   ...darbakGuideOrganizations,
   ...darbakContactDirectoryOrganizations,
+  ...trainingInteractiveOrganizations,
 ]);
 
 const createReadableSlug = (value = "") => {
@@ -1347,6 +1371,15 @@ const getGuideOrganizationContactPreview = (organization = {}) => {
     type: "method",
     sensitive: false,
   };
+};
+
+const getGuideOrganizationPublicNote = (organization = {}) => {
+  const note = organization.note || "";
+  const internalSourcePattern = /(مستخرج|مستخلصة|ملخص|مصدر عام|صفحة \d+)/;
+
+  if (note && !internalSourcePattern.test(note)) return note;
+
+  return "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.";
 };
 
 const getLockedContactPreviewValue = (type = "") =>
@@ -2702,8 +2735,7 @@ export default function TrainingFinderPage() {
               lineHeight: 1.75,
             }}
           >
-            {organization.note ||
-              "تفاصيل التواصل وطريقة الاستخدام متاحة داخل التفاصيل."}
+            {getGuideOrganizationPublicNote(organization)}
           </p>
         </div>
         <div className="finder-card-actions">
@@ -4296,8 +4328,7 @@ export default function TrainingFinderPage() {
             )}
 
             <p className="opportunity-detail-note guide-organization-note">
-              {selectedGuideOrganization.note ||
-                "هذه الجهة مقترحة كنقطة بداية للتقديم، ويرجى مراجعة المصدر الرسمي قبل الإرسال."}
+              {getGuideOrganizationPublicNote(selectedGuideOrganization)}
             </p>
 
             {isSelectedGuideLocked && (
