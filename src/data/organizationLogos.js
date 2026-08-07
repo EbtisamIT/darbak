@@ -1,5 +1,6 @@
 import { darbakGuideOrganizations } from "./darbakGuideSuggestions";
 import { darbakContactDirectoryOrganizations } from "./darbakContactDirectory";
+import { healthHospitalSuggestions } from "./healthHospitalSuggestions";
 
 const LOGO_SIZE = 128;
 const IMAGE_URL_PATTERN = /\.(png|jpe?g|webp|svg|gif)(\?.*)?$/i;
@@ -116,7 +117,34 @@ const curatedOrganizationDomains = {
   "مجموعه الدكتور سليمان الحبيب": "hmg.com",
   "مجموعه صافولا": "savola.com",
   "مدينه الملك عبدالعزيز للعلوم والتقنيه": "kacst.gov.sa",
+  "المركز التخصصي الطبي": "smc.com.sa",
+  "المستشفي السعودي الالماني": "sghgroup.net",
   "مستشفي الملك فيصل التخصصي": "kfshrc.edu.sa",
+  "مستشفي ادمه": "adamahealthcare.com",
+  "مستشفي اوباجي": "obagisa.com",
+  "مستشفي الاسره": "family-hospital.com",
+  "مستشفي الجزيره الطبي": "aljazeerahospital.com.sa",
+  "مستشفي الحمادي": "alhammadi.com",
+  "مستشفي الداره": "aldaramed.com",
+  "مستشفي الدكتور سليمان فقيه": "fakeeh.care",
+  "مستشفي الدكتور غسان نجيب فرعون": "gnp.com.sa",
+  "مستشفي الدكتور محمد الفقيه": "dmf.med.sa",
+  "مستشفي الفلاح": "alfalahh.com",
+  "مستشفي المشاري": "al-mishari.com.sa",
+  "مستشفي المملكه": "khccgroup.com",
+  "مستشفي المواساه": "mouwasat.com",
+  "مستشفي النخبه": "elitehospitalsa.com",
+  "مستشفي الهلال الاخضر": "gch.com.sa",
+  "مستشفي دله": "dallah-hospital.com",
+  "مستشفي ديافيرم": "diaverum.com",
+  "مستشفي رابيه": "rabiahospital.com",
+  "مستشفي رعايه الرياض": "care.med.sa",
+  "مستشفي سند": "sanadhospital.com",
+  "مستشفي سليمان الحبيب": "drsulaimanalhabib.com",
+  "مستشفي عنايه العائله": "familycare.com.sa",
+  "مستشفي فيكتوريا": "victoria-hos.com",
+  "مستشفي الصفوه ماجيستي": "safwahospital.com",
+  "مستشفيات ومراكز المغربي": "magrabi.com.sa",
   "مؤسسه مسك": "misk.org.sa",
   "موبايلي": "mobily.com.sa",
   "موهبه": "mawhiba.org",
@@ -194,13 +222,15 @@ const getFirstKnownDomain = (organization = {}) => {
 const buildGeneratedOrganizationDomains = () => {
   const map = {};
 
-  [...darbakGuideOrganizations, ...darbakContactDirectoryOrganizations].forEach(
-    (organization) => {
-      const key = normalizeLogoKey(organization.name);
-      const domain = getFirstKnownDomain(organization);
-      if (key && domain && !map[key]) map[key] = domain;
-    }
-  );
+  [
+    ...darbakGuideOrganizations,
+    ...darbakContactDirectoryOrganizations,
+    ...healthHospitalSuggestions,
+  ].forEach((organization) => {
+    const key = normalizeLogoKey(organization.name);
+    const domain = getFirstKnownDomain(organization);
+    if (key && domain && !map[key]) map[key] = domain;
+  });
 
   return map;
 };

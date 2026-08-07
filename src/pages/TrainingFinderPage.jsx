@@ -22,6 +22,7 @@ import {
   darbakGuideOrganizations,
 } from "../data/darbakGuideSuggestions";
 import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirectory";
+import { healthHospitalSuggestions } from "../data/healthHospitalSuggestions";
 import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDirectory";
 import { getOrganizationLogoCandidates } from "../data/organizationLogos";
 import { trackEvent } from "../utils/analytics";
@@ -252,6 +253,7 @@ const mergeGuideDirectoryOrganizations = (organizations = []) => {
 const guideDirectoryOrganizations = mergeGuideDirectoryOrganizations([
   ...darbakGuideOrganizations,
   ...darbakContactDirectoryOrganizations,
+  ...healthHospitalSuggestions,
   ...trainingInteractiveOrganizations,
 ]);
 
