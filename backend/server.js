@@ -2864,6 +2864,27 @@ const SMART_ASSISTANT_ORG_ALIASES = [
   },
 ];
 
+const getOrganizationSearchTerms = (value = "") => {
+  const rawValue = value.toString().trim();
+  const normalizedValue = normalizeSearchText(rawValue);
+  if (!normalizedValue) return [];
+
+  const matchedGroup = SMART_ASSISTANT_ORG_ALIASES.find((group) =>
+    [group.label, ...group.aliases].some((term) => {
+      const normalizedTerm = normalizeSearchText(term);
+      return (
+        normalizedTerm === normalizedValue ||
+        normalizedTerm.includes(normalizedValue) ||
+        normalizedValue.includes(normalizedTerm)
+      );
+    })
+  );
+
+  return Array.from(
+    new Set([rawValue, matchedGroup?.label, ...(matchedGroup?.aliases || [])].filter(Boolean))
+  );
+};
+
 const SMART_ASSISTANT_MAJOR_ALIASES = [
   {
     label: "الحاسب والتقنية",
@@ -7429,9 +7450,16 @@ app.get('/api/training-targets', async (req, res) => {
       )
     );
     const city = (req.query.city || "").trim();
+    const organization = (
+      req.query.organization ||
+      req.query.company ||
+      ""
+    ).trim();
 
-    if (!major && majorCategories.length === 0) {
-      return res.status(400).json({ error: "major or majorCategory is required" });
+    if (!major && majorCategories.length === 0 && !organization) {
+      return res.status(400).json({
+        error: "major, majorCategory, or organization is required",
+      });
     }
 
     const filter = {
@@ -7452,6 +7480,22 @@ app.get('/api/training-targets', async (req, res) => {
       const cityValues = getCityFilterValues(city);
       filter.city =
         cityValues.length > 1 ? { $in: cityValues } : cityValues[0] || city;
+    }
+
+    if (organization) {
+      const organizationRegexes = getOrganizationSearchTerms(organization).map(
+        (term) => new RegExp(escapeRegex(term), "i")
+      );
+      filter.$and = [
+        ...(filter.$and || []),
+        {
+          $or: organizationRegexes.flatMap((organizationRegex) => [
+            { organizationName: organizationRegex },
+            { companyName: organizationRegex },
+            { title: organizationRegex },
+          ]),
+        },
+      ];
     }
 
     const cacheKey = getRequestCacheKey("training-targets", req.query);
@@ -7763,6 +7807,11 @@ app.get('/api/opportunities', async (req, res) => {
       )
     );
     const city = (req.query.city || "").trim();
+    const organization = (
+      req.query.organization ||
+      req.query.company ||
+      ""
+    ).trim();
 
     const andFilters = [{ status: { $in: ["active", "expired"] } }];
 
@@ -7787,6 +7836,18 @@ app.get('/api/opportunities', async (req, res) => {
           { city: { $in: cityValues } },
           { cities: { $in: cityValues } },
         ],
+      });
+    }
+
+    if (organization) {
+      const organizationRegexes = getOrganizationSearchTerms(organization).map(
+        (term) => new RegExp(escapeRegex(term), "i")
+      );
+      andFilters.push({
+        $or: organizationRegexes.flatMap((organizationRegex) => [
+          { organizationName: organizationRegex },
+          { title: organizationRegex },
+        ]),
       });
     }
 

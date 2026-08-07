@@ -116,6 +116,38 @@ const normalizeName = (value = "") =>
     .replace(/[\u064B-\u065F]/g, "")
     .replace(/\s+/g, " ");
 
+const organizationSearchAliasGroups = [
+  ["stc", "اس تي سي", "الاتصالات السعودية", "شركة الاتصالات السعودية"],
+  ["أرامكو", "ارامكو", "aramco", "saudi aramco"],
+  ["سابك", "sabic"],
+  ["علم", "elm", "شركة علم"],
+  ["هيئة السوق المالية", "cma", "capital market authority"],
+  ["التأمينات", "التامينات", "gosi"],
+  ["البنك الأهلي", "الاهلي", "alahli", "snb"],
+];
+
+const getOrganizationSearchTerms = (value = "") => {
+  const normalizedValue = normalizeName(value);
+  if (!normalizedValue) return [];
+
+  const matchedGroup = organizationSearchAliasGroups.find((group) =>
+    group.some((term) => {
+      const normalizedTerm = normalizeName(term);
+      return (
+        normalizedTerm === normalizedValue ||
+        normalizedTerm.includes(normalizedValue) ||
+        normalizedValue.includes(normalizedTerm)
+      );
+    })
+  );
+
+  return Array.from(
+    new Set(
+      [normalizedValue, ...(matchedGroup || []).map(normalizeName)].filter(Boolean)
+    )
+  );
+};
+
 const uniqueValues = (values = []) =>
   Array.from(
     new Map(
@@ -825,6 +857,40 @@ const getOpportunityCityText = (opportunity = {}) => {
   return `${cities.slice(0, 2).join("، ")} +${cities.length - 2}`;
 };
 
+const entityMatchesOrganizationQuery = (entity = {}, normalizedQueries = "") => {
+  const queryTerms = Array.isArray(normalizedQueries)
+    ? normalizedQueries.filter(Boolean)
+    : [normalizedQueries].filter(Boolean);
+  if (queryTerms.length === 0) return true;
+
+  const organizationName = entity.organizationName || entity.name || "";
+  const searchableText = normalizeName(
+    [
+      organizationName,
+      entity.title,
+      entity.sector,
+      entity.note,
+      entity.usage,
+      entity.guideSummary,
+      entity.sourceLabel,
+      ...(entity.specialties || []),
+      ...(entity.majorCategories || []),
+      ...(entity.majors || []),
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+  const normalizedOrganizationName = normalizeName(organizationName);
+
+  return queryTerms.some(
+    (normalizedQuery) =>
+      searchableText.includes(normalizedQuery) ||
+      (normalizedOrganizationName &&
+        (normalizedOrganizationName.includes(normalizedQuery) ||
+          normalizedQuery.includes(normalizedOrganizationName)))
+  );
+};
+
 const findSpecializationOptionByInput = (value = "") => {
   const normalizedValue = normalizeName(value);
   if (!normalizedValue) return null;
@@ -1348,6 +1414,8 @@ export default function TrainingFinderPage() {
   const routeCity = getSeoCityBySlug(routeParams.citySlug)?.label || "";
   const querySpecialty = searchParams.get("major") || "";
   const queryCity = searchParams.get("city") || "";
+  const queryOrganization =
+    searchParams.get("organization") || searchParams.get("company") || "";
   const initialSpecialty = routeSpecialty || querySpecialty;
   const initialCity = routeCity || queryCity;
   const seoPath = buildTrainingFinderSeoPath({
@@ -1360,6 +1428,9 @@ export default function TrainingFinderPage() {
       : ""
   );
   const [city, setCity] = useState(initialCity);
+  const [organizationQuery, setOrganizationQuery] = useState(queryOrganization);
+  const [showSpecialtySuggestions, setShowSpecialtySuggestions] =
+    useState(false);
   const [targets, setTargets] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
   const [searched, setSearched] = useState(false);
@@ -1431,6 +1502,28 @@ export default function TrainingFinderPage() {
   );
   const selectedSpecialtyLabel =
     selectedSpecialtyOption?.label || selectedSpecialty;
+  const normalizedOrganizationQuery = useMemo(
+    () => getOrganizationSearchTerms(organizationQuery),
+    [organizationQuery]
+  );
+  const specialtySuggestionOptions = useMemo(() => {
+    const normalizedInput = normalizeName(selectedSpecialty);
+    const options = normalizedInput
+      ? specializationOptions.filter((option) =>
+          normalizeName(
+            [
+              option.value,
+              option.label,
+              ...(option.categories || []),
+            ]
+              .filter(Boolean)
+              .join(" ")
+          ).includes(normalizedInput)
+        )
+      : specializationOptions.slice(0, 14);
+
+    return options.slice(0, 28);
+  }, [selectedSpecialty]);
   const selectedMajorCategories = useMemo(
     () => selectedSpecialtyOption?.categories || [],
     [selectedSpecialtyOption]
@@ -1442,15 +1535,20 @@ export default function TrainingFinderPage() {
   const suggestionRegion = resolveSuggestionRegion(city);
   const selectedCityScope = useMemo(() => getSelectedCityScope(city), [city]);
   const visibleTargets = useMemo(() => {
-    if (selectedCityScope.length === 0) return targets;
+    const cityFilteredTargets =
+      selectedCityScope.length === 0
+        ? targets
+        : targets.filter((target) => {
+            const allowedCities = new Set(selectedCityScope.map(normalizeName));
+            return (target.cities || []).some((targetCity) =>
+              allowedCities.has(normalizeName(targetCity))
+            );
+          });
 
-    const allowedCities = new Set(selectedCityScope.map(normalizeName));
-    return targets.filter((target) =>
-      (target.cities || []).some((targetCity) =>
-        allowedCities.has(normalizeName(targetCity))
-      )
+    return cityFilteredTargets.filter((target) =>
+      entityMatchesOrganizationQuery(target, normalizedOrganizationQuery)
     );
-  }, [selectedCityScope, targets]);
+  }, [normalizedOrganizationQuery, selectedCityScope, targets]);
   const visibleTargetNames = useMemo(
     () =>
       new Set(
@@ -1572,6 +1670,10 @@ export default function TrainingFinderPage() {
       })
       .filter(
         (organization) =>
+          entityMatchesOrganizationQuery(
+            organization,
+            normalizedOrganizationQuery
+          ) &&
           !visibleTargetNames.has(normalizeName(organization.name)) &&
           (!hasSpecialtyFilter || organization._specialtyScore > 0)
       );
@@ -1589,6 +1691,7 @@ export default function TrainingFinderPage() {
       );
   }, [
     city,
+    normalizedOrganizationQuery,
     selectedCityScope,
     selectedMajorCategories,
     selectedRelatedSpecialties,
@@ -1602,6 +1705,15 @@ export default function TrainingFinderPage() {
         ? new Set(selectedCityScope.map(normalizeName))
         : null;
     const filteredOpportunities = opportunities.filter((opportunity) => {
+      if (
+        !entityMatchesOrganizationQuery(
+          opportunity,
+          normalizedOrganizationQuery
+        )
+      ) {
+        return false;
+      }
+
       if (allowedCities) {
         const opportunityCities = getOpportunityCities(opportunity);
         const matchesSelectedCity = opportunityCities.some((opportunityCity) =>
@@ -1646,7 +1758,12 @@ export default function TrainingFinderPage() {
     }
 
     return filteredOpportunities;
-  }, [opportunities, opportunityFilters, selectedCityScope]);
+  }, [
+    normalizedOrganizationQuery,
+    opportunities,
+    opportunityFilters,
+    selectedCityScope,
+  ]);
   const hasActiveOpportunityFilters = Object.values(opportunityFilters).some(
     Boolean
   );
@@ -1668,7 +1785,8 @@ export default function TrainingFinderPage() {
   };
   const showResultsPanel = opportunitiesLoading || opportunities.length > 0 || searched;
   const showSuggestionsWithOpportunities =
-    Boolean(selectedSpecialty || city) && suggestedOrganizations.length > 0;
+    Boolean(selectedSpecialty || city || organizationQuery) &&
+    suggestedOrganizations.length > 0;
   const resultTabs = [
     {
       key: "opportunities",
@@ -1797,7 +1915,7 @@ export default function TrainingFinderPage() {
       gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
       itemKey: `where-to-train:${normalizeName(selectedSpecialty)}:${normalizeName(
         city
-      )}`,
+      )}:${normalizeName(organizationQuery)}`,
     });
   };
 
@@ -1820,10 +1938,15 @@ export default function TrainingFinderPage() {
     specializationOptions.find((option) => option.value === specialtyValue)
       ?.categories || [];
 
-  const runTrainingTargetSearch = async (specialtyValue, cityValue = "") => {
+  const runTrainingTargetSearch = async (
+    specialtyValue,
+    cityValue = "",
+    organizationValue = organizationQuery
+  ) => {
     const matchedSpecialty = findSpecializationOptionByInput(specialtyValue);
     const resolvedSpecialtyValue =
       matchedSpecialty?.value || specialtyValue.toString().trim();
+    const resolvedOrganizationQuery = organizationValue.toString().trim();
 
     try {
       setLoading(true);
@@ -1840,9 +1963,12 @@ export default function TrainingFinderPage() {
         majorCategory: majorCategories[0] || "",
         majorCategories: majorCategories.join(","),
         city: cityValue,
+        organization: resolvedOrganizationQuery,
       };
       const shouldFetchTrainingTargets = Boolean(
-        resolvedSpecialtyValue || majorCategories.length > 0
+        resolvedSpecialtyValue ||
+          majorCategories.length > 0 ||
+          resolvedOrganizationQuery
       );
       const [targetsResponse, opportunitiesResponse] = await Promise.all([
         shouldFetchTrainingTargets
@@ -1868,6 +1994,7 @@ export default function TrainingFinderPage() {
         major: resolvedSpecialtyValue || "",
         majorCategory: majorCategories[0] || "",
         city: cityValue,
+        organization: resolvedOrganizationQuery,
         resultsCount: nextTargets.length,
         metadata: {
           majorCategories,
@@ -1882,7 +2009,9 @@ export default function TrainingFinderPage() {
           ? "targets"
           : "opportunities"
       );
-      setShowSearchInsightModal(Boolean(resolvedSpecialtyValue || cityValue));
+      setShowSearchInsightModal(
+        Boolean(resolvedSpecialtyValue || cityValue || resolvedOrganizationQuery)
+      );
     } catch (err) {
       console.error(err);
       setError("تعذر عرض النتائج حاليًا.");
@@ -1909,24 +2038,38 @@ export default function TrainingFinderPage() {
 
     const nextMajor = routeSpecialty || querySpecialty;
     const nextCity = routeCity || queryCity;
+    const nextOrganization = queryOrganization;
     const hasKnownMajor = specializationOptions.some(
       (option) => option.value === nextMajor
     );
 
-    if (!hasKnownMajor) {
+    if (!hasKnownMajor && !nextMajor) {
       setSelectedSpecialty("");
       setCity(nextCity);
+      setOrganizationQuery(nextOrganization);
       setSearched(false);
       setTargets([]);
-      fetchOpportunities(nextCity ? { city: nextCity } : {});
+      fetchOpportunities(
+        nextCity || nextOrganization
+          ? { city: nextCity, organization: nextOrganization }
+          : {}
+      );
       return;
     }
 
     setSelectedSpecialty(nextMajor);
     setCity(nextCity);
-    runTrainingTargetSearch(nextMajor, nextCity);
+    setOrganizationQuery(nextOrganization);
+    runTrainingTargetSearch(nextMajor, nextCity, nextOrganization);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryCity, querySpecialty, routeCity, routeOpportunityId, routeSpecialty]);
+  }, [
+    queryCity,
+    queryOrganization,
+    querySpecialty,
+    routeCity,
+    routeOpportunityId,
+    routeSpecialty,
+  ]);
 
   useEffect(() => {
     if (!routeOpportunityId) {
@@ -2039,7 +2182,7 @@ export default function TrainingFinderPage() {
 
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
-    runTrainingTargetSearch(selectedSpecialty, city);
+    runTrainingTargetSearch(selectedSpecialty, city, organizationQuery);
   };
 
   const openOpportunityRequestModal = () => {
@@ -2448,6 +2591,9 @@ export default function TrainingFinderPage() {
     const params = new URLSearchParams();
     if (selectedSpecialty) params.set("major", selectedSpecialty);
     if (city) params.set("city", city);
+    if (organizationQuery.trim()) {
+      params.set("organization", organizationQuery.trim());
+    }
     const query = params.toString();
     return `/where-to-train${query ? `?${query}` : ""}`;
   };
@@ -2935,7 +3081,8 @@ export default function TrainingFinderPage() {
           onSubmit={fetchTrainingTargets}
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr) auto",
+            gridTemplateColumns:
+              "minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr) auto",
             gap: "10px",
             alignItems: "end",
             background: "var(--app-surface)",
@@ -2945,36 +3092,78 @@ export default function TrainingFinderPage() {
           }}
           className="training-finder-form"
         >
-          <label style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}>
+          <label
+            className="training-search-field training-specialty-field"
+            style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}
+          >
             التخصص
-            <input
-              list="training-specialties-list"
-              value={selectedSpecialty}
-              onChange={(event) => {
-                setSelectedSpecialty(event.target.value);
-                setShowSearchInsightModal(false);
-              }}
-              placeholder="اكتب تخصصك أو اختره"
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: "12px",
-                border: "1px solid var(--app-border)",
-                background: "var(--app-input-bg)",
-                color: "var(--app-text)",
-                fontFamily: "inherit",
-              }}
-            />
-            <datalist id="training-specialties-list">
-              {specializationOptions.map((specialization) => (
-                <option key={specialization.value} value={specialization.value}>
-                  {specialization.label}
-                </option>
-              ))}
-            </datalist>
+            <span className="training-autocomplete">
+              <input
+                value={selectedSpecialty}
+                onFocus={() => setShowSpecialtySuggestions(true)}
+                onBlur={() =>
+                  window.setTimeout(
+                    () => setShowSpecialtySuggestions(false),
+                    120
+                  )
+                }
+                onChange={(event) => {
+                  setSelectedSpecialty(event.target.value);
+                  setShowSpecialtySuggestions(true);
+                  setShowSearchInsightModal(false);
+                }}
+                placeholder="اكتب تخصصك أو اختره"
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: "12px",
+                  border: "1px solid var(--app-border)",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
+                  fontFamily: "inherit",
+                }}
+              />
+              {showSpecialtySuggestions && specialtySuggestionOptions.length > 0 && (
+                <span className="training-specialty-suggestions">
+                  {selectedSpecialty && (
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setSelectedSpecialty("");
+                        setShowSpecialtySuggestions(false);
+                        setShowSearchInsightModal(false);
+                      }}
+                    >
+                      كل التخصصات
+                    </button>
+                  )}
+                  {specialtySuggestionOptions.map((specialization) => (
+                    <button
+                      key={specialization.value}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setSelectedSpecialty(specialization.value);
+                        setShowSpecialtySuggestions(false);
+                        setShowSearchInsightModal(false);
+                      }}
+                    >
+                      <strong>{specialization.label}</strong>
+                      {specialization.categories?.[0] && (
+                        <small>{specialization.categories[0]}</small>
+                      )}
+                    </button>
+                  ))}
+                </span>
+              )}
+            </span>
           </label>
 
-          <label style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}>
+          <label
+            className="training-search-field"
+            style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}
+          >
             المدينة أو المنطقة
             <select
               value={city}
@@ -3001,6 +3190,30 @@ export default function TrainingFinderPage() {
                 ))}
               </optgroup>
             </select>
+          </label>
+
+          <label
+            className="training-search-field"
+            style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}
+          >
+            اسم الجهة
+            <input
+              value={organizationQuery}
+              onChange={(event) => {
+                setOrganizationQuery(event.target.value);
+                setShowSearchInsightModal(false);
+              }}
+              placeholder="مثال: STC، علم، أرامكو"
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: "12px",
+                border: "1px solid var(--app-border)",
+                background: "var(--app-input-bg)",
+                color: "var(--app-text)",
+                fontFamily: "inherit",
+              }}
+            />
           </label>
 
           <button
@@ -4155,7 +4368,10 @@ export default function TrainingFinderPage() {
         )}
       </section>
 
-      {showSearchInsightModal && (selectedSpecialty || city) && searched && !loading && (
+      {showSearchInsightModal &&
+        (selectedSpecialty || city || organizationQuery) &&
+        searched &&
+        !loading && (
         <div
           role="dialog"
           aria-modal="true"
@@ -5030,6 +5246,64 @@ export default function TrainingFinderPage() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 10px;
+        }
+
+        .training-search-field {
+          min-width: 0;
+        }
+
+        .training-autocomplete {
+          position: relative;
+          display: block;
+          min-width: 0;
+        }
+
+        .training-specialty-suggestions {
+          position: absolute;
+          top: calc(100% + 6px);
+          inset-inline: 0;
+          z-index: 35;
+          display: grid;
+          gap: 5px;
+          max-height: 236px;
+          overflow-y: auto;
+          padding: 7px;
+          background: var(--app-surface);
+          border: 1px solid var(--app-border);
+          border-radius: 14px;
+          box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+        }
+
+        .training-specialty-suggestions button {
+          display: grid;
+          gap: 2px;
+          width: 100%;
+          border: 1px solid transparent;
+          border-radius: 10px;
+          padding: 8px 9px;
+          background: transparent;
+          color: var(--app-text);
+          font-family: inherit;
+          text-align: right;
+          cursor: pointer;
+        }
+
+        .training-specialty-suggestions button:hover,
+        .training-specialty-suggestions button:focus-visible {
+          background: var(--app-input-bg);
+          border-color: var(--app-brand-border);
+          outline: none;
+        }
+
+        .training-specialty-suggestions strong {
+          font-size: 12px;
+          line-height: 1.4;
+        }
+
+        .training-specialty-suggestions small {
+          color: var(--app-text-soft);
+          font-size: 10px;
+          line-height: 1.3;
         }
 
         .opportunity-filter-bar {
@@ -6043,6 +6317,13 @@ export default function TrainingFinderPage() {
 
           .training-finder-form {
             grid-template-columns: 1fr !important;
+          }
+
+          .training-specialty-suggestions {
+            position: static !important;
+            max-height: 176px !important;
+            margin-top: 6px !important;
+            box-shadow: none !important;
           }
 
           .opportunity-filter-bar {
