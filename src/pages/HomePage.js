@@ -280,6 +280,47 @@ const HomePage = () => {
             وين أتدرب؟
           </button>
         </Link>
+
+        <Link
+          to="/partners"
+          className="home-company-link"
+          style={{ textDecoration: "none" }}
+        >
+          <button
+            className="home-cta home-company-cta"
+            style={{
+              backgroundColor: "transparent",
+              color: "var(--app-brand-strong)",
+              border: "1px solid var(--app-brand-border)",
+              borderRadius: "10px",
+              padding: "14px 24px",
+              fontSize: "16px",
+              fontFamily: homeFont,
+              cursor: "pointer",
+              transition: "0.3s",
+              fontWeight: "900",
+              boxShadow: "none",
+            }}
+          >
+            اطلب صفحة تقديم لشركتك
+          </button>
+        </Link>
+      </div>
+
+      <div
+        className="home-company-note"
+        style={{
+          width: "min(100%, 620px)",
+          margin: "14px auto 0",
+          color: "var(--app-muted-2)",
+          fontSize: "14px",
+          lineHeight: 1.8,
+          fontFamily: homeFont,
+        }}
+      >
+        <strong style={{ color: "var(--app-text)" }}>برنامج شركاء الإطلاق:</strong>{" "}
+        نفتح حاليًا عددًا محدودًا من المقاعد للجهات الراغبة بتجربة خدمة دربك
+        لإدارة ونشر فرص التدريب دون رسوم خلال مرحلة الإطلاق.
       </div>
 
       <div
@@ -390,6 +431,13 @@ const HomePage = () => {
           transform: translateY(0) scale(0.98);
         }
 
+        .home-company-cta:hover,
+        .home-company-cta:focus-visible {
+          background: var(--app-brand-soft) !important;
+          transform: translateY(-2px);
+          outline: none;
+        }
+
         @media (max-width: 768px) {
           .home-page {
             width: calc(100% + 40px) !important;
@@ -432,14 +480,25 @@ const HomePage = () => {
           }
 
           .home-cta {
-            width: min(100%, 280px);
+            width: 100%;
             padding: 12px 24px !important;
             font-size: 16px !important;
           }
 
           .home-actions {
-            width: min(100%, 280px);
+            width: min(100%, 360px);
             gap: 8px !important;
+          }
+
+          .home-actions a {
+            width: 100%;
+          }
+
+          .home-company-note {
+            max-width: 92vw !important;
+            margin-top: 10px !important;
+            font-size: 13px !important;
+            line-height: 1.7 !important;
           }
 
           .home-stats {

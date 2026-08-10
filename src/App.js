@@ -35,6 +35,7 @@ const AdminReviewPage = lazy(() => import("./pages/AdminReviewPage"));
 const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
 const PortfolioBuilderPage = lazy(() => import("./pages/PortfolioBuilderPage"));
 const CompanyApplyPage = lazy(() => import("./pages/CompanyApplyPage"));
+const PartnersPage = lazy(() => import("./pages/PartnersPage"));
 const PremiumAccessGate = lazy(() => import("./components/PremiumAccessGate"));
 const AccountModal = lazy(() => import("./components/AccountModal"));
 const SavedItemsDrawer = lazy(() => import("./components/SavedItemsDrawer"));
@@ -1484,6 +1485,7 @@ function AppLayout({ theme, setTheme }) {
               <Route path="/interviews" element={<InterviewsPage />} />
               <Route path="/where-to-train" element={<TrainingFinderPage />} />
               <Route path="/subscribe" element={<SubscribeRoute />} />
+              <Route path="/partners" element={<PartnersPage />} />
               <Route path="/portofoili" element={<PortfolioBuilderPage />} />
               <Route path="/portfolio" element={<PortfolioBuilderPage />} />
               <Route
