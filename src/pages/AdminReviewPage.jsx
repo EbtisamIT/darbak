@@ -27,17 +27,56 @@ const FEATURED_AMBASSADORS_ENABLED = false;
 
 const companyApplicationStatusOptions = [
   ["all", "كل الطلبات"],
-  ["new", "جديد"],
-  ["reviewed", "تمت المراجعة"],
+  ["submitted", "تم الإرسال"],
+  ["under_review", "قيد المراجعة"],
   ["shortlisted", "مرشح"],
+  ["interview", "مرحلة المقابلة"],
+  ["accepted", "مقبول"],
   ["rejected", "مرفوض"],
+  ["withdrawn", "منسحب"],
 ];
 
 const companyApplicationStatusLabels = {
-  new: "جديد",
-  reviewed: "تمت المراجعة",
+  submitted: "تم الإرسال",
+  under_review: "قيد المراجعة",
   shortlisted: "مرشح",
+  interview: "مرحلة المقابلة",
+  accepted: "مقبول",
   rejected: "مرفوض",
+  withdrawn: "منسحب",
+  new: "تم الإرسال",
+  reviewed: "قيد المراجعة",
+};
+
+const companyCampaignStatusOptions = [
+  ["", "كل البرامج النشطة"],
+  ["draft", "مسودة"],
+  ["open", "مفتوح"],
+  ["closed", "مغلق"],
+  ["archived", "مؤرشف"],
+];
+
+const companyCampaignStatusLabels = {
+  draft: "مسودة",
+  open: "مفتوح",
+  closed: "مغلق",
+  archived: "مؤرشف",
+};
+
+const defaultCompanyCampaignForm = {
+  organizationName: "",
+  organizationLogoUrl: "",
+  opportunityTitle: "",
+  slug: "",
+  city: "",
+  cities: [],
+  majorCategories: [],
+  specialties: ["__all_specialties__"],
+  description: "",
+  customQuestions: "",
+  applicationDeadline: "",
+  status: "draft",
+  allowDuplicateApplications: false,
 };
 
 const defaultRejectionReason =
@@ -1013,8 +1052,17 @@ export default function AdminReviewPage() {
   const [contactMessages, setContactMessages] = useState([]);
   const [companyApplications, setCompanyApplications] = useState([]);
   const [companyApplicationStatus, setCompanyApplicationStatus] =
-    useState("new");
+    useState("submitted");
   const [companyApplicationSearch, setCompanyApplicationSearch] = useState("");
+  const [companyApplicationMessages, setCompanyApplicationMessages] = useState({});
+  const [companyCampaigns, setCompanyCampaigns] = useState([]);
+  const [companyCampaignStatus, setCompanyCampaignStatus] = useState("");
+  const [companyCampaignSearch, setCompanyCampaignSearch] = useState("");
+  const [companyCampaignForm, setCompanyCampaignForm] = useState(
+    defaultCompanyCampaignForm
+  );
+  const [editingCompanyCampaignId, setEditingCompanyCampaignId] = useState(null);
+  const [savingCompanyCampaign, setSavingCompanyCampaign] = useState(false);
   const [opportunities, setOpportunities] = useState([]);
   const [interviewQuestions, setInterviewQuestions] = useState([]);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
@@ -1088,6 +1136,8 @@ export default function AdminReviewPage() {
       ? contactMessages.length
       : adminView === "companyApplications"
       ? companyApplications.length
+      : adminView === "companyCampaigns"
+      ? companyCampaigns.length
       : adminView === "interviewQuestions"
       ? interviewQuestions.length
       : adminView === "opportunities"
@@ -1112,6 +1162,8 @@ export default function AdminReviewPage() {
       ? "رسالة تواصل"
       : adminView === "companyApplications"
       ? "طلب شركة"
+      : adminView === "companyCampaigns"
+      ? "برنامج تقديم"
       : adminView === "interviewQuestions"
       ? "أسئلة مقابلة"
       : adminView === "opportunities"
@@ -1232,13 +1284,55 @@ export default function AdminReviewPage() {
         }
       );
 
-      setCompanyApplications(Array.isArray(data.data) ? data.data : []);
+      const applications = Array.isArray(data.data) ? data.data : [];
+      setCompanyApplications(applications);
+      setCompanyApplicationMessages(
+        applications.reduce((messages, item) => {
+          messages[item._id || item.id] = item.studentVisibleMessage || "";
+          return messages;
+        }, {})
+      );
     } catch (err) {
       console.error(err);
       setMessage(
         err.response?.status === 401
           ? "كلمة المرور غير صحيحة."
           : "تعذر تحميل طلبات الشركات."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCompanyCampaigns = async () => {
+    if (!password) {
+      setMessage("اكتب كلمة المرور لعرض المحتوى.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      sessionStorage.setItem("darbak_admin_password", password);
+
+      const { data } = await axios.get(
+        `${API_BASE_URL}/api/admin/company-application-campaigns`,
+        {
+          params: {
+            status: companyCampaignStatus,
+            search: companyCampaignSearch.trim(),
+          },
+          headers: authHeaders,
+        }
+      );
+
+      setCompanyCampaigns(Array.isArray(data.data) ? data.data : []);
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.status === 401
+          ? "كلمة المرور غير صحيحة."
+          : "تعذر تحميل برامج التقديم."
       );
     } finally {
       setLoading(false);
@@ -1452,6 +1546,8 @@ export default function AdminReviewPage() {
       fetchContactMessages();
     } else if (adminView === "companyApplications") {
       fetchCompanyApplications();
+    } else if (adminView === "companyCampaigns") {
+      fetchCompanyCampaigns();
     } else if (adminView === "interviewQuestions") {
       fetchInterviewQuestions();
     } else if (adminView === "opportunities") {
@@ -1475,6 +1571,7 @@ export default function AdminReviewPage() {
     opportunityFeaturedFilter,
     opportunityFilterVersion,
     companyApplicationStatus,
+    companyCampaignStatus,
     analyticsDays,
     userStatus,
     adminView,
@@ -1493,6 +1590,11 @@ export default function AdminReviewPage() {
 
     if (adminView === "companyApplications") {
       fetchCompanyApplications();
+      return;
+    }
+
+    if (adminView === "companyCampaigns") {
+      fetchCompanyCampaigns();
       return;
     }
 
@@ -1946,18 +2048,27 @@ export default function AdminReviewPage() {
     }
   };
 
-  const updateCompanyApplicationStatus = async (id, nextStatus) => {
+  const updateCompanyApplicationStatus = async (id, nextStatus, messageText = "") => {
     try {
       setMessage("");
       const { data } = await axios.patch(
         `${API_BASE_URL}/api/admin/company-applications/${id}/status`,
-        { status: nextStatus },
+        {
+          status: nextStatus,
+          studentVisibleMessage: messageText,
+        },
         { headers: authHeaders }
       );
 
       setCompanyApplications((prev) =>
         prev.map((item) => (item._id === id ? data.data || item : item))
       );
+      if (data.data) {
+        setCompanyApplicationMessages((prev) => ({
+          ...prev,
+          [id]: data.data.studentVisibleMessage || "",
+        }));
+      }
     } catch (err) {
       console.error(err);
       setMessage("تعذر تحديث حالة الطلب.");
@@ -1980,6 +2091,187 @@ export default function AdminReviewPage() {
     } catch (err) {
       console.error(err);
       setMessage("تعذر حذف طلب الشركة.");
+    }
+  };
+
+  const updateCompanyCampaignField = (field, value) => {
+    if (field === "specialties") {
+      setCompanyCampaignForm((prev) => {
+        const selectedSpecialties = normalizeFormArray(value);
+        const previousSpecialties = normalizeFormArray(prev.specialties);
+        const hadAllSpecialties = previousSpecialties.includes(
+          ALL_SPECIALTIES_VALUE
+        );
+        const pickedAllSpecialties = selectedSpecialties.includes(
+          ALL_SPECIALTIES_VALUE
+        );
+        const nextSpecialties =
+          pickedAllSpecialties && hadAllSpecialties && selectedSpecialties.length > 1
+            ? selectedSpecialties.filter(
+                (specialty) => specialty !== ALL_SPECIALTIES_VALUE
+              )
+            : pickedAllSpecialties
+            ? [ALL_SPECIALTIES_VALUE]
+            : selectedSpecialties;
+
+        return {
+          ...prev,
+          specialties: nextSpecialties,
+          majorCategories: nextSpecialties.includes(ALL_SPECIALTIES_VALUE)
+            ? []
+            : Array.from(
+                new Set([
+                  ...normalizeFormArray(prev.majorCategories),
+                  ...getCategoriesForSpecialties(nextSpecialties),
+                ])
+              ),
+        };
+      });
+      return;
+    }
+
+    setCompanyCampaignForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const resetCompanyCampaignForm = () => {
+    setCompanyCampaignForm(defaultCompanyCampaignForm);
+    setEditingCompanyCampaignId(null);
+  };
+
+  const startCompanyCampaignEdit = (campaign) => {
+    setEditingCompanyCampaignId(campaign._id || campaign.id);
+    setCompanyCampaignForm({
+      organizationName: campaign.organizationName || "",
+      organizationLogoUrl: campaign.organizationLogoUrl || "",
+      opportunityTitle: campaign.opportunityTitle || "",
+      slug: campaign.slug || "",
+      city: campaign.city || "",
+      cities: normalizeFormArray(campaign.cities),
+      majorCategories: normalizeFormArray(campaign.majorCategories),
+      specialties: normalizeFormArray(campaign.specialties).length
+        ? normalizeFormArray(campaign.specialties)
+        : [ALL_SPECIALTIES_VALUE],
+      description: campaign.description || "",
+      customQuestions: Array.isArray(campaign.customQuestions)
+        ? campaign.customQuestions.map((item) => item.question).join("\n")
+        : "",
+      applicationDeadline: formatDateForInput(campaign.applicationDeadline),
+      status: campaign.status || "draft",
+      allowDuplicateApplications: Boolean(campaign.allowDuplicateApplications),
+    });
+    setMessage("");
+    window.setTimeout(() => {
+      document
+        .getElementById("admin-company-campaign-form")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  };
+
+  const saveCompanyCampaign = async (event) => {
+    event.preventDefault();
+
+    if (
+      !companyCampaignForm.organizationName.trim() ||
+      !companyCampaignForm.opportunityTitle.trim()
+    ) {
+      setMessage("اسم الجهة واسم البرنامج مطلوبة.");
+      return;
+    }
+
+    try {
+      setSavingCompanyCampaign(true);
+      setMessage("");
+      const selectedSpecialties = normalizeFormArray(companyCampaignForm.specialties);
+      const selectedMajorCategories = normalizeFormArray(
+        companyCampaignForm.majorCategories
+      );
+      const appliesToAllSpecialties =
+        selectedSpecialties.length === 0 ||
+        selectedSpecialties.includes(ALL_SPECIALTIES_VALUE);
+      const payload = {
+        ...companyCampaignForm,
+        cities: normalizeFormArray(companyCampaignForm.cities),
+        city: normalizeFormArray(companyCampaignForm.cities)[0] || "",
+        specialties: appliesToAllSpecialties ? [] : selectedSpecialties,
+        majorCategories: appliesToAllSpecialties
+          ? []
+          : Array.from(
+              new Set([
+                ...selectedMajorCategories,
+                ...getCategoriesForSpecialties(selectedSpecialties),
+              ])
+            ),
+        customQuestions: companyCampaignForm.customQuestions,
+      };
+
+      const request = editingCompanyCampaignId
+        ? axios.patch(
+            `${API_BASE_URL}/api/admin/company-application-campaigns/${editingCompanyCampaignId}`,
+            payload,
+            { headers: authHeaders }
+          )
+        : axios.post(
+            `${API_BASE_URL}/api/admin/company-application-campaigns`,
+            payload,
+            { headers: authHeaders }
+          );
+
+      const { data } = await request;
+
+      if (editingCompanyCampaignId) {
+        setCompanyCampaigns((prev) =>
+          prev.map((campaign) =>
+            (campaign._id || campaign.id) === editingCompanyCampaignId
+              ? data
+              : campaign
+          )
+        );
+        setMessage("تم حفظ تعديل برنامج التقديم.");
+      } else {
+        setCompanyCampaigns((prev) => [data, ...prev]);
+        setMessage("تم إنشاء برنامج التقديم.");
+      }
+
+      resetCompanyCampaignForm();
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.error || "تعذر حفظ برنامج التقديم.");
+    } finally {
+      setSavingCompanyCampaign(false);
+    }
+  };
+
+  const archiveCompanyCampaign = async (id) => {
+    const confirmed = window.confirm(
+      "هل تريدين أرشفة برنامج التقديم؟ الطلبات القديمة ستبقى محفوظة."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setMessage("");
+      await axios.delete(
+        `${API_BASE_URL}/api/admin/company-application-campaigns/${id}`,
+        { headers: authHeaders }
+      );
+      setCompanyCampaigns((prev) =>
+        prev.filter((campaign) => (campaign._id || campaign.id) !== id)
+      );
+      setMessage("تمت أرشفة برنامج التقديم.");
+    } catch (err) {
+      console.error(err);
+      setMessage("تعذر أرشفة برنامج التقديم.");
+    }
+  };
+
+  const copyCompanyCampaignLink = async (campaign = {}) => {
+    const link = campaign.applyUrl || `${window.location.origin}/apply/${campaign.slug}`;
+
+    try {
+      await navigator.clipboard.writeText(link);
+      setMessage("تم نسخ رابط برنامج التقديم.");
+    } catch {
+      setMessage(link);
     }
   };
 
@@ -4187,6 +4479,7 @@ export default function AdminReviewPage() {
           <option value="experiences">التجارب</option>
           <option value="suggestions">الاقتراحات</option>
           <option value="contactMessages">رسائل التواصل</option>
+          <option value="companyCampaigns">برامج التقديم</option>
           <option value="companyApplications">طلبات الشركات</option>
           <option value="opportunities">الفرص</option>
           <option value="interviewQuestions">أسئلة المقابلات</option>
@@ -4285,6 +4578,47 @@ export default function AdminReviewPage() {
                 }
               }}
               placeholder="بحث باسم الجهة، الطالب، البريد، المدينة أو التخصص"
+              style={{
+                minWidth: "300px",
+                background: adminColors.inputBg,
+                border: `1px solid ${adminColors.inputBorder}`,
+                borderRadius: "10px",
+                color: adminColors.text,
+                padding: "11px 12px",
+                fontFamily: "inherit",
+              }}
+            />
+          </>
+        ) : adminView === "companyCampaigns" ? (
+          <>
+            <select
+              value={companyCampaignStatus}
+              onChange={(e) => setCompanyCampaignStatus(e.target.value)}
+              style={{
+                background: adminColors.inputBg,
+                border: `1px solid ${adminColors.inputBorder}`,
+                borderRadius: "10px",
+                color: adminColors.text,
+                padding: "11px 12px",
+                fontFamily: "inherit",
+              }}
+            >
+              {companyCampaignStatusOptions.map(([value, label]) => (
+                <option key={value || "all"} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <input
+              value={companyCampaignSearch}
+              onChange={(e) => setCompanyCampaignSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  fetchCompanyCampaigns();
+                }
+              }}
+              placeholder="بحث باسم الجهة، البرنامج، المدينة أو التخصص"
               style={{
                 minWidth: "300px",
                 background: adminColors.inputBg,
@@ -4409,8 +4743,10 @@ export default function AdminReviewPage() {
             }}
           >
             {[
-              ["جميع الزيارات من البداية", analytics.allTimePageVisits],
-              ["زيارات الفترة", analytics.pageVisits],
+              ["مشاهدات الصفحات من البداية", analytics.allTimePageVisits],
+              ["زوار فريدون من البداية", analytics.allTimeVisitors || 0],
+              ["مشاهدات الصفحات في الفترة", analytics.pageVisits],
+              ["زوار فريدون في الفترة", analytics.uniqueVisitors || 0],
               ["الأحداث المهمة", analytics.totalEvents],
               ["أسئلة دليل دربك", analytics.assistantQueries || 0],
               ["زيارات صفحة المقابلات", analytics.interviewPageViews || 0],
@@ -4744,6 +5080,445 @@ export default function AdminReviewPage() {
             ))
           )}
         </div>
+      ) : adminView === "companyCampaigns" ? (
+        <div style={{ display: "grid", gap: "14px" }}>
+          <form
+            id="admin-company-campaign-form"
+            onSubmit={saveCompanyCampaign}
+            style={{
+              ...cardStyle,
+              display: "grid",
+              gap: "12px",
+            }}
+          >
+            <div>
+              <h2 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                {editingCompanyCampaignId
+                  ? "تعديل برنامج تقديم"
+                  : "إنشاء برنامج تقديم شركة"}
+              </h2>
+              <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.8 }}>
+                هذا البرنامج يولد رابطًا مثل /apply/company-program، والطالب يقدم
+                عليه بملفه المهني بدون إعادة تعبئة بياناته.
+              </p>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              {[
+                ["organizationName", "اسم الجهة", "مثال: STC"],
+                ["opportunityTitle", "اسم البرنامج", "مثال: برنامج التدريب التعاوني"],
+                ["slug", "الرابط المختصر", "مثال: stc-coop-2026"],
+                ["organizationLogoUrl", "رابط شعار الجهة", "اختياري"],
+              ].map(([field, label, placeholder]) => (
+                <label
+                  key={field}
+                  style={{ color: adminColors.textSoft, fontSize: 13 }}
+                >
+                  {label}
+                  <input
+                    value={companyCampaignForm[field] || ""}
+                    onChange={(e) =>
+                      updateCompanyCampaignField(field, e.target.value)
+                    }
+                    placeholder={placeholder}
+                    style={{
+                      width: "100%",
+                      marginTop: 6,
+                      background: adminColors.inputBg,
+                      border: `1px solid ${adminColors.inputBorder}`,
+                      borderRadius: 10,
+                      color: adminColors.text,
+                      padding: "10px 11px",
+                      fontFamily: "inherit",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </label>
+              ))}
+
+              <label style={{ color: adminColors.textSoft, fontSize: 13 }}>
+                آخر موعد للتقديم
+                <input
+                  type="date"
+                  value={companyCampaignForm.applicationDeadline || ""}
+                  onChange={(e) =>
+                    updateCompanyCampaignField("applicationDeadline", e.target.value)
+                  }
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    background: adminColors.inputBg,
+                    border: `1px solid ${adminColors.inputBorder}`,
+                    borderRadius: 10,
+                    color: adminColors.text,
+                    padding: "10px 11px",
+                    fontFamily: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </label>
+
+              <label style={{ color: adminColors.textSoft, fontSize: 13 }}>
+                الحالة
+                <select
+                  value={companyCampaignForm.status}
+                  onChange={(e) =>
+                    updateCompanyCampaignField("status", e.target.value)
+                  }
+                  style={{
+                    width: "100%",
+                    marginTop: 6,
+                    background: adminColors.inputBg,
+                    border: `1px solid ${adminColors.inputBorder}`,
+                    borderRadius: 10,
+                    color: adminColors.text,
+                    padding: "10px 11px",
+                    fontFamily: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {companyCampaignStatusOptions
+                    .filter(([value]) => value)
+                    .map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
+
+            <MultiChipSelector
+              label="المدن"
+              values={companyCampaignForm.cities}
+              options={opportunityCityOptions}
+              onChange={(nextValues) =>
+                updateCompanyCampaignField("cities", nextValues)
+              }
+              emptyLabel="كل المدن"
+              maxHeight="150px"
+            />
+
+            <MultiChipSelector
+              label="التخصص الرئيسي"
+              values={companyCampaignForm.majorCategories}
+              options={majorCategoryOptions}
+              onChange={(nextValues) =>
+                updateCompanyCampaignField("majorCategories", nextValues)
+              }
+              emptyLabel="كل التخصصات"
+              maxHeight="150px"
+            />
+
+            <MultiChipSelector
+              label="التخصصات الفرعية"
+              values={companyCampaignForm.specialties}
+              options={[
+                { value: ALL_SPECIALTIES_VALUE, label: "كل التخصصات" },
+                ...getSpecialtiesForCategories(companyCampaignForm.majorCategories).map(
+                  (item) => ({
+                    value: item.name,
+                    label: item.name,
+                  })
+                ),
+              ]}
+              onChange={(nextValues) =>
+                updateCompanyCampaignField("specialties", nextValues)
+              }
+              emptyLabel="كل التخصصات"
+              maxHeight="190px"
+              showEmptyButton={false}
+            />
+
+            <label style={{ color: adminColors.textSoft, fontSize: 13 }}>
+              وصف البرنامج
+              <textarea
+                value={companyCampaignForm.description}
+                onChange={(e) =>
+                  updateCompanyCampaignField("description", e.target.value)
+                }
+                rows={4}
+                placeholder="اكتبي ملخصًا بسيطًا يظهر للطالب في صفحة التقديم."
+                style={{
+                  width: "100%",
+                  marginTop: 6,
+                  background: adminColors.inputBg,
+                  border: `1px solid ${adminColors.inputBorder}`,
+                  borderRadius: 10,
+                  color: adminColors.text,
+                  padding: "10px 11px",
+                  fontFamily: "inherit",
+                  resize: "vertical",
+                  lineHeight: 1.8,
+                  boxSizing: "border-box",
+                }}
+              />
+            </label>
+
+            <label style={{ color: adminColors.textSoft, fontSize: 13 }}>
+              أسئلة إضافية للبرنامج
+              <textarea
+                value={companyCampaignForm.customQuestions}
+                onChange={(e) =>
+                  updateCompanyCampaignField("customQuestions", e.target.value)
+                }
+                rows={3}
+                placeholder={"كل سؤال في سطر مستقل\nمثال: لماذا ترغب بالتدريب في هذه الجهة؟"}
+                style={{
+                  width: "100%",
+                  marginTop: 6,
+                  background: adminColors.inputBg,
+                  border: `1px solid ${adminColors.inputBorder}`,
+                  borderRadius: 10,
+                  color: adminColors.text,
+                  padding: "10px 11px",
+                  fontFamily: "inherit",
+                  resize: "vertical",
+                  lineHeight: 1.8,
+                  boxSizing: "border-box",
+                }}
+              />
+            </label>
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                color: adminColors.textSoft,
+                fontSize: 13,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={companyCampaignForm.allowDuplicateApplications}
+                onChange={(e) =>
+                  updateCompanyCampaignField(
+                    "allowDuplicateApplications",
+                    e.target.checked
+                  )
+                }
+              />
+              السماح للطالب بإرسال أكثر من طلب لنفس البرنامج
+            </label>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="submit"
+                disabled={savingCompanyCampaign}
+                style={{
+                  background: adminColors.brand,
+                  color: "#07100e",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "10px 16px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: 900,
+                }}
+              >
+                {savingCompanyCampaign
+                  ? "جار الحفظ..."
+                  : editingCompanyCampaignId
+                  ? "حفظ التعديل"
+                  : "إنشاء البرنامج"}
+              </button>
+              {editingCompanyCampaignId && (
+                <button
+                  type="button"
+                  onClick={resetCompanyCampaignForm}
+                  style={{
+                    background: "transparent",
+                    color: adminColors.textSoft,
+                    border: `1px solid ${adminColors.inputBorder}`,
+                    borderRadius: 10,
+                    padding: "10px 16px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontWeight: 800,
+                  }}
+                >
+                  إلغاء التعديل
+                </button>
+              )}
+            </div>
+          </form>
+
+          {companyCampaigns.length === 0 && !loading ? (
+            <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
+              لا توجد برامج تقديم في هذا العرض.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(270px, 1fr))",
+                gap: "12px",
+              }}
+            >
+              {companyCampaigns.map((campaign) => {
+                const campaignId = campaign._id || campaign.id;
+                const statusLabel =
+                  companyCampaignStatusLabels[campaign.status] ||
+                  campaign.status ||
+                  "غير محدد";
+
+                return (
+                  <article key={campaignId} style={cardStyle}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        alignItems: "flex-start",
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            padding: "5px 10px",
+                            borderRadius: 999,
+                            color: campaign.isOpen ? "#07100e" : adminColors.textSoft,
+                            background: campaign.isOpen
+                              ? adminColors.brand
+                              : "rgba(255,255,255,0.06)",
+                            fontSize: 12,
+                            fontWeight: 900,
+                            marginBottom: 8,
+                          }}
+                        >
+                          {statusLabel}
+                        </span>
+                        <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                          {campaign.organizationName}
+                        </h3>
+                        <p style={{ color: adminColors.text, margin: 0, lineHeight: 1.7 }}>
+                          {campaign.opportunityTitle}
+                        </p>
+                      </div>
+                      {campaign.organizationLogoUrl && (
+                        <img
+                          src={campaign.organizationLogoUrl}
+                          alt={campaign.organizationName}
+                          style={{
+                            width: 46,
+                            height: 46,
+                            objectFit: "contain",
+                            borderRadius: 12,
+                            background: "#fff",
+                            padding: 6,
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 8,
+                        color: adminColors.textSoft,
+                        fontSize: 13,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div>
+                        الرابط:{" "}
+                        <strong style={{ color: adminColors.text }}>
+                          /apply/{campaign.slug}
+                        </strong>
+                      </div>
+                      <div>
+                        الطلبات:{" "}
+                        <strong style={{ color: adminColors.brand }}>
+                          {campaign.applicationCount || 0}
+                        </strong>
+                      </div>
+                      <div>
+                        آخر موعد:{" "}
+                        <strong style={{ color: adminColors.text }}>
+                          {campaign.applicationDeadline
+                            ? formatAdminDateTime(campaign.applicationDeadline)
+                            : "غير محدد"}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {campaign.description && (
+                      <p
+                        style={{
+                          color: adminColors.muted,
+                          lineHeight: 1.8,
+                          margin: "0 0 12px",
+                        }}
+                      >
+                        {limitText(campaign.description, 150)}
+                      </p>
+                    )}
+
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        onClick={() => startCompanyCampaignEdit(campaign)}
+                        style={{
+                          background: adminColors.brand,
+                          color: "#07100e",
+                          border: "none",
+                          borderRadius: 10,
+                          padding: "9px 13px",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          fontWeight: 900,
+                        }}
+                      >
+                        تعديل
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => copyCompanyCampaignLink(campaign)}
+                        style={{
+                          background: "transparent",
+                          color: adminColors.brandStrong,
+                          border: `1px solid ${adminColors.inputBorder}`,
+                          borderRadius: 10,
+                          padding: "9px 13px",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          fontWeight: 800,
+                        }}
+                      >
+                        نسخ الرابط
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => archiveCompanyCampaign(campaignId)}
+                        style={{
+                          background: "rgba(127,29,29,0.18)",
+                          color: "#fecaca",
+                          border: "1px solid rgba(248,113,113,0.35)",
+                          borderRadius: 10,
+                          padding: "9px 13px",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          fontWeight: 800,
+                        }}
+                      >
+                        أرشفة
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
       ) : adminView === "companyApplications" ? (
         <div style={{ display: "grid", gap: "12px" }}>
           {companyApplications.length === 0 && !loading ? (
@@ -4752,7 +5527,7 @@ export default function AdminReviewPage() {
             </div>
           ) : (
             companyApplications.map((item) => (
-              <article key={item._id} style={cardStyle}>
+              <article key={item._id || item.id} style={cardStyle}>
                 <div
                   style={{
                     display: "flex",
@@ -4796,7 +5571,9 @@ export default function AdminReviewPage() {
                   {[
                     ["اسم الطالب", item.fullName || "غير مذكور"],
                     ["البريد", item.email || "غير مذكور"],
+                    ["الجوال", item.phone || "غير مذكور"],
                     ["التخصص", item.major || "غير مذكور"],
+                    ["الجامعة", item.university || "غير مذكورة"],
                     ["المدينة", item.city || "غير مذكورة"],
                   ].map(([label, value]) => (
                     <div
@@ -4845,6 +5622,55 @@ export default function AdminReviewPage() {
                   </p>
                 )}
 
+                {Array.isArray(item.customAnswers) &&
+                  item.customAnswers.some((answer) => answer.answer) && (
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 8,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <strong style={{ color: adminColors.brand }}>
+                        أسئلة البرنامج الإضافية
+                      </strong>
+                      {item.customAnswers
+                        .filter((answer) => answer.question || answer.answer)
+                        .map((answer, index) => (
+                          <div
+                            key={`${answer.question}-${index}`}
+                            style={{
+                              border: `1px solid ${adminColors.inputBorder}`,
+                              borderRadius: 12,
+                              padding: "10px 12px",
+                              background: "rgba(255,255,255,0.025)",
+                            }}
+                          >
+                            <p
+                              style={{
+                                margin: "0 0 6px",
+                                color: adminColors.brandStrong,
+                                fontSize: 12,
+                                fontWeight: 900,
+                              }}
+                            >
+                              {answer.question || "سؤال إضافي"}
+                            </p>
+                            <p
+                              style={{
+                                margin: 0,
+                                color: adminColors.text,
+                                lineHeight: 1.8,
+                                whiteSpace: "pre-wrap",
+                              }}
+                            >
+                              {answer.answer || "بدون إجابة"}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
                 <div
                   style={{
                     display: "flex",
@@ -4887,6 +5713,24 @@ export default function AdminReviewPage() {
                       ملف الأعمال
                     </a>
                   )}
+                  {(item.portfolioSnapshot?.cvUrl || item.cvUrl) && (
+                    <a
+                      href={item.portfolioSnapshot?.cvUrl || item.cvUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        color: adminColors.brandStrong,
+                        textDecoration: "none",
+                        border: `1px solid ${adminColors.inputBorder}`,
+                        borderRadius: 999,
+                        padding: "8px 11px",
+                        fontSize: 12,
+                        fontWeight: 900,
+                      }}
+                    >
+                      السيرة الذاتية
+                    </a>
+                  )}
                   {item.linkedinUrl && (
                     <a
                       href={item.linkedinUrl}
@@ -4907,6 +5751,80 @@ export default function AdminReviewPage() {
                   )}
                 </div>
 
+                <label
+                  style={{
+                    display: "grid",
+                    gap: 7,
+                    marginBottom: 12,
+                    color: adminColors.brand,
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  رسالة تظهر للطالب عند متابعة الطلب
+                  <textarea
+                    value={
+                      companyApplicationMessages[item._id || item.id] ??
+                      item.studentVisibleMessage ??
+                      ""
+                    }
+                    onChange={(e) =>
+                      setCompanyApplicationMessages((prev) => ({
+                        ...prev,
+                        [item._id || item.id]: e.target.value,
+                      }))
+                    }
+                    rows={2}
+                    placeholder="مثال: طلبك قيد المراجعة، وسنحدث الحالة عند وصول رد الجهة."
+                    style={{
+                      background: adminColors.inputBg,
+                      border: `1px solid ${adminColors.inputBorder}`,
+                      borderRadius: 10,
+                      color: adminColors.text,
+                      padding: "10px 11px",
+                      fontFamily: "inherit",
+                      resize: "vertical",
+                      lineHeight: 1.8,
+                    }}
+                  />
+                </label>
+
+                {Array.isArray(item.statusHistory) && item.statusHistory.length > 0 && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 7,
+                      border: `1px solid ${adminColors.inputBorder}`,
+                      borderRadius: 12,
+                      padding: "10px 12px",
+                      marginBottom: 12,
+                      background: "rgba(102,208,195,0.045)",
+                    }}
+                  >
+                    <strong style={{ color: adminColors.brand, fontSize: 13 }}>
+                      سجل الحالة
+                    </strong>
+                    {item.statusHistory.slice(-3).map((history, index) => (
+                      <p
+                        key={`${history.status}-${history.changedAt}-${index}`}
+                        style={{
+                          margin: 0,
+                          color: adminColors.textSoft,
+                          fontSize: 12,
+                          lineHeight: 1.8,
+                        }}
+                      >
+                        {history.statusLabel || companyApplicationStatusLabels[history.status] || history.status}
+                        {" - "}
+                        {formatAdminDateTime(history.changedAt)}
+                        {history.studentVisibleMessage
+                          ? `: ${history.studentVisibleMessage}`
+                          : ""}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
                 <div
                   style={{
                     display: "flex",
@@ -4917,9 +5835,15 @@ export default function AdminReviewPage() {
                   }}
                 >
                   <select
-                    value={item.status || "new"}
+                    value={item.status || "submitted"}
                     onChange={(e) =>
-                      updateCompanyApplicationStatus(item._id, e.target.value)
+                      updateCompanyApplicationStatus(
+                        item._id || item.id,
+                        e.target.value,
+                        companyApplicationMessages[item._id || item.id] ||
+                          item.studentVisibleMessage ||
+                          ""
+                      )
                     }
                     style={{
                       background: adminColors.inputBg,
@@ -4947,8 +5871,33 @@ export default function AdminReviewPage() {
                     }}
                   >
                     الحالة الحالية:{" "}
-                    {companyApplicationStatusLabels[item.status] || item.status || "جديد"}
+                    {companyApplicationStatusLabels[item.status] || item.status || "تم الإرسال"}
                   </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateCompanyApplicationStatus(
+                        item._id || item.id,
+                        item.status || "submitted",
+                        companyApplicationMessages[item._id || item.id] ||
+                          item.studentVisibleMessage ||
+                          ""
+                      )
+                    }
+                    style={{
+                      background: "rgba(102,208,195,0.12)",
+                      color: adminColors.brandStrong,
+                      border: `1px solid ${adminColors.inputBorder}`,
+                      borderRadius: "10px",
+                      padding: "9px 14px",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      fontWeight: 900,
+                    }}
+                  >
+                    حفظ الرسالة
+                  </button>
 
                   <button
                     type="button"

@@ -8,6 +8,7 @@ const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
 const ContactMessage = require('./models/ContactMessage');
 const CompanyApplication = require('./models/CompanyApplication');
+const CompanyApplicationCampaign = require('./models/CompanyApplicationCampaign');
 const Opportunity = require('./models/Opportunity');
 const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
@@ -28,7 +29,7 @@ const HOME_STATS_CACHE_TTL_MS = Number(
   process.env.HOME_STATS_CACHE_TTL_MS || 48 * 60 * 60 * 1000
 );
 const ADMIN_ANALYTICS_CACHE_TTL_MS = Number(
-  process.env.ADMIN_ANALYTICS_CACHE_TTL_MS || 7 * 24 * 60 * 60 * 1000
+  process.env.ADMIN_ANALYTICS_CACHE_TTL_MS || 10 * 60 * 1000
 );
 const readCache = new Map();
 let lastExpiredOpportunitySweepAt = 0;
@@ -344,6 +345,57 @@ const sanitizeCompanyApplicationPayload = (body = {}) => {
   };
 };
 
+const COMPANY_APPLICATION_STATUS_FLOW = [
+  "submitted",
+  "under_review",
+  "shortlisted",
+  "interview",
+  "accepted",
+  "rejected",
+  "withdrawn",
+];
+
+const COMPANY_APPLICATION_STATUS_LABELS = {
+  submitted: "تم الإرسال",
+  under_review: "قيد المراجعة",
+  shortlisted: "مرشح",
+  interview: "مرحلة المقابلة",
+  accepted: "مقبول",
+  rejected: "مرفوض",
+  withdrawn: "منسحب",
+  new: "تم الإرسال",
+  reviewed: "قيد المراجعة",
+};
+
+const normalizeCompanyApplicationStatusValue = (status = "") => {
+  const value = status.toString().trim();
+  if (value === "new") return "submitted";
+  if (value === "reviewed") return "under_review";
+  return COMPANY_APPLICATION_STATUS_FLOW.includes(value) ? value : "submitted";
+};
+
+const getCompanyApplicationStatusFilterValues = (status = "") => {
+  const normalized = normalizeCompanyApplicationStatusValue(status);
+  if (normalized === "submitted") return ["submitted", "new"];
+  if (normalized === "under_review") return ["under_review", "reviewed"];
+  return [normalized];
+};
+
+const sanitizeCompanyApplicationAnswerText = (value = "", maxLength = 1200) =>
+  value.toString().trim().slice(0, maxLength);
+
+const sanitizeCompanyApplicationCustomAnswers = (answers = []) => {
+  if (!Array.isArray(answers)) return [];
+
+  return answers
+    .map((item) => ({
+      question: sanitizeCompanyApplicationAnswerText(item?.question || "", 220),
+      answer: sanitizeCompanyApplicationAnswerText(item?.answer || "", 1200),
+    }))
+    .filter((item) => item.question || item.answer)
+    .slice(0, 8);
+};
+
 const escapeHtml = (value = "") =>
   value
     .toString()
@@ -446,6 +498,95 @@ const sendAccessCodeResetEmail = async ({
           <a href="${escapeHtml(resetUrl)}" style="display:inline-block;background:#7ddbcd;color:#07100e;text-decoration:none;font-weight:700;border-radius:12px;padding:12px 18px">تعيين رمز جديد</a>
           <p style="margin:16px 0 0;color:#64748b;font-size:13px">صلاحية الرابط: ${escapeHtml(expiresAtLabel)}</p>
           <p style="margin:10px 0 0;color:#64748b;font-size:12px">إذا لم تطلب إعادة التعيين، تجاهل هذه الرسالة وسيبقى حسابك كما هو.</p>
+        </div>
+      </div>
+    `,
+  };
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    return {
+      emailStatus: "failed",
+      emailError: errorBody.slice(0, 600) || `Resend status ${response.status}`,
+    };
+  }
+
+  return { emailStatus: "sent", emailError: "" };
+};
+
+const sendCompanyApplicationStatusEmail = async ({
+  email = "",
+  fullName = "",
+  organizationName = "",
+  opportunityTitle = "",
+  status = "",
+  studentVisibleMessage = "",
+  applicationsUrl = "",
+} = {}) => {
+  const cleanEmail = normalizeEmail(email);
+
+  if (!RESEND_API_KEY || typeof fetch !== "function" || !isValidEmail(cleanEmail)) {
+    return { emailStatus: "not_configured", emailError: "" };
+  }
+
+  const statusLabel =
+    COMPANY_APPLICATION_STATUS_LABELS[normalizeCompanyApplicationStatusValue(status)] ||
+    "تحديث جديد";
+  const message =
+    studentVisibleMessage ||
+    `تم تحديث حالة طلبك إلى: ${statusLabel}.`;
+  const safeApplicationsUrl = sanitizeExternalUrl(applicationsUrl || getFrontendUrl());
+
+  const payload = {
+    from: CONTACT_EMAIL_FROM,
+    to: [cleanEmail],
+    reply_to: CONTACT_EMAIL_TO,
+    subject: `تحديث طلبك في ${organizationName || "دربك"}`,
+    text: [
+      fullName ? `مرحبًا ${fullName}` : "مرحبًا",
+      "",
+      `تم تحديث حالة طلبك لدى ${organizationName || "جهة تدريبية"}.`,
+      opportunityTitle ? `البرنامج: ${opportunityTitle}` : "",
+      `الحالة: ${statusLabel}`,
+      "",
+      message,
+      "",
+      "يمكنك متابعة طلباتك من الرابط:",
+      safeApplicationsUrl,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    html: `
+      <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#111827;background:#f8fafc;padding:24px">
+        <div style="max-width:560px;margin:auto;background:#ffffff;border:1px solid #dbe7e3;border-radius:18px;padding:24px">
+          <p style="margin:0 0 8px;color:#0f766e;font-weight:700">دربك</p>
+          <h2 style="margin:0 0 12px;color:#111827">تحديث على طلبك</h2>
+          <p style="margin:0 0 8px;color:#334155">تم تحديث حالة طلبك لدى <strong>${escapeHtml(
+            organizationName || "جهة تدريبية"
+          )}</strong>.</p>
+          ${
+            opportunityTitle
+              ? `<p style="margin:0 0 8px;color:#334155">البرنامج: ${escapeHtml(
+                  opportunityTitle
+                )}</p>`
+              : ""
+          }
+          <p style="margin:0 0 14px;color:#0f766e;font-weight:700">الحالة: ${escapeHtml(
+            statusLabel
+          )}</p>
+          <p style="margin:0 0 16px;color:#334155">${escapeHtml(message)}</p>
+          <a href="${escapeHtml(
+            safeApplicationsUrl
+          )}" style="display:inline-block;background:#7ddbcd;color:#07100e;text-decoration:none;font-weight:700;border-radius:12px;padding:12px 18px">عرض طلباتي</a>
         </div>
       </div>
     `,
@@ -1742,6 +1883,344 @@ const serializePortfolio = (portfolio = {}, accessStatus = {}, req = null) => ({
   createdAt: portfolio.createdAt,
   updatedAt: portfolio.updatedAt,
 });
+
+const getCompanyApplicationCampaignFromRequest = (req = {}) => {
+  const source = {
+    ...(req.query || {}),
+    ...(req.body || {}),
+    companySlug: req.params?.companySlug || req.body?.companySlug || req.query?.companySlug,
+  };
+  const organizationName = (source.organizationName || source.company || "")
+    .toString()
+    .trim()
+    .slice(0, 180);
+  const opportunityTitle = (
+    source.opportunityTitle ||
+    source.role ||
+    source.title ||
+    source.opportunity ||
+    ""
+  )
+    .toString()
+    .trim()
+    .slice(0, 180);
+  const companySlug = normalizeCompanyApplicationSlug(
+    source.companySlug || organizationName || "company"
+  );
+  const opportunityId =
+    source.opportunityId && mongoose.Types.ObjectId.isValid(source.opportunityId)
+      ? source.opportunityId
+      : null;
+  const campaignId = (
+    source.campaignId ||
+    (opportunityId ? opportunityId.toString() : "") ||
+    companySlug
+  )
+    .toString()
+    .trim()
+    .slice(0, 160);
+
+  return {
+    companySlug,
+    campaignId,
+    organizationName: organizationName || companySlug.replace(/-/g, " "),
+    organizationLogoUrl: sanitizeExternalUrl(source.organizationLogoUrl || source.logoUrl || ""),
+    opportunityTitle: opportunityTitle || "التدريب التعاوني",
+    opportunityId,
+  };
+};
+
+const sanitizeCompanyApplicationCampaignQuestions = (questions = []) => {
+  const sourceQuestions = Array.isArray(questions)
+    ? questions
+    : questions
+        .toString()
+        .split("\n")
+        .map((question) => ({ question }));
+
+  return sourceQuestions
+    .map((item) => ({
+      question: (item.question || item.label || "")
+        .toString()
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 220),
+      required: item.required === true || item.required === "true",
+    }))
+    .filter((item) => item.question)
+    .slice(0, 8);
+};
+
+const sanitizeCompanyApplicationCampaignPayload = (body = {}) => {
+  const organizationName = (body.organizationName || body.company || "")
+    .toString()
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 180);
+  const opportunityTitle = (
+    body.opportunityTitle ||
+    body.title ||
+    body.programTitle ||
+    ""
+  )
+    .toString()
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 180);
+  const companySlug = normalizeCompanyApplicationSlug(
+    body.companySlug || organizationName
+  );
+  const slug = normalizeCompanyApplicationSlug(
+    body.slug || `${companySlug}-${opportunityTitle || "training"}`
+  );
+  const requestedStatus = (body.status || "draft").toString().trim();
+  const applicationDeadline = body.applicationDeadline
+    ? new Date(body.applicationDeadline)
+    : body.deadline
+    ? new Date(body.deadline)
+    : null;
+  const hasValidDeadline =
+    applicationDeadline && !Number.isNaN(applicationDeadline.getTime());
+  const cities = normalizeArrayField(body.cities);
+  const city = cities[0] || (body.city || "").toString().trim().slice(0, 120);
+  const majorCategories = normalizeArrayField(body.majorCategories);
+  const specialties = normalizeArrayField(body.specialties);
+  const appliesToAllSpecialties =
+    majorCategories.some(isGeneralSpecialtyValue) ||
+    specialties.some(isGeneralSpecialtyValue);
+
+  return {
+    slug,
+    companySlug,
+    organizationName,
+    organizationLogoUrl: sanitizeExternalUrl(
+      body.organizationLogoUrl || body.logoUrl || ""
+    ),
+    opportunityTitle,
+    city,
+    cities: cities.length ? cities : city ? [city] : [],
+    majorCategories: appliesToAllSpecialties ? [] : majorCategories,
+    specialties: appliesToAllSpecialties ? [] : specialties,
+    description: (body.description || "")
+      .toString()
+      .trim()
+      .replace(/\r\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .slice(0, 1600),
+    customQuestions: sanitizeCompanyApplicationCampaignQuestions(
+      body.customQuestions || body.questions || []
+    ),
+    status: ["draft", "open", "closed", "archived"].includes(requestedStatus)
+      ? requestedStatus
+      : "draft",
+    allowDuplicateApplications: Boolean(body.allowDuplicateApplications),
+    ...(hasValidDeadline
+      ? { applicationDeadline }
+      : { applicationDeadline: null }),
+  };
+};
+
+const isCompanyApplicationCampaignOpen = (campaign = {}) => {
+  if ((campaign.status || "draft") !== "open") return false;
+  if (!campaign.applicationDeadline) return true;
+
+  const deadlineDate = new Date(campaign.applicationDeadline);
+  if (Number.isNaN(deadlineDate.getTime())) return true;
+
+  return deadlineDate.getTime() >= Date.now();
+};
+
+const serializeCompanyApplicationCampaign = (campaign = {}, extra = {}) => {
+  const id = campaign._id?.toString?.() || campaign.id || "";
+  const isOpen = isCompanyApplicationCampaignOpen(campaign);
+
+  return {
+    id,
+    _id: id,
+    campaignId: id,
+    slug: campaign.slug || "",
+    companySlug: campaign.companySlug || campaign.slug || "",
+    organizationName: campaign.organizationName || "",
+    organizationLogoUrl: campaign.organizationLogoUrl || "",
+    opportunityTitle: campaign.opportunityTitle || "",
+    city: campaign.city || "",
+    cities: Array.isArray(campaign.cities) ? campaign.cities : [],
+    majorCategories: Array.isArray(campaign.majorCategories)
+      ? campaign.majorCategories
+      : [],
+    specialties: Array.isArray(campaign.specialties) ? campaign.specialties : [],
+    description: campaign.description || "",
+    customQuestions: Array.isArray(campaign.customQuestions)
+      ? campaign.customQuestions
+      : [],
+    applicationDeadline: campaign.applicationDeadline || null,
+    status: isOpen ? campaign.status || "open" : campaign.status || "draft",
+    isOpen,
+    allowDuplicateApplications: Boolean(campaign.allowDuplicateApplications),
+    applicationCount: Number(extra.applicationCount || 0),
+    applyUrl: `${getFrontendUrl()}/apply/${campaign.slug || campaign.companySlug || id}`,
+    createdAt: campaign.createdAt,
+    updatedAt: campaign.updatedAt,
+  };
+};
+
+const getCompanyApplicationCampaignBySlug = async (slug = "") => {
+  const normalizedSlug = normalizeCompanyApplicationSlug(slug);
+  return CompanyApplicationCampaign.findOne({
+    $or: [{ slug: normalizedSlug }, { companySlug: normalizedSlug }],
+    status: { $ne: "archived" },
+  }).lean();
+};
+
+const buildCompanyApplicationCampaignForApplication = (campaign = {}) => {
+  const serialized = serializeCompanyApplicationCampaign(campaign);
+
+  return {
+    campaignId: serialized.id || serialized.slug,
+    companySlug: serialized.companySlug || serialized.slug,
+    organizationName: serialized.organizationName,
+    organizationLogoUrl: serialized.organizationLogoUrl,
+    opportunityTitle: serialized.opportunityTitle,
+    opportunityId: null,
+  };
+};
+
+const getPortfolioEmailForApplication = (portfolio = {}, contact = "") => {
+  if (isValidEmail(portfolio.email || "")) return normalizeEmail(portfolio.email);
+  if (isValidEmail(contact || "")) return normalizeEmail(contact);
+  return "";
+};
+
+const getPortfolioPhoneForApplication = (portfolio = {}, contact = "") => {
+  if (portfolio.phone) return portfolio.phone.toString().trim();
+  if (isLegacyMobileSubscriberContact(contact)) return normalizeSaudiMobile(contact);
+  return "";
+};
+
+const buildCompanyApplicationPortfolioUrl = (portfolio = {}) =>
+  portfolio?.slug ? `${getFrontendUrl()}/p/${portfolio.slug}` : "";
+
+const buildCompanyApplicationSnapshot = ({ portfolio = {}, contact = "", req = null } = {}) => {
+  const cvAssetId = portfolio.cvAssetId || null;
+  const cvAssetUrl = req && cvAssetId ? getPortfolioAssetUrl(req, cvAssetId) : "";
+
+  return {
+    fullName: portfolio.fullName || "",
+    email: getPortfolioEmailForApplication(portfolio, contact),
+    contact: contact || portfolio.contact || "",
+    phone: getPortfolioPhoneForApplication(portfolio, contact),
+    major: portfolio.major || "",
+    university: portfolio.university || "",
+    city: portfolio.city || "",
+    degreeLevel: portfolio.degreeLevel || "",
+    readinessStatus: portfolio.readinessStatus || "",
+    bio: portfolio.bio || "",
+    skills: Array.isArray(portfolio.skills) ? portfolio.skills.slice(0, 20) : [],
+    projects: Array.isArray(portfolio.projects) ? portfolio.projects.slice(0, 12) : [],
+    certifications: Array.isArray(portfolio.certifications)
+      ? portfolio.certifications.slice(0, 12)
+      : [],
+    cvAssetId,
+    cvUrl: cvAssetUrl || portfolio.cvUrl || "",
+    linkedinUrl: portfolio.linkedinUrl || "",
+    portfolioUrl: buildCompanyApplicationPortfolioUrl(portfolio),
+    slug: portfolio.slug || "",
+  };
+};
+
+const getCompanyApplicationMissingPortfolioFields = (portfolio = null, contact = "") => {
+  const missing = [];
+
+  if (!portfolio) {
+    return [
+      { field: "portfolio", label: "إنشاء ملف الأعمال" },
+      { field: "fullName", label: "الاسم" },
+      { field: "email", label: "البريد الإلكتروني" },
+      { field: "major", label: "التخصص" },
+      { field: "university", label: "الجامعة" },
+      { field: "city", label: "المدينة" },
+      { field: "cv", label: "السيرة الذاتية" },
+    ];
+  }
+
+  if (!portfolio.fullName) missing.push({ field: "fullName", label: "الاسم" });
+  if (!getPortfolioEmailForApplication(portfolio, contact)) {
+    missing.push({ field: "email", label: "البريد الإلكتروني" });
+  }
+  if (!portfolio.major) missing.push({ field: "major", label: "التخصص" });
+  if (!portfolio.university) missing.push({ field: "university", label: "الجامعة" });
+  if (!portfolio.city) missing.push({ field: "city", label: "المدينة" });
+  if (!portfolio.cvAssetId && !portfolio.cvUrl) {
+    missing.push({ field: "cv", label: "السيرة الذاتية" });
+  }
+
+  return missing;
+};
+
+const serializeCompanyApplication = (application = {}) => {
+  const status = normalizeCompanyApplicationStatusValue(application.status);
+  const snapshot = application.portfolioSnapshot || {};
+  const submittedAt = application.submittedAt || application.createdAt;
+  const history = Array.isArray(application.statusHistory)
+    ? application.statusHistory
+    : [];
+  const safeHistory = history.length
+    ? history
+    : [
+        {
+          status,
+          changedAt: submittedAt,
+          changedBy: "system",
+          studentVisibleMessage:
+            application.studentVisibleMessage || "تم إرسال الطلب عبر دربك.",
+        },
+      ];
+
+  return {
+    id: application._id?.toString?.() || application.id || "",
+    _id: application._id?.toString?.() || application.id || "",
+    studentId: application.studentId?.toString?.() || application.studentId || "",
+    portfolioId: application.portfolioId?.toString?.() || application.portfolioId || "",
+    campaignId: application.campaignId || application.companySlug || "",
+    companySlug: application.companySlug || "",
+    organizationName: application.organizationName || "",
+    organizationLogoUrl: application.organizationLogoUrl || "",
+    opportunityTitle: application.opportunityTitle || "",
+    opportunityId:
+      application.opportunityId?.toString?.() || application.opportunityId || "",
+    fullName: application.fullName || snapshot.fullName || "",
+    email: application.email || snapshot.email || "",
+    phone: application.phone || snapshot.phone || "",
+    major: application.major || snapshot.major || "",
+    university: application.university || snapshot.university || "",
+    city: application.city || snapshot.city || "",
+    portfolioUrl: application.portfolioUrl || snapshot.portfolioUrl || "",
+    linkedinUrl: application.linkedinUrl || snapshot.linkedinUrl || "",
+    note: application.note || "",
+    customAnswers: Array.isArray(application.customAnswers)
+      ? application.customAnswers
+      : [],
+    consent: Boolean(application.consent),
+    status,
+    rawStatus: application.status || "",
+    statusLabel: COMPANY_APPLICATION_STATUS_LABELS[status] || status,
+    studentVisibleMessage: application.studentVisibleMessage || "",
+    statusHistory: safeHistory.map((item) => ({
+      status: normalizeCompanyApplicationStatusValue(item.status),
+      statusLabel:
+        COMPANY_APPLICATION_STATUS_LABELS[
+          normalizeCompanyApplicationStatusValue(item.status)
+        ] || item.status,
+      changedAt: item.changedAt,
+      changedBy: item.changedBy || "system",
+      studentVisibleMessage: item.studentVisibleMessage || "",
+    })),
+    portfolioSnapshot: snapshot,
+    submittedAt,
+    createdAt: application.createdAt,
+    updatedAt: application.updatedAt,
+  };
+};
 
 const getCityFilterValues = (city = "") => {
   if (!city) return [];
@@ -6850,7 +7329,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     const { days, rangeLabel, match } = getAnalyticsDateScope(req.query.days);
     const cleanMatch = getCleanAnalyticsMatch(match);
     const analyticsCacheKey = getRequestCacheKey(
-      "admin-analytics-light:v2",
+      "admin-analytics-light:v3",
       req.query
     );
     const cachedAnalytics = getReadCache(analyticsCacheKey);
@@ -6905,11 +7384,14 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     const subscriptionDateMatch = match.createdAt
       ? { updatedAt: match.createdAt }
       : {};
+    const visitorIdFilter = { visitorId: { $type: "string", $nin: [""] } };
 
     const [
       totalEvents,
       pageVisits,
       allTimePageVisits,
+      uniqueVisitors,
+      allTimeVisitors,
       topMajors,
       topCities,
       topSearches,
@@ -6931,6 +7413,15 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       AnalyticsEvent.countDocuments(cleanMatch),
       AnalyticsEvent.countDocuments({ ...match, eventName: "page_view" }),
       AnalyticsEvent.countDocuments({ eventName: "page_view" }),
+      AnalyticsEvent.distinct("visitorId", {
+        ...match,
+        eventName: "page_view",
+        ...visitorIdFilter,
+      }).then((visitors) => visitors.length),
+      AnalyticsEvent.distinct("visitorId", {
+        eventName: "page_view",
+        ...visitorIdFilter,
+      }).then((visitors) => visitors.length),
       getAnalyticsGroup(cleanMatch, "major", 12),
       getAnalyticsGroup(cleanMatch, "city", 12),
       getAnalyticsSearches(match, 12),
@@ -7107,8 +7598,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       totalEvents,
       pageVisits,
       allTimePageVisits,
-      uniqueVisitors: 0,
-      allTimeVisitors: 0,
+      uniqueVisitors,
+      allTimeVisitors,
       activeVisitors: 0,
       activeWindowMinutes: 0,
       averageSessionSeconds: 0,
@@ -7242,13 +7733,229 @@ app.post('/api/suggestions', async (req, res) => {
   }
 });
 
+app.get('/api/company-apply/:companySlug/context', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const campaignDocument = await getCompanyApplicationCampaignBySlug(
+      req.params.companySlug
+    );
+
+    if (!campaignDocument) {
+      return res.status(404).json({
+        error: "برنامج التقديم غير موجود أو لم يعد متاحًا.",
+      });
+    }
+
+    const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
+    const campaign = serializeCompanyApplicationCampaign(campaignDocument);
+
+    if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+      return res.json({
+        status: "ok",
+        requiresLogin: true,
+        canSubmit: false,
+        campaign,
+        missingFields: [],
+        portfolio: null,
+        snapshot: {},
+        publicUrl: "",
+        existingApplication: null,
+      });
+    }
+
+    const accessUser = await ensureAccessUser({ contact, accessCode });
+    const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
+    const missingFields = getCompanyApplicationMissingPortfolioFields(
+      portfolio,
+      contact
+    );
+    const snapshot = portfolio
+      ? buildCompanyApplicationSnapshot({ portfolio, contact, req })
+      : {
+          email: isValidEmail(contact) ? contact : "",
+          contact,
+          phone: getPortfolioPhoneForApplication({}, contact),
+        };
+    const existingApplication = accessUser
+      ? await CompanyApplication.findOne({
+          studentId: accessUser._id,
+          campaignId: campaign.campaignId,
+          status: { $nin: ["withdrawn"] },
+        })
+          .sort({ submittedAt: -1, createdAt: -1 })
+          .lean()
+      : null;
+
+    res.json({
+      status: "ok",
+      requiresLogin: false,
+      canSubmit: Boolean(portfolio && missingFields.length === 0),
+      missingFields,
+      campaign,
+      portfolio: portfolio
+        ? serializePortfolio(
+            portfolio,
+            await getPortfolioAccessStatus(portfolio),
+            req
+          )
+        : null,
+      snapshot,
+      publicUrl: portfolio ? buildCompanyApplicationPortfolioUrl(portfolio) : "",
+      existingApplication: existingApplication
+        ? serializeCompanyApplication(existingApplication)
+        : null,
+    });
+  } catch (err) {
+    console.error("❌ Company apply context error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/company-applications/me', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
+
+    if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+      return res.status(401).json({
+        requiresLogin: true,
+        error: "سجّل الدخول لعرض طلباتك.",
+      });
+    }
+
+    const accessUser = await ensureAccessUser({ contact, accessCode });
+    const email = isValidEmail(contact) ? normalizeEmail(contact) : "";
+    const filter = {
+      $or: [
+        { studentId: accessUser?._id },
+        { email },
+        { "portfolioSnapshot.contact": contact },
+        { contact },
+      ].filter((item) => Object.values(item).some(Boolean)),
+    };
+
+    const applications = await CompanyApplication.find(filter)
+      .sort({ submittedAt: -1, createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    res.json({
+      status: "ok",
+      data: applications.map(serializeCompanyApplication),
+    });
+  } catch (err) {
+    console.error("❌ Student company applications fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/company-applications', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const payload = sanitizeCompanyApplicationPayload(req.body || {});
+    const usePortfolio = Boolean(req.body?.usePortfolio);
+    let payload = sanitizeCompanyApplicationPayload(req.body || {});
+
+    if (usePortfolio) {
+      const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
+
+      if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+        return res.status(401).json({
+          requiresLogin: true,
+          error: "سجّل الدخول أولًا عشان نربط الطلب بحسابك وملفك المهني.",
+        });
+      }
+
+      const accessUser = await ensureAccessUser({ contact, accessCode });
+      const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
+      const missingFields = getCompanyApplicationMissingPortfolioFields(
+        portfolio,
+        contact
+      );
+
+      if (!portfolio || missingFields.length > 0) {
+        return res.status(400).json({
+          error: "أكمل ملفك المهني أولًا قبل إرسال الطلب.",
+          missingFields,
+        });
+      }
+
+      const campaignDocument = await getCompanyApplicationCampaignBySlug(
+        req.body?.campaignSlug || req.body?.companySlug || req.params?.companySlug
+      );
+
+      if (!campaignDocument) {
+        return res.status(404).json({
+          error: "برنامج التقديم غير موجود أو لم يعد متاحًا.",
+        });
+      }
+
+      if (!isCompanyApplicationCampaignOpen(campaignDocument)) {
+        return res.status(400).json({
+          error: "هذا البرنامج مغلق حاليًا ولا يستقبل طلبات جديدة.",
+        });
+      }
+
+      const campaign = buildCompanyApplicationCampaignForApplication(
+        campaignDocument
+      );
+
+      if (!campaignDocument.allowDuplicateApplications) {
+        const existingApplication = await CompanyApplication.findOne({
+          studentId: accessUser?._id,
+          campaignId: campaign.campaignId,
+          status: { $nin: ["withdrawn"] },
+        }).lean();
+
+        if (existingApplication) {
+          return res.status(409).json({
+            error: "سبق وأرسلت طلبك لهذا البرنامج. تقدر تتابع حالته من صفحة طلباتي.",
+            existingApplication: serializeCompanyApplication(existingApplication),
+          });
+        }
+      }
+
+      const snapshot = buildCompanyApplicationSnapshot({ portfolio, contact, req });
+      const customAnswers = sanitizeCompanyApplicationCustomAnswers(
+        req.body?.customAnswers || []
+      );
+
+      payload = {
+        ...payload,
+        ...campaign,
+        studentId: accessUser?._id || null,
+        portfolioId: portfolio._id,
+        fullName: snapshot.fullName,
+        email: snapshot.email,
+        phone: snapshot.phone,
+        major: snapshot.major,
+        university: snapshot.university,
+        city: snapshot.city,
+        portfolioUrl: snapshot.portfolioUrl,
+        linkedinUrl: snapshot.linkedinUrl,
+        customAnswers,
+        portfolioSnapshot: snapshot,
+        status: "submitted",
+        submittedAt: new Date(),
+        source: "darbak_portfolio_apply",
+        statusHistory: [
+          {
+            status: "submitted",
+            changedAt: new Date(),
+            changedBy: "student",
+            studentVisibleMessage: "تم إرسال طلبك عبر ملفك المهني في دربك.",
+          },
+        ],
+      };
+    }
 
     if (!payload.organizationName || payload.organizationName.length < 2) {
       return res.status(400).json({ error: "اسم الجهة غير واضح." });
@@ -7276,6 +7983,10 @@ app.post('/api/company-applications', async (req, res) => {
       payload.city,
       payload.note,
       payload.email,
+      ...(payload.customAnswers || []).flatMap((item) => [
+        item.question,
+        item.answer,
+      ]),
     ];
 
     if (fieldsToCheck.some(containsBlockedTerms)) {
@@ -7288,11 +7999,7 @@ app.post('/api/company-applications', async (req, res) => {
 
     res.json({
       status: "ok",
-      data: {
-        id: application._id,
-        organizationName: application.organizationName,
-        status: application.status,
-      },
+      data: serializeCompanyApplication(application.toObject()),
     });
   } catch (err) {
     console.error("❌ Error saving company application:", err);
@@ -8631,12 +9338,12 @@ app.get('/api/admin/company-applications', requireAdmin, async (req, res) => {
     }
 
     const status =
-      typeof req.query.status === "string" ? req.query.status : "new";
+      typeof req.query.status === "string" ? req.query.status : "submitted";
     const search = normalizeSearchText(req.query.search || "");
     const filter = {};
 
-    if (["new", "reviewed", "shortlisted", "rejected"].includes(status)) {
-      filter.status = status;
+    if (status && status !== "all") {
+      filter.status = { $in: getCompanyApplicationStatusFilterValues(status) };
     }
 
     if (search) {
@@ -8647,7 +9354,10 @@ app.get('/api/admin/company-applications', requireAdmin, async (req, res) => {
         { fullName: regex },
         { email: regex },
         { major: regex },
+        { university: regex },
         { city: regex },
+        { "portfolioSnapshot.university": regex },
+        { "portfolioSnapshot.major": regex },
       ];
     }
 
@@ -8656,9 +9366,227 @@ app.get('/api/admin/company-applications', requireAdmin, async (req, res) => {
       .limit(200)
       .lean();
 
-    res.json({ data: applications });
+    res.json({ data: applications.map(serializeCompanyApplication) });
   } catch (err) {
     console.error("❌ Admin company applications fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/company-application-campaigns', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const status = ["draft", "open", "closed", "archived"].includes(
+      req.query.status
+    )
+      ? req.query.status
+      : "";
+    const search = (req.query.search || "").toString().trim();
+    const andFilters = [];
+
+    if (status) {
+      andFilters.push({ status });
+    } else {
+      andFilters.push({ status: { $ne: "archived" } });
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(escapeRegex(search), "i");
+      andFilters.push({
+        $or: [
+          { organizationName: searchRegex },
+          { opportunityTitle: searchRegex },
+          { slug: searchRegex },
+          { city: searchRegex },
+          { cities: searchRegex },
+          { majorCategories: searchRegex },
+          { specialties: searchRegex },
+        ],
+      });
+    }
+
+    const filter = andFilters.length ? { $and: andFilters } : {};
+    const campaigns = await CompanyApplicationCampaign.find(filter)
+      .sort({ status: 1, applicationDeadline: 1, updatedAt: -1 })
+      .limit(120)
+      .lean();
+    const campaignIds = campaigns
+      .map((campaign) => campaign._id?.toString?.())
+      .filter(Boolean);
+    const applicationCounts = campaignIds.length
+      ? await CompanyApplication.aggregate([
+          { $match: { campaignId: { $in: campaignIds } } },
+          { $group: { _id: "$campaignId", count: { $sum: 1 } } },
+        ])
+      : [];
+    const countsByCampaignId = new Map(
+      applicationCounts.map((item) => [item._id, item.count])
+    );
+
+    res.json({
+      data: campaigns.map((campaign) =>
+        serializeCompanyApplicationCampaign(campaign, {
+          applicationCount: countsByCampaignId.get(campaign._id.toString()) || 0,
+        })
+      ),
+    });
+  } catch (err) {
+    console.error("❌ Admin company application campaigns fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/company-application-campaigns', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const payload = sanitizeCompanyApplicationCampaignPayload(req.body || {});
+
+    if (!payload.organizationName || !payload.opportunityTitle) {
+      return res.status(400).json({
+        error: "اسم الجهة واسم البرنامج مطلوبة.",
+      });
+    }
+
+    const fieldsToCheck = [
+      payload.organizationName,
+      payload.opportunityTitle,
+      payload.city,
+      payload.description,
+      ...payload.cities,
+      ...payload.majorCategories,
+      ...payload.specialties,
+      ...payload.customQuestions.map((question) => question.question),
+    ];
+
+    if (fieldsToCheck.some(containsBlockedTerms)) {
+      return res.status(400).json({
+        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة.",
+      });
+    }
+
+    const existingSlug = await CompanyApplicationCampaign.exists({
+      slug: payload.slug,
+    });
+
+    if (existingSlug) {
+      return res.status(409).json({
+        error: "رابط البرنامج مستخدم مسبقًا. عدّلي الرابط المختصر للبرنامج.",
+      });
+    }
+
+    const campaign = await CompanyApplicationCampaign.create({
+      ...payload,
+      createdBy: "admin",
+      updatedBy: "admin",
+    });
+
+    res.json(serializeCompanyApplicationCampaign(campaign.toObject()));
+  } catch (err) {
+    console.error("❌ Admin company application campaign create error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/company-application-campaigns/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid campaign id" });
+    }
+
+    const payload = sanitizeCompanyApplicationCampaignPayload(req.body || {});
+
+    if (!payload.organizationName || !payload.opportunityTitle) {
+      return res.status(400).json({
+        error: "اسم الجهة واسم البرنامج مطلوبة.",
+      });
+    }
+
+    const fieldsToCheck = [
+      payload.organizationName,
+      payload.opportunityTitle,
+      payload.city,
+      payload.description,
+      ...payload.cities,
+      ...payload.majorCategories,
+      ...payload.specialties,
+      ...payload.customQuestions.map((question) => question.question),
+    ];
+
+    if (fieldsToCheck.some(containsBlockedTerms)) {
+      return res.status(400).json({
+        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة.",
+      });
+    }
+
+    const existingSlug = await CompanyApplicationCampaign.findOne({
+      slug: payload.slug,
+      _id: { $ne: req.params.id },
+    }).lean();
+
+    if (existingSlug) {
+      return res.status(409).json({
+        error: "رابط البرنامج مستخدم مسبقًا. عدّلي الرابط المختصر للبرنامج.",
+      });
+    }
+
+    const updated = await CompanyApplicationCampaign.findByIdAndUpdate(
+      req.params.id,
+      { $set: { ...payload, updatedBy: "admin" } },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    const applicationCount = await CompanyApplication.countDocuments({
+      campaignId: updated._id.toString(),
+    });
+
+    res.json(
+      serializeCompanyApplicationCampaign(updated, {
+        applicationCount,
+      })
+    );
+  } catch (err) {
+    console.error("❌ Admin company application campaign edit error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/company-application-campaigns/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid campaign id" });
+    }
+
+    const updated = await CompanyApplicationCampaign.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: "archived", updatedBy: "admin" } },
+      { new: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    res.json({ success: true, id: req.params.id });
+  } catch (err) {
+    console.error("❌ Admin company application campaign archive error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -10292,24 +11220,60 @@ app.patch('/api/admin/company-applications/:id/status', requireAdmin, async (req
       return res.status(400).json({ error: "Invalid application id" });
     }
 
-    const status = (req.body.status || "").toString();
-    const allowedStatuses = ["new", "reviewed", "shortlisted", "rejected"];
+    const status = normalizeCompanyApplicationStatusValue(req.body.status || "");
+    const allowedStatuses = COMPANY_APPLICATION_STATUS_FLOW;
+    const studentVisibleMessage = (req.body.studentVisibleMessage || "")
+      .toString()
+      .trim()
+      .slice(0, 500);
 
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ error: "Invalid application status" });
     }
 
-    const updated = await CompanyApplication.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    ).lean();
+    const existing = await CompanyApplication.findById(req.params.id).lean();
 
-    if (!updated) {
+    if (!existing) {
       return res.status(404).json({ error: "Company application not found" });
     }
 
-    res.json({ success: true, data: updated });
+    const updated = await CompanyApplication.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          status,
+          studentVisibleMessage,
+        },
+        $push: {
+          statusHistory: {
+            status,
+            changedAt: new Date(),
+            changedBy: "admin",
+            studentVisibleMessage,
+          },
+        },
+      },
+      { new: true }
+    ).lean();
+
+    const statusChanged =
+      normalizeCompanyApplicationStatusValue(existing.status) !== status;
+
+    if (statusChanged && isValidEmail(updated.email || "")) {
+      sendCompanyApplicationStatusEmail({
+        email: updated.email,
+        fullName: updated.fullName,
+        organizationName: updated.organizationName,
+        opportunityTitle: updated.opportunityTitle,
+        status,
+        studentVisibleMessage,
+        applicationsUrl: `${getFrontendUrl()}/applications`,
+      }).catch((emailErr) =>
+        console.error("❌ Company application status email error:", emailErr)
+      );
+    }
+
+    res.json({ success: true, data: serializeCompanyApplication(updated) });
   } catch (err) {
     console.error("❌ Admin company application status update error:", err);
     res.status(500).json({ error: err.message });
