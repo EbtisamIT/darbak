@@ -3,6 +3,20 @@ import API_BASE_URL from "../config/api";
 const VISITOR_ID_KEY = "darbak_visitor_id_v1";
 const SESSION_ID_KEY = "darbak_session_id_v1";
 const LOCAL_DEDUPE_KEY = "darbak_analytics_dedupe_v1";
+const ANALYTICS_BATCH_SIZE = 8;
+const ANALYTICS_FLUSH_DELAY_MS = 1800;
+const URGENT_ANALYTICS_EVENTS = new Set([
+  "checkout_started",
+  "premium_checkout_started",
+  "subscription_completed",
+  "premium_plan_selected",
+  "premium_cta_clicked",
+  "opportunity_apply_clicked",
+]);
+
+let analyticsQueue = [];
+let analyticsFlushTimer = null;
+let analyticsFlushListenersRegistered = false;
 
 export const getVisitorId = () => {
   if (typeof window === "undefined") return "";
@@ -47,6 +61,80 @@ const getSessionId = () => {
   }
 };
 
+const sendAnalyticsEvents = (events = [], keepalive = false) => {
+  const safeEvents = events.filter(Boolean);
+  if (safeEvents.length === 0) return;
+
+  fetch(`${API_BASE_URL}/api/analytics-events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ events: safeEvents }),
+    keepalive,
+  }).catch(() => {
+    // Analytics should never interrupt the user experience.
+  });
+};
+
+const flushAnalyticsEvents = (keepalive = false) => {
+  if (analyticsFlushTimer) {
+    window.clearTimeout(analyticsFlushTimer);
+    analyticsFlushTimer = null;
+  }
+
+  if (analyticsQueue.length === 0) return;
+
+  const queuedEvents = analyticsQueue;
+  analyticsQueue = [];
+
+  for (let index = 0; index < queuedEvents.length; index += ANALYTICS_BATCH_SIZE) {
+    sendAnalyticsEvents(
+      queuedEvents.slice(index, index + ANALYTICS_BATCH_SIZE),
+      keepalive
+    );
+  }
+};
+
+const registerAnalyticsFlushListeners = () => {
+  if (
+    analyticsFlushListenersRegistered ||
+    typeof window === "undefined" ||
+    typeof document === "undefined"
+  ) {
+    return;
+  }
+
+  analyticsFlushListenersRegistered = true;
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      flushAnalyticsEvents(true);
+    }
+  });
+
+  window.addEventListener("pagehide", () => {
+    flushAnalyticsEvents(true);
+  });
+};
+
+const queueAnalyticsEvent = (eventName, body) => {
+  registerAnalyticsFlushListeners();
+  analyticsQueue.push(body);
+
+  if (
+    analyticsQueue.length >= ANALYTICS_BATCH_SIZE ||
+    URGENT_ANALYTICS_EVENTS.has(eventName)
+  ) {
+    flushAnalyticsEvents(URGENT_ANALYTICS_EVENTS.has(eventName));
+    return;
+  }
+
+  if (!analyticsFlushTimer) {
+    analyticsFlushTimer = window.setTimeout(() => {
+      flushAnalyticsEvents(false);
+    }, ANALYTICS_FLUSH_DELAY_MS);
+  }
+};
+
 export const trackEvent = (eventName, payload = {}) => {
   if (!eventName || typeof window === "undefined") return;
   const sessionId = getSessionId();
@@ -63,14 +151,7 @@ export const trackEvent = (eventName, payload = {}) => {
     },
   };
 
-  fetch(`${API_BASE_URL}/api/analytics-events`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    keepalive: true,
-  }).catch(() => {
-    // Analytics should never interrupt the user experience.
-  });
+  queueAnalyticsEvent(eventName, body);
 };
 
 const getDedupeStorageKey = (eventName, dedupeKey = "default") =>

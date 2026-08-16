@@ -24,7 +24,14 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const DEFAULT_EXPERIENCES_LIMIT = 36;
 const MAX_EXPERIENCES_LIMIT = 60;
-const READ_CACHE_TTL_MS = Number(process.env.READ_CACHE_TTL_MS || 45 * 1000);
+const READ_CACHE_TTL_MS = Number(process.env.READ_CACHE_TTL_MS || 3 * 60 * 1000);
+const READ_CACHE_MAX_ENTRIES = Number(process.env.READ_CACHE_MAX_ENTRIES || 600);
+const INTERACTION_STATS_CACHE_TTL_MS = Number(
+  process.env.INTERACTION_STATS_CACHE_TTL_MS || 30 * 60 * 1000
+);
+const EXPIRED_OPPORTUNITY_SWEEP_INTERVAL_MS = Number(
+  process.env.EXPIRED_OPPORTUNITY_SWEEP_INTERVAL_MS || 15 * 60 * 1000
+);
 const HOME_STATS_CACHE_TTL_MS = Number(
   process.env.HOME_STATS_CACHE_TTL_MS || 48 * 60 * 60 * 1000
 );
@@ -130,6 +137,10 @@ const getReadCache = (key) => {
 
 const setReadCache = (key, value, ttlMs = READ_CACHE_TTL_MS) => {
   if (!key || ttlMs <= 0) return value;
+  if (readCache.size >= READ_CACHE_MAX_ENTRIES && !readCache.has(key)) {
+    const oldestKey = readCache.keys().next().value;
+    if (oldestKey) readCache.delete(oldestKey);
+  }
   readCache.set(key, {
     value,
     expiresAt: Date.now() + ttlMs,
@@ -1590,7 +1601,9 @@ const getExpiredOpportunityCutoff = () => {
 const markExpiredOpportunities = async () => {
   if (mongoose.connection.readyState !== 1) return;
   const now = Date.now();
-  if (now - lastExpiredOpportunitySweepAt < 60 * 1000) return;
+  if (now - lastExpiredOpportunitySweepAt < EXPIRED_OPPORTUNITY_SWEEP_INTERVAL_MS) {
+    return;
+  }
   lastExpiredOpportunitySweepAt = now;
 
   await Opportunity.updateMany(
@@ -2993,7 +3006,7 @@ const getItemInteractionStats = async (itemType, ids = []) => {
     return statsMap;
   }, new Map());
 
-  return setReadCache(cacheKey, stats);
+  return setReadCache(cacheKey, stats, INTERACTION_STATS_CACHE_TTL_MS);
 };
 
 const getOrganizationInteractionStats = async (items = [], itemType = "") => {
@@ -3057,7 +3070,7 @@ const getOrganizationInteractionStats = async (items = [], itemType = "") => {
     return statsMap;
   }, new Map());
 
-  return setReadCache(cacheKey, stats);
+  return setReadCache(cacheKey, stats, INTERACTION_STATS_CACHE_TTL_MS);
 };
 
 const attachItemInteractionCounts = async (itemType, items = []) => {
@@ -3300,6 +3313,248 @@ const getSimpleEventAnalytics = (match, eventNames = []) =>
     },
     { $sort: { count: -1, label: 1 } },
   ]);
+
+const ANALYTICS_DAY_TIMEZONE = "Asia/Riyadh";
+const buildAnalyticsDayProjection = (dateField = "$createdAt") => ({
+  $dateToString: {
+    format: "%Y-%m-%d",
+    date: dateField,
+    timezone: ANALYTICS_DAY_TIMEZONE,
+  },
+});
+
+const buildDailyPremiumFunnel = async (match = {}) => {
+  const dailyBaseEvents = await AnalyticsEvent.aggregate([
+    {
+      $match: {
+        ...match,
+        eventName: {
+          $in: ["page_view", "premium_gate_opened", "premium_plan_selected"],
+        },
+      },
+    },
+    {
+      $project: {
+        eventName: 1,
+        visitorId: 1,
+        day: buildAnalyticsDayProjection(),
+      },
+    },
+    {
+      $group: {
+        _id: { day: "$day", eventName: "$eventName" },
+        count: { $sum: 1 },
+        uniqueVisitorIds: { $addToSet: "$visitorId" },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        day: "$_id.day",
+        eventName: "$_id.eventName",
+        count: 1,
+        uniqueVisitors: {
+          $size: {
+            $filter: {
+              input: "$uniqueVisitorIds",
+              as: "visitorId",
+              cond: {
+                $and: [
+                  { $ne: ["$$visitorId", null] },
+                  { $ne: ["$$visitorId", ""] },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  ]);
+
+  const dailyCheckoutStarted = await AnalyticsEvent.aggregate([
+    {
+      $match: {
+        ...match,
+        eventName: { $in: ["checkout_started", "premium_checkout_started"] },
+        "metadata.providerPaymentId": { $exists: true, $ne: "" },
+      },
+    },
+    {
+      $project: {
+        visitorId: 1,
+        providerPaymentId: "$metadata.providerPaymentId",
+        day: buildAnalyticsDayProjection(),
+      },
+    },
+    {
+      $group: {
+        _id: { day: "$day", providerPaymentId: "$providerPaymentId" },
+        visitorId: { $first: "$visitorId" },
+      },
+    },
+    {
+      $group: {
+        _id: "$_id.day",
+        count: { $sum: 1 },
+        uniqueVisitorIds: { $addToSet: "$visitorId" },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        day: "$_id",
+        count: 1,
+        uniqueVisitors: {
+          $size: {
+            $filter: {
+              input: "$uniqueVisitorIds",
+              as: "visitorId",
+              cond: {
+                $and: [
+                  { $ne: ["$$visitorId", null] },
+                  { $ne: ["$$visitorId", ""] },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  ]);
+
+  const dailySubscriptionCompleted = await AnalyticsEvent.aggregate([
+    {
+      $match: {
+        ...match,
+        eventName: "subscription_completed",
+        "metadata.providerPaymentId": { $exists: true, $ne: "" },
+      },
+    },
+    {
+      $project: {
+        visitorId: 1,
+        providerPaymentId: "$metadata.providerPaymentId",
+        day: buildAnalyticsDayProjection(),
+      },
+    },
+    {
+      $group: {
+        _id: { day: "$day", providerPaymentId: "$providerPaymentId" },
+        visitorId: { $first: "$visitorId" },
+      },
+    },
+    {
+      $group: {
+        _id: "$_id.day",
+        count: { $sum: 1 },
+        uniqueVisitorIds: { $addToSet: "$visitorId" },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        day: "$_id",
+        count: 1,
+        uniqueVisitors: {
+          $size: {
+            $filter: {
+              input: "$uniqueVisitorIds",
+              as: "visitorId",
+              cond: {
+                $and: [
+                  { $ne: ["$$visitorId", null] },
+                  { $ne: ["$$visitorId", ""] },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  ]);
+
+  const subscriptionDateMatch = match.createdAt
+    ? { updatedAt: match.createdAt }
+    : {};
+  const dailyPaidSubscriptions = await Subscription.aggregate([
+    {
+      $match: {
+        ...subscriptionDateMatch,
+        provider: "moyasar",
+        status: "active",
+        providerPaymentId: { $nin: [null, ""] },
+      },
+    },
+    {
+      $project: {
+        day: buildAnalyticsDayProjection("$updatedAt"),
+      },
+    },
+    {
+      $group: {
+        _id: "$day",
+        count: { $sum: 1 },
+      },
+    },
+    { $project: { _id: 0, day: "$_id", count: 1 } },
+  ]);
+
+  const rowMap = new Map();
+  const ensureRow = (day) => {
+    if (!rowMap.has(day)) {
+      rowMap.set(day, {
+        date: day,
+        visits: 0,
+        visitsVisitors: 0,
+        subscriptionWindowShown: 0,
+        subscriptionWindowVisitors: 0,
+        paymentPageClicks: 0,
+        paymentPageClickVisitors: 0,
+        checkoutStarted: 0,
+        checkoutStartedVisitors: 0,
+        paymentSuccessful: 0,
+        paymentSuccessfulVisitors: 0,
+      });
+    }
+
+    return rowMap.get(day);
+  };
+
+  dailyBaseEvents.forEach((item) => {
+    const row = ensureRow(item.day);
+    if (item.eventName === "page_view") {
+      row.visits = item.count;
+      row.visitsVisitors = item.uniqueVisitors;
+    } else if (item.eventName === "premium_gate_opened") {
+      row.subscriptionWindowShown = item.count;
+      row.subscriptionWindowVisitors = item.uniqueVisitors;
+    } else if (item.eventName === "premium_plan_selected") {
+      row.paymentPageClicks = item.count;
+      row.paymentPageClickVisitors = item.uniqueVisitors;
+    }
+  });
+
+  dailyCheckoutStarted.forEach((item) => {
+    const row = ensureRow(item.day);
+    row.checkoutStarted = item.count;
+    row.checkoutStartedVisitors = item.uniqueVisitors;
+  });
+
+  dailySubscriptionCompleted.forEach((item) => {
+    const row = ensureRow(item.day);
+    row.paymentSuccessful = item.count;
+    row.paymentSuccessfulVisitors = item.uniqueVisitors;
+  });
+
+  dailyPaidSubscriptions.forEach((item) => {
+    const row = ensureRow(item.day);
+    row.paymentSuccessful = Math.max(row.paymentSuccessful, item.count);
+  });
+
+  return Array.from(rowMap.values())
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 120);
+};
 
 const getPortfolioFieldGroup = (field, limit = 10) =>
   Portfolio.aggregate([
@@ -5190,7 +5445,14 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 // ===== MongoDB Connection =====
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI, {
+  maxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE || 20),
+  minPoolSize: Number(process.env.MONGO_MIN_POOL_SIZE || 2),
+  serverSelectionTimeoutMS: Number(
+    process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 10000
+  ),
+  socketTimeoutMS: Number(process.env.MONGO_SOCKET_TIMEOUT_MS || 45000),
+})
   .then(() => {
     console.log("✅ MongoDB connected");
   })
@@ -5302,31 +5564,49 @@ app.post('/api/analytics-events', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const eventName = sanitizeAnalyticsText(req.body.eventName, 80);
-    if (!eventName) {
+    const rawEvents = Array.isArray(req.body?.events)
+      ? req.body.events.slice(0, 30)
+      : [req.body];
+    const events = rawEvents
+      .map((rawEvent = {}) => {
+        const eventName = sanitizeAnalyticsText(rawEvent.eventName, 80);
+        if (!eventName) return null;
+
+        return {
+          eventName,
+          visitorId: sanitizeAnalyticsText(rawEvent.visitorId, 90),
+          page: sanitizeAnalyticsText(rawEvent.page, 160),
+          deviceType: ["mobile", "tablet", "desktop", "unknown"].includes(
+            rawEvent.deviceType
+          )
+            ? rawEvent.deviceType
+            : "unknown",
+          major: sanitizeAnalyticsText(rawEvent.major, 120),
+          majorCategory: sanitizeAnalyticsText(rawEvent.majorCategory, 120),
+          city: sanitizeAnalyticsText(rawEvent.city, 80),
+          searchQuery: sanitizeAnalyticsText(rawEvent.searchQuery, 180),
+          resultsCount: Number.isFinite(Number(rawEvent.resultsCount))
+            ? Number(rawEvent.resultsCount)
+            : 0,
+          metadata: sanitizeAnalyticsMetadata(rawEvent.metadata),
+        };
+      })
+      .filter(Boolean);
+
+    if (events.length === 0) {
       return res.status(400).json({ error: "eventName is required" });
     }
 
-    const event = await AnalyticsEvent.create({
-      eventName,
-      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
-      page: sanitizeAnalyticsText(req.body.page, 160),
-      deviceType: ["mobile", "tablet", "desktop", "unknown"].includes(
-        req.body.deviceType
-      )
-        ? req.body.deviceType
-        : "unknown",
-      major: sanitizeAnalyticsText(req.body.major, 120),
-      majorCategory: sanitizeAnalyticsText(req.body.majorCategory, 120),
-      city: sanitizeAnalyticsText(req.body.city, 80),
-      searchQuery: sanitizeAnalyticsText(req.body.searchQuery, 180),
-      resultsCount: Number.isFinite(Number(req.body.resultsCount))
-        ? Number(req.body.resultsCount)
-        : 0,
-      metadata: sanitizeAnalyticsMetadata(req.body.metadata),
-    });
+    const insertedEvents =
+      events.length === 1
+        ? [await AnalyticsEvent.create(events[0])]
+        : await AnalyticsEvent.insertMany(events, { ordered: false });
 
-    res.json({ ok: true, id: event._id });
+    res.json({
+      ok: true,
+      count: insertedEvents.length,
+      id: insertedEvents[0]?._id,
+    });
   } catch (err) {
     console.error("❌ Analytics event error:", err);
     res.status(500).json({ error: err.message });
@@ -7329,7 +7609,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     const { days, rangeLabel, match } = getAnalyticsDateScope(req.query.days);
     const cleanMatch = getCleanAnalyticsMatch(match);
     const analyticsCacheKey = getRequestCacheKey(
-      "admin-analytics-light:v3",
+      "admin-analytics-light:v4",
       req.query
     );
     const cachedAnalytics = getReadCache(analyticsCacheKey);
@@ -7407,6 +7687,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       premiumEventCounts,
       topPremiumPlans,
       paidMoyasarSubscriptions,
+      dailyPremiumFunnel,
       topSharedExperiences,
       topSharedOpportunities,
     ] = await Promise.all([
@@ -7509,6 +7790,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         status: "active",
         providerPaymentId: { $nin: [null, ""] },
       }),
+      buildDailyPremiumFunnel(match),
       AnalyticsEvent.aggregate([
         {
           $match: {
@@ -7650,6 +7932,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         adminAccessUsers: 0,
       },
       topPremiumPlans,
+      dailyPremiumFunnel,
       shareMenuOpens: 0,
       shareActions: 0,
       experienceShareMenuOpens: 0,
@@ -8943,7 +9226,9 @@ app.get('/api/experiences', async (req, res) => {
 
     experiences = await attachItemInteractionCounts("experience", experiences);
 
-    console.log("✅ Data fetched:", experiences.length);
+    if (process.env.DEBUG_API === "true") {
+      console.log("✅ Experiences fetched:", experiences.length);
+    }
 
     const payload = {
       data: experiences,
