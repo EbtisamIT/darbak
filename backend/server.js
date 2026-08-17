@@ -7600,6 +7600,23 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/resume-agent/env-check', requireAdmin, (req, res) => {
+  const openAiKey = (process.env.OPENAI_API_KEY || "").trim();
+  const model = (process.env.OPENAI_RESUME_AGENT_MODEL || "").trim();
+  const maxTurns = (process.env.RESUME_AGENT_MAX_TURNS || "").trim();
+
+  res.json({
+    openAiKeyConfigured: Boolean(openAiKey),
+    openAiKeyLooksValid: /^sk-/.test(openAiKey),
+    openAiKeyPrefix: openAiKey ? openAiKey.slice(0, 7) : "",
+    modelConfigured: Boolean(model),
+    model: model || "gpt-5.6-terra",
+    maxTurnsConfigured: Boolean(maxTurns),
+    maxTurns: maxTurns || "6",
+    nodeVersion: process.version,
+  });
+});
+
 app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
