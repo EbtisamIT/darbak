@@ -414,7 +414,7 @@ const tailorResumeToOpportunity = async ({ resume, opportunity, language, userKe
   });
 
 const translateResumeToEnglish = async ({ resume, userKey }) =>
-  createJsonObjectResponse({
+  createStructuredResponse({
     // Keep translation on the model already verified for the Resume Agent unless a
     // dedicated lightweight model was intentionally configured.
     model:
@@ -427,7 +427,7 @@ const translateResumeToEnglish = async ({ resume, userKey }) =>
     // Translation can be longer than the Arabic source; leave enough room for a
     // full two-page resume rather than returning an incomplete response.
     maxOutputTokens: 12000,
-    input: `أعد النتيجة بصيغة JSON صحيحة فقط. ترجم السيرة التالية إلى الإنجليزية المهنية المناسبة للتدريب التعاوني فقط.
+    input: `ترجم السيرة التالية إلى الإنجليزية المهنية المناسبة للتدريب التعاوني فقط.
 
 قواعد صارمة:
 - لا تضف أي خبرة أو مهارة أو رقم أو جهة غير موجودة.
