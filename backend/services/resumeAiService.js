@@ -353,6 +353,7 @@ const createJsonObjectResponse = async ({
       model,
       instructions: `${instructions}\n\nأعد JSON فقط دون Markdown أو شرح خارج JSON. يجب أن يحتوي الناتج على جميع حقول السيرة المطلوبة، واستخدم قيمًا فارغة أو مصفوفات فارغة عند غياب البيانات.`,
       input,
+      text: { format: { type: "json_object" } },
       max_output_tokens: maxOutputTokens,
       store: false,
       ...(safetyIdentifier ? { safety_identifier: safetyIdentifier } : {}),
