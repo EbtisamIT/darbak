@@ -48,6 +48,29 @@ const userSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    planKey: {
+      type: String,
+      default: "",
+      trim: true,
+      index: true,
+    },
+    entitlements: {
+      type: [String],
+      default: [],
+    },
+    aiResumeUsageCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    aiResumeUsageLimit: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    aiResumeUsageResetAt: {
+      type: Date,
+    },
     lastViewedDate: {
       type: String,
       default: "",

@@ -4,14 +4,17 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node tests/subscriptionPlans.test.js && node tests/resumeAgentValidation.test.js",
     "start": "node server.js"
   },
   "dependencies": {
+    "@openai/agents": "^0.16.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
-    "mongoose": "^8.13.2"
+    "mongoose": "^8.13.2",
+    "openai": "^6.9.1",
+    "zod": "^4.4.3"
   },
   "keywords": [],
   "author": "",

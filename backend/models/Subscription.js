@@ -26,6 +26,16 @@ const subscriptionSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    planKey: {
+      type: String,
+      default: "darbak_plus",
+      trim: true,
+      index: true,
+    },
+    entitlements: {
+      type: [String],
+      default: ["darbak_plus"],
+    },
     priceSar: {
       type: Number,
       default: 5,
@@ -33,6 +43,9 @@ const subscriptionSchema = new mongoose.Schema(
     durationDays: {
       type: Number,
       default: 30,
+    },
+    startsAt: {
+      type: Date,
     },
     expiresAt: {
       type: Date,
@@ -49,6 +62,29 @@ const subscriptionSchema = new mongoose.Schema(
       default: "",
       trim: true,
       index: true,
+    },
+    isUpgrade: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    upgradedFromPlanKey: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    aiResumeUsageCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    aiResumeUsageLimit: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    aiResumeUsageResetAt: {
+      type: Date,
     },
     accessResetTokenHash: {
       type: String,
