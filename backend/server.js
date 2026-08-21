@@ -16,9 +16,39 @@ const Subscription = require('./models/Subscription');
 const User = require('./models/User');
 const Portfolio = require('./models/Portfolio');
 const PortfolioAsset = require('./models/PortfolioAsset');
+const ResumeProfile = require('./models/ResumeProfile');
+const ResumeAgentSession = require('./models/ResumeAgentSession');
+const ResumePendingDraft = require('./models/ResumePendingDraft');
+const ResumeTailoredVersion = require('./models/ResumeTailoredVersion');
 const TelegramPost = require('./models/TelegramPost');
 const TelegramContentItem = require('./models/TelegramContentItem');
 const TelegramSettings = require('./models/TelegramSettings');
+const {
+  PLUS_ENTITLEMENT,
+  PLUS_PLAN_KEY,
+  RESUME_ENTITLEMENT,
+  RESUME_PLAN_KEY,
+  buildSubscriptionPlans,
+  calculateAccessWindow,
+  getPlanAiResumeUsageLimit,
+  getPlanEntitlements,
+  getPublicSubscriptionPlans,
+  getSubscriptionPlan: resolveSubscriptionPlan,
+  isResumePlanLaunchEnabled,
+  normalizePlanKey,
+} = require("./subscriptionPlans");
+const {
+  generateResumeDraft,
+  mapDraftToResumePayload,
+  resumeDraftSchema,
+  rewriteResumeSection,
+  tailorResumeToOpportunity,
+  translateResumeToEnglish,
+  tailoredResumeDraftSchema,
+} = require("./services/resumeAiService");
+const {
+  runDarbakResumeAgent,
+} = require("./agents/darbakResumeAgent");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -38,7 +68,13 @@ const HOME_STATS_CACHE_TTL_MS = Number(
 const ADMIN_ANALYTICS_CACHE_TTL_MS = Number(
   process.env.ADMIN_ANALYTICS_CACHE_TTL_MS || 10 * 60 * 1000
 );
+const RESUME_AI_RATE_LIMIT_WINDOW_MS = Number(
+  process.env.RESUME_AI_RATE_LIMIT_WINDOW_MS || 10 * 60 * 1000
+);
+const RESUME_AI_RATE_LIMIT_MAX = Number(process.env.RESUME_AI_RATE_LIMIT_MAX || 8);
 const readCache = new Map();
+const resumeAiRateLimits = new Map();
+const resumeAiIdempotencyCache = new Map();
 let lastExpiredOpportunitySweepAt = 0;
 const EXPERIENCE_PUBLIC_FIELDS =
   "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl ambassadorDisplayName featuredAmbassadorLogoUrl featuredAmbassadorCardTitle featuredAmbassadorCardSummary featuredAmbassadorCardTags featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
@@ -83,20 +119,8 @@ const SUBSCRIPTION_SECRET =
   ADMIN_PASSWORD ||
   process.env.MONGO_URI ||
   "darbak-subscription-local-secret";
-const SUBSCRIPTION_PLANS = {
-  monthly: {
-    id: "monthly",
-    label: "دربك+ المزايا المتقدمة شهر",
-    priceSar: SUBSCRIPTION_PRICE_SAR,
-    durationDays: SUBSCRIPTION_DURATION_DAYS,
-  },
-  one_time_90: {
-    id: "one_time_90",
-    label: "دربك+ المزايا المتقدمة 3 أشهر",
-    priceSar: ONE_TIME_SUBSCRIPTION_PRICE_SAR,
-    durationDays: ONE_TIME_SUBSCRIPTION_DURATION_DAYS,
-  },
-};
+const SUBSCRIPTION_PLANS = buildSubscriptionPlans(process.env);
+const RESUME_PLAN_LAUNCH_ENABLED = isResumePlanLaunchEnabled(process.env);
 const ADMIN_CONTACTS = new Set(
   (process.env.ADMIN_CONTACTS || "")
     .split(",")
@@ -741,7 +765,47 @@ const addDaysFromDate = (date = new Date(), days = SUBSCRIPTION_DURATION_DAYS) =
 };
 
 const getSubscriptionPlan = (planId = "") =>
-  SUBSCRIPTION_PLANS[planId] || SUBSCRIPTION_PLANS.monthly;
+  resolveSubscriptionPlan(planId, process.env);
+
+const getSubscriptionPlanKey = (subscription = {}) =>
+  normalizePlanKey(subscription.planKey || subscription.planId || PLUS_PLAN_KEY);
+
+const getSubscriptionEntitlements = (subscription = {}) => {
+  const planKey = getSubscriptionPlanKey(subscription);
+  return Array.from(
+    new Set([
+      ...getPlanEntitlements(planKey, process.env),
+      ...(Array.isArray(subscription.entitlements) ? subscription.entitlements : []),
+    ])
+  );
+};
+
+const subscriptionHasEntitlement = (subscription = {}, entitlement = "") =>
+  getSubscriptionEntitlements(subscription).includes(entitlement);
+
+const getSubscriptionAiResumeUsageLimit = (subscription = {}) => {
+  const explicitLimit = Number(subscription.aiResumeUsageLimit);
+  if (Number.isFinite(explicitLimit) && explicitLimit > 0) return explicitLimit;
+  return getPlanAiResumeUsageLimit(getSubscriptionPlanKey(subscription), process.env);
+};
+
+const buildSubscriptionAccessPayload = (subscription = {}) => {
+  const planKey = getSubscriptionPlanKey(subscription);
+  const plan = getSubscriptionPlan(planKey);
+  const entitlements = getSubscriptionEntitlements(subscription);
+  const aiResumeUsageLimit = getSubscriptionAiResumeUsageLimit(subscription);
+
+  return {
+    planId: subscription.planId || plan.id,
+    planKey,
+    planLabel: plan.label,
+    entitlements,
+    hasResumeAccess: entitlements.includes(RESUME_ENTITLEMENT),
+    aiResumeUsageCount: Number(subscription.aiResumeUsageCount || 0),
+    aiResumeUsageLimit,
+    aiResumeUsageResetAt: subscription.aiResumeUsageResetAt || subscription.expiresAt || null,
+  };
+};
 
 const getSubscriptionDurationDays = (subscription = {}) =>
   Number(subscription.durationDays || SUBSCRIPTION_DURATION_DAYS);
@@ -866,6 +930,15 @@ const syncSubscriptionUser = async (subscription = {}) => {
     ),
     premiumExpiresAt: subscription.expiresAt,
     accessSource: isActive ? "paid_subscription" : "",
+    planKey: isActive ? getSubscriptionPlanKey(subscription) : "",
+    entitlements: isActive ? getSubscriptionEntitlements(subscription) : [],
+    aiResumeUsageCount: isActive ? Number(subscription.aiResumeUsageCount || 0) : 0,
+    aiResumeUsageLimit: isActive
+      ? getSubscriptionAiResumeUsageLimit(subscription)
+      : 0,
+    aiResumeUsageResetAt: isActive
+      ? subscription.aiResumeUsageResetAt || subscription.expiresAt
+      : null,
   };
 
   if (isActive) {
@@ -901,6 +974,11 @@ const getActiveManualAccessWindow = (user = {}, now = new Date()) => {
   return {
     accessType: getUserManualAccessType(user),
     expiresAt: expiresAt || null,
+    planKey: user.planKey || PLUS_PLAN_KEY,
+    entitlements:
+      Array.isArray(user.entitlements) && user.entitlements.length > 0
+        ? user.entitlements
+        : [PLUS_ENTITLEMENT],
   };
 };
 
@@ -950,6 +1028,11 @@ const grantExperienceRewardAccess = async (
       accessSource: "experience_reward",
       accessGrantedAt: now,
       accessGrantedBy: grantedBy,
+      planKey: PLUS_PLAN_KEY,
+      entitlements: [PLUS_ENTITLEMENT],
+      aiResumeUsageCount: 0,
+      aiResumeUsageLimit: 0,
+      aiResumeUsageResetAt: null,
     },
   });
 
@@ -1077,7 +1160,9 @@ const evaluateContentAccess = async ({
     hasContactIdentity && contact && accessCodeHash
       ? await Subscription.findOne(
           getActiveSubscriptionFilter(contact, accessCodeHash)
-        ).lean()
+        )
+          .sort({ updatedAt: -1 })
+          .lean()
       : null;
 
   if (activeSubscription) {
@@ -1096,10 +1181,32 @@ const evaluateContentAccess = async ({
       isAdmin: true,
       isPremium: true,
       dailyLimit: FREE_DAILY_DETAIL_LIMIT,
+      planId: "admin",
+      planKey: RESUME_PLAN_KEY,
+      entitlements: [PLUS_ENTITLEMENT, RESUME_ENTITLEMENT],
+      hasResumeAccess: true,
     };
   }
 
   if (isPremium) {
+    const premiumPayload = activeSubscription
+      ? buildSubscriptionAccessPayload(activeSubscription)
+      : {
+          planId: manualAccess.planKey || PLUS_PLAN_KEY,
+          planKey: manualAccess.planKey || PLUS_PLAN_KEY,
+          planLabel:
+            manualAccess.accessType === "experience_reward"
+              ? "هدية مشاركة تجربة"
+              : "وصول كامل",
+          entitlements: manualAccess.entitlements || [PLUS_ENTITLEMENT],
+          hasResumeAccess: (manualAccess.entitlements || []).includes(
+            RESUME_ENTITLEMENT
+          ),
+          aiResumeUsageCount: Number(user.aiResumeUsageCount || 0),
+          aiResumeUsageLimit: Number(user.aiResumeUsageLimit || 0),
+          aiResumeUsageResetAt: user.aiResumeUsageResetAt || null,
+        };
+
     return {
       granted: true,
       accessType: activeSubscription ? "premium" : manualAccess.accessType,
@@ -1107,6 +1214,7 @@ const evaluateContentAccess = async ({
       isPremium: true,
       expiresAt: activeSubscription?.expiresAt || manualAccess.expiresAt,
       dailyLimit: FREE_DAILY_DETAIL_LIMIT,
+      ...premiumPayload,
     };
   }
 
@@ -1837,7 +1945,9 @@ const getPortfolioAccessStatus = async (portfolio = {}) => {
     }).lean(),
     Subscription.findOne(
       getActiveSubscriptionFilter(portfolio.contact, portfolio.accessCodeHash)
-    ).lean(),
+    )
+      .sort({ updatedAt: -1 })
+      .lean(),
   ]);
 
   const now = new Date();
@@ -2315,6 +2425,8 @@ const recordPremiumAccessVerifiedEvent = async ({
     provider: "moyasar",
     providerPaymentId,
     planId: subscription.planId || "monthly",
+    planKey: getSubscriptionPlanKey(subscription),
+    hasResumeAccess: subscriptionHasEntitlement(subscription, RESUME_ENTITLEMENT),
     priceSar: getSubscriptionPriceSar(subscription),
     durationDays: getSubscriptionDurationDays(subscription),
     source,
@@ -2485,7 +2597,7 @@ const sendPremiumPaymentSuccessEmailOnce = async ({
     }
   }
 
-  const plan = getSubscriptionPlan(subscription.planId);
+  const plan = getSubscriptionPlan(subscription.planKey || subscription.planId);
   const priceSar = getSubscriptionPriceSar(subscription);
   const durationDays = getSubscriptionDurationDays(subscription);
   const paymentMethod = getMoyasarPaymentMethodLabel(invoice);
@@ -2574,6 +2686,7 @@ const sendPremiumPaymentSuccessEmailOnce = async ({
       provider: "moyasar",
       providerPaymentId,
       planId: subscription.planId || "monthly",
+      planKey: getSubscriptionPlanKey(subscription),
       priceSar,
       durationDays,
       emailTo: CONTACT_EMAIL_TO,
@@ -2719,6 +2832,9 @@ const findSubscriptionFromMoyasarPayment = async (payment = {}) => {
       ""
   );
   const planId = (metadata.plan_id || metadata.planId || "").toString().trim();
+  const planKey = normalizePlanKey(
+    metadata.plan_key || metadata.planKey || planId || PLUS_PLAN_KEY
+  );
 
   if (!contact) return null;
 
@@ -2726,7 +2842,7 @@ const findSubscriptionFromMoyasarPayment = async (payment = {}) => {
     email: contact,
     provider: "moyasar",
     status: { $in: ["pending", "active"] },
-    ...(planId ? { planId } : {}),
+    ...(planId ? { $or: [{ planId }, { planKey }] } : { planKey }),
   })
     .sort({ updatedAt: -1 })
     .lean();
@@ -2749,15 +2865,44 @@ const activateMoyasarSubscriptionRecord = async ({
     existingSubscription.expiresAt &&
     new Date(existingSubscription.expiresAt) > new Date();
 
+  const planKey = getSubscriptionPlanKey(existingSubscription);
+  const plan = getSubscriptionPlan(planKey);
+  const now = new Date();
+  const computedWindow = calculateAccessWindow({
+    currentExpiresAt: existingSubscription.expiresAt,
+    durationDays: getSubscriptionDurationDays(existingSubscription),
+    now,
+    extendFromCurrent: false,
+  });
+  const storedExpiry = existingSubscription.expiresAt
+    ? new Date(existingSubscription.expiresAt)
+    : null;
+  const activationExpiresAt =
+    storedExpiry && !Number.isNaN(storedExpiry.getTime()) && storedExpiry > now
+      ? storedExpiry
+      : computedWindow.expiresAt;
+
   const subscription = alreadyActive
     ? existingSubscription
     : await Subscription.findByIdAndUpdate(
         existingSubscription._id,
         {
           status: "active",
-          expiresAt: addSubscriptionDays(
-            getSubscriptionDurationDays(existingSubscription)
-          ),
+          planId: plan.id,
+          planKey,
+          entitlements: getPlanEntitlements(planKey, process.env),
+          priceSar: getSubscriptionPriceSar(existingSubscription) || plan.priceSar,
+          durationDays:
+            getSubscriptionDurationDays(existingSubscription) || plan.durationDays,
+          startsAt: existingSubscription.startsAt || now,
+          expiresAt: activationExpiresAt,
+          aiResumeUsageCount: Number(existingSubscription.aiResumeUsageCount || 0),
+          aiResumeUsageLimit: getSubscriptionAiResumeUsageLimit({
+            ...existingSubscription,
+            planKey,
+          }),
+          aiResumeUsageResetAt:
+            existingSubscription.aiResumeUsageResetAt || activationExpiresAt,
         },
         { new: true }
       ).lean();
@@ -5839,6 +5984,1837 @@ app.post('/api/account/reward-identity', async (req, res) => {
   }
 });
 
+const getAuthenticatedAccessContext = async (req = {}) => {
+  const { contact: rawContact, accessCode: rawAccessCode, visitorId } =
+    getAccessIdentityFromRequest(req);
+  const contact = normalizeSubscriberContact(rawContact);
+  const accessCode = normalizeAccessCode(rawAccessCode);
+
+  if (!isValidSubscriberContact(rawContact) || !isValidAccessCode(accessCode)) {
+    return {
+      ok: false,
+      statusCode: 401,
+      reason: "login_required",
+      error: "سجّل الدخول بالبريد الإلكتروني ورمز الدخول للمتابعة.",
+    };
+  }
+
+  const accessCodeHash = hashAccessCode(contact, accessCode);
+  let user = await ensureAccessUser({ contact, accessCode, visitorId });
+  const activeSubscription = await Subscription.findOne(
+    getActiveSubscriptionFilter(contact, accessCodeHash)
+  )
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  if (activeSubscription) {
+    user = await syncSubscriptionUser(activeSubscription);
+  }
+
+  const isAdmin = Boolean(user?.isAdmin) || isAdminContact(contact, accessCode);
+  const manualAccess = getActiveManualAccessWindow(user, new Date());
+  const isPremium = isAdmin || Boolean(activeSubscription) || Boolean(manualAccess);
+  const subscriptionAccess = activeSubscription
+    ? buildSubscriptionAccessPayload(activeSubscription)
+    : null;
+  const entitlements = isAdmin
+    ? [PLUS_ENTITLEMENT, RESUME_ENTITLEMENT]
+    : subscriptionAccess?.entitlements || manualAccess?.entitlements || [];
+
+  return {
+    ok: true,
+    contact,
+    accessCode,
+    accessCodeHash,
+    user,
+    subscription: activeSubscription,
+    isAdmin,
+    isPremium,
+    manualAccess,
+    entitlements,
+    planKey: isAdmin
+      ? RESUME_PLAN_KEY
+      : subscriptionAccess?.planKey || manualAccess?.planKey || "",
+    hasResumeAccess: isAdmin || entitlements.includes(RESUME_ENTITLEMENT),
+  };
+};
+
+const requireResumeAccess = async (req, res, next) => {
+  try {
+    const context = await getAuthenticatedAccessContext(req);
+    if (!context.ok) {
+      return res.status(context.statusCode || 401).json({
+        error: context.error,
+        reason: context.reason,
+      });
+    }
+
+    if (!RESUME_PLAN_LAUNCH_ENABLED && !context.isAdmin) {
+      return res.status(403).json({
+        error: "خدمة سيرتي بدربك قيد التجهيز حاليًا.",
+        reason: "resume_plan_not_launched",
+        planKey: RESUME_PLAN_KEY,
+      });
+    }
+
+    if (!context.isPremium) {
+      return res.status(402).json({
+        error: "خدمة سيرتي بدربك ضمن مزايا دربك+ سيرة.",
+        reason: "subscription_required",
+        planKey: PLUS_PLAN_KEY,
+      });
+    }
+
+    if (!context.hasResumeAccess) {
+      return res.status(403).json({
+        error: "هذه الخدمة تحتاج ترقية إلى دربك+ سيرة.",
+        reason: "resume_plan_required",
+        currentPlanKey: context.planKey || PLUS_PLAN_KEY,
+      });
+    }
+
+    req.darbakAccess = context;
+    return next();
+  } catch (err) {
+    console.error("❌ Resume access middleware error:", err);
+    return res.status(500).json({ error: "تعذر التحقق من صلاحية خدمة السيرة." });
+  }
+};
+
+const sanitizeResumeText = (value = "", maxLength = 800) =>
+  sanitizePortfolioLongText(value, maxLength);
+
+const RESUME_SECTION_KEYS = [
+  "summary",
+  "education",
+  "experience",
+  "projects",
+  "skills",
+  "certifications",
+  "volunteering",
+  "languages",
+  "links",
+];
+
+const sanitizeResumeId = (value = "") =>
+  value
+    .toString()
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 80);
+
+const stripResumeHtml = (value = "") =>
+  value
+    .toString()
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|li)>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+const escapeResumeHtml = (value = "") =>
+  value
+    .toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const sanitizeResumeRichHtml = (value = "", maxLength = 1800) => {
+  let html = sanitizeResumeText(value, maxLength);
+  if (!html) return "";
+
+  html = html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/\son\w+="[^"]*"/gi, "")
+    .replace(/\son\w+='[^']*'/gi, "")
+    .replace(/\s(href|src)="javascript:[^"]*"/gi, "")
+    .replace(/\s(href|src)='javascript:[^']*'/gi, "");
+
+  html = html.replace(/<\/?([a-z0-9]+)(\s[^>]*)?>/gi, (match, tagName) => {
+    const tag = tagName.toLowerCase();
+    const allowed = ["p", "br", "strong", "b", "em", "i", "ul", "ol", "li"];
+    if (!allowed.includes(tag)) return "";
+    return match.startsWith("</") ? `</${tag}>` : `<${tag}>`;
+  });
+
+  return html.slice(0, maxLength);
+};
+
+const sanitizeResumeAchievement = (achievement = {}) => {
+  const html = sanitizeResumeRichHtml(achievement.html || achievement.text || "", 1600);
+  const text = sanitizeResumeText(achievement.text || stripResumeHtml(html), 700);
+
+  return {
+    id: sanitizeResumeId(achievement.id) || `ach-${Date.now().toString(36)}`,
+    text,
+    html,
+  };
+};
+
+const sanitizeResumeAchievements = (achievements = [], fallback = "") => {
+  const rawItems = Array.isArray(achievements) ? achievements : [];
+  const cleanItems = rawItems
+    .slice(0, 8)
+    .map(sanitizeResumeAchievement)
+    .filter((achievement) => achievement.text || achievement.html);
+
+  if (!cleanItems.length && fallback) {
+    const text = sanitizeResumeText(fallback, 700);
+    if (text) {
+      cleanItems.push({
+        id: `ach-${Date.now().toString(36)}`,
+        text,
+        html: `<p>${escapeResumeHtml(text)}</p>`,
+      });
+    }
+  }
+
+  return cleanItems;
+};
+
+const sanitizeResumeEntry = (entry = {}) => {
+  const details = sanitizeResumeText(entry.details || entry.description, 900);
+  return {
+    id: sanitizeResumeId(entry.id) || `entry-${Date.now().toString(36)}`,
+    title: sanitizePortfolioText(entry.title, 140),
+    subtitle: sanitizePortfolioText(entry.subtitle, 180),
+    organization: sanitizePortfolioText(entry.organization || entry.subtitle, 160),
+    period: sanitizePortfolioText(entry.period, 90),
+    startDate: sanitizePortfolioText(entry.startDate, 40),
+    endDate: sanitizePortfolioText(entry.endDate, 40),
+    isCurrent: Boolean(entry.isCurrent),
+    location: sanitizePortfolioText(entry.location, 90),
+    url: sanitizePortfolioUrl(entry.url, 260),
+    description: details,
+    details,
+    achievements: sanitizeResumeAchievements(entry.achievements, details),
+  };
+};
+
+const sanitizeResumeEntries = (entries = [], maxItems = 8) =>
+  (Array.isArray(entries) ? entries : [])
+    .slice(0, maxItems)
+    .map(sanitizeResumeEntry)
+    .filter(
+      (entry) =>
+        entry.title ||
+        entry.subtitle ||
+        entry.organization ||
+        entry.period ||
+        entry.description ||
+        entry.achievements.length
+    );
+
+const sanitizeResumeLanguages = (languages = []) =>
+  (Array.isArray(languages) ? languages : [])
+    .slice(0, 8)
+    .map((language) => ({
+      id: sanitizeResumeId(language.id) || `language-${Date.now().toString(36)}`,
+      name: sanitizePortfolioText(language.name, 70),
+      level: sanitizePortfolioText(language.level, 70),
+    }))
+    .filter((language) => language.name || language.level);
+
+const sanitizeResumeLinks = (links = []) =>
+  (Array.isArray(links) ? links : [])
+    .slice(0, 8)
+    .map((link) => ({
+      id: sanitizeResumeId(link.id) || `link-${Date.now().toString(36)}`,
+      label: sanitizePortfolioText(link.label, 70),
+      url: sanitizePortfolioUrl(link.url, 260),
+    }))
+    .filter((link) => link.label || link.url);
+
+const sanitizeResumeSectionOrder = (sectionOrder = []) => {
+  const requested = Array.isArray(sectionOrder) ? sectionOrder : [];
+  const clean = requested.filter((section) => RESUME_SECTION_KEYS.includes(section));
+  return [...clean, ...RESUME_SECTION_KEYS.filter((section) => !clean.includes(section))];
+};
+
+const sanitizeResumeSettings = (settings = {}) => {
+  const language = settings.language === "en" ? "en" : "ar";
+  const direction = settings.direction === "ltr" || language === "en" ? "ltr" : "rtl";
+  const density = settings.density === "compact" ? "compact" : "comfortable";
+  const fontSize = ["small", "medium", "large"].includes(settings.fontSize)
+    ? settings.fontSize
+    : "medium";
+
+  return { language, direction, density, fontSize };
+};
+
+const sanitizeResumePayload = (body = {}) => {
+  const personalInfo = body.personalInfo || {};
+  const experienceEntries = body.experience || body.experiences || [];
+
+  return {
+    personalInfo: {
+      fullName: sanitizePortfolioText(personalInfo.fullName, 120),
+      email: sanitizePortfolioText(personalInfo.email, 160).toLowerCase(),
+      phone: sanitizePortfolioText(personalInfo.phone, 40),
+      city: sanitizePortfolioText(personalInfo.city, 80),
+      major: sanitizePortfolioText(personalInfo.major, 120),
+      university: sanitizePortfolioText(personalInfo.university, 160),
+      linkedinUrl: sanitizePortfolioUrl(personalInfo.linkedinUrl, 260),
+      headline: sanitizePortfolioText(personalInfo.headline, 140),
+      portfolioUrl: sanitizePortfolioUrl(personalInfo.portfolioUrl, 260),
+      githubUrl: sanitizePortfolioUrl(personalInfo.githubUrl, 260),
+      personalUrl: sanitizePortfolioUrl(personalInfo.personalUrl, 260),
+    },
+    summary: sanitizeResumeText(body.summary, 900),
+    education: sanitizeResumeEntries(body.education, 6),
+    experiences: sanitizeResumeEntries(experienceEntries, 8),
+    experience: sanitizeResumeEntries(experienceEntries, 8),
+    projects: sanitizeResumeEntries(body.projects, 8),
+    certifications: sanitizeResumeEntries(body.certifications, 10),
+    volunteering: sanitizeResumeEntries(body.volunteering, 8),
+    languages: sanitizeResumeLanguages(body.languages),
+    links: sanitizeResumeLinks(body.links),
+    skills: (Array.isArray(body.skills) ? body.skills : [])
+      .map((skill) => sanitizePortfolioText(skill, 60))
+      .filter(Boolean)
+      .slice(0, 30),
+    sectionOrder: sanitizeResumeSectionOrder(body.sectionOrder),
+    hiddenSections: (Array.isArray(body.hiddenSections) ? body.hiddenSections : [])
+      .filter((section) => RESUME_SECTION_KEYS.includes(section))
+      .slice(0, RESUME_SECTION_KEYS.length),
+    settings: sanitizeResumeSettings(body.settings),
+  };
+};
+
+const mapPortfolioToResumePayload = (portfolio = {}, contact = "") => ({
+  personalInfo: {
+    fullName: portfolio.fullName || "",
+    email: portfolio.email || (isValidEmail(contact) ? contact : ""),
+    phone: "",
+    city: portfolio.city || "",
+    major: portfolio.major || "",
+    university: portfolio.university || "",
+    linkedinUrl: portfolio.linkedinUrl || "",
+    headline: portfolio.degreeLevel || portfolio.major || "",
+    portfolioUrl: portfolio.slug ? `${getFrontendUrl()}/p/${portfolio.slug}` : "",
+    githubUrl: "",
+    personalUrl: "",
+  },
+  summary: portfolio.bio || "",
+  education: portfolio.university
+    ? [
+        {
+          id: "portfolio-education",
+          title: portfolio.degreeLevel || "طالب تدريب تعاوني",
+          subtitle: portfolio.university,
+          organization: portfolio.university,
+          period: "",
+          startDate: "",
+          endDate: "",
+          isCurrent: true,
+          location: portfolio.city || "",
+          url: "",
+          description: portfolio.major || "",
+          details: portfolio.major || "",
+          achievements: [],
+        },
+      ]
+    : [],
+  experiences: [],
+  experience: [],
+  projects: (portfolio.projects || []).map((project) => ({
+    id: project._id?.toString?.() || project.title || `project-${Date.now().toString(36)}`,
+    title: project.title || "",
+    subtitle: project.link || "",
+    organization: "",
+    period: "",
+    startDate: "",
+    endDate: "",
+    isCurrent: false,
+    location: "",
+    url: project.url || project.link || "",
+    description: project.description || "",
+    details: project.description || "",
+    achievements: project.description
+      ? [
+          {
+            id: "portfolio-project-detail",
+            text: sanitizeResumeText(project.description, 700),
+            html: `<p>${escapeResumeHtml(sanitizeResumeText(project.description, 700))}</p>`,
+          },
+        ]
+      : [],
+  })),
+  certifications: (portfolio.certifications || []).map((certification) => ({
+    id:
+      certification._id?.toString?.() ||
+      certification.title ||
+      `cert-${Date.now().toString(36)}`,
+    title: certification.title || "",
+    subtitle: certification.issuer || certification.provider || "",
+    organization: certification.issuer || certification.provider || "",
+    period: certification.year || "",
+    startDate: "",
+    endDate: certification.year || "",
+    isCurrent: false,
+    location: "",
+    url: "",
+    description: "",
+    details: "",
+    achievements: [],
+  })),
+  volunteering: [],
+  languages: [],
+  links: [
+    portfolio.linkedinUrl ? { id: "linkedin", label: "LinkedIn", url: portfolio.linkedinUrl } : null,
+    portfolio.slug ? { id: "portfolio", label: "ملفي المهني", url: `${getFrontendUrl()}/p/${portfolio.slug}` } : null,
+  ].filter(Boolean),
+  skills: portfolio.skills || [],
+  sectionOrder: RESUME_SECTION_KEYS,
+  hiddenSections: [],
+  settings: {
+    language: "ar",
+    direction: "rtl",
+    density: "comfortable",
+    fontSize: "medium",
+  },
+});
+
+const serializeResume = (resume = {}, access = {}) => {
+  const usageLimit =
+    access.isAdmin
+      ? getPlanAiResumeUsageLimit(RESUME_PLAN_KEY, process.env)
+      : getSubscriptionAiResumeUsageLimit(access.subscription || access.user || {});
+  const usageCount = access.isAdmin
+    ? 0
+    : Number(
+        access.subscription?.aiResumeUsageCount ??
+          access.user?.aiResumeUsageCount ??
+          0
+      );
+  const usageResetAt =
+    access.subscription?.aiResumeUsageResetAt ||
+    access.user?.aiResumeUsageResetAt ||
+    access.subscription?.expiresAt ||
+    access.user?.premiumExpiresAt ||
+    null;
+
+  return {
+    _id: resume._id?.toString?.() || "",
+    personalInfo: resume.personalInfo || {},
+    summary: resume.summary || "",
+    education: resume.education || [],
+    experiences: resume.experiences || resume.experience || [],
+    experience: resume.experience || resume.experiences || [],
+    projects: resume.projects || [],
+    certifications: resume.certifications || [],
+    volunteering: resume.volunteering || [],
+    languages: resume.languages || [],
+    links: resume.links || [],
+    skills: resume.skills || [],
+    sectionOrder: sanitizeResumeSectionOrder(resume.sectionOrder),
+    hiddenSections: Array.isArray(resume.hiddenSections) ? resume.hiddenSections : [],
+    settings: sanitizeResumeSettings(resume.settings),
+    updatedAt: resume.updatedAt || null,
+    access: {
+      planKey: access.planKey || RESUME_PLAN_KEY,
+      entitlements: access.entitlements || [PLUS_ENTITLEMENT, RESUME_ENTITLEMENT],
+      aiResumeUsageCount: usageCount,
+      aiResumeUsageLimit: usageLimit,
+      aiResumeUsageResetAt: usageResetAt,
+    },
+  };
+};
+
+const sanitizeResumeLooseTree = (value, depth = 0) => {
+  if (depth > 5) return "";
+  if (typeof value === "string") return sanitizeResumeText(value, 1200);
+  if (typeof value === "number" || typeof value === "boolean") return value;
+  if (Array.isArray(value)) {
+    return value.slice(0, 20).map((item) => sanitizeResumeLooseTree(item, depth + 1));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, 80)
+        .map(([key, item]) => [
+          sanitizePortfolioText(key, 80),
+          sanitizeResumeLooseTree(item, depth + 1),
+        ])
+        .filter(([key]) => Boolean(key))
+    );
+  }
+  return "";
+};
+
+const sanitizeResumeAiRequest = (body = {}) => {
+  const rawInput = body.rawInput || body.wizardData || body.wizard || {};
+  const basic = rawInput.basic || rawInput.personalInfo || {};
+  const language =
+    body.language === "en" || basic.language === "en" || rawInput.language === "en"
+      ? "en"
+      : "ar";
+  const targetTitle = sanitizePortfolioText(
+    body.targetTitle || basic.targetTitle || rawInput.targetTitle,
+    160
+  );
+
+  return {
+    sourceMode: sanitizePortfolioText(body.sourceMode || rawInput.sourceMode, 60),
+    language,
+    targetTitle,
+    rawInput: sanitizeResumeLooseTree(rawInput),
+    idempotencyKey: sanitizeAccessItemKey(
+      body.idempotencyKey || body.requestId || body.clientRequestId || ""
+    ),
+  };
+};
+
+const getResumeAiRateLimitKey = (req = {}, action = "resume_ai") => {
+  const contact = req.darbakAccess?.contact || "";
+  const visitorId = sanitizeVisitorId(req.body?.visitorId || req.headers["x-visitor-id"] || "");
+  return `${action}:${contact || visitorId || req.ip || "anonymous"}`;
+};
+
+const checkResumeAiRateLimit = (req, res, action = "resume_ai") => {
+  if (req.darbakAccess?.isAdmin) return true;
+
+  const now = Date.now();
+  const key = getResumeAiRateLimitKey(req, action);
+  const current = resumeAiRateLimits.get(key) || {
+    count: 0,
+    resetsAt: now + RESUME_AI_RATE_LIMIT_WINDOW_MS,
+  };
+
+  if (current.resetsAt <= now) {
+    current.count = 0;
+    current.resetsAt = now + RESUME_AI_RATE_LIMIT_WINDOW_MS;
+  }
+
+  current.count += 1;
+  resumeAiRateLimits.set(key, current);
+
+  if (current.count > RESUME_AI_RATE_LIMIT_MAX) {
+    res.status(429).json({
+      error: "وصلت للحد المؤقت من طلبات السيرة. انتظر قليلًا ثم حاول مرة أخرى.",
+    });
+    return false;
+  }
+
+  return true;
+};
+
+const getResumeAiIdempotencyKey = (req = {}, action = "resume_ai") => {
+  const rawKey =
+    req.headers["idempotency-key"] ||
+    req.headers["x-idempotency-key"] ||
+    req.body?.idempotencyKey ||
+    req.body?.requestId ||
+    "";
+  const key = sanitizeAccessItemKey(rawKey);
+  if (!key) return "";
+  return `${action}:${req.darbakAccess?.contact || "unknown"}:${key}`;
+};
+
+const getResumeAiCachedResponse = (key = "") => {
+  if (!key) return null;
+  const cached = resumeAiIdempotencyCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    resumeAiIdempotencyCache.delete(key);
+    return null;
+  }
+  return cached.value;
+};
+
+const setResumeAiCachedResponse = (key = "", value = {}) => {
+  if (!key) return;
+  resumeAiIdempotencyCache.set(key, {
+    value,
+    expiresAt: Date.now() + 15 * 60 * 1000,
+  });
+};
+
+const getResumeForAccess = async ({ contact, accessCodeHash }) =>
+  ResumeProfile.findOne({ contact, accessCodeHash }).lean();
+
+const getPortfolioForAccess = async ({ contact, accessCodeHash }) =>
+  Portfolio.findOne({ contact, accessCodeHash }).lean();
+
+const getResumeUsageSnapshot = (access = {}) => {
+  const limit = access.isAdmin
+    ? getPlanAiResumeUsageLimit(RESUME_PLAN_KEY, process.env)
+    : getSubscriptionAiResumeUsageLimit(access.subscription || access.user || {});
+  const count = access.isAdmin
+    ? 0
+    : Number(access.subscription?.aiResumeUsageCount ?? access.user?.aiResumeUsageCount ?? 0);
+
+  return {
+    aiResumeUsageCount: count,
+    aiResumeUsageLimit: Number(limit || 0),
+    aiResumeUsageResetAt:
+      access.subscription?.aiResumeUsageResetAt ||
+      access.user?.aiResumeUsageResetAt ||
+      access.subscription?.expiresAt ||
+      access.user?.premiumExpiresAt ||
+      null,
+  };
+};
+
+const incrementResumeTailorUsage = async (access = {}) => {
+  if (access.isAdmin) return getResumeUsageSnapshot(access);
+
+  const usage = getResumeUsageSnapshot(access);
+  if (usage.aiResumeUsageLimit > 0 && usage.aiResumeUsageCount >= usage.aiResumeUsageLimit) {
+    const error = new Error("استخدمت كل عمليات تخصيص السيرة لهذا الشهر.");
+    error.code = "RESUME_USAGE_LIMIT";
+    error.usage = usage;
+    throw error;
+  }
+
+  if (access.subscription?._id) {
+    const updated = await Subscription.findOneAndUpdate(
+      {
+        _id: access.subscription._id,
+        aiResumeUsageCount: { $lt: usage.aiResumeUsageLimit || Number.MAX_SAFE_INTEGER },
+      },
+      {
+        $inc: { aiResumeUsageCount: 1 },
+        $set: {
+          aiResumeUsageLimit: usage.aiResumeUsageLimit,
+          aiResumeUsageResetAt: usage.aiResumeUsageResetAt,
+        },
+      },
+      { new: true }
+    ).lean();
+
+    if (!updated) {
+      const error = new Error("استخدمت كل عمليات تخصيص السيرة لهذا الشهر.");
+      error.code = "RESUME_USAGE_LIMIT";
+      error.usage = usage;
+      throw error;
+    }
+
+    await syncSubscriptionUser(updated);
+    return {
+      aiResumeUsageCount: Number(updated.aiResumeUsageCount || 0),
+      aiResumeUsageLimit: getSubscriptionAiResumeUsageLimit(updated),
+      aiResumeUsageResetAt: updated.aiResumeUsageResetAt || updated.expiresAt || null,
+    };
+  }
+
+  if (access.user?._id) {
+    const updatedUser = await User.findOneAndUpdate(
+      {
+        _id: access.user._id,
+        aiResumeUsageCount: { $lt: usage.aiResumeUsageLimit || Number.MAX_SAFE_INTEGER },
+      },
+      {
+        $inc: { aiResumeUsageCount: 1 },
+        $set: {
+          aiResumeUsageLimit: usage.aiResumeUsageLimit,
+          aiResumeUsageResetAt: usage.aiResumeUsageResetAt,
+        },
+      },
+      { new: true }
+    ).lean();
+
+    if (!updatedUser) {
+      const error = new Error("استخدمت كل عمليات تخصيص السيرة لهذا الشهر.");
+      error.code = "RESUME_USAGE_LIMIT";
+      error.usage = usage;
+      throw error;
+    }
+
+    return {
+      aiResumeUsageCount: Number(updatedUser.aiResumeUsageCount || 0),
+      aiResumeUsageLimit: Number(updatedUser.aiResumeUsageLimit || 0),
+      aiResumeUsageResetAt: updatedUser.aiResumeUsageResetAt || null,
+    };
+  }
+
+  return usage;
+};
+
+const getResumeAiErrorResponse = (err = {}) => {
+  if (err.code === "OPENAI_KEY_MISSING") {
+    return {
+      status: 503,
+      body: {
+        error: "لم يتم تفعيل مفتاح OpenAI في الخادم بعد.",
+        reason: "openai_key_missing",
+      },
+    };
+  }
+
+  if (err.code === "RESUME_USAGE_LIMIT") {
+    return {
+      status: 429,
+      body: {
+        error: err.message,
+        ...(err.usage || {}),
+      },
+    };
+  }
+
+  if (err.name === "ZodError" || err.code === "OPENAI_PARSE_EMPTY") {
+    return {
+      status: 502,
+      body: {
+        error: "رجعت الاستجابة ناقصة. حاول مرة أخرى.",
+        reason: "invalid_ai_response",
+      },
+    };
+  }
+
+  if (err.status === 429) {
+    const openAiCode = (err.code || err.type || "").toString();
+    const openAiMessage = (err.message || "").toString().toLowerCase();
+    const isQuotaOrBillingError =
+      openAiCode.includes("insufficient_quota") ||
+      openAiCode.includes("billing") ||
+      openAiMessage.includes("insufficient_quota") ||
+      openAiMessage.includes("quota") ||
+      openAiMessage.includes("billing");
+
+    return {
+      status: 429,
+      body: {
+        error: isQuotaOrBillingError
+          ? "حساب OpenAI يحتاج تفعيل الفوترة أو إضافة رصيد قبل تشغيل وكيل السيرة."
+          : "الطلب على خدمة السيرة مرتفع حاليًا. حاول بعد قليل.",
+        reason: isQuotaOrBillingError
+          ? "openai_quota_or_billing"
+          : "openai_rate_limited",
+        openAiCode,
+      },
+    };
+  }
+
+  const openAiCode = (err.code || err.type || "").toString().toLowerCase();
+  const openAiMessage = (err.message || "").toString().toLowerCase();
+  const configuredModel = (process.env.OPENAI_RESUME_AGENT_MODEL || "").trim();
+
+  if (err.status === 401 || openAiCode.includes("invalid_api_key")) {
+    return {
+      status: 503,
+      body: {
+        error: "مفتاح OpenAI غير صالح أو لم يعد نشطًا. راجع OPENAI_API_KEY في Render ثم أعد تشغيل الباكند.",
+        reason: "openai_auth_failed",
+      },
+    };
+  }
+
+  if (err.status === 403 || openAiCode.includes("permission") || openAiMessage.includes("not authorized")) {
+    return {
+      status: 503,
+      body: {
+        error: "مشروع OpenAI الحالي لا يملك صلاحية تشغيل نموذج وكيل السيرة. راجع صلاحيات المشروع والفوترة.",
+        reason: "openai_access_denied",
+      },
+    };
+  }
+
+  if (
+    err.status === 404 ||
+    openAiCode.includes("model_not_found") ||
+    openAiMessage.includes("model") && openAiMessage.includes("not found")
+  ) {
+    return {
+      status: 503,
+      body: {
+        error: `نموذج وكيل السيرة غير متاح لهذا المفتاح${configuredModel ? `: ${configuredModel}` : ""}. اختَر نموذجًا متاحًا في مشروع OpenAI ثم حدّث OPENAI_RESUME_AGENT_MODEL.`,
+        reason: "openai_model_unavailable",
+      },
+    };
+  }
+
+  if (err.status === 400 || openAiCode.includes("invalid_request")) {
+    return {
+      status: 502,
+      body: {
+        error: "تعذر تجهيز ترجمة السيرة الآن. أعد المحاولة بعد قليل.",
+        reason: "openai_invalid_request",
+      },
+    };
+  }
+
+  if (err.name === "APIConnectionError" || openAiCode.includes("timeout")) {
+    return {
+      status: 503,
+      body: {
+        error: "تعذر الاتصال بخدمة وكيل السيرة مؤقتًا. حاول بعد دقيقة.",
+        reason: "openai_connection_failed",
+      },
+    };
+  }
+
+  return {
+    status: 500,
+    body: { error: "تعذر تشغيل كاتب السيرة الآن. حاول مرة أخرى." },
+  };
+};
+
+const RESUME_AGENT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const RESUME_AGENT_MAX_TAILORED_VERSIONS = Number(
+  process.env.RESUME_AGENT_MAX_TAILORED_VERSIONS || 10
+);
+
+const getResumeAgentExpiry = () =>
+  new Date(Date.now() + RESUME_AGENT_SESSION_TTL_MS);
+
+const sanitizeResumeAgentPurpose = (value = "") =>
+  value === "tailor_resume" ? "tailor_resume" : "create_resume";
+
+const sanitizeResumeAgentSource = (value = "") =>
+  ["professional_profile", "existing_resume", "new_information"].includes(value)
+    ? value
+    : "professional_profile";
+
+const sanitizeResumeAgentLanguage = (value = "") => (value === "en" ? "en" : "ar");
+
+const sanitizeResumeAgentAnswers = (answers = [], pendingQuestions = []) => {
+  const questionMap = new Map(
+    (Array.isArray(pendingQuestions) ? pendingQuestions : []).map((question) => [
+      sanitizeAccessItemKey(question.id || question.question || ""),
+      question,
+    ])
+  );
+
+  return (Array.isArray(answers) ? answers : [])
+    .slice(0, 3)
+    .map((answer, index) => {
+      const questionId =
+        sanitizeAccessItemKey(answer.questionId || answer.id || `answer-${index + 1}`) ||
+        `answer-${index + 1}`;
+      const question = questionMap.get(questionId) || {};
+      return {
+        questionId,
+        section: sanitizePortfolioText(answer.section || question.section || "", 90),
+        question: sanitizePortfolioText(answer.question || question.question || "", 320),
+        answer: sanitizeResumeText(answer.answer || answer.value || "", 1600),
+      };
+    })
+    .filter((answer) => answer.answer);
+};
+
+const mergeResumeAgentUsage = (current = {}, next = {}) => ({
+  model: next.model || current.model || "",
+  turns: Number(current.turns || 0) + Number(next.turns || 0),
+  toolCalls: Number(current.toolCalls || 0) + Number(next.toolCalls || 0),
+  inputTokens: Number(current.inputTokens || 0) + Number(next.inputTokens || 0),
+  outputTokens: Number(current.outputTokens || 0) + Number(next.outputTokens || 0),
+  totalTokens: Number(current.totalTokens || 0) + Number(next.totalTokens || 0),
+  durationMs: Number(current.durationMs || 0) + Number(next.durationMs || 0),
+  toolsUsed: Array.from(
+    new Set([...(current.toolsUsed || []), ...(next.toolsUsed || [])].filter(Boolean))
+  ),
+  failureReason: next.failureReason || current.failureReason || "",
+});
+
+const serializeResumeAgentSession = (session = {}, pendingDraft = null) => ({
+  sessionId: session.sessionId,
+  purpose: session.purpose,
+  source: session.source,
+  language: session.language,
+  status: session.status,
+  pendingQuestions: session.pendingQuestions || [],
+  answeredQuestionIds: session.answeredQuestionIds || [],
+  pendingDraftId: session.pendingDraftId?.toString?.() || session.pendingDraftId || "",
+  baseResumeId: session.baseResumeId?.toString?.() || session.baseResumeId || "",
+  opportunityId: session.opportunityId?.toString?.() || session.opportunityId || "",
+  usage: session.usage || {},
+  updatedAt: session.updatedAt || null,
+  expiresAt: session.expiresAt || null,
+  pendingDraft: pendingDraft
+    ? {
+        _id: pendingDraft._id?.toString?.() || "",
+        draftType: pendingDraft.draftType,
+        status: pendingDraft.status,
+        draft: pendingDraft.draft,
+        validationResult: pendingDraft.validationResult || {},
+        changesSummary: pendingDraft.changesSummary || [],
+        companyName: pendingDraft.companyName || "",
+        roleTitle: pendingDraft.roleTitle || "",
+      }
+    : null,
+});
+
+const getResumeAgentSessionForAccess = async (sessionId = "", access = {}) =>
+  ResumeAgentSession.findOne({
+    sessionId: sanitizeAccessItemKey(sessionId),
+    contact: access.contact,
+    accessCodeHash: access.accessCodeHash,
+  });
+
+const getPendingResumeDraftForAccess = async (pendingDraftId = "", access = {}) => {
+  if (!mongoose.Types.ObjectId.isValid(pendingDraftId)) return null;
+  return ResumePendingDraft.findOne({
+    _id: pendingDraftId,
+    contact: access.contact,
+    accessCodeHash: access.accessCodeHash,
+  });
+};
+
+const applyResumeAgentOutputToSession = async (session, agentResult) => {
+  const output = agentResult.output || {};
+  const nextStatus =
+    output.status === "needs_information"
+      ? "collecting_information"
+      : output.status === "draft_ready" || output.status === "tailored_draft_ready"
+        ? "awaiting_review"
+        : "failed";
+
+  session.status = nextStatus;
+  session.pendingQuestions = output.status === "needs_information" ? output.questions || [] : [];
+  session.pendingDraftId =
+    output.pendingDraftId && mongoose.Types.ObjectId.isValid(output.pendingDraftId)
+      ? output.pendingDraftId
+      : session.pendingDraftId || null;
+  session.lastResponseId = agentResult.lastResponseId || session.lastResponseId || "";
+  session.usage = mergeResumeAgentUsage(session.usage || {}, agentResult.usage || {});
+  session.expiresAt = getResumeAgentExpiry();
+  await session.save();
+
+  return session;
+};
+
+const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "ar") => {
+  const currentResume = await getResumeForAccess({
+    contact: access.contact,
+    accessCodeHash: access.accessCodeHash,
+  });
+  const portfolio = await getPortfolioForAccess({
+    contact: access.contact,
+    accessCodeHash: access.accessCodeHash,
+  });
+  const fallbackResume = mapPortfolioToResumePayload(portfolio || {}, access.contact);
+  const baseResume = currentResume || fallbackResume || {};
+  const parsedDraft = tailoredResumeDraftSchema.safeParse(pendingDraft.draft).success
+    ? tailoredResumeDraftSchema.parse(pendingDraft.draft)
+    : resumeDraftSchema.parse(pendingDraft.draft);
+  const mappedPayload = mapDraftToResumePayload(
+    parsedDraft,
+    baseResume,
+    { basic: baseResume.personalInfo || {} },
+    sanitizeResumeAgentLanguage(language || baseResume.settings?.language)
+  );
+
+  return sanitizeResumePayload({
+    ...mappedPayload,
+    sectionOrder: baseResume.sectionOrder || RESUME_SECTION_KEYS,
+    hiddenSections: baseResume.hiddenSections || [],
+  });
+};
+
+const estimateJsonBytes = (value = {}) => {
+  try {
+    return Buffer.byteLength(JSON.stringify(value || {}), "utf8");
+  } catch {
+    return 0;
+  }
+};
+
+app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
+  try {
+    const { contact, accessCodeHash } = req.darbakAccess;
+    const resume = await ResumeProfile.findOne({ contact, accessCodeHash }).lean();
+    const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
+    const fallback = mapPortfolioToResumePayload(portfolio || {}, contact);
+
+    res.json({
+      exists: Boolean(resume),
+      resume: serializeResume(resume || fallback, req.darbakAccess),
+      portfolioImported: Boolean(!resume && portfolio),
+    });
+  } catch (err) {
+    console.error("❌ Resume fetch error:", err);
+    res.status(500).json({ error: "تعذر تحميل السيرة." });
+  }
+});
+
+app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
+  try {
+    const { contact, accessCodeHash, user } = req.darbakAccess;
+    const payload = sanitizeResumePayload(req.body);
+
+    const resume = await ResumeProfile.findOneAndUpdate(
+      { contact, accessCodeHash },
+      {
+        $set: {
+          contact,
+          accessCodeHash,
+          userId: user?._id,
+          ...payload,
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+    ).lean();
+
+    await AnalyticsEvent.create({
+      eventName: "resume_saved",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/my-resume",
+      deviceType: sanitizeAnalyticsText(req.body.deviceType, 24),
+      metadata: sanitizeAnalyticsMetadata({
+        hasSummary: Boolean(resume.summary),
+        projectsCount: resume.projects?.length || 0,
+      }),
+    }).catch(() => null);
+
+    res.json({
+      resume: serializeResume(resume, req.darbakAccess),
+      message: "تم حفظ سيرتك بنجاح.",
+    });
+  } catch (err) {
+    console.error("❌ Resume save error:", err);
+    res.status(500).json({ error: "تعذر حفظ السيرة." });
+  }
+});
+
+app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
+  let session = null;
+  try {
+    if (!checkResumeAiRateLimit(req, res, "resume_agent_start")) return;
+
+    const purpose = sanitizeResumeAgentPurpose(req.body?.purpose);
+    const source = sanitizeResumeAgentSource(req.body?.source);
+    const language = sanitizeResumeAgentLanguage(req.body?.language);
+    const opportunityId = sanitizeAccessItemKey(req.body?.opportunityId || "");
+    const { contact, accessCodeHash, user } = req.darbakAccess;
+
+    const currentResume = await getResumeForAccess({ contact, accessCodeHash });
+    if (purpose === "tailor_resume") {
+      if (!currentResume?._id) {
+        return res.status(400).json({
+          error: "أنشئ سيرتك الأساسية أولًا، ثم خصصها لفرصة.",
+          reason: "base_resume_required",
+        });
+      }
+      if (!opportunityId || !mongoose.Types.ObjectId.isValid(opportunityId)) {
+        return res.status(400).json({
+          error: "اختاري فرصة من دربك حتى نخصص السيرة عليها.",
+          reason: "opportunity_required",
+        });
+      }
+
+      const usage = getResumeUsageSnapshot(req.darbakAccess);
+      if (
+        !req.darbakAccess.isAdmin &&
+        usage.aiResumeUsageLimit > 0 &&
+        usage.aiResumeUsageCount >= usage.aiResumeUsageLimit
+      ) {
+        return res.status(429).json({
+          error: "استخدمت كل عمليات تخصيص السيرة لهذا الشهر.",
+          ...usage,
+        });
+      }
+    }
+
+    session = await ResumeAgentSession.create({
+      userId: user?._id,
+      contact,
+      accessCodeHash,
+      sessionId: crypto.randomUUID(),
+      purpose,
+      source,
+      language,
+      status: "generating",
+      collectedFacts: { answers: [] },
+      answeredQuestionIds: [],
+      baseResumeId: currentResume?._id || null,
+      opportunityId:
+        purpose === "tailor_resume" && mongoose.Types.ObjectId.isValid(opportunityId)
+          ? opportunityId
+          : null,
+      expiresAt: getResumeAgentExpiry(),
+    });
+
+    const agentResult = await runDarbakResumeAgent({
+      access: req.darbakAccess,
+      session,
+      answers: [],
+    });
+    session = await applyResumeAgentOutputToSession(session, agentResult);
+
+    await AnalyticsEvent.create({
+      eventName: "resume_agent_started",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/my-resume",
+      metadata: sanitizeAnalyticsMetadata({
+        purpose,
+        source,
+        status: agentResult.output.status,
+        turns: agentResult.usage?.turns || 0,
+        toolCalls: agentResult.usage?.toolCalls || 0,
+      }),
+    }).catch(() => null);
+
+    return res.json({
+      session: serializeResumeAgentSession(session),
+      output: agentResult.output,
+      usage: agentResult.usage,
+    });
+  } catch (err) {
+    if (session) {
+      session.status = "failed";
+      session.usage = mergeResumeAgentUsage(session.usage || {}, {
+        failureReason: err.code || err.name || "resume_agent_start_failed",
+      });
+      await session.save().catch(() => null);
+    }
+    console.error("❌ Resume agent start error:", {
+      code: err.code,
+      status: err.status,
+      name: err.name,
+    });
+    const response = getResumeAiErrorResponse(err);
+    return res.status(response.status).json(response.body);
+  }
+});
+
+app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
+  let session = null;
+  try {
+    if (!checkResumeAiRateLimit(req, res, "resume_agent_respond")) return;
+
+    session = await getResumeAgentSessionForAccess(req.body?.sessionId, req.darbakAccess);
+    if (!session) {
+      return res.status(404).json({ error: "جلسة وكيل السيرة غير موجودة." });
+    }
+    if (["completed", "failed"].includes(session.status)) {
+      return res.status(409).json({ error: "هذه الجلسة انتهت. ابدأ جلسة جديدة." });
+    }
+
+    const answers = sanitizeResumeAgentAnswers(req.body?.answers, session.pendingQuestions);
+    if (!answers.length) {
+      return res.status(400).json({ error: "أجب عن سؤال واحد على الأقل للمتابعة." });
+    }
+
+    const existingAnswers = Array.isArray(session.collectedFacts?.answers)
+      ? session.collectedFacts.answers
+      : [];
+    const nextAnsweredIds = Array.from(
+      new Set([
+        ...(session.answeredQuestionIds || []),
+        ...answers.map((answer) => answer.questionId),
+      ])
+    );
+
+    session.collectedFacts = {
+      ...(session.collectedFacts || {}),
+      answers: [...existingAnswers, ...answers].slice(-40),
+    };
+    session.answeredQuestionIds = nextAnsweredIds;
+    session.status = "generating";
+    session.expiresAt = getResumeAgentExpiry();
+    await session.save();
+
+    const agentResult = await runDarbakResumeAgent({
+      access: req.darbakAccess,
+      session,
+      answers,
+    });
+    session = await applyResumeAgentOutputToSession(session, agentResult);
+
+    await AnalyticsEvent.create({
+      eventName: "resume_agent_responded",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/my-resume",
+      metadata: sanitizeAnalyticsMetadata({
+        purpose: session.purpose,
+        status: agentResult.output.status,
+        answerCount: answers.length,
+        turns: agentResult.usage?.turns || 0,
+        toolCalls: agentResult.usage?.toolCalls || 0,
+      }),
+    }).catch(() => null);
+
+    return res.json({
+      session: serializeResumeAgentSession(session),
+      output: agentResult.output,
+      usage: agentResult.usage,
+    });
+  } catch (err) {
+    if (session) {
+      session.status = "failed";
+      session.usage = mergeResumeAgentUsage(session.usage || {}, {
+        failureReason: err.code || err.name || "resume_agent_respond_failed",
+      });
+      await session.save().catch(() => null);
+    }
+    console.error("❌ Resume agent respond error:", {
+      code: err.code,
+      status: err.status,
+      name: err.name,
+    });
+    const response = getResumeAiErrorResponse(err);
+    return res.status(response.status).json(response.body);
+  }
+});
+
+app.get('/api/resume-agent/session/:sessionId', requireResumeAccess, async (req, res) => {
+  try {
+    const session = await getResumeAgentSessionForAccess(req.params.sessionId, req.darbakAccess);
+    if (!session) {
+      return res.status(404).json({ error: "جلسة وكيل السيرة غير موجودة." });
+    }
+
+    const pendingDraft = session.pendingDraftId
+      ? await getPendingResumeDraftForAccess(session.pendingDraftId.toString(), req.darbakAccess)
+      : null;
+
+    return res.json({
+      session: serializeResumeAgentSession(session, pendingDraft),
+    });
+  } catch (err) {
+    console.error("❌ Resume agent session fetch error:", err);
+    return res.status(500).json({ error: "تعذر تحميل جلسة وكيل السيرة." });
+  }
+});
+
+app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async (req, res) => {
+  try {
+    const pendingDraft = await getPendingResumeDraftForAccess(
+      req.params.pendingDraftId,
+      req.darbakAccess
+    );
+    if (!pendingDraft) {
+      return res.status(404).json({ error: "المسودة غير موجودة." });
+    }
+    if (pendingDraft.status !== "pending_review") {
+      return res.status(409).json({ error: "تم التعامل مع هذه المسودة مسبقًا." });
+    }
+    if (pendingDraft.expiresAt && pendingDraft.expiresAt <= new Date()) {
+      pendingDraft.status = "expired";
+      await pendingDraft.save();
+      return res.status(410).json({ error: "انتهت صلاحية هذه المسودة. ابدأ جلسة جديدة." });
+    }
+    if (pendingDraft.validationResult?.valid === false) {
+      return res.status(422).json({
+        error: "لا يمكن اعتماد مسودة فيها ادعاءات غير مثبتة.",
+        validationResult: pendingDraft.validationResult,
+      });
+    }
+
+    const payload = await mapPendingDraftToResumePayload(
+      pendingDraft,
+      req.darbakAccess,
+      req.body?.language || pendingDraft.draft?.settings?.language || "ar"
+    );
+
+    if (pendingDraft.draftType === "tailored_resume") {
+      const usageBefore = getResumeUsageSnapshot(req.darbakAccess);
+      if (
+        !req.darbakAccess.isAdmin &&
+        usageBefore.aiResumeUsageLimit > 0 &&
+        usageBefore.aiResumeUsageCount >= usageBefore.aiResumeUsageLimit
+      ) {
+        return res.status(429).json({
+          error: "استخدمت كل عمليات تخصيص السيرة لهذا الشهر.",
+          ...usageBefore,
+        });
+      }
+
+      const existingCount = await ResumeTailoredVersion.countDocuments({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+        status: "approved",
+      });
+      if (existingCount >= RESUME_AGENT_MAX_TAILORED_VERSIONS) {
+        const oldest = await ResumeTailoredVersion.findOne({
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+          status: "approved",
+        }).sort({ approvedAt: 1 });
+        if (oldest) {
+          oldest.status = "deleted";
+          await oldest.save();
+        }
+      }
+
+      let tailoredVersion = null;
+      try {
+        tailoredVersion = await ResumeTailoredVersion.create({
+          userId: req.darbakAccess.user?._id,
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+          baseResumeId: pendingDraft.baseResumeId || null,
+          opportunityId: pendingDraft.opportunityId || null,
+          companyName: pendingDraft.companyName || "",
+          roleTitle: pendingDraft.roleTitle || "",
+          resumePayload: payload,
+          sourceMap: pendingDraft.sourceMap || {},
+          validationResult: pendingDraft.validationResult || {},
+          changesSummary: pendingDraft.changesSummary || [],
+          status: "approved",
+          approvedAt: new Date(),
+        });
+        const usage = await incrementResumeTailorUsage(req.darbakAccess);
+
+        pendingDraft.status = "approved";
+        pendingDraft.approvedAt = new Date();
+        await pendingDraft.save();
+
+        await ResumeAgentSession.findOneAndUpdate(
+          { sessionId: pendingDraft.agentSessionId },
+          { $set: { status: "completed", expiresAt: getResumeAgentExpiry() } }
+        );
+
+        await AnalyticsEvent.create({
+          eventName: "resume_agent_tailored_approved",
+          visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+          page: "/my-resume",
+          metadata: sanitizeAnalyticsMetadata({
+            opportunityId: pendingDraft.opportunityId?.toString?.() || "",
+            companyName: pendingDraft.companyName || "",
+            usageCount: usage.aiResumeUsageCount,
+            usageLimit: usage.aiResumeUsageLimit,
+          }),
+        }).catch(() => null);
+
+        return res.json({
+          tailoredVersion,
+          usage,
+          message: "اعتمدنا النسخة المخصصة وحفظناها دون تغيير سيرتك الأساسية.",
+        });
+      } catch (err) {
+        if (tailoredVersion?._id) {
+          await ResumeTailoredVersion.findByIdAndUpdate(tailoredVersion._id, {
+            $set: { status: "deleted" },
+          }).catch(() => null);
+        }
+        throw err;
+      }
+    }
+
+    const resume = await ResumeProfile.findOneAndUpdate(
+      {
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      },
+      {
+        $set: {
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+          userId: req.darbakAccess.user?._id,
+          ...payload,
+          aiDraft: pendingDraft.draft,
+          rawDraftInput: pendingDraft.sourceMap || {},
+          aiDraftStatus: "approved",
+          aiDraftApprovedAt: new Date(),
+          aiDraftUsage: {
+            ...(pendingDraft.validationResult || {}),
+          },
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+    ).lean();
+
+    pendingDraft.status = "approved";
+    pendingDraft.approvedAt = new Date();
+    await pendingDraft.save();
+
+    await ResumeAgentSession.findOneAndUpdate(
+      { sessionId: pendingDraft.agentSessionId },
+      { $set: { status: "completed", expiresAt: getResumeAgentExpiry() } }
+    );
+
+    await AnalyticsEvent.create({
+      eventName: "resume_agent_draft_approved",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/my-resume",
+      metadata: sanitizeAnalyticsMetadata({
+        experiencesCount: payload.experiences?.length || 0,
+        projectsCount: payload.projects?.length || 0,
+      }),
+    }).catch(() => null);
+
+    return res.json({
+      resume: serializeResume(resume, req.darbakAccess),
+      message: "اعتمدنا المسودة وفتحناها في المحرر.",
+    });
+  } catch (err) {
+    console.error("❌ Resume agent approve error:", {
+      code: err.code,
+      status: err.status,
+      name: err.name,
+    });
+    const response = getResumeAiErrorResponse(err);
+    return res.status(response.status).json(response.body);
+  }
+});
+
+app.post('/api/resume-agent/reject/:pendingDraftId', requireResumeAccess, async (req, res) => {
+  try {
+    const pendingDraft = await getPendingResumeDraftForAccess(
+      req.params.pendingDraftId,
+      req.darbakAccess
+    );
+    if (!pendingDraft) {
+      return res.status(404).json({ error: "المسودة غير موجودة." });
+    }
+    if (pendingDraft.status !== "pending_review") {
+      return res.status(409).json({ error: "تم التعامل مع هذه المسودة مسبقًا." });
+    }
+
+    pendingDraft.status = "rejected";
+    pendingDraft.rejectedAt = new Date();
+    await pendingDraft.save();
+
+    await ResumeAgentSession.findOneAndUpdate(
+      { sessionId: pendingDraft.agentSessionId },
+      { $set: { status: "completed", expiresAt: getResumeAgentExpiry() } }
+    );
+
+    await AnalyticsEvent.create({
+      eventName: "resume_agent_draft_rejected",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/my-resume",
+      metadata: sanitizeAnalyticsMetadata({
+        draftType: pendingDraft.draftType,
+      }),
+    }).catch(() => null);
+
+    return res.json({ message: "تم رفض المسودة بدون تعديل سيرتك." });
+  } catch (err) {
+    console.error("❌ Resume agent reject error:", err);
+    return res.status(500).json({ error: "تعذر رفض المسودة." });
+  }
+});
+
+app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, res) => {
+  try {
+    const versions = await ResumeTailoredVersion.find({
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+      status: "approved",
+    })
+      .sort({ updatedAt: -1 })
+      .limit(RESUME_AGENT_MAX_TAILORED_VERSIONS)
+      .lean();
+
+    return res.json({
+      versions: versions.map((version) => ({
+        _id: version._id?.toString?.() || "",
+        companyName: version.companyName || "",
+        roleTitle: version.roleTitle || "",
+        opportunityId: version.opportunityId?.toString?.() || "",
+        changesSummary: version.changesSummary || [],
+        updatedAt: version.updatedAt || version.approvedAt || null,
+      })),
+    });
+  } catch (err) {
+    console.error("❌ Tailored versions fetch error:", err);
+    return res.status(500).json({ error: "تعذر تحميل النسخ المخصصة." });
+  }
+});
+
+app.delete('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "معرف النسخة غير صحيح." });
+    }
+
+    const updated = await ResumeTailoredVersion.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      },
+      { $set: { status: "deleted" } },
+      { new: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: "النسخة غير موجودة." });
+    }
+
+    return res.json({ message: "تم حذف النسخة المخصصة." });
+  } catch (err) {
+    console.error("❌ Tailored version delete error:", err);
+    return res.status(500).json({ error: "تعذر حذف النسخة." });
+  }
+});
+
+app.post('/api/resume/ai/generate-draft', requireResumeAccess, async (req, res) => {
+  try {
+    if (!checkResumeAiRateLimit(req, res, "generate_draft")) return;
+
+    const idempotencyKey = getResumeAiIdempotencyKey(req, "generate_draft");
+    const cached = getResumeAiCachedResponse(idempotencyKey);
+    if (cached) return res.json({ ...cached, idempotentReplay: true });
+
+    const aiRequest = sanitizeResumeAiRequest(req.body);
+    const { contact, accessCodeHash, user } = req.darbakAccess;
+    const currentResume = await getResumeForAccess({ contact, accessCodeHash });
+    const portfolio =
+      aiRequest.sourceMode === "portfolio"
+        ? await getPortfolioForAccess({ contact, accessCodeHash })
+        : null;
+
+    const result = await generateResumeDraft({
+      rawInput: aiRequest.rawInput,
+      portfolio,
+      language: aiRequest.language,
+      targetTitle: aiRequest.targetTitle,
+      userKey: user?._id?.toString?.() || contact,
+    });
+
+    const resume = await ResumeProfile.findOneAndUpdate(
+      { contact, accessCodeHash },
+      {
+        $set: {
+          contact,
+          accessCodeHash,
+          userId: user?._id,
+          rawDraftInput: aiRequest.rawInput,
+          aiDraft: result.data,
+          aiDraftStatus: "draft_ready",
+          aiDraftGeneratedAt: new Date(),
+          aiDraftUsage: {
+            model: result.model,
+            responseId: result.responseId,
+            ...result.usage,
+          },
+          ...(currentResume ? {} : sanitizeResumePayload({ settings: { language: aiRequest.language } })),
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+    ).lean();
+
+    await AnalyticsEvent.create({
+      eventName: "resume_ai_draft_generated",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/my-resume",
+      metadata: sanitizeAnalyticsMetadata({
+        language: aiRequest.language,
+        sourceMode: aiRequest.sourceMode,
+        hasPortfolio: Boolean(portfolio),
+      }),
+    }).catch(() => null);
+
+    const responsePayload = {
+      draft: result.data,
+      usage: result.usage,
+      resume: serializeResume(resume, req.darbakAccess),
+      message: "مسودتك جاهزة للمراجعة.",
+    };
+    setResumeAiCachedResponse(idempotencyKey, responsePayload);
+
+    return res.json(responsePayload);
+  } catch (err) {
+    console.error("❌ Resume AI draft error:", {
+      code: err.code,
+      status: err.status,
+      name: err.name,
+    });
+    const response = getResumeAiErrorResponse(err);
+    return res.status(response.status).json(response.body);
+  }
+});
+
+app.post('/api/resume/ai/approve-draft', requireResumeAccess, async (req, res) => {
+  try {
+    const { contact, accessCodeHash, user } = req.darbakAccess;
+    const currentResume = await getResumeForAccess({ contact, accessCodeHash });
+    const incomingDraft = req.body?.draft || currentResume?.aiDraft;
+    const parsedDraft = resumeDraftSchema.parse(incomingDraft);
+    const rawInput = sanitizeResumeLooseTree(req.body?.rawInput || currentResume?.rawDraftInput || {});
+    const language = req.body?.language === "en" ? "en" : parsedDraft?.settings?.language || "ar";
+    const mappedPayload = mapDraftToResumePayload(
+      parsedDraft,
+      currentResume || {},
+      rawInput,
+      language
+    );
+    const payload = sanitizeResumePayload({
+      ...mappedPayload,
+      sectionOrder: currentResume?.sectionOrder || RESUME_SECTION_KEYS,
+      hiddenSections: currentResume?.hiddenSections || [],
+    });
+
+    const resume = await ResumeProfile.findOneAndUpdate(
+      { contact, accessCodeHash },
+      {
+        $set: {
+          contact,
+          accessCodeHash,
+          userId: user?._id,
+          ...payload,
+          aiDraft: parsedDraft,
+          rawDraftInput: rawInput,
+          aiDraftStatus: "approved",
+          aiDraftApprovedAt: new Date(),
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+    ).lean();
+
+    await AnalyticsEvent.create({
+      eventName: "resume_ai_draft_approved",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/my-resume",
+      metadata: sanitizeAnalyticsMetadata({
+        language: payload.settings?.language || "ar",
+        experiencesCount: payload.experiences?.length || 0,
+        projectsCount: payload.projects?.length || 0,
+      }),
+    }).catch(() => null);
+
+    return res.json({
+      resume: serializeResume(resume, req.darbakAccess),
+      message: "اعتمدنا المسودة وفتحناها في المحرر.",
+    });
+  } catch (err) {
+    console.error("❌ Resume AI approve error:", {
+      code: err.code,
+      status: err.status,
+      name: err.name,
+    });
+    const response = getResumeAiErrorResponse(err);
+    return res.status(response.status).json(response.body);
+  }
+});
+
+app.post('/api/resume/ai/rewrite-section', requireResumeAccess, async (req, res) => {
+  try {
+    if (!checkResumeAiRateLimit(req, res, "rewrite_section")) return;
+
+    const idempotencyKey = getResumeAiIdempotencyKey(req, "rewrite_section");
+    const cached = getResumeAiCachedResponse(idempotencyKey);
+    if (cached) return res.json({ ...cached, idempotentReplay: true });
+
+    const sectionKey = sanitizePortfolioText(req.body.sectionKey, 80);
+    const language = req.body.language === "en" ? "en" : "ar";
+    const result = await rewriteResumeSection({
+      sectionKey,
+      currentSection: sanitizeResumeLooseTree(req.body.currentSection || {}),
+      rawFacts: sanitizeResumeLooseTree(req.body.rawFacts || req.body.rawInput || {}),
+      language,
+      userKey: req.darbakAccess.user?._id?.toString?.() || req.darbakAccess.contact,
+    });
+
+    await AnalyticsEvent.create({
+      eventName: "resume_ai_section_rewritten",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/my-resume",
+      metadata: sanitizeAnalyticsMetadata({ sectionKey, language }),
+    }).catch(() => null);
+
+    const responsePayload = {
+      section: result.data,
+      usage: result.usage,
+      message: "تمت إعادة صياغة القسم.",
+    };
+    setResumeAiCachedResponse(idempotencyKey, responsePayload);
+
+    return res.json(responsePayload);
+  } catch (err) {
+    console.error("❌ Resume AI rewrite error:", {
+      code: err.code,
+      status: err.status,
+      name: err.name,
+    });
+    const response = getResumeAiErrorResponse(err);
+    return res.status(response.status).json(response.body);
+  }
+});
+
+app.post('/api/resume/ai/tailor', requireResumeAccess, async (req, res) => {
+  try {
+    if (!checkResumeAiRateLimit(req, res, "tailor_resume")) return;
+
+    const idempotencyKey = getResumeAiIdempotencyKey(req, "tailor_resume");
+    const cached = getResumeAiCachedResponse(idempotencyKey);
+    if (cached) return res.json({ ...cached, idempotentReplay: true });
+
+    const usageBefore = getResumeUsageSnapshot(req.darbakAccess);
+    if (
+      !req.darbakAccess.isAdmin &&
+      usageBefore.aiResumeUsageLimit > 0 &&
+      usageBefore.aiResumeUsageCount >= usageBefore.aiResumeUsageLimit
+    ) {
+      return res.status(429).json({
+        error: "استخدمت كل عمليات تخصيص السيرة لهذا الشهر.",
+        ...usageBefore,
+      });
+    }
+
+    const language = req.body.language === "en" ? "en" : "ar";
+    const baseResume =
+      req.body.resume ||
+      (await getResumeForAccess({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      }));
+
+    const result = await tailorResumeToOpportunity({
+      resume: sanitizeResumeLooseTree(baseResume || {}),
+      opportunity: sanitizeResumeLooseTree(req.body.opportunity || req.body.job || {}),
+      language,
+      userKey: req.darbakAccess.user?._id?.toString?.() || req.darbakAccess.contact,
+    });
+
+    const usage = await incrementResumeTailorUsage(req.darbakAccess);
+
+    const resume = await ResumeProfile.findOneAndUpdate(
+      {
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      },
+      {
+        $set: {
+          aiTailoredDraft: {
+            draft: result.data,
+            generatedAt: new Date(),
+            usage: {
+              model: result.model,
+              responseId: result.responseId,
+              ...result.usage,
+            },
+          },
+        },
+      },
+      { new: true }
+    ).lean();
+
+    await AnalyticsEvent.create({
+      eventName: "resume_ai_tailored",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/my-resume",
+      metadata: sanitizeAnalyticsMetadata({
+        language,
+        usageCount: usage.aiResumeUsageCount,
+        usageLimit: usage.aiResumeUsageLimit,
+      }),
+    }).catch(() => null);
+
+    const responsePayload = {
+      draft: result.data,
+      usage,
+      modelUsage: result.usage,
+      resume: resume ? serializeResume(resume, req.darbakAccess) : null,
+      message: "جهزنا نسخة مخصصة لهذه الفرصة.",
+    };
+    setResumeAiCachedResponse(idempotencyKey, responsePayload);
+
+    return res.json(responsePayload);
+  } catch (err) {
+    console.error("❌ Resume AI tailor error:", {
+      code: err.code,
+      status: err.status,
+      name: err.name,
+    });
+    const response = getResumeAiErrorResponse(err);
+    return res.status(response.status).json(response.body);
+  }
+});
+
+app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) => {
+  try {
+    if (!checkResumeAiRateLimit(req, res, "translate_resume")) return;
+
+    const idempotencyKey = getResumeAiIdempotencyKey(req, "translate_resume");
+    const cached = getResumeAiCachedResponse(idempotencyKey);
+    if (cached) return res.json({ ...cached, idempotentReplay: true });
+
+    const usageBefore = getResumeUsageSnapshot(req.darbakAccess);
+    if (
+      !req.darbakAccess.isAdmin &&
+      usageBefore.aiResumeUsageLimit > 0 &&
+      usageBefore.aiResumeUsageCount >= usageBefore.aiResumeUsageLimit
+    ) {
+      return res.status(429).json({
+        error: "استخدمت كل عمليات تخصيص السيرة لهذا الشهر.",
+        ...usageBefore,
+      });
+    }
+
+    const baseResume =
+      req.body.resume ||
+      (await getResumeForAccess({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      }));
+
+    const result = await translateResumeToEnglish({
+      resume: sanitizeResumeLooseTree(baseResume || {}),
+      userKey: req.darbakAccess.user?._id?.toString?.() || req.darbakAccess.contact,
+    });
+
+    const usage = await incrementResumeTailorUsage(req.darbakAccess);
+
+    await AnalyticsEvent.create({
+      eventName: "resume_translated_to_english",
+      visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
+      page: "/my-resume",
+      metadata: sanitizeAnalyticsMetadata({
+        usageCount: usage.aiResumeUsageCount,
+        usageLimit: usage.aiResumeUsageLimit,
+      }),
+    }).catch(() => null);
+
+    const responsePayload = {
+      resume: {
+        ...result.data,
+        links: [],
+        settings: {
+          ...(result.data.settings || {}),
+          language: "en",
+          direction: "ltr",
+        },
+      },
+      usage,
+      aiUsage: result.usage,
+      message: "تمت ترجمة السيرة إلى الإنجليزية.",
+    };
+    setResumeAiCachedResponse(idempotencyKey, responsePayload);
+
+    return res.json(responsePayload);
+  } catch (err) {
+    console.error("❌ Resume translate error:", {
+      code: err.code,
+      status: err.status,
+      name: err.name,
+      model: err.resumeAiModel || "",
+      message: err.message || "",
+      param: err.param || "",
+      responseStatus: err.responseStatus || "",
+      incompleteReason: err.incompleteReason || "",
+    });
+    const response = getResumeAiErrorResponse(err);
+    return res.status(response.status).json(response.body);
+  }
+});
+
+app.post('/api/resume/customize', requireResumeAccess, async (req, res) => {
+  try {
+    const { subscription, isAdmin } = req.darbakAccess;
+    const usageLimit = isAdmin
+      ? getPlanAiResumeUsageLimit(RESUME_PLAN_KEY, process.env)
+      : getSubscriptionAiResumeUsageLimit(subscription || {});
+    const usageCount = Number(subscription?.aiResumeUsageCount || 0);
+
+    if (!isAdmin && usageLimit > 0 && usageCount >= usageLimit) {
+      return res.status(429).json({
+        error: "استخدمت كل عمليات تخصيص السيرة لهذا الشهر.",
+        aiResumeUsageCount: usageCount,
+        aiResumeUsageLimit: usageLimit,
+      });
+    }
+
+    res.status(501).json({
+      error: "تخصيص السيرة بالذكاء الاصطناعي قيد التجهيز.",
+      aiResumeUsageCount: usageCount,
+      aiResumeUsageLimit: usageLimit,
+    });
+  } catch (err) {
+    console.error("❌ Resume customize error:", err);
+    res.status(500).json({ error: "تعذر تجهيز تخصيص السيرة." });
+  }
+});
+
 app.get('/api/portfolio/me', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -6201,6 +8177,15 @@ app.get('/api/portfolios/:slug', async (req, res) => {
   }
 });
 
+app.get('/api/subscriptions/plans', (req, res) => {
+  const plans = getPublicSubscriptionPlans(process.env);
+
+  res.json({
+    resumePlanLaunchEnabled: RESUME_PLAN_LAUNCH_ENABLED,
+    plans,
+  });
+});
+
 app.post('/api/subscriptions/verify', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -6234,6 +8219,11 @@ app.post('/api/subscriptions/verify', async (req, res) => {
         accessSource: "admin_grant",
         accessGrantedAt: new Date(),
         accessGrantedBy: "admin_login",
+        planKey: RESUME_PLAN_KEY,
+        entitlements: [PLUS_ENTITLEMENT, RESUME_ENTITLEMENT],
+        aiResumeUsageCount: 0,
+        aiResumeUsageLimit: getPlanAiResumeUsageLimit(RESUME_PLAN_KEY, process.env),
+        aiResumeUsageResetAt: adminExpiresAt,
       });
 
       return res.json({
@@ -6244,6 +8234,13 @@ app.post('/api/subscriptions/verify', async (req, res) => {
         accessType: "admin",
         isAdmin: true,
         planId: "admin",
+        planKey: RESUME_PLAN_KEY,
+        planLabel: "أدمن دربك",
+        entitlements: [PLUS_ENTITLEMENT, RESUME_ENTITLEMENT],
+        hasResumeAccess: true,
+        aiResumeUsageCount: 0,
+        aiResumeUsageLimit: getPlanAiResumeUsageLimit(RESUME_PLAN_KEY, process.env),
+        aiResumeUsageResetAt: adminExpiresAt,
         priceSar: 0,
         durationDays: 3650,
       });
@@ -6251,7 +8248,9 @@ app.post('/api/subscriptions/verify', async (req, res) => {
 
     const subscription = await Subscription.findOne(
       getActiveSubscriptionFilter(contact, accessCodeHash)
-    ).lean();
+    )
+      .sort({ updatedAt: -1 })
+      .lean();
 
     if (!subscription) {
       const manualAccess = getActiveManualAccessWindow(accessUser, new Date());
@@ -6271,6 +8270,18 @@ app.post('/api/subscriptions/verify', async (req, res) => {
           accessType: manualAccess.accessType,
           isAdmin: false,
           planId: manualAccess.accessType,
+          planKey: manualAccess.planKey || PLUS_PLAN_KEY,
+          planLabel:
+            manualAccess.accessType === "experience_reward"
+              ? "هدية مشاركة تجربة"
+              : "وصول كامل",
+          entitlements: manualAccess.entitlements || [PLUS_ENTITLEMENT],
+          hasResumeAccess: (manualAccess.entitlements || []).includes(
+            RESUME_ENTITLEMENT
+          ),
+          aiResumeUsageCount: Number(accessUser.aiResumeUsageCount || 0),
+          aiResumeUsageLimit: Number(accessUser.aiResumeUsageLimit || 0),
+          aiResumeUsageResetAt: accessUser.aiResumeUsageResetAt || null,
           priceSar: 0,
           durationDays,
           provider: manualAccess.accessType,
@@ -6311,6 +8322,7 @@ app.post('/api/subscriptions/verify', async (req, res) => {
             expiresAt: activated.expiresAt,
             accessType: "premium",
             planId: activated.planId || "monthly",
+            ...buildSubscriptionAccessPayload(activated),
             priceSar: getSubscriptionPriceSar(activated),
             durationDays: getSubscriptionDurationDays(activated),
             provider: activated.provider || "",
@@ -6381,6 +8393,7 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       expiresAt: subscription.expiresAt,
       accessType: "premium",
       planId: subscription.planId || "monthly",
+      ...buildSubscriptionAccessPayload(subscription),
       priceSar: getSubscriptionPriceSar(subscription),
       durationDays: getSubscriptionDurationDays(subscription),
       provider: subscription.provider || "",
@@ -6715,7 +8728,9 @@ app.post('/api/subscriptions/reset-code', async (req, res) => {
       email,
       expiresAt: updatedSubscription?.expiresAt || subscription.expiresAt,
       accessType: updatedSubscription ? "premium" : "pending",
-      planId: subscription.planId || "monthly",
+      ...(updatedSubscription
+        ? buildSubscriptionAccessPayload(updatedSubscription)
+        : buildSubscriptionAccessPayload(subscription)),
       priceSar: getSubscriptionPriceSar(subscription),
       durationDays: getSubscriptionDurationDays(subscription),
       provider: subscription.provider || "",
@@ -6737,6 +8752,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     const contact = normalizeSubscriberContact(rawContact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
     const selectedPlan = getSubscriptionPlan(req.body.planId);
+    const selectedPlanKey = selectedPlan.planKey || normalizePlanKey(selectedPlan.id);
     const visitorId = sanitizeAnalyticsText(req.body.visitorId, 90);
 
     if (
@@ -6774,6 +8790,10 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         isAdmin: true,
         isPremium: true,
         premiumExpiresAt: adminExpiresAt,
+        planKey: RESUME_PLAN_KEY,
+        entitlements: [PLUS_ENTITLEMENT, RESUME_ENTITLEMENT],
+        aiResumeUsageLimit: getPlanAiResumeUsageLimit(RESUME_PLAN_KEY, process.env),
+        aiResumeUsageResetAt: adminExpiresAt,
       });
 
       return res.json({
@@ -6784,8 +8804,22 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         accessType: "admin",
         isAdmin: true,
         planId: "admin",
+        planKey: RESUME_PLAN_KEY,
+        entitlements: [PLUS_ENTITLEMENT, RESUME_ENTITLEMENT],
+        hasResumeAccess: true,
+        aiResumeUsageCount: 0,
+        aiResumeUsageLimit: getPlanAiResumeUsageLimit(RESUME_PLAN_KEY, process.env),
+        aiResumeUsageResetAt: adminExpiresAt,
         priceSar: 0,
         durationDays: 3650,
+      });
+    }
+
+    if (selectedPlanKey === RESUME_PLAN_KEY && !RESUME_PLAN_LAUNCH_ENABLED) {
+      return res.status(403).json({
+        error: "باقة دربك+ سيرة قيد التجهيز، ولا يمكن شراؤها حاليًا.",
+        reason: "resume_plan_not_launched",
+        planKey: RESUME_PLAN_KEY,
       });
     }
 
@@ -6806,33 +8840,41 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       }
 
       if (existingSubscription.status === "active") {
-        await syncSubscriptionUser(existingSubscription);
-        await recordPremiumAccessVerifiedEvent({
-          subscription: existingSubscription,
-          visitorId,
-          source: "start_checkout_active",
-        });
+        const existingEntitlements = getSubscriptionEntitlements(existingSubscription);
+        const alreadyHasSelectedPlan = (selectedPlan.entitlements || []).every(
+          (entitlement) => existingEntitlements.includes(entitlement)
+        );
 
-        return res.json({
-          active: true,
-          contact: existingSubscription.email,
-          email: existingSubscription.email,
-          expiresAt: existingSubscription.expiresAt,
-          accessType: "premium",
-          planId: existingSubscription.planId || "monthly",
-          priceSar: getSubscriptionPriceSar(existingSubscription),
-          durationDays: getSubscriptionDurationDays(existingSubscription),
-          provider: existingSubscription.provider || "",
-          providerPaymentId: existingSubscription.providerPaymentId || "",
-        });
+        if (alreadyHasSelectedPlan) {
+          await syncSubscriptionUser(existingSubscription);
+          await recordPremiumAccessVerifiedEvent({
+            subscription: existingSubscription,
+            visitorId,
+            source: "start_checkout_active",
+          });
+
+          return res.json({
+            active: true,
+            contact: existingSubscription.email,
+            email: existingSubscription.email,
+            expiresAt: existingSubscription.expiresAt,
+            accessType: "premium",
+            ...buildSubscriptionAccessPayload(existingSubscription),
+            priceSar: getSubscriptionPriceSar(existingSubscription),
+            durationDays: getSubscriptionDurationDays(existingSubscription),
+            provider: existingSubscription.provider || "",
+            providerPaymentId: existingSubscription.providerPaymentId || "",
+          });
+        }
       }
 
       if (
+        existingSubscription.status === "pending" &&
         existingSubscription.provider === "moyasar" &&
         existingSubscription.providerPaymentId
       ) {
         const isSamePendingPlan =
-          (existingSubscription.planId || "monthly") === selectedPlan.id;
+          getSubscriptionPlanKey(existingSubscription) === selectedPlanKey;
         const invoice = await getMoyasarInvoice(
           existingSubscription.providerPaymentId
         );
@@ -6854,7 +8896,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
             email: activated.email,
             expiresAt: activated.expiresAt,
             accessType: "premium",
-            planId: activated.planId || "monthly",
+            ...buildSubscriptionAccessPayload(activated),
             priceSar: getSubscriptionPriceSar(activated),
             durationDays: getSubscriptionDurationDays(activated),
             provider: activated.provider || "",
@@ -6871,7 +8913,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
             checkoutUrl: invoice.url,
             provider: "moyasar",
             invoiceId: invoice.id || existingSubscription.providerPaymentId,
-            planId: existingSubscription.planId || "monthly",
+            ...buildSubscriptionAccessPayload(existingSubscription),
             priceSar: getSubscriptionPriceSar(existingSubscription),
             durationDays: getSubscriptionDurationDays(existingSubscription),
           });
@@ -6883,6 +8925,20 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     const moyasarCallbackUrl = `${getPublicApiUrl(req)}/api/subscriptions/moyasar/callback`;
 
     const amountHalalas = Math.round(selectedPlan.priceSar * 100);
+    const currentActiveSubscription =
+      existingSubscription?.status === "active" &&
+      existingSubscription.expiresAt &&
+      new Date(existingSubscription.expiresAt) > new Date()
+        ? existingSubscription
+        : null;
+    const accessWindow = calculateAccessWindow({
+      currentExpiresAt: currentActiveSubscription?.expiresAt,
+      durationDays: selectedPlan.durationDays,
+      now: new Date(),
+      extendFromCurrent: Boolean(currentActiveSubscription),
+    });
+    const subscriptionEntitlements = getPlanEntitlements(selectedPlanKey, process.env);
+    const usageLimit = selectedPlan.aiResumeUsageLimit || 0;
 
     if (MOYASAR_SECRET_KEY) {
       const invoice = await createMoyasarInvoice({
@@ -6894,32 +8950,49 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         metadata: {
           darbak_contact: contact,
           plan_id: selectedPlan.id,
+          plan_key: selectedPlanKey,
           source: "darbak_plus",
         },
       });
 
       const pendingSubscription = await Subscription.findOneAndUpdate(
-        { email: contact, accessCodeHash },
+        {
+          email: contact,
+          accessCodeHash,
+          status: "pending",
+          provider: "moyasar",
+          planKey: selectedPlanKey,
+        },
         {
           email: contact,
           accessCodeHash,
           status: "pending",
           planId: selectedPlan.id,
+          planKey: selectedPlanKey,
+          entitlements: subscriptionEntitlements,
           priceSar: selectedPlan.priceSar,
           durationDays: selectedPlan.durationDays,
-          expiresAt: addSubscriptionDays(selectedPlan.durationDays),
+          startsAt: accessWindow.startsAt,
+          expiresAt: accessWindow.expiresAt,
           provider: "moyasar",
           providerPaymentId: invoice.id || "",
+          isUpgrade: Boolean(currentActiveSubscription),
+          upgradedFromPlanKey: currentActiveSubscription
+            ? getSubscriptionPlanKey(currentActiveSubscription)
+            : "",
+          aiResumeUsageCount: 0,
+          aiResumeUsageLimit: usageLimit,
+          aiResumeUsageResetAt: accessWindow.expiresAt,
         },
         { new: true, upsert: true, runValidators: true }
       );
-      await syncSubscriptionUser(pendingSubscription);
 
       return res.json({
         checkoutUrl: invoice.url,
         provider: "moyasar",
         invoiceId: invoice.id,
         planId: selectedPlan.id,
+        planKey: selectedPlanKey,
         priceSar: selectedPlan.priceSar,
         durationDays: selectedPlan.durationDays,
       });
@@ -6934,32 +9007,49 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         url.searchParams.set("amount", String(selectedPlan.priceSar));
         url.searchParams.set("duration", String(selectedPlan.durationDays));
         url.searchParams.set("plan", selectedPlan.id);
+        url.searchParams.set("planKey", selectedPlanKey);
         checkoutUrl = url.toString();
       } catch {
         // Keep custom provider links as-is if they are not parseable URLs.
       }
 
       const pendingSubscription = await Subscription.findOneAndUpdate(
-        { email: contact, accessCodeHash },
+        {
+          email: contact,
+          accessCodeHash,
+          status: "pending",
+          provider: "manual",
+          planKey: selectedPlanKey,
+        },
         {
           email: contact,
           accessCodeHash,
           status: "pending",
           planId: selectedPlan.id,
+          planKey: selectedPlanKey,
+          entitlements: subscriptionEntitlements,
           priceSar: selectedPlan.priceSar,
           durationDays: selectedPlan.durationDays,
-          expiresAt: addSubscriptionDays(selectedPlan.durationDays),
+          startsAt: accessWindow.startsAt,
+          expiresAt: accessWindow.expiresAt,
           provider: "manual",
           providerPaymentId: "",
+          isUpgrade: Boolean(currentActiveSubscription),
+          upgradedFromPlanKey: currentActiveSubscription
+            ? getSubscriptionPlanKey(currentActiveSubscription)
+            : "",
+          aiResumeUsageCount: 0,
+          aiResumeUsageLimit: usageLimit,
+          aiResumeUsageResetAt: accessWindow.expiresAt,
         },
         { new: true, upsert: true, runValidators: true }
       );
-      await syncSubscriptionUser(pendingSubscription);
 
       return res.json({
         checkoutUrl,
         provider: "manual",
         planId: selectedPlan.id,
+        planKey: selectedPlanKey,
         priceSar: selectedPlan.priceSar,
         durationDays: selectedPlan.durationDays,
       });
@@ -7123,8 +9213,11 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
     const contact = normalizeSubscriberContact(req.body.email || req.body.contact);
     const accessCode = normalizeAccessCode(req.body.accessCode);
     const selectedPlan = getSubscriptionPlan(req.body.planId);
+    const selectedPlanKey = selectedPlan.planKey || normalizePlanKey(selectedPlan.id);
     const days = Number(req.body.days || selectedPlan.durationDays);
     const priceSar = Number(req.body.priceSar || selectedPlan.priceSar);
+    const now = new Date();
+    const expiresAt = addDaysFromDate(now, days);
 
     if (
       !isValidSubscriberContact(req.body.email || req.body.contact) ||
@@ -7173,11 +9266,17 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
         accessCodeHash,
         status: "active",
         planId: selectedPlan.id,
+        planKey: selectedPlanKey,
+        entitlements: getPlanEntitlements(selectedPlanKey, process.env),
         priceSar,
         durationDays: days,
-        expiresAt: addSubscriptionDays(days),
+        startsAt: now,
+        expiresAt,
         provider: req.body.provider || "manual",
         providerPaymentId: req.body.providerPaymentId || "",
+        aiResumeUsageCount: 0,
+        aiResumeUsageLimit: selectedPlan.aiResumeUsageLimit || 0,
+        aiResumeUsageResetAt: expiresAt,
       },
       { new: true, upsert: true, runValidators: true }
     ).lean();
@@ -7596,6 +9695,67 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Admin users error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/resume-agent/storage-stats', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const [sessions, pendingDrafts, tailoredVersions] = await Promise.all([
+      ResumeAgentSession.find({})
+        .sort({ updatedAt: -1 })
+        .limit(250)
+        .select("sessionId purpose status collectedFacts pendingQuestions usage expiresAt updatedAt")
+        .lean(),
+      ResumePendingDraft.find({})
+        .sort({ updatedAt: -1 })
+        .limit(250)
+        .select("draftType status draft sourceMap validationResult expiresAt updatedAt")
+        .lean(),
+      ResumeTailoredVersion.find({})
+        .sort({ updatedAt: -1 })
+        .limit(250)
+        .select("status resumePayload sourceMap validationResult updatedAt")
+        .lean(),
+    ]);
+
+    const sumBytes = (items = []) =>
+      items.reduce((total, item) => total + estimateJsonBytes(item), 0);
+
+    res.json({
+      summary: {
+        sessionsCount: await ResumeAgentSession.countDocuments({}),
+        pendingDraftsCount: await ResumePendingDraft.countDocuments({}),
+        tailoredVersionsCount: await ResumeTailoredVersion.countDocuments({
+          status: "approved",
+        }),
+        sampledSessionsBytes: sumBytes(sessions),
+        sampledPendingDraftsBytes: sumBytes(pendingDrafts),
+        sampledTailoredVersionsBytes: sumBytes(tailoredVersions),
+        sampleLimit: 250,
+      },
+      recentSessions: sessions.map((session) => ({
+        sessionId: session.sessionId,
+        purpose: session.purpose,
+        status: session.status,
+        answersCount: Array.isArray(session.collectedFacts?.answers)
+          ? session.collectedFacts.answers.length
+          : 0,
+        questionsCount: Array.isArray(session.pendingQuestions)
+          ? session.pendingQuestions.length
+          : 0,
+        usage: session.usage || {},
+        bytes: estimateJsonBytes(session),
+        updatedAt: session.updatedAt,
+        expiresAt: session.expiresAt,
+      })),
+    });
+  } catch (err) {
+    console.error("❌ Admin resume agent storage stats error:", err);
     res.status(500).json({ error: err.message });
   }
 });
