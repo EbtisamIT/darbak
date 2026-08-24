@@ -49,12 +49,6 @@ const readCollection = (payload) => Array.isArray(payload) ? payload : payload?.
 const formatPlanPrice = (plan = {}) => typeof plan.priceSar === "number"
   ? `${plan.priceSar.toLocaleString("en-US", { minimumFractionDigits: plan.priceSar % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })} ريال`
   : "";
-const formatPlanPeriod = (plan = {}) => {
-  const days = Number(plan.durationDays || 0);
-  if (days === 30) return "/ شهر";
-  if (days === 90) return "/ 3 أشهر";
-  return days ? `/ ${days} يوم` : "";
-};
 const getPlanPerks = (plan = {}) => {
   const isResumePlan = plan.planKey === "darbak_resume" || plan.id === "darbak_resume";
   const limit = Number(plan.aiResumeUsageLimit || 0);
@@ -222,7 +216,7 @@ const HomePage = () => {
               <article className={`home-pricing-card${isResumePlan ? " home-pricing-card-highlighted" : ""}`} key={plan.id}>
                 <div className="home-pricing-card-head">
                   <div><span>{plan.label}</span>{isResumePlan && <small>الأكمل للتقديم</small>}</div>
-                  <strong>{formatPlanPrice(plan)}<em>{formatPlanPeriod(plan)}</em></strong>
+                  <strong>{formatPlanPrice(plan)}<em>/ شهر</em></strong>
                 </div>
                 <ul>{getPlanPerks(plan).slice(0, 6).map((perk) => <li key={perk}><FiCheck aria-hidden="true" />{perk}</li>)}</ul>
                 <Link className="home-button home-button-secondary" to={`/subscribe?plan=${plan.id}`}>{isResumePlan ? "ابدأ سيرتي" : "اشترك الآن"}<FiArrowLeft aria-hidden="true" /></Link>
