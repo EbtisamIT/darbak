@@ -5070,7 +5070,7 @@ export default function TrainingFinderPage() {
                   openResumeTailorFromCard(context);
                 }}
               >
-                ابدأ التخصيص
+                ابدأ التجهيز
               </button>
             </div>
           </div>

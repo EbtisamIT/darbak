@@ -177,14 +177,14 @@ const ResumeAgentFlow = ({
   const isTailored = purpose === "tailor_resume";
 
   const statusText = useMemo(() => {
-    if (loading) return "جاري تجهيز الوكيل...";
+    if (loading) return isTailored ? "نجهز تقديمك..." : "جاري تجهيز الوكيل...";
     if (output?.status === "needs_information") return "نحتاج كم معلومة قصيرة فقط.";
     if (output?.status === "draft_ready" || output?.status === "tailored_draft_ready") {
       return "المسودة جاهزة للمراجعة.";
     }
     if (output?.status === "cannot_continue") return "نحتاج نراجع السبب قبل المتابعة.";
-    return "وكيل السيرة جاهز.";
-  }, [loading, output?.status]);
+    return isTailored ? "تقديمك جاهز للمراجعة." : "وكيل السيرة جاهز.";
+  }, [isTailored, loading, output?.status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -261,7 +261,7 @@ const ResumeAgentFlow = ({
     try {
       setLoading(true);
       setError("");
-      setNotice("ممتاز، نرتب معلوماتك ونشوف إذا بقي شيء ناقص...");
+      setNotice(isTailored ? "نكمل تجهيز تقديمك بالمعلومات التي أضفتها." : "ممتاز، نرتب معلوماتك ونشوف إذا بقي شيء ناقص...");
       const { data } = await axios.post(
         `${API_BASE_URL}/api/resume-agent/respond`,
         {
@@ -276,8 +276,11 @@ const ResumeAgentFlow = ({
       setSession(data.session);
       setOutput(data.output);
       setAnswers({});
-      setNotice(
-        data.output?.status === "needs_information"
+      setNotice(isTailored
+        ? data.output?.status === "needs_information"
+          ? "باقي تفصيل قصير قبل إكمال التقديم."
+          : "جاري إكمال تقديمك..."
+        : data.output?.status === "needs_information"
           ? "باقي كم تفصيل صغير ونجهز المسودة."
           : "جاري كتابة سيرتك وترتيب المشاريع ومراجعة المعلومات..."
       );
@@ -363,11 +366,12 @@ const ResumeAgentFlow = ({
     <section className="resume-agent-flow">
       <div className="resume-agent-hero">
         <div>
-          <span>وكيل السيرة في دربك</span>
-          <h2>{isTailored ? "نخصص سيرتك لفرصة محددة" : "نبني سيرتك خطوة بخطوة"}</h2>
+          <span>{isTailored ? "ملف تقديم مخصص" : "وكيل السيرة في دربك"}</span>
+          <h2>{isTailored ? "نجهز تقديمك لهذه الجهة" : "نبني سيرتك خطوة بخطوة"}</h2>
           <p>
-            الوكيل يقرأ بياناتك في دربك، يسأل عن الناقص فقط، ثم يجهز مسودة قابلة
-            للمراجعة قبل الحفظ.
+            {isTailored
+              ? "نستخدم معلوماتك الموجودة في دربك، وما نضيف أي خبرة أو مهارة غير موجودة عندك."
+              : "الوكيل يقرأ بياناتك في دربك، يسأل عن الناقص فقط، ثم يجهز مسودة قابلة للمراجعة قبل الحفظ."}
           </p>
         </div>
         <div className="resume-agent-status">
@@ -377,7 +381,7 @@ const ResumeAgentFlow = ({
       </div>
 
       <div className="resume-agent-progress">
-        {["قراءة بياناتك", "تحديد الناقص", "صياغة المسودة", "مراجعة الادعاءات"].map(
+        {(isTailored ? ["نفهم الجهة", "نخصص سيرتك", "نجهز تقديمك"] : ["قراءة بياناتك", "تحديد الناقص", "صياغة المسودة", "مراجعة الادعاءات"]).map(
           (step, index) => (
             <span
               key={step}
@@ -401,8 +405,8 @@ const ResumeAgentFlow = ({
       {loading && (
         <div className="resume-agent-loading">
           <FiRefreshCw aria-hidden="true" />
-          <strong>نجهز الرد...</strong>
-          <p>قد يستغرق الوكيل لحظات لأنه يقرأ بياناتك ويتحقق من المسودة قبل عرضها.</p>
+          <strong>{isTailored ? "نجهز ملف تقديمك..." : "نجهز الرد..."}</strong>
+          <p>{isTailored ? "نرتب سيرتك ونجهز خطاب التقديم ورسالة الإيميل من معلوماتك الحالية." : "قد يستغرق الوكيل لحظات لأنه يقرأ بياناتك ويتحقق من المسودة قبل عرضها."}</p>
         </div>
       )}
 
@@ -454,17 +458,18 @@ const ResumeAgentFlow = ({
         draft && (
           <div className="resume-agent-review">
             <div className="resume-agent-section-head">
-              <span>مسودة سيرتك جاهزة ✨</span>
-              <h3>{isTailored ? "نسخة مخصصة للمراجعة" : "راجع المسودة قبل اعتمادها"}</h3>
+              <span>{isTailored ? "تقديمك جاهز ✨" : "مسودة سيرتك جاهزة ✨"}</span>
+              <h3>{isTailored ? "راجع ما جهزناه ثم أنشئ ملف التقديم" : "راجع المسودة قبل اعتمادها"}</h3>
               <p>
-                لم يتم حفظ أي تعديل نهائي بعد. عند الاعتماد، تفتح المسودة داخل محرر
-                دربك ويمكنك تعديلها يدويًا.
+                {isTailored
+                  ? "سنحفظ النسخة بشكل مستقل عن سيرتك الأساسية، ويمكنك تعديلها بعدها."
+                  : "لم يتم حفظ أي تعديل نهائي بعد. عند الاعتماد، تفتح المسودة داخل محرر دربك ويمكنك تعديلها يدويًا."}
               </p>
             </div>
 
-            <div className="resume-agent-draft-grid">
+            {!isTailored && <div className="resume-agent-draft-grid">
               {DRAFT_SECTIONS.map(([key, title]) => renderDraftSection(draft, key, title))}
-            </div>
+            </div>}
 
             <div className="resume-agent-insights">
               {output.changesSummary?.length > 0 && (
@@ -477,7 +482,7 @@ const ResumeAgentFlow = ({
                   </ul>
                 </div>
               )}
-              {output.warnings?.length > 0 && (
+              {!isTailored && output.warnings?.length > 0 && (
                 <div>
                   <strong>ملاحظات للمراجعة</strong>
                   <ul>
@@ -487,7 +492,7 @@ const ResumeAgentFlow = ({
                   </ul>
                 </div>
               )}
-              {output.missingInformation?.length > 0 && (
+              {!isTailored && output.missingInformation?.length > 0 && (
                 <div>
                   <strong>معلومات لم نستخدمها أو ناقصة</strong>
                   <ul>
@@ -499,7 +504,7 @@ const ResumeAgentFlow = ({
                   </ul>
                 </div>
               )}
-              {output.validationStatus && (
+              {!isTailored && output.validationStatus && (
                 <div>
                   <strong>نتيجة التحقق</strong>
                   <p>
@@ -525,7 +530,7 @@ const ResumeAgentFlow = ({
                 {approving
                   ? "جاري إنشاء النسخة..."
                   : isTailored
-                  ? "إنشاء نسخة مخصصة — سيستخدم 1 من تخصيصاتك"
+                  ? "إنشاء ملف التقديم — يستخدم تخصيصًا واحدًا"
                   : "اعتماد وفتح المحرر"}
               </button>
             </div>

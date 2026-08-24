@@ -72,8 +72,10 @@ const ApplicationPackPanel = ({ pack, onCompleteDetails, onOpenResume }) => {
     <section className="application-pack-panel">
       <header>
         <span>{pack.packType === "company_outreach_pack" ? "تواصل مع جهة" : "ملف التقديم"}</span>
-        <h2>تقديمك لـ {info.organizationName || "هذه الجهة"}</h2>
-        <p>{readyCount} من 3 جاهزة</p>
+        <h2>تقديمك لـ {info.organizationName || "هذه الجهة"} {readyCount === 3 ? "جاهز ✓" : ""}</h2>
+        <p>{pack.email?.status === "needs_input" && pack.resume?.status === "ready" && pack.trainingLetter?.status === "ready"
+          ? `السيرة وخطاب التقديم جاهزان ✓ باقي ${missingFields.length === 1 ? "معلومة واحدة" : "معلومات"} لإكمال رسالة الإيميل.`
+          : `${readyCount} من 3 جاهزة`}</p>
       </header>
       <div className="application-pack-parts">
         <PackPart icon={<FiFileText aria-hidden="true" />} title="السيرة الذاتية" status={pack.resume?.status} open={openPart === "resume"} onOpen={() => setOpenPart(openPart === "resume" ? "" : "resume")}>

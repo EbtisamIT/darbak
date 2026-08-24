@@ -118,6 +118,8 @@ const MyResumePage = () => {
     : location.pathname === "/my-resume/tailor"
     ? "tailor"
     : "dashboard";
+  const isTailoredApplicationFlow = routeView === "tailor" ||
+    (editingTailoredVersion && editingVersionType === "tailored");
 
   const openLogin = useCallback(() => {
     window.dispatchEvent(
@@ -812,11 +814,13 @@ const MyResumePage = () => {
           </section>
         </div>
       )}
-      {!(resumeMode === "dashboard" && journeyView === "start") && <section className="resume-topbar">
+      {!(resumeMode === "dashboard" && journeyView === "start") && !(
+        routeView === "tailor" && (resumeMode === "match" || resumeMode === "agent")
+      ) && <section className="resume-topbar">
         <div>
           <span>سيرتي بدربك</span>
-          <h1>{editingTailoredVersion && editingVersionType === "tailored" && applicationPack ? `نسختك لـ ${applicationPack.applicationInfo?.organizationName || "هذه الجهة"} جاهزة ✓` : "جهزنا لك البداية من بياناتك في دربك."}</h1>
-          <p>{editingTailoredVersion && editingVersionType === "tailored" && applicationPack ? "راجع النسخة أو عدّلها قبل الإرسال." : "راجع الموجود، وكمل الناقص فقط."}</p>
+          <h1>{editingTailoredVersion && editingVersionType === "tailored" ? `نسختك المخصصة لـ ${applicationPack?.applicationInfo?.organizationName || "هذه الجهة"} ✓` : "جهزنا لك البداية من بياناتك في دربك."}</h1>
+          <p>{editingTailoredVersion && editingVersionType === "tailored" ? "محفوظة بشكل مستقل عن سيرتك الأساسية." : "راجع الموجود، وكمل الناقص فقط."}</p>
         </div>
         <div className="resume-topbar-actions">
           {resumeMode === "editor" ? (
@@ -860,7 +864,7 @@ const MyResumePage = () => {
         </div>
       </section>}
 
-      {!(resumeMode === "dashboard" && journeyView === "start") && <ResumeJourneyStepper
+      {!(resumeMode === "dashboard" && journeyView === "start") && !isTailoredApplicationFlow && <ResumeJourneyStepper
         currentStep={journeyStep}
         onStepChange={(step) => {
           if (step === "data") {

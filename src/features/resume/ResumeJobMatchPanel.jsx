@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { FiAlertCircle, FiArrowLeft, FiCheckCircle, FiX } from "react-icons/fi";
 import API_BASE_URL from "../../config/api";
@@ -13,7 +13,7 @@ const ResumeJobMatchPanel = ({ opportunityId = "", externalJob = null, onStartTa
   const [opportunities, setOpportunities] = useState([]);
   const [selectedOpportunityId, setSelectedOpportunityId] = useState(opportunityId);
 
-  const analyze = async (payload) => {
+  const analyze = useCallback(async (payload) => {
     try {
       setLoading(true);
       setError("");
@@ -23,17 +23,18 @@ const ResumeJobMatchPanel = ({ opportunityId = "", externalJob = null, onStartTa
         { headers: getAccessHeaders({ itemKey: "resume:match" }) }
       );
       setResult(data);
+      if (payload.autoStart) onStartTailoring?.(data);
     } catch (err) {
       setError(err.response?.data?.error || "تعذر تجهيز التخصيص لهذه الفرصة.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [onStartTailoring]);
 
   useEffect(() => {
-    if (opportunityId) analyze({ opportunityId });
-    else if (externalJob?.company) analyze({ job: externalJob });
-  }, [opportunityId, externalJob]);
+    if (opportunityId) analyze({ opportunityId, autoStart: true });
+    else if (externalJob?.company) analyze({ job: externalJob, autoStart: true });
+  }, [opportunityId, externalJob, analyze]);
 
   useEffect(() => {
     if (mode !== "darbak" || opportunityId) return;
@@ -55,13 +56,14 @@ const ResumeJobMatchPanel = ({ opportunityId = "", externalJob = null, onStartTa
     ...(match.breakdown?.reviewRequirements || []),
     ...(match.breakdown?.skills?.missing || []),
   ].filter(Boolean).filter((item, index, items) => items.indexOf(item) === index).slice(0, 10);
+  const isPreselected = Boolean(opportunityId || externalJob?.company);
 
   return (
     <section className="resume-match-panel">
       <div className="resume-match-head">
         <div>
-          <span>جهّز تقديمك لفرصة</span>
-          <h2>{!opportunityId && !externalJob ? "اختر الفرصة التي تريد التقديم عليها" : "نجهز أفضل نسخة من سيرتك لهذه الفرصة."}</h2>
+          <span>{isPreselected ? "ملف تقديم للجهة" : "جهّز تقديمك لفرصة"}</span>
+          <h2>{!isPreselected ? "اختر الفرصة التي تريد التقديم عليها" : "نجهز تقديمك لهذه الجهة."}</h2>
           <p>سنبرز المعلومات الموجودة لديك فقط، ثم نجهز السيرة وخطاب التقديم ورسالة الإيميل.</p>
         </div>
         <button type="button" onClick={onBack} aria-label="العودة إلى السير الذاتية">
@@ -94,9 +96,9 @@ const ResumeJobMatchPanel = ({ opportunityId = "", externalJob = null, onStartTa
 
       {loading && (
         <div className="resume-match-loading" aria-live="polite">
-          <span>✓ قرأنا متطلبات الفرصة</span>
-          <span>✓ قارناها بمهاراتك ومشاريعك</span>
-          <strong>نحدد ما سنبرزه في النسخة...</strong>
+          <span>✓ نفهم الجهة</span>
+          <span>✓ نخصص سيرتك</span>
+          <strong>نجهز تقديمك...</strong>
         </div>
       )}
 
@@ -116,15 +118,15 @@ const ResumeJobMatchPanel = ({ opportunityId = "", externalJob = null, onStartTa
               <h3>سنركز في نسختك على</h3>
               <p>{getFocusItems(result.match).length ? getFocusItems(result.match).join("، ") : "لا توجد مطابقة مباشرة كافية في البيانات الحالية؛ سنحافظ على السيرة صادقة ونبرز محتواها المهني الواضح فقط."}</p>
             </article>
-            <article>
+            {!isPreselected && <article>
               <FiAlertCircle aria-hidden="true" />
               <h3>متطلبات تحتاج مراجعة</h3>
               <p>{getReviewItems(result.match).length ? `${getReviewItems(result.match).join("، ")}. لن نضيف أيًا منها إلى سيرتك إلا إذا كانت لديك ومثبتة.` : "لا توجد متطلبات تحتاج تأكيدًا من البيانات المتاحة."}</p>
-            </article>
+            </article>}
           </div>
 
           <button type="button" className="resume-match-tailor-button" onClick={() => onStartTailoring(result)}>
-            جهّز تقديمي لهذه الجهة — 1 تخصيص <FiArrowLeft aria-hidden="true" />
+            ابدأ التجهيز — يستخدم تخصيصًا واحدًا <FiArrowLeft aria-hidden="true" />
           </button>
         </div>
       )}
