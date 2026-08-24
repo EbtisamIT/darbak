@@ -8367,9 +8367,12 @@ body {
 .resume-match-source-tabs button.is-active { border-color: var(--app-brand); color: var(--app-brand); background: var(--app-brand-soft); }
 
 .resume-match-form { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+.resume-match-form-intro { grid-column: 1 / -1; display: grid; gap: 4px; padding: 2px 1px 6px; }
+.resume-match-form-intro strong { color: var(--app-brand); font-size: 13px; }
+.resume-match-form-intro span { color: var(--app-text-muted); font-size: 14px; line-height: 1.65; }
 .resume-match-form label { display: grid; gap: 7px; color: var(--app-text); font-weight: 800; }
 .resume-match-form-wide { grid-column: 1 / -1; }
-.resume-match-form input, .resume-match-form textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--app-border); background: var(--app-input-bg); color: var(--app-text); border-radius: 9px; padding: 11px; font: inherit; resize: vertical; }
+.resume-match-form input, .resume-match-form textarea, .resume-match-form select { width: 100%; box-sizing: border-box; border: 1px solid var(--app-border); background: var(--app-input-bg); color: var(--app-text); border-radius: 9px; padding: 11px; font: inherit; resize: vertical; }
 .resume-match-form > button, .resume-match-tailor-button { grid-column: 1 / -1; border: 0; min-height: 48px; border-radius: 10px; background: var(--app-brand); color: #07100e; font: inherit; font-weight: 900; cursor: pointer; display: inline-flex; justify-content: center; align-items: center; gap: 8px; }
 
 .resume-match-empty, .resume-match-loading { padding: 25px; display: grid; justify-items: start; gap: 8px; }
@@ -8436,7 +8439,15 @@ body {
 
 @media (max-width: 720px) {
   .resume-match-form, .resume-match-insights { grid-template-columns: 1fr; }
-  .resume-match-head { padding: 19px; }
+  .resume-match-panel { margin: 0 auto 24px; gap: 12px; }
+  .resume-match-head { padding: 18px 16px; align-items: start; }
+  .resume-match-head h2 { font-size: 22px; }
+  .resume-match-head p { font-size: 14px; }
+  .resume-match-form { padding: 16px; gap: 12px; }
+  .resume-match-form-intro { padding-bottom: 2px; }
+  .resume-match-form label { font-size: 14px; }
+  .resume-match-form select { min-height: 50px; font-size: 16px; }
+  .resume-match-form > button { min-height: 52px; font-size: 15px; }
   .resume-match-source-tabs { display: grid; grid-template-columns: 1fr 1fr; }
   .application-pack-panel { margin: 0 0 12px; padding: 14px; }
   .application-pack-panel > header { align-items: start; display: grid; }

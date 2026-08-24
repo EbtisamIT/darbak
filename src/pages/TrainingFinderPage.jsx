@@ -6846,6 +6846,12 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-actions {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            margin-top: 8px !important;
+          }
+
+          .opportunity-actions > :not(.resume-tailor-cta) {
             display: none !important;
           }
 
@@ -6888,7 +6894,8 @@ export default function TrainingFinderPage() {
           }
 
           .resume-tailor-cta {
-            min-height: 36px !important;
+            min-height: 44px !important;
+            font-size: 12px !important;
           }
 
           .resume-tailor-cta small {
@@ -7089,7 +7096,6 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-card .finder-card-info,
-          .opportunity-card .opportunity-actions,
           .opportunity-card .opportunity-card-title,
           .opportunity-card .opportunity-interaction-count {
             display: none !important;

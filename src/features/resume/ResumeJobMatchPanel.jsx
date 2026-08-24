@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { FiAlertCircle, FiArrowLeft, FiCheckCircle, FiCpu, FiX } from "react-icons/fi";
+import { FiAlertCircle, FiArrowLeft, FiCheckCircle, FiX } from "react-icons/fi";
 import API_BASE_URL from "../../config/api";
 import { getAccessHeaders } from "../../utils/premiumAccess";
 import { getVisitorId } from "../../utils/analytics";
@@ -60,9 +60,9 @@ const ResumeJobMatchPanel = ({ opportunityId = "", externalJob = null, onStartTa
     <section className="resume-match-panel">
       <div className="resume-match-head">
         <div>
-          <span>تخصيص سيرة لفرصة</span>
-          <h2>نجهز أفضل نسخة من سيرتك لهذه الفرصة.</h2>
-          <p>سنرتّب ونبرز المعلومات الموجودة لديك فقط، من دون إضافة مهارة أو خبرة غير مثبتة.</p>
+          <span>جهّز تقديمك لفرصة</span>
+          <h2>{!opportunityId && !externalJob ? "اختر الفرصة التي تريد التقديم عليها" : "نجهز أفضل نسخة من سيرتك لهذه الفرصة."}</h2>
+          <p>سنبرز المعلومات الموجودة لديك فقط، ثم نجهز السيرة وخطاب التقديم ورسالة الإيميل.</p>
         </div>
         <button type="button" onClick={onBack} aria-label="العودة إلى السير الذاتية">
           <FiX aria-hidden="true" />
@@ -71,10 +71,14 @@ const ResumeJobMatchPanel = ({ opportunityId = "", externalJob = null, onStartTa
 
       {mode === "darbak" && !opportunityId && !externalJob && !result && (
         <div className="resume-match-form">
+          <div className="resume-match-form-intro">
+            <strong>الخطوة 1 من 2</strong>
+            <span>اختر فرصة من دربك لنوضح لك ما الذي سنبرزه قبل إنشاء ملف التقديم.</span>
+          </div>
           <label>
-            اختر فرصة من دربك
+            الفرصة أو الجهة
             <select value={selectedOpportunityId} onChange={(event) => setSelectedOpportunityId(event.target.value)}>
-              <option value="">اختر الفرصة</option>
+              <option value="">اختر فرصة للتقديم</option>
               {opportunities.map((opportunity) => (
                 <option key={opportunity._id} value={opportunity._id}>
                   {[opportunity.organizationName, opportunity.title].filter(Boolean).join(" — ")}
@@ -83,7 +87,7 @@ const ResumeJobMatchPanel = ({ opportunityId = "", externalJob = null, onStartTa
             </select>
           </label>
           <button type="button" disabled={!selectedOpportunityId} onClick={() => analyze({ opportunityId: selectedOpportunityId })}>
-            <FiCpu aria-hidden="true" /> حلّل الفرصة
+            التالي: جهّز ملخص التقديم <FiArrowLeft aria-hidden="true" />
           </button>
         </div>
       )}
