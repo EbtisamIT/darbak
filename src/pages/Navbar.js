@@ -148,15 +148,14 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     transition: "0.3s",
     whiteSpace: "nowrap",
     flex: isMobile ? "0 1 auto" : "initial",
-    padding: isMobile ? "2px 1px 4px" : 0,
-    borderRadius: 0,
+    padding: isMobile ? "2px 1px 4px" : "10px 2px 8px",
+    borderRadius: isMobile ? 0 : "8px",
     fontSize: isMobile ? "10.5px" : "inherit",
     background: "transparent",
     border: "none",
-    borderBottom:
-      isMobile && isPathActive(path)
-        ? "1px solid var(--app-brand)"
-        : "1px solid transparent",
+    borderBottom: isPathActive(path)
+      ? `${isMobile ? 1 : 2}px solid var(--app-brand)`
+      : `${isMobile ? 1 : 2}px solid transparent`,
   });
 
   const actionButtonStyle = {
@@ -192,10 +191,10 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   };
 
   const quietActionButtonStyle = {
-    background: "transparent",
-    color: "var(--app-text-soft)",
-    border: "none",
-    padding: isMobile ? "2px 1px 4px" : "0",
+    background: moreMenuOpen ? "var(--app-brand-soft)" : "transparent",
+    color: moreMenuOpen ? "var(--app-brand)" : "var(--app-text-soft)",
+    border: `1px solid ${moreMenuOpen ? "var(--app-brand-border)" : "transparent"}`,
+    padding: isMobile ? "2px 1px 4px" : "8px 10px",
     cursor: "pointer",
     transition: "0.3s",
     fontFamily: "inherit",
@@ -203,7 +202,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     fontWeight: "700",
     whiteSpace: "nowrap",
     flex: isMobile ? "0 1 auto" : "initial",
-    borderBottom: "1px solid transparent",
+    borderRadius: isMobile ? 0 : "10px",
   };
 
   const toggleTheme = () => {
@@ -408,12 +407,17 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       }}
     >
       <nav
+        className="navbar-root"
         style={{
-          display: "flex",
+          display: isMobile ? "flex" : "grid",
           flexDirection: isMobile ? "column" : "row",
-          justifyContent: "space-between",
+          gridTemplateColumns: isMobile ? undefined : "auto minmax(0, 1fr) auto",
+          justifyContent: isMobile ? "space-between" : undefined,
           alignItems: "center",
-          padding: isMobile ? "6px 8px 7px" : "14px 24px",
+          padding: isMobile ? "6px 8px 7px" : "10px 28px",
+          minHeight: isMobile ? undefined : "72px",
+          boxSizing: "border-box",
+          direction: "rtl",
           backgroundColor: "var(--app-surface)",
           borderBottom: "1px solid var(--app-border)",
           gap: isMobile ? "5px" : "30px",
@@ -425,6 +429,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         }}
       >
         <div
+          className="navbar-brand-area"
           style={{
             display: "flex",
             alignItems: "center",
@@ -439,8 +444,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               src={logo}
               alt="شعار دربك"
               style={{
-                height: isMobile ? "42px" : "80px",
-                width: isMobile ? "54px" : "85px",
+                height: isMobile ? "42px" : "58px",
+                width: isMobile ? "54px" : "66px",
                 objectFit: "contain",
               }}
             />
@@ -453,11 +458,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               style={premiumCtaButtonStyle}
             >
               دربك+
-            </button>
-          )}
-          {!isMobile && (
-            <button type="button" onClick={openAddExperienceModal} style={actionButtonStyle}>
-              + أضف تجربتك
             </button>
           )}
           {isMobile && (
@@ -476,11 +476,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           className="navbar-links-row"
           style={{
             display: "flex",
-            gap: isMobile ? "6px" : "18px",
+            gap: isMobile ? "6px" : "24px",
             alignItems: "center",
             flexWrap: isMobile ? "nowrap" : "wrap",
             justifyContent: isMobile ? "space-between" : "center",
-            width: isMobile ? "100%" : "auto",
+            width: "100%",
             overflowX: isMobile ? "hidden" : "visible",
             overflowY: isMobile ? "hidden" : "visible",
             paddingBottom: isMobile ? "2px" : 0,
@@ -488,23 +488,23 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             scrollbarWidth: isMobile ? "none" : "auto",
           }}
         >
-          <Link to="/" style={linkStyle("/")}>
+          <Link to="/" className="navbar-primary-link" style={linkStyle("/")}>
             الرئيسية
           </Link>
 
-          <Link to="/where-to-train" style={linkStyle("/where-to-train")}>
+          <Link to="/where-to-train" className="navbar-primary-link" style={linkStyle("/where-to-train")}>
             وين أتدرب؟
           </Link>
 
-          <Link to="/where-to-train?tab=opportunities" style={linkStyle("/where-to-train?tab=opportunities")}>
+          <Link to="/where-to-train?tab=opportunities" className="navbar-primary-link" style={linkStyle("/where-to-train?tab=opportunities")}>
             الفرص
           </Link>
 
-          <Link to="/my-resume" style={linkStyle("/my-resume")}>
+          <Link to="/my-resume" className="navbar-primary-link" style={linkStyle("/my-resume")}>
             سيرتي
           </Link>
 
-          <Link to="/experiences" style={linkStyle("/experiences")}>
+          <Link to="/experiences" className="navbar-primary-link" style={linkStyle("/experiences")}>
             تجاربي
           </Link>
 
@@ -527,6 +527,16 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             </div>
         </div>
         }
+        {!isMobile && (
+          <button
+            type="button"
+            className="navbar-desktop-add-experience"
+            onClick={openAddExperienceModal}
+            style={actionButtonStyle}
+          >
+            + أضف تجربتك
+          </button>
+        )}
       </nav>
     </header>
 
@@ -625,6 +635,21 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       )}
 
       <style>{`
+        .navbar-root {
+          isolation: isolate;
+        }
+        .navbar-brand-area {
+          min-width: max-content;
+        }
+        .navbar-primary-link:hover {
+          color: var(--app-brand) !important;
+          background: var(--app-brand-soft) !important;
+        }
+        .navbar-desktop-add-experience {
+          justify-self: end;
+          min-width: max-content;
+        }
+
         .navbar-more-menu {
           position: relative;
         }
@@ -723,6 +748,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         .navbar-mobile-add-experience { width: 100%; padding: 11px 12px; border-color: var(--app-brand-border); color: var(--app-brand); }
 
         @media (max-width: 767px) {
+          .navbar-root { direction: rtl; }
           .floating-nav-shell { left: 12px; right: 12px !important; top: 60px !important; }
           .floating-nav-panel { width: 100% !important; box-sizing: border-box; max-height: calc(100vh - 76px) !important; }
           .navbar-links-row::-webkit-scrollbar {
