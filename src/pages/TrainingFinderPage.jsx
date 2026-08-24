@@ -3796,7 +3796,7 @@ export default function TrainingFinderPage() {
                       <div
                         className="finder-card-actions opportunity-actions"
                         style={{
-                          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
                         }}
                       >
                         <button
@@ -3808,6 +3808,17 @@ export default function TrainingFinderPage() {
                           className="opportunity-secondary-button"
                         >
                           التفاصيل
+                        </button>
+
+                        <button
+                          type="button"
+                          className="opportunity-secondary-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openResumeTailorFromCard({ opportunity });
+                          }}
+                        >
+                          جهّز تقديمي
                         </button>
 
                         {(opportunity.applicationUrl || opportunity.hasApplicationUrl) &&
@@ -4926,6 +4937,13 @@ export default function TrainingFinderPage() {
             <ResumeServicePromo placement="opportunity_detail" compact />
 
             <div className="opportunity-detail-actions">
+              <button
+                type="button"
+                className="opportunity-secondary-button"
+                onClick={() => openResumeTailorFromCard({ opportunity: selectedOpportunity })}
+              >
+                جهّز تقديمي
+              </button>
               <button
                 type="button"
                 onClick={closeOpportunityDetails}
