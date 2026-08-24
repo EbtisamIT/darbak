@@ -13,7 +13,6 @@ import logo from "./logo.png";
 import AddExperienceModal from "./AddExperienceModal";
 import {
   FiActivity,
-  FiBookOpen,
   FiBriefcase,
   FiChevronDown,
   FiClipboard,
@@ -358,9 +357,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       <Link to="/interviews" role="menuitem" onClick={() => setMoreMenuOpen(false)}>
         <FiMessageCircle aria-hidden="true" /> <span>مقابلات</span>
       </Link>
-      <button type="button" disabled title="ستتوفر قريبًا">
-        <FiBookOpen aria-hidden="true" /> <span>مقالات</span><small>قريبًا</small>
-      </button>
       <button type="button" role="menuitem" onClick={openPortfolioAnnouncement}>
         <FiBriefcase aria-hidden="true" /> <span>Portfolio</span>
       </button>
@@ -483,16 +479,12 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             <FiCompass aria-hidden="true" /> <span>وين أتدرب؟</span>
           </Link>
 
-          <Link to="/where-to-train?tab=opportunities" className="navbar-primary-link" style={linkStyle("/where-to-train?tab=opportunities")}>
-            <FiBriefcase aria-hidden="true" /> <span>الفرص</span>
-          </Link>
-
           <Link to="/my-resume" className="navbar-primary-link" style={linkStyle("/my-resume")}>
             <FiUser aria-hidden="true" /> <span>سيرتي</span>
           </Link>
 
           <Link to="/experiences" className="navbar-primary-link" style={linkStyle("/experiences")}>
-            <FiStar aria-hidden="true" /> <span>تجاربي</span>
+            <FiStar aria-hidden="true" /> <span>تجارب الطلاب</span>
           </Link>
 
             <div className="navbar-more-menu" ref={moreMenuRef}>
@@ -569,9 +561,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               <div className="navbar-mobile-primary-links">
                 <Link to="/" style={floatingLinkStyle("/")}><FiHome aria-hidden="true" /><span>الرئيسية</span></Link>
                 <Link to="/where-to-train" style={floatingLinkStyle("/where-to-train")}><FiCompass aria-hidden="true" /><span>وين أتدرب؟</span></Link>
-                <Link to="/where-to-train?tab=opportunities" style={floatingLinkStyle("/where-to-train?tab=opportunities")}><FiBriefcase aria-hidden="true" /><span>الفرص</span></Link>
                 <Link to="/my-resume" style={floatingLinkStyle("/my-resume")}><FiFileText aria-hidden="true" /><span>سيرتي</span></Link>
-                <Link to="/experiences" style={floatingLinkStyle("/experiences")}><FiClipboard aria-hidden="true" /><span>تجاربي</span></Link>
+                <Link to="/experiences" style={floatingLinkStyle("/experiences")}><FiClipboard aria-hidden="true" /><span>تجارب الطلاب</span></Link>
               </div>
               <button type="button" className="navbar-mobile-more-toggle" aria-expanded={mobileMoreOpen} onClick={() => setMobileMoreOpen((open) => !open)}>
                 <span>المزيد</span><FiChevronDown aria-hidden="true" />
