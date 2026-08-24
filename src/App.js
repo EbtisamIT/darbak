@@ -283,7 +283,9 @@ function SubscribeRoute() {
       return passHasEntitlement(pass, "resume_builder");
     }
 
-    return hasActivePremiumPass();
+    if (!subscribePlan) return hasActivePremiumPass();
+
+    return pass.planId === subscribePlan;
   }, [subscribePlan]);
   const [isPremiumActive, setIsPremiumActive] = useState(
     () => typeof window !== "undefined" && hasRequestedPlanAccess()

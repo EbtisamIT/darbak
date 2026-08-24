@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   FiArrowLeft,
@@ -15,6 +15,11 @@ import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
 import ResumeServicePromo from "../components/ResumeServicePromo";
 import { cityOptions, specializationOptions } from "../data/trainingOptions";
+import {
+  getStoredPremiumPass,
+  passHasEntitlement,
+  PREMIUM_STATUS_EVENT,
+} from "../utils/premiumAccess";
 
 const homeFont = "'Aniq', 'Cairo', sans-serif";
 
@@ -93,6 +98,9 @@ const HomePage = () => {
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
   const [major, setMajor] = useState("");
   const [city, setCity] = useState("");
+  const [highlightedPlanId, setHighlightedPlanId] = useState("");
+  const [premiumPass, setPremiumPass] = useState(() => getStoredPremiumPass());
+  const pricingRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -111,6 +119,16 @@ const HomePage = () => {
     return () => { alive = false; };
   }, []);
 
+  useEffect(() => {
+    const refreshPremiumPass = () => setPremiumPass(getStoredPremiumPass());
+    window.addEventListener(PREMIUM_STATUS_EVENT, refreshPremiumPass);
+    window.addEventListener("storage", refreshPremiumPass);
+    return () => {
+      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshPremiumPass);
+      window.removeEventListener("storage", refreshPremiumPass);
+    };
+  }, []);
+
   const statItems = useMemo(() => [
     { value: stats.experiencesCount, label: "تجربة طلابية", to: "/experiences" },
     { value: stats.organizationsCount, label: "جهة تدريب", to: "/where-to-train" },
@@ -126,6 +144,17 @@ const HomePage = () => {
   };
 
   const beginJourney = () => navigate(finderUrl());
+  const showResumePlan = () => {
+    setHighlightedPlanId("darbak_resume");
+    pricingRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  const hasCurrentPlan = (plan) => {
+    if (!premiumPass) return false;
+    if (plan.id === "darbak_resume") {
+      return passHasEntitlement(premiumPass, "resume_builder");
+    }
+    return premiumPass.planId === plan.id;
+  };
 
   return (
     <main className="home-page" dir="rtl">
@@ -193,7 +222,7 @@ const HomePage = () => {
             <li><FiCheck aria-hidden="true" /> خطاب تقديم</li>
             <li><FiCheck aria-hidden="true" /> رسالة إيميل</li>
           </ul>
-          <Link className="home-button home-button-primary" to="/my-resume">جرّب سيرتي <FiArrowLeft aria-hidden="true" /></Link>
+          <button className="home-button home-button-primary" type="button" onClick={showResumePlan}>جرّب سيرتي <FiArrowLeft aria-hidden="true" /></button>
         </div>
         <div className="home-pack-preview" aria-label="معاينة ملف تقديم">
           <div className="home-preview-header"><FiBriefcase aria-hidden="true" /> تقديمك شبه جاهز <span>3 من 3 جاهزة ✓</span></div>
@@ -209,23 +238,34 @@ const HomePage = () => {
         <ResumeServicePromo placement="home" compact />
       </section>
 
-      <section className="home-pricing-section" aria-label="الباقات والاشتراكات">
+      <section className="home-pricing-section" aria-label="الباقات والاشتراكات" ref={pricingRef}>
         <div className="home-section-heading home-pricing-heading">
           <span>الباقات</span>
-          <h2>اختر اللي يناسب رحلتك</h2>
-          <p>ابدأ بدربك، وإذا احتجت تجهيز سيرتك وتقديماتك بالذكاء ارتقِ في أي وقت.</p>
+          <h2>اختر الباقة اللي تناسب رحلتك</h2>
+          <p>ابدأ بالأساسيات، أو خلّ دربك يجهز سيرتك وتقديماتك بالكامل.</p>
         </div>
         <div className="home-pricing-grid">
           {subscriptionPlans.map((plan) => {
             const isResumePlan = plan.planKey === "darbak_resume" || plan.id === "darbak_resume";
+            const isCurrentPlan = hasCurrentPlan(plan);
+            const hasAnotherPlan = Boolean(premiumPass) && !isCurrentPlan;
+            const planCta = isCurrentPlan
+              ? (isResumePlan ? "افتح سيرتي" : "باقتك الحالية ✓")
+              : hasAnotherPlan
+                ? (isResumePlan ? "ترقية إلى باقة السيرة" : "انتقل لهذه الباقة")
+                : "اختر هذه الباقة";
             return (
-              <article className={`home-pricing-card${isResumePlan ? " home-pricing-card-highlighted" : ""}`} key={plan.id}>
+              <article className={`home-pricing-card${isResumePlan ? " home-pricing-card-highlighted" : ""}${highlightedPlanId === plan.id ? " is-highlighted" : ""}`} key={plan.id}>
                 <div className="home-pricing-card-head">
                   <div><span>{plan.label}</span>{isResumePlan && <small>الأكمل للتقديم</small>}</div>
                   <strong>{formatPlanPrice(plan)}<em>{formatPlanPeriod(plan)}</em></strong>
                 </div>
                 <ul>{getPlanPerks(plan).slice(0, 6).map((perk) => <li key={perk}><FiCheck aria-hidden="true" />{perk}</li>)}</ul>
-                <Link className="home-button home-button-secondary" to={`/subscribe?plan=${plan.id}`}>{isResumePlan ? "ابدأ سيرتي" : "اشترك الآن"}<FiArrowLeft aria-hidden="true" /></Link>
+                {isCurrentPlan && isResumePlan ? (
+                  <Link className="home-button home-button-primary" to="/my-resume">{planCta}<FiArrowLeft aria-hidden="true" /></Link>
+                ) : (
+                  <Link className={`home-button ${isResumePlan ? "home-button-primary" : "home-button-secondary"}${isCurrentPlan ? " is-current-plan" : ""}`} to={isCurrentPlan ? "#" : `/subscribe?plan=${plan.id}&step=checkout`} onClick={(event) => { if (isCurrentPlan) event.preventDefault(); }}>{planCta}<FiArrowLeft aria-hidden="true" /></Link>
+                )}
               </article>
             );
           })}
@@ -348,7 +388,7 @@ const HomePage = () => {
         .home-preview-row small { color: var(--app-text-muted); font-size: 11px; } .home-preview-ready { color: var(--app-brand); } .home-preview-pending { color: var(--app-muted); }
         .home-preview-footer { padding: 10px 4px 2px; color: var(--app-brand); font-size: 12px; font-weight: 800; } .home-preview-footer span { color: var(--app-text-muted); font-weight: 600; }
         .resume-service-promo { display: none; }
-        .home-pricing-section { padding: 34px 0 38px; }.home-pricing-heading { text-align: center; }.home-pricing-heading p { max-width: 560px; margin: 10px auto 0; color: var(--app-text-soft); line-height: 1.8; }.home-pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; max-width: 760px; margin: 0 auto; }.home-pricing-card { display: grid; gap: 18px; padding: 22px; border: 1px solid var(--app-border); border-radius: 18px; background: var(--app-surface); }.home-pricing-card-highlighted { border-color: var(--app-brand-border); box-shadow: 0 16px 40px var(--app-brand-soft); }.home-pricing-card-head { display: flex; align-items: start; justify-content: space-between; gap: 14px; }.home-pricing-card-head > div { display: grid; gap: 6px; }.home-pricing-card-head span { color: var(--app-brand); font-size: 19px; font-weight: 900; }.home-pricing-card-head small { width: fit-content; padding: 4px 8px; border-radius: 999px; color: var(--app-brand); background: var(--app-brand-soft); font-size: 10px; font-weight: 900; }.home-pricing-card-head strong { display: grid; text-align: left; font-size: 23px; white-space: nowrap; }.home-pricing-card-head em { color: var(--app-muted); font-size: 10px; font-style: normal; font-weight: 700; }.home-pricing-card ul { display: grid; gap: 9px; min-height: 102px; margin: 0; padding: 0; list-style: none; color: var(--app-text-soft); font-size: 13px; }.home-pricing-card li { display: flex; align-items: center; gap: 7px; }.home-pricing-card li svg { color: var(--app-brand); }.home-pricing-card .home-button { width: 100%; }.home-plan-loading { margin: 0; color: var(--app-muted); text-align: center; }
+        .home-pricing-section { padding: 34px 0 38px; }.home-pricing-heading { text-align: center; }.home-pricing-heading p { max-width: 560px; margin: 10px auto 0; color: var(--app-text-soft); line-height: 1.8; }.home-pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; max-width: 1040px; margin: 0 auto; }.home-pricing-card { display: grid; gap: 18px; padding: 22px; border: 1px solid var(--app-border); border-radius: 18px; background: var(--app-surface); transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }.home-pricing-card-highlighted { border-color: var(--app-brand-border); box-shadow: 0 16px 40px var(--app-brand-soft); }.home-pricing-card.is-highlighted { border-color: var(--app-brand); box-shadow: 0 0 0 3px var(--app-brand-soft), 0 18px 46px var(--app-brand-soft); transform: translateY(-3px); }.home-pricing-card-head { display: flex; align-items: start; justify-content: space-between; gap: 14px; }.home-pricing-card-head > div { display: grid; gap: 6px; }.home-pricing-card-head span { color: var(--app-brand); font-size: 19px; font-weight: 900; }.home-pricing-card-head small { width: fit-content; padding: 4px 8px; border-radius: 999px; color: var(--app-brand); background: var(--app-brand-soft); font-size: 10px; font-weight: 900; }.home-pricing-card-head strong { display: grid; text-align: left; font-size: 23px; white-space: nowrap; }.home-pricing-card-head em { color: var(--app-muted); font-size: 10px; font-style: normal; font-weight: 700; }.home-pricing-card ul { display: grid; gap: 9px; min-height: 102px; margin: 0; padding: 0; list-style: none; color: var(--app-text-soft); font-size: 13px; }.home-pricing-card li { display: flex; align-items: center; gap: 7px; }.home-pricing-card li svg { color: var(--app-brand); }.home-pricing-card .home-button { width: 100%; }.home-pricing-card .is-current-plan { opacity: .72; cursor: default; }.home-plan-loading { margin: 0; color: var(--app-muted); text-align: center; }
         .home-finder-section { padding: 34px; border-radius: 22px 22px 0 0; background: var(--app-surface); border: 1px solid var(--app-border); border-bottom: 0; box-sizing: border-box; }
         .home-finder-layout { display: grid; grid-template-columns: 1fr 280px; align-items: stretch; gap: 28px; }.home-finder-example { display: grid; align-content: center; gap: 8px; padding: 20px; border-radius: 14px; border: 1px solid var(--app-brand-border); background: var(--app-input-bg); }.home-finder-example span { color: var(--app-brand); font-size: 12px; font-weight: 900; }.home-finder-example strong { font-size: 18px; line-height: 1.5; }.home-finder-example p, .home-finder-example small { margin: 0; color: var(--app-text-soft); font-size: 13px; line-height: 1.6; }.home-finder-example small { display: flex; align-items: center; gap: 6px; color: var(--app-muted); }.home-finder-example svg { color: var(--app-brand); }
         .home-finder-form { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 14px; }
