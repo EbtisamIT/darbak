@@ -24,7 +24,13 @@ import {
   specializationOptions,
 } from "./data/trainingOptions";
 import { trackEvent } from "./utils/analytics";
-import { PREMIUM_ACCESS_EVENT } from "./utils/premiumAccess";
+import {
+  PREMIUM_ACCESS_EVENT,
+  PREMIUM_STATUS_EVENT,
+  getStoredPremiumPass,
+  hasActivePremiumPass,
+  passHasEntitlement,
+} from "./utils/premiumAccess";
 
 const ExperiencesPage = lazy(() => import("./pages/ExperiencesPage"));
 const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
@@ -37,6 +43,7 @@ const PortfolioBuilderPage = lazy(() => import("./pages/PortfolioBuilderPage"));
 const CompanyApplyPage = lazy(() => import("./pages/CompanyApplyPage"));
 const MyApplicationsPage = lazy(() => import("./pages/MyApplicationsPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
+const MyResumePage = lazy(() => import("./pages/MyResumePage"));
 const PremiumAccessGate = lazy(() => import("./components/PremiumAccessGate"));
 const AccountModal = lazy(() => import("./components/AccountModal"));
 const SavedItemsDrawer = lazy(() => import("./components/SavedItemsDrawer"));
@@ -257,30 +264,171 @@ function SubscribeRoute() {
     const params = new URLSearchParams(location.search);
     return params.get("source") || "subscribe_page";
   }, [location.search]);
+  const subscribePlan = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const plan = params.get("plan") || "";
+    return ["resume", "darbak_resume", "darbak_plus_resume"].includes(plan)
+      ? "darbak_resume"
+      : plan;
+  }, [location.search]);
+  const subscribeStep = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("step") || "";
+  }, [location.search]);
+  const hasRequestedPlanAccess = useCallback(() => {
+    const pass = getStoredPremiumPass();
+    if (!pass) return false;
+
+    if (subscribePlan === "darbak_resume") {
+      return passHasEntitlement(pass, "resume_builder");
+    }
+
+    return hasActivePremiumPass();
+  }, [subscribePlan]);
+  const [isPremiumActive, setIsPremiumActive] = useState(
+    () => typeof window !== "undefined" && hasRequestedPlanAccess()
+  );
 
   const openSubscribeGate = useCallback(() => {
+    if (hasRequestedPlanAccess()) {
+      setIsPremiumActive(true);
+      return;
+    }
+
     window.dispatchEvent(
       new CustomEvent(PREMIUM_ACCESS_EVENT, {
         detail: {
           feature: "subscribe_page",
-          title: "دربك+",
+          title: subscribePlan === "darbak_resume" ? "دربك+ سيرة" : "دربك+",
           source: subscribeSource,
+          defaultPlanId: subscribePlan || "darbak_plus",
+          openCheckout: subscribeStep === "checkout",
         },
       })
     );
-  }, [subscribeSource]);
+  }, [hasRequestedPlanAccess, subscribePlan, subscribeSource, subscribeStep]);
+
+  useEffect(() => {
+    const refreshPremiumStatus = () =>
+      setIsPremiumActive(hasRequestedPlanAccess());
+
+    refreshPremiumStatus();
+    window.addEventListener(PREMIUM_STATUS_EVENT, refreshPremiumStatus);
+    window.addEventListener("storage", refreshPremiumStatus);
+    window.addEventListener("focus", refreshPremiumStatus);
+    return () => {
+      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshPremiumStatus);
+      window.removeEventListener("storage", refreshPremiumStatus);
+      window.removeEventListener("focus", refreshPremiumStatus);
+    };
+  }, [hasRequestedPlanAccess]);
 
   useEffect(() => {
     trackEvent("subscribe_page_view", {
       page: location.pathname,
       metadata: {
         source: subscribeSource,
+        plan: subscribePlan || "darbak_plus",
       },
     });
 
+    if (isPremiumActive) return undefined;
+
     const openTimer = window.setTimeout(openSubscribeGate, 0);
     return () => window.clearTimeout(openTimer);
-  }, [location.pathname, openSubscribeGate, subscribeSource]);
+  }, [
+    isPremiumActive,
+    location.pathname,
+    openSubscribeGate,
+    subscribePlan,
+    subscribeSource,
+  ]);
+
+  if (isPremiumActive) {
+    return (
+      <section
+        dir="rtl"
+        style={{
+          minHeight: "52vh",
+          display: "grid",
+          placeItems: "center",
+          textAlign: "center",
+          padding: "28px 14px",
+        }}
+      >
+        <div
+          style={{
+            width: "min(520px, 100%)",
+            border: "1px solid var(--app-brand-border)",
+            borderRadius: "22px",
+            background: "var(--app-surface)",
+            boxShadow: "0 18px 46px var(--app-shadow)",
+            padding: "28px",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-flex",
+              borderRadius: "999px",
+              background: "var(--app-brand-soft)",
+              color: "var(--app-brand)",
+              padding: "6px 14px",
+              fontWeight: 900,
+              marginBottom: "12px",
+            }}
+          >
+            {subscribePlan === "darbak_resume"
+              ? "دربك+ سيرة فعال"
+              : "دربك+ فعال"}
+          </span>
+          <h1
+            style={{
+              margin: "0 0 10px",
+              color: "var(--app-text)",
+              fontSize: "clamp(24px, 4vw, 34px)",
+              lineHeight: 1.35,
+            }}
+          >
+            المزايا المتقدمة مفتوحة لك
+          </h1>
+          <p
+            style={{
+              margin: "0 auto 20px",
+              color: "var(--app-text-soft)",
+              lineHeight: 1.8,
+              maxWidth: "420px",
+            }}
+          >
+            حسابك يملك وصولًا كاملًا، لذلك ما نعرض لك باقات الاشتراك.
+          </p>
+          <button
+            type="button"
+            onClick={() =>
+              navigate(
+                subscribePlan === "darbak_resume"
+                  ? "/my-resume"
+                  : "/where-to-train"
+              )
+            }
+            style={{
+              border: "none",
+              borderRadius: "14px",
+              background: "var(--app-brand)",
+              color: "var(--app-bg)",
+              padding: "12px 20px",
+              fontFamily: "inherit",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            {subscribePlan === "darbak_resume"
+              ? "افتح سيرتي بدربك"
+              : "استكشف الفرص والجهات"}
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -1486,6 +1634,11 @@ function AppLayout({ theme, setTheme }) {
               <Route path="/interviews" element={<InterviewsPage />} />
               <Route path="/where-to-train" element={<TrainingFinderPage />} />
               <Route path="/subscribe" element={<SubscribeRoute />} />
+              <Route path="/my-resume" element={<MyResumePage />} />
+              <Route path="/my-resume/build" element={<MyResumePage />} />
+              <Route path="/my-resume/edit" element={<MyResumePage />} />
+              <Route path="/my-resume/versions/:versionId" element={<MyResumePage />} />
+              <Route path="/my-resume/tailor" element={<MyResumePage />} />
               <Route path="/partners" element={<PartnersPage />} />
               <Route path="/portofoili" element={<PortfolioBuilderPage />} />
               <Route path="/portfolio" element={<PortfolioBuilderPage />} />

@@ -68,6 +68,7 @@ const resumeProfileSchema = new mongoose.Schema(
     },
     personalInfo: {
       fullName: { type: String, default: "", trim: true },
+      englishName: { type: String, default: "", trim: true },
       email: { type: String, default: "", trim: true, lowercase: true },
       phone: { type: String, default: "", trim: true },
       city: { type: String, default: "", trim: true },
@@ -143,6 +144,21 @@ const resumeProfileSchema = new mongoose.Schema(
       direction: { type: String, enum: ["rtl", "ltr"], default: "rtl" },
       density: { type: String, enum: ["comfortable", "compact"], default: "comfortable" },
       fontSize: { type: String, enum: ["small", "medium", "large"], default: "medium" },
+      template: {
+        type: String,
+        enum: ["clean", "modern", "formal"],
+        default: "clean",
+      },
+      accentColor: { type: String, default: "#42cfc3", trim: true },
+    },
+    workflow: {
+      source: {
+        type: String,
+        enum: ["portfolio", "scratch", "uploaded_resume", "agent", ""],
+        default: "",
+      },
+      lastStep: { type: String, default: "", trim: true },
+      isSetupComplete: { type: Boolean, default: false },
     },
     rawDraftInput: {
       type: mongoose.Schema.Types.Mixed,

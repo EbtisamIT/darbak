@@ -12,6 +12,7 @@ import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
 import ShareButton from "../components/ShareButton";
 import PremiumInlineNotice from "../components/PremiumInlineNotice";
+import ResumeServicePromo from "../components/ResumeServicePromo";
 import { guideUrl } from "../components/TrainingGuideBanner";
 import {
   cityOptions,
@@ -280,43 +281,62 @@ const buildOpportunityDetailPath = (opportunity = {}) => {
 const regionCities = {
   "منطقة الرياض": [
     "الرياض",
-    "الخرج",
     "الدرعية",
+    "الخرج",
     "المجمعة",
     "الزلفي",
-    "الدوادمي",
-    "وادي الدواسر",
-    "القويعية",
     "شقراء",
-    "عفيف",
+    "الدوادمي",
+    "القويعية",
+    "وادي الدواسر",
+    "الأفلاج",
     "حوطة بني تميم",
+    "السليل",
+    "رماح",
+    "ثادق",
+    "ضرما",
+    "المزاحمية",
+    "مرات",
+    "عفيف",
   ],
   "منطقة مكة المكرمة": [
     "جدة",
     "مكة المكرمة",
+    "مكة",
     "الطائف",
     "رابغ",
     "القنفذة",
     "الليث",
+    "خليص",
+    "الجموم",
+    "أضم",
+    "الخرمة",
     "رنية",
     "تربة",
-    "الخرمة",
+    "المويه",
+    "الكامل",
     "بحرة",
+    "مدينة الملك عبدالله الاقتصادية",
   ],
   "منطقة المدينة المنورة": [
     "المدينة المنورة",
+    "المدينة",
     "ينبع",
     "العلا",
     "خيبر",
     "بدر",
-    "المهد",
+    "مهد الذهب",
     "الحناكية",
+    "وادي الفرع",
+    "العيص",
   ],
   "المنطقة الشرقية": [
     "الدمام",
     "الخبر",
     "الظهران",
     "الأحساء",
+    "الهفوف",
+    "المبرز",
     "الجبيل",
     "القطيف",
     "رأس تنورة",
@@ -325,6 +345,8 @@ const regionCities = {
     "بقيق",
     "النعيرية",
     "قرية العليا",
+    "صفوى",
+    "سيهات",
   ],
   "منطقة القصيم": [
     "بريدة",
@@ -335,6 +357,11 @@ const regionCities = {
     "البدائع",
     "الأسياح",
     "رياض الخبراء",
+    "عيون الجواء",
+    "الشماسية",
+    "النبهانية",
+    "ضرية",
+    "عقلة الصقور",
   ],
   "منطقة عسير": [
     "أبها",
@@ -346,21 +373,54 @@ const regionCities = {
     "رجال ألمع",
     "سراة عبيدة",
     "ظهران الجنوب",
+    "أحد رفيدة",
+    "بلقرن",
+    "المجاردة",
+    "تثليث",
+    "طريب",
+    "البرك",
   ],
-  "منطقة تبوك": ["تبوك", "الوجه", "ضباء", "أملج", "تيماء", "البدع"],
-  "منطقة حائل": ["حائل"],
-  "منطقة الحدود الشمالية": ["عرعر", "رفحاء", "طريف"],
+  "منطقة تبوك": ["تبوك", "الوجه", "ضباء", "أملج", "تيماء", "حقل", "البدع"],
+  "منطقة حائل": [
+    "حائل",
+    "بقعاء",
+    "الغزالة",
+    "الشنان",
+    "موقق",
+    "سميراء",
+    "الحائط",
+    "الشملي",
+    "السليمي",
+  ],
+  "منطقة الحدود الشمالية": ["عرعر", "رفحاء", "طريف", "العويقيلة"],
   "منطقة جازان": [
     "جازان",
     "صبيا",
     "أبو عريش",
+    "أحد المسارحة",
     "صامطة",
     "بيش",
     "الدرب",
     "فرسان",
+    "ضمد",
+    "العارضة",
+    "الداير",
+    "الريث",
+    "الطوال",
+    "هروب",
   ],
-  "منطقة نجران": ["نجران", "شرورة", "حبونا", "يدمة"],
-  "منطقة الباحة": ["الباحة", "بلجرشي", "المندق", "العقيق", "المخواة"],
+  "منطقة نجران": ["نجران", "شرورة", "حبونا", "بدر الجنوب", "يدمة", "خباش", "ثار"],
+  "منطقة الباحة": [
+    "الباحة",
+    "بلجرشي",
+    "المخواة",
+    "المندق",
+    "قلوة",
+    "العقيق",
+    "بني حسن",
+    "الحجرة",
+    "غامد الزناد",
+  ],
   "منطقة الجوف": ["سكاكا", "القريات", "دومة الجندل", "طبرجل"],
 };
 
@@ -369,22 +429,47 @@ const regionDisplayNames = {
   "منطقة المدينة المنورة": "منطقة المدينة",
   "المنطقة الشرقية": "الشرقية",
   "منطقة القصيم": "القصيم",
+  "منطقة الرياض": "منطقة الرياض",
+  "منطقة عسير": "عسير",
+  "منطقة تبوك": "تبوك",
+  "منطقة حائل": "حائل",
+  "منطقة الحدود الشمالية": "الحدود الشمالية",
+  "منطقة جازان": "جازان",
+  "منطقة نجران": "نجران",
+  "منطقة الباحة": "الباحة",
+  "منطقة الجوف": "الجوف",
 };
 
 const regionAliases = {
+  الرياض: "منطقة الرياض",
+  "منطقة الرياض": "منطقة الرياض",
   الشرقية: "المنطقة الشرقية",
   شرقية: "المنطقة الشرقية",
+  "الشرقيه": "المنطقة الشرقية",
+  "منطقة الشرقية": "المنطقة الشرقية",
+  "منطقة الشرقيه": "المنطقة الشرقية",
   القصيم: "منطقة القصيم",
   قصيم: "منطقة القصيم",
+  "منطقة قصيم": "منطقة القصيم",
   عسير: "منطقة عسير",
   تبوك: "منطقة تبوك",
   حائل: "منطقة حائل",
+  "الحدود الشمالية": "منطقة الحدود الشمالية",
+  "الحدود الشماليه": "منطقة الحدود الشمالية",
+  الشمالية: "منطقة الحدود الشمالية",
+  الشماليه: "منطقة الحدود الشمالية",
   جازان: "منطقة جازان",
+  جيزان: "منطقة جازان",
   نجران: "منطقة نجران",
   الباحة: "منطقة الباحة",
+  الباحه: "منطقة الباحة",
   الجوف: "منطقة الجوف",
   "منطقة مكة": "منطقة مكة المكرمة",
+  مكة: "منطقة مكة المكرمة",
+  مكه: "منطقة مكة المكرمة",
   "منطقة المدينة": "منطقة المدينة المنورة",
+  المدينة: "منطقة المدينة المنورة",
+  المدينه: "منطقة المدينة المنورة",
 };
 
 const getRegionDisplayName = (regionName = "") =>
@@ -1429,6 +1514,7 @@ export default function TrainingFinderPage() {
       ? initialSpecialty
       : ""
   );
+  const [specialtyInput, setSpecialtyInput] = useState(initialSpecialty);
   const [city, setCity] = useState(initialCity);
   const [organizationQuery, setOrganizationQuery] = useState(queryOrganization);
   const [showSpecialtySuggestions, setShowSpecialtySuggestions] =
@@ -1509,7 +1595,7 @@ export default function TrainingFinderPage() {
     [organizationQuery]
   );
   const specialtySuggestionOptions = useMemo(() => {
-    const normalizedInput = normalizeName(selectedSpecialty);
+    const normalizedInput = normalizeName(specialtyInput);
     const options = normalizedInput
       ? specializationOptions.filter((option) =>
           normalizeName(
@@ -1525,7 +1611,7 @@ export default function TrainingFinderPage() {
       : specializationOptions.slice(0, 14);
 
     return options.slice(0, 28);
-  }, [selectedSpecialty]);
+  }, [specialtyInput]);
   const selectedMajorCategories = useMemo(
     () => selectedSpecialtyOption?.categories || [],
     [selectedSpecialtyOption]
@@ -1908,13 +1994,36 @@ export default function TrainingFinderPage() {
   const visibleSearchInsightItems = searchInsightItems.filter(
     (item) => item.count > 0
   );
+  const buildSubscribePath = (source, options = {}) => {
+    const subscribeParams = new URLSearchParams({ source });
+    if (options.planId) subscribeParams.set("plan", options.planId);
+    if (options.step) subscribeParams.set("step", options.step);
+    return `/subscribe?${subscribeParams.toString()}`;
+  };
+
+  const goToSubscribePage = (source, metadata = {}) => {
+    const subscribeParams = new URLSearchParams({ source });
+    subscribeParams.set("plan", metadata.planId || "monthly");
+    if (metadata.step) subscribeParams.set("step", metadata.step);
+    trackEvent("premium_cta_clicked", {
+      major: selectedSpecialtyLabel,
+      city,
+      resultsCount: visibleOpportunities.length,
+      metadata: {
+        selectedSpecialty,
+        source,
+        ...metadata,
+      },
+    });
+    navigate(`/subscribe?${subscribeParams.toString()}`, {
+      state: { from: `${location.pathname}${location.search}` },
+    });
+  };
+
   const openSearchInsightSubscription = () => {
     setShowSearchInsightModal(false);
-    requestPremiumAccess({
-      feature: "where_to_train_search_apply",
-      title: "ابدأ التقديم الآن",
-      source: "where_to_train_search_insight",
-      gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
+    goToSubscribePage("where_to_train_search_insight", {
+      action: "search_insight_apply",
       itemKey: `where-to-train:${normalizeName(selectedSpecialty)}:${normalizeName(
         city
       )}:${normalizeName(organizationQuery)}`,
@@ -1955,8 +2064,12 @@ export default function TrainingFinderPage() {
       setError("");
       setSearched(true);
 
-      if (matchedSpecialty && selectedSpecialty !== matchedSpecialty.value) {
-        setSelectedSpecialty(matchedSpecialty.value);
+      if (selectedSpecialty !== resolvedSpecialtyValue) {
+        setSelectedSpecialty(resolvedSpecialtyValue);
+      }
+
+      if (specialtyInput !== resolvedSpecialtyValue) {
+        setSpecialtyInput(resolvedSpecialtyValue);
       }
 
       const majorCategories = getSpecialtyCategories(resolvedSpecialtyValue);
@@ -2047,6 +2160,7 @@ export default function TrainingFinderPage() {
 
     if (!hasKnownMajor && !nextMajor) {
       setSelectedSpecialty("");
+      setSpecialtyInput("");
       setCity(nextCity);
       setOrganizationQuery(nextOrganization);
       setSearched(false);
@@ -2060,6 +2174,7 @@ export default function TrainingFinderPage() {
     }
 
     setSelectedSpecialty(nextMajor);
+    setSpecialtyInput(nextMajor);
     setCity(nextCity);
     setOrganizationQuery(nextOrganization);
     runTrainingTargetSearch(nextMajor, nextCity, nextOrganization);
@@ -2184,14 +2299,14 @@ export default function TrainingFinderPage() {
 
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
-    runTrainingTargetSearch(selectedSpecialty, city, organizationQuery);
+    runTrainingTargetSearch(specialtyInput, city, organizationQuery);
   };
 
   const openOpportunityRequestModal = () => {
     setOpportunityRequest({
       ...emptyOpportunityRequest,
       city,
-      specialty: selectedSpecialty,
+      specialty: selectedSpecialty || specialtyInput,
     });
     setOpportunityRequestMessage("");
     setShowOpportunityRequestModal(true);
@@ -2515,26 +2630,16 @@ export default function TrainingFinderPage() {
 
   const openPremiumFromLockedOpportunity = (opportunity = {}) => {
     const opportunityId = opportunity._id || opportunity.id || "";
-    requestPremiumAccess(
-      {
-        feature:
-          opportunity.premiumRequestedAction === "apply"
-            ? "opportunity_apply"
-            : "opportunity_details",
-        title: opportunity.title || opportunity.organizationName || "",
-        source: "opportunity_inline_notice",
-        gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
-        itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
-      },
-      () => {
-        if (opportunity.premiumRequestedAction === "apply") {
-          openOpportunityApplication(opportunity);
-          return;
-        }
-
-        openOpportunityDetails(opportunity);
-      }
-    );
+    goToSubscribePage("opportunity_inline_notice", {
+      action:
+        opportunity.premiumRequestedAction === "apply"
+          ? "opportunity_apply"
+          : "opportunity_details",
+      opportunityId,
+      opportunityTitle: opportunity.title || "",
+      organizationName: opportunity.organizationName || "",
+      itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
+    });
   };
 
   const skipOpportunityPremiumNotice = () => {
@@ -2583,11 +2688,14 @@ export default function TrainingFinderPage() {
     : "";
   const isSelectedGuideLocked =
     Boolean(selectedGuideOrganization) &&
+    !canViewGuideContacts &&
     selectedGuideOrganization.isPremiumPreviewLocked !== false;
   const selectedGuideSpecialties = selectedGuideOrganization?.specialties || [];
   const selectedGuideEmails = isSelectedGuideLocked
     ? []
     : selectedGuideOrganization?.emails || [];
+  const isSelectedOpportunityLocked =
+    Boolean(selectedOpportunity?.isPremiumPreviewLocked) && !canViewGuideContacts;
 
   const buildTrainingFinderSharePath = () => {
     const params = new URLSearchParams();
@@ -2604,6 +2712,27 @@ export default function TrainingFinderPage() {
     organizationName
       ? `/experiences?company=${encodeURIComponent(organizationName)}`
       : buildTrainingFinderSharePath();
+
+  const openResumeTailorFromCard = ({ opportunity = null, organization = null }) => {
+    if (opportunity?._id || opportunity?.id) {
+      navigate(`/my-resume/tailor?opportunityId=${encodeURIComponent(opportunity._id || opportunity.id)}`);
+      return;
+    }
+    const contact = getGuideOrganizationContactPreview(organization || {});
+    const contactUrl = contact.type === "email"
+      ? `mailto:${contact.value}`
+      : contact.type === "link" ? contact.url || organization?.url || organization?.sourceUrl || "" : "";
+    navigate("/my-resume/tailor", {
+      state: {
+        tailorContext: {
+          title: organization?.applicationWindow || "تدريب تعاوني",
+          company: organization?.name || organization?.organizationName || "",
+          description: [organization?.sector, organization?.note, ...(organization?.specialties || [])].filter(Boolean).join(". "),
+          url: contactUrl,
+        },
+      },
+    });
+  };
 
   const trackTrainingShareAction = (action, itemType, metadata = {}) => {
     trackEvent("share_item_clicked", {
@@ -2841,6 +2970,13 @@ export default function TrainingFinderPage() {
         <div className="finder-card-actions">
           <button
             type="button"
+            className="opportunity-apply-button"
+            onClick={() => openResumeTailorFromCard({ organization })}
+          >
+            {contactPreview.type === "email" || contactPreview.type === "link" ? "جهّز تقديمي" : "خصص سيرتي للجهة"}
+          </button>
+          <button
+            type="button"
             className="opportunity-secondary-button"
             onClick={() => openGuideOrganizationDetails(organization)}
           >
@@ -2879,16 +3015,6 @@ export default function TrainingFinderPage() {
         selectedSpecialty,
         source: "where_to_train_opportunities_banner",
       },
-    });
-
-    requestPremiumAccess({
-      feature: "where_to_train_opportunities",
-      title: "افتح تفاصيل الفرص والجهات",
-      source: "where_to_train_opportunities_banner",
-      gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
-      itemKey: `where-to-train-opportunities:${normalizeName(
-        selectedSpecialty
-      )}:${normalizeName(city)}`,
     });
   };
 
@@ -3011,9 +3137,17 @@ export default function TrainingFinderPage() {
         <span>جهات مناسبة لتخصصك</span>
         <span>فرص محدثة حسب المدينة</span>
       </div>
-      <button type="button" onClick={openOpportunityPremiumBanner}>
-        افتح فرصك المناسبة
-      </button>
+      <Link
+        to={buildSubscribePath("where_to_train_opportunities_banner", {
+          planId: "monthly",
+        })}
+        className="opportunity-plus-inline-cta"
+        onClick={openOpportunityPremiumBanner}
+        aria-label="افتح باقات دربك بلس لعرض فرصك المناسبة"
+      >
+        <span>افتح فرصك المناسبة</span>
+        <small>ينقلك لباقات دربك+</small>
+      </Link>
     </aside>
   );
 
@@ -3035,7 +3169,7 @@ export default function TrainingFinderPage() {
           gap: "18px",
         }}
       >
-        {renderOpportunityPremiumBanner()}
+        {!canViewGuideContacts && renderOpportunityPremiumBanner()}
 
         <header style={{ textAlign: "center" }}>
           <p
@@ -3101,7 +3235,7 @@ export default function TrainingFinderPage() {
             التخصص
             <span className="training-autocomplete">
               <input
-                value={selectedSpecialty}
+                value={specialtyInput}
                 onFocus={() => setShowSpecialtySuggestions(true)}
                 onBlur={() =>
                   window.setTimeout(
@@ -3110,7 +3244,11 @@ export default function TrainingFinderPage() {
                   )
                 }
                 onChange={(event) => {
-                  setSelectedSpecialty(event.target.value);
+                  const nextValue = event.target.value;
+                  setSpecialtyInput(nextValue);
+                  if (!nextValue.trim()) {
+                    setSelectedSpecialty("");
+                  }
                   setShowSpecialtySuggestions(true);
                   setShowSearchInsightModal(false);
                 }}
@@ -3127,12 +3265,13 @@ export default function TrainingFinderPage() {
               />
               {showSpecialtySuggestions && specialtySuggestionOptions.length > 0 && (
                 <span className="training-specialty-suggestions">
-                  {selectedSpecialty && (
+                  {specialtyInput && (
                     <button
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => {
                         setSelectedSpecialty("");
+                        setSpecialtyInput("");
                         setShowSpecialtySuggestions(false);
                         setShowSearchInsightModal(false);
                       }}
@@ -3147,6 +3286,7 @@ export default function TrainingFinderPage() {
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => {
                         setSelectedSpecialty(specialization.value);
+                        setSpecialtyInput(specialization.value);
                         setShowSpecialtySuggestions(false);
                         setShowSearchInsightModal(false);
                       }}
@@ -3188,6 +3328,13 @@ export default function TrainingFinderPage() {
                 {regionOptions.map((region) => (
                   <option key={region.value} value={region.value}>
                     {region.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="المدن">
+                {cityOptions.map((cityName) => (
+                  <option key={cityName} value={cityName}>
+                    {cityName}
                   </option>
                 ))}
               </optgroup>
@@ -3924,6 +4071,9 @@ export default function TrainingFinderPage() {
                     const organizationHomepageUrl = resolveOrganizationHomepageUrl(
                       target.organizationName
                     );
+                    const relatedOpportunity = opportunities.find((opportunity) =>
+                      normalizeName(opportunity.organizationName) === normalizeName(target.organizationName)
+                    );
                     const savedTargetId = `training-target:${normalizeName(
                       target.organizationName
                     )}`;
@@ -4125,6 +4275,14 @@ export default function TrainingFinderPage() {
                               </button>
                             </a>
                           )}
+                          <button
+                            type="button"
+                            className="opportunity-secondary-button"
+                            style={{ width: "100%" }}
+                            onClick={() => openResumeTailorFromCard({ opportunity: relatedOpportunity, organization: target })}
+                          >
+                            {relatedOpportunity ? "جهّز تقديمي" : "خصص سيرتي للجهة"}
+                          </button>
                         </div>
                       </article>
                     );
@@ -4707,7 +4865,7 @@ export default function TrainingFinderPage() {
               </div>
             )}
 
-            {selectedOpportunity.isPremiumPreviewLocked &&
+            {isSelectedOpportunityLocked &&
               !selectedOpportunity.isPremiumUpsellHidden && (
                 <PremiumInlineNotice
                   title={WHERE_TO_TRAIN_PREMIUM_TITLE}
@@ -4724,7 +4882,7 @@ export default function TrainingFinderPage() {
             <div className="premium-preview-blur-wrap">
               <p
                 className={`opportunity-detail-note${
-                  selectedOpportunity.isPremiumPreviewLocked
+                  isSelectedOpportunityLocked
                     ? " is-premium-preview-blurred"
                     : ""
                 }`}
@@ -4732,7 +4890,7 @@ export default function TrainingFinderPage() {
                 {selectedOpportunity.note ||
                   "يتم عرض الفرص حسب المعلومات المتاحة وقت الإضافة، ويرجى التحقق من شروط الجهة قبل التقديم."}
               </p>
-              {selectedOpportunity.isPremiumPreviewLocked && (
+              {isSelectedOpportunityLocked && (
                 <span className="premium-preview-blur-label">
                   التفاصيل الكاملة متاحة عبر دربك+
                 </span>
@@ -4764,6 +4922,8 @@ export default function TrainingFinderPage() {
                 </Link>
               )}
             </div>
+
+            <ResumeServicePromo placement="opportunity_detail" compact />
 
             <div className="opportunity-detail-actions">
               <button
@@ -6184,11 +6344,18 @@ export default function TrainingFinderPage() {
           white-space: nowrap;
         }
 
-        .opportunity-plus-inline-banner button {
+        .opportunity-plus-inline-cta {
           grid-column: 2;
           grid-row: 1 / span 2;
           align-self: center;
-          border: none;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          min-height: 48px;
+          text-decoration: none;
+          border: 1px solid color-mix(in srgb, var(--app-brand) 70%, transparent);
           border-radius: 999px;
           background: var(--app-brand);
           color: #071315;
@@ -6196,13 +6363,23 @@ export default function TrainingFinderPage() {
           font-family: inherit;
           font-size: 13px;
           font-weight: 900;
-          padding: 11px 17px;
+          padding: 10px 18px;
           white-space: nowrap;
           box-shadow: 0 10px 24px rgba(125, 219, 205, 0.22);
+          transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
         }
 
-        .opportunity-plus-inline-banner button:hover {
+        .opportunity-plus-inline-cta small {
+          color: rgba(7, 19, 21, 0.72);
+          font-size: 10.5px;
+          font-weight: 900;
+          line-height: 1.3;
+        }
+
+        .opportunity-plus-inline-cta:hover {
           transform: translateY(-1px);
+          filter: brightness(1.03);
+          box-shadow: 0 14px 30px rgba(125, 219, 205, 0.28);
         }
 
         .telegram-channel-banner {
@@ -6311,7 +6488,7 @@ export default function TrainingFinderPage() {
             padding: 5px 8px !important;
           }
 
-          .opportunity-plus-inline-banner button {
+          .opportunity-plus-inline-cta {
             grid-column: auto !important;
             grid-row: auto !important;
             width: 100% !important;

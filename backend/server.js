@@ -49,6 +49,7 @@ const {
 const {
   runDarbakResumeAgent,
 } = require("./agents/darbakResumeAgent");
+const { compareResumeToJob } = require("./services/resumeMatchService");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -6243,8 +6244,14 @@ const sanitizeResumeSettings = (settings = {}) => {
   const fontSize = ["small", "medium", "large"].includes(settings.fontSize)
     ? settings.fontSize
     : "medium";
+  const template = ["clean", "modern", "formal"].includes(settings.template)
+    ? settings.template
+    : "clean";
+  const accentColor = /^#[0-9a-f]{6}$/i.test((settings.accentColor || "").toString())
+    ? settings.accentColor
+    : "#42cfc3";
 
-  return { language, direction, density, fontSize };
+  return { language, direction, density, fontSize, template, accentColor };
 };
 
 const sanitizeResumePayload = (body = {}) => {
@@ -6254,6 +6261,7 @@ const sanitizeResumePayload = (body = {}) => {
   return {
     personalInfo: {
       fullName: sanitizePortfolioText(personalInfo.fullName, 120),
+      englishName: sanitizePortfolioText(personalInfo.englishName, 120),
       email: sanitizePortfolioText(personalInfo.email, 160).toLowerCase(),
       phone: sanitizePortfolioText(personalInfo.phone, 40),
       city: sanitizePortfolioText(personalInfo.city, 80),
@@ -6283,7 +6291,33 @@ const sanitizeResumePayload = (body = {}) => {
       .filter((section) => RESUME_SECTION_KEYS.includes(section))
       .slice(0, RESUME_SECTION_KEYS.length),
     settings: sanitizeResumeSettings(body.settings),
+    // These are presentation-only values for an English ResumeTailoredVersion.
+    // They must survive a version save without replacing the source facts.
+    localizedDisplay: sanitizeResumeLooseTree(body.localizedDisplay || {}),
   };
+};
+
+const buildEnglishLocalizedDisplay = (resume = {}) => {
+  const personal = resume.personalInfo || {};
+  const degree = (value = "") => {
+    if (/بكالوريوس/.test(value)) return "Bachelor's Degree";
+    if (/دبلوم/.test(value)) return "Diploma";
+    if (/ماجستير/.test(value)) return "Master's Degree";
+    return "";
+  };
+  const localized = { personalInfo: {}, entries: {} };
+  if (personal.englishName) localized.personalInfo.fullName = personal.englishName;
+  if (degree(personal.major || "")) localized.personalInfo.major = degree(personal.major);
+  ["education", "experience", "projects", "certifications", "volunteering"].forEach((section) => {
+    (resume[section] || []).forEach((entry) => {
+      const values = {};
+      if (degree(entry.title || "")) values.title = degree(entry.title);
+      if (entry.title === "دربك") values.title = "Darbak";
+      if (entry.organization === "دربك") values.organization = "Darbak";
+      if (Object.keys(values).length) localized.entries[`${section}:${entry.id}`] = values;
+    });
+  });
+  return localized;
 };
 
 const mapPortfolioToResumePayload = (portfolio = {}, contact = "") => ({
@@ -6377,6 +6411,8 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "") => ({
     direction: "rtl",
     density: "comfortable",
     fontSize: "medium",
+    template: "clean",
+    accentColor: "#42cfc3",
   },
 });
 
@@ -6415,6 +6451,8 @@ const serializeResume = (resume = {}, access = {}) => {
     sectionOrder: sanitizeResumeSectionOrder(resume.sectionOrder),
     hiddenSections: Array.isArray(resume.hiddenSections) ? resume.hiddenSections : [],
     settings: sanitizeResumeSettings(resume.settings),
+    localizedDisplay: sanitizeResumeLooseTree(resume.localizedDisplay || {}),
+    workflow: resume.workflow || {},
     updatedAt: resume.updatedAt || null,
     access: {
       planKey: access.planKey || RESUME_PLAN_KEY,
@@ -6832,6 +6870,7 @@ const serializeResumeAgentSession = (session = {}, pendingDraft = null) => ({
         draftType: pendingDraft.draftType,
         status: pendingDraft.status,
         draft: pendingDraft.draft,
+        applicationPack: pendingDraft.applicationPack || {},
         validationResult: pendingDraft.validationResult || {},
         changesSummary: pendingDraft.changesSummary || [],
         companyName: pendingDraft.companyName || "",
@@ -6897,7 +6936,8 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     parsedDraft,
     baseResume,
     { basic: baseResume.personalInfo || {} },
-    sanitizeResumeAgentLanguage(language || baseResume.settings?.language)
+    sanitizeResumeAgentLanguage(language || baseResume.settings?.language),
+    { preserveIdentity: pendingDraft.draftType === "tailored_resume" }
   );
 
   return sanitizeResumePayload({
@@ -6905,6 +6945,115 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     sectionOrder: baseResume.sectionOrder || RESUME_SECTION_KEYS,
     hiddenSections: baseResume.hiddenSections || [],
   });
+};
+
+const buildApplicationEmail = ({ resume = {}, job = {}, trainingPeriod = "" }) => {
+  const personal = resume.personalInfo || {};
+  const fullName = sanitizeResumeText(personal.fullName, 120);
+  const major = sanitizeResumeText(personal.major || personal.headline, 140);
+  const university = sanitizeResumeText(personal.university, 180);
+  const organizationName = sanitizeResumeText(job.company, 180);
+  const opportunityTitle = sanitizeResumeText(job.title, 180);
+  const jobText = `${job.description || ""} ${(job.requirements || []).join(" ")}`.toLowerCase();
+  const skills = (resume.skills || []).map((item) => typeof item === "string" ? item : item?.name).filter(Boolean);
+  const projects = (resume.projects || []).map((item) => item?.name || item?.title).filter(Boolean);
+  const matchedFacts = [...projects, ...skills].filter((item) => {
+    const text = item.toLowerCase();
+    return text.length > 2 && (jobText.includes(text) || text.split(/[\s/،,]+/).some((word) => word.length > 3 && jobText.includes(word)));
+  });
+  const relevant = (matchedFacts.length ? matchedFacts : [...projects, ...skills]).slice(0, 2);
+  const missing = [];
+  if (!fullName) missing.push({ key: "fullName", label: "اسمك الكامل", appliesTo: "email" });
+  if (/فتر[ةه]\s+التدريب|تاريخ\s+(?:البداية|البدء)|من\s*[-–]\s*إلى/u.test(jobText) && !trainingPeriod) {
+    missing.push({ key: "trainingPeriod", label: "فترة التدريب", appliesTo: "email" });
+  }
+  if (missing.length) return { status: "needs_input", subject: "", body: "", missing };
+
+  const subjectParts = ["طلب تدريب تعاوني", major, trainingPeriod, fullName].filter(Boolean);
+  const academicLine = [major, university].filter(Boolean).join(" في ");
+  const hasTechContext = /تقني|رقمي|برمج|تطوير|ويب|منتج|واجهة|تجرب/u.test(jobText);
+  const hasDesignContext = /تصميم|محتوى|إعلام|تسويق/u.test(jobText);
+  const hasReact = skills.some((skill) => /react/i.test(skill));
+  const uiSkill = skills.find((skill) => /واجهة|تجربة المستخدم|ui|ux/i.test(skill));
+  const projectName = projects[0] || "";
+  const interest = hasTechContext && (hasReact || uiSkill)
+    ? "اهتممت بالفرصة لارتباطها ببيئة تقنية تتقاطع مع خبرتي في تطوير الويب وتصميم واجهات المستخدم."
+    : hasDesignContext && uiSkill
+    ? "اهتممت بالفرصة لارتباطها بالمحتوى والتصميم الرقمي، وهما من الجوانب التي عملت عليها ضمن مشاريعي."
+    : "يسعدني التقدم لهذه الفرصة التدريبية والاستفادة منها في تطوير خبرتي العملية.";
+  const factsLine = projectName && hasReact && uiSkill
+    ? `طورت مشروع ${projectName} باستخدام React.js، وعملت على تصميم الواجهات وتجربة المستخدم.`
+    : projectName && relevant.length
+    ? `من مشاريعي المرتبطة ${projectName}، إلى جانب ${relevant.filter((item) => item !== projectName).join(" و") || "المهارات المذكورة في السيرة"}.`
+    : relevant.length
+    ? `ومن الجوانب التي أستطيع إبرازها في السيرة: ${relevant.join(" و")}.`
+    : "أرفق سيرتي الذاتية التي توضح مشاريعي ومهاراتي الحالية.";
+  const body = [
+    "السلام عليكم ورحمة الله وبركاته،",
+    `أتقدم بطلب التدريب التعاوني${opportunityTitle ? ` في ${opportunityTitle}` : ""}${organizationName ? ` لدى ${organizationName}` : ""}.`,
+    academicLine ? `اسمي ${fullName}، وتخصصي ${academicLine}.` : `اسمي ${fullName}.`,
+    interest,
+    factsLine,
+    trainingPeriod ? `فترة التدريب المتاحة: ${trainingPeriod}.` : "",
+    "أتطلع إلى فرصة عملية أطبق فيها ما بنيته في مشاريعي، وأتعلم من فريق يعمل على حلول حقيقية.",
+    "أرفق لكم السيرة الذاتية وخطاب التقديم للاطلاع.",
+    "شكرًا لوقتكم وتقديركم.",
+    fullName,
+    [personal.email, personal.phone].filter(Boolean).join(" | "),
+  ].filter(Boolean).join("\n\n");
+  return {
+    status: "ready",
+    subject: sanitizeResumeText(subjectParts.join(" — "), 220),
+    body: sanitizeResumeText(body, 1600),
+    missing: [],
+  };
+};
+
+const buildApplicationPack = ({ draftPack = {}, job = {}, resume = {} }) => {
+  const personal = resume.personalInfo || {};
+  const organizationName = job.company || "الجهة التدريبية";
+  const instructions = `${job.description || ""} ${(job.requirements || []).join(" ")}`;
+  const contact = job.url || "";
+  const applicationMethod = contact.startsWith("mailto:") || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)
+    ? "email"
+    : contact ? "link" : "unavailable";
+  const emailAddress = applicationMethod === "email" ? contact.replace(/^mailto:/i, "") : "";
+  const summary = sanitizeResumeText(resume.summary || "", 900);
+  const fallbackLetter = [
+    `السادة/ ${organizationName} المحترمين،`,
+    "أتقدم بطلب التدريب التعاوني لديكم، ويسعدني إرفاق سيرتي الذاتية للنظر في فرص التدريب المتاحة.",
+    summary,
+    "وتفضلوا بقبول خالص التحية.",
+    personal.fullName || "",
+  ].filter(Boolean).join("\n\n");
+  const canSendEmail = applicationMethod !== "unavailable";
+  const generatedEmail = buildApplicationEmail({ resume, job });
+  const missingApplicationFields = canSendEmail ? generatedEmail.missing : [];
+  return {
+    status: missingApplicationFields.length ? "needs_input" : "ready",
+    resume: { status: "ready" },
+    trainingLetter: {
+      status: draftPack.trainingLetter?.body ? draftPack.trainingLetter.status || "ready" : "ready",
+      body: sanitizeResumeText(draftPack.trainingLetter?.body || fallbackLetter, 2200),
+    },
+    email: {
+      status: canSendEmail
+        ? generatedEmail.status
+        : "unavailable",
+      subject: canSendEmail ? generatedEmail.subject : "",
+      body: canSendEmail ? generatedEmail.body : "",
+    },
+    applicationInfo: {
+      sourceType: job.id ? "opportunity" : "where_to_train",
+      organizationName,
+      city: job.city || "",
+      opportunityTitle: job.title || "",
+      applicationMethod,
+      email: emailAddress,
+      url: applicationMethod === "link" ? contact : "",
+    },
+    missingApplicationFields,
+  };
 };
 
 const estimateJsonBytes = (value = {}) => {
@@ -6918,7 +7067,16 @@ const estimateJsonBytes = (value = {}) => {
 app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
   try {
     const { contact, accessCodeHash } = req.darbakAccess;
-    const resume = await ResumeProfile.findOne({ contact, accessCodeHash }).lean();
+    let resume = await ResumeProfile.findOne({ contact, accessCodeHash }).lean();
+    // ResumeProfile is always the Arabic master. Older translation flows could
+    // leave its presentation language as English; repair that metadata here.
+    if (resume?.settings?.language === "en") {
+      resume = await ResumeProfile.findByIdAndUpdate(
+        resume._id,
+        { $set: { "settings.language": "ar", "settings.direction": "rtl" } },
+        { new: true }
+      ).lean();
+    }
     const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
     const fallback = mapPortfolioToResumePayload(portfolio || {}, contact);
 
@@ -6937,6 +7095,9 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
   try {
     const { contact, accessCodeHash, user } = req.darbakAccess;
     const payload = sanitizeResumePayload(req.body);
+    // A master resume is never converted by a translation action. English lives
+    // exclusively in ResumeTailoredVersion with variantType: translation.
+    payload.settings = { ...payload.settings, language: "ar", direction: "rtl" };
 
     const resume = await ResumeProfile.findOneAndUpdate(
       { contact, accessCodeHash },
@@ -6972,6 +7133,76 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
   }
 });
 
+app.post('/api/resume/match', requireResumeAccess, async (req, res) => {
+  try {
+    const { contact, accessCodeHash } = req.darbakAccess;
+    const resume = await ResumeProfile.findOne({ contact, accessCodeHash }).lean();
+    if (!resume) {
+      return res.status(400).json({
+        error: "أنشئ السيرة الأساسية أولًا ثم حلل توافقها مع الفرصة.",
+        reason: "master_resume_required",
+      });
+    }
+
+    const opportunityId = sanitizeAccessItemKey(req.body?.opportunityId || "");
+    let job = null;
+
+    if (opportunityId) {
+      if (!mongoose.Types.ObjectId.isValid(opportunityId)) {
+        return res.status(400).json({ error: "معرف الفرصة غير صحيح." });
+      }
+      const opportunity = await Opportunity.findById(opportunityId).lean();
+      if (!opportunity) {
+        return res.status(404).json({ error: "الفرصة غير موجودة." });
+      }
+      job = {
+        id: opportunity._id.toString(),
+        title: opportunity.title || "",
+        company: opportunity.organizationName || "",
+        description: opportunity.note || "",
+        requirements: [
+          ...(opportunity.specialties || []),
+          ...(opportunity.majorCategories || []),
+        ],
+        city: opportunity.city || "",
+      };
+    } else {
+      const title = sanitizeResumeText(req.body?.job?.title, 160);
+      const company = sanitizeResumeText(req.body?.job?.company, 160);
+      const description = sanitizeResumeText(req.body?.job?.description, 8000);
+      if (!title || !description) {
+        return res.status(400).json({
+          error: "أضف مسمى الفرصة ووصفها حتى نحلل التوافق.",
+        });
+      }
+      job = {
+        title,
+        company,
+        description,
+        requirements: [],
+        url: sanitizePortfolioUrl(req.body?.job?.url, 260),
+      };
+    }
+
+    const match = compareResumeToJob({ resume, job });
+    await AnalyticsEvent.create({
+      eventName: "resume_job_match_analyzed",
+      visitorId: sanitizeAnalyticsText(req.body?.visitorId, 90),
+      page: "/my-resume",
+      metadata: sanitizeAnalyticsMetadata({
+        opportunityId: job.id || "",
+        company: job.company || "",
+        score: match.score,
+      }),
+    }).catch(() => null);
+
+    return res.json({ job, match });
+  } catch (err) {
+    console.error("❌ Resume match error:", err);
+    return res.status(500).json({ error: "تعذر تحليل توافق السيرة مع الفرصة." });
+  }
+});
+
 app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
   let session = null;
   try {
@@ -6981,6 +7212,17 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
     const source = sanitizeResumeAgentSource(req.body?.source);
     const language = sanitizeResumeAgentLanguage(req.body?.language);
     const opportunityId = sanitizeAccessItemKey(req.body?.opportunityId || "");
+    const externalJob = req.body?.externalJob && !opportunityId
+      ? {
+          title: sanitizeResumeText(req.body.externalJob.title, 160),
+          organizationName: sanitizeResumeText(req.body.externalJob.company, 160),
+          note: sanitizeResumeText(req.body.externalJob.description, 8000),
+          applicationUrl: sanitizePortfolioUrl(req.body.externalJob.url, 260),
+          specialties: [],
+          majorCategories: [],
+          city: "",
+        }
+      : null;
     const { contact, accessCodeHash, user } = req.darbakAccess;
 
     const currentResume = await getResumeForAccess({ contact, accessCodeHash });
@@ -6991,9 +7233,9 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
           reason: "base_resume_required",
         });
       }
-      if (!opportunityId || !mongoose.Types.ObjectId.isValid(opportunityId)) {
+      if ((!opportunityId || !mongoose.Types.ObjectId.isValid(opportunityId)) && !(externalJob?.title && externalJob?.note)) {
         return res.status(400).json({
-          error: "اختاري فرصة من دربك حتى نخصص السيرة عليها.",
+          error: "اختاري فرصة من دربك أو ألصقي وصف فرصة واضحًا حتى نخصص السيرة عليها.",
           reason: "opportunity_required",
         });
       }
@@ -7020,7 +7262,7 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
       source,
       language,
       status: "generating",
-      collectedFacts: { answers: [] },
+      collectedFacts: { answers: [], externalJob },
       answeredQuestionIds: [],
       baseResumeId: currentResume?._id || null,
       opportunityId:
@@ -7067,6 +7309,8 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
       code: err.code,
       status: err.status,
       name: err.name,
+      message: (err.message || "").toString().slice(0, 900),
+      cause: (err.cause?.message || "").toString().slice(0, 500),
     });
     const response = getResumeAiErrorResponse(err);
     return res.status(response.status).json(response.body);
@@ -7147,6 +7391,8 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
       code: err.code,
       status: err.status,
       name: err.name,
+      message: (err.message || "").toString().slice(0, 900),
+      cause: (err.cause?.message || "").toString().slice(0, 500),
     });
     const response = getResumeAiErrorResponse(err);
     return res.status(response.status).json(response.body);
@@ -7235,18 +7481,71 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
 
       let tailoredVersion = null;
       try {
+        const opportunity = pendingDraft.opportunityId
+          ? await Opportunity.findById(pendingDraft.opportunityId).lean()
+          : null;
+        const session = await ResumeAgentSession.findOne({ sessionId: pendingDraft.agentSessionId }).lean();
+        const externalJob = session?.collectedFacts?.externalJob || null;
+        const jobSnapshot = opportunity
+          ? {
+              id: opportunity._id?.toString?.() || "",
+              title: opportunity.title || pendingDraft.roleTitle || "",
+              company: opportunity.organizationName || pendingDraft.companyName || "",
+              description: opportunity.note || "",
+              requirements: [
+                ...(opportunity.specialties || []),
+                ...(opportunity.majorCategories || []),
+              ],
+              city: opportunity.city || "",
+              url: opportunity.applicationUrl || "",
+            }
+          : externalJob
+          ? {
+              title: externalJob.title || pendingDraft.roleTitle || "",
+              company: externalJob.organizationName || pendingDraft.companyName || "",
+              description: externalJob.note || "",
+              requirements: [],
+              city: externalJob.city || "",
+              url: externalJob.applicationUrl || "",
+            }
+          : null;
+        const match = jobSnapshot ? compareResumeToJob({ resume: payload, job: jobSnapshot }) : null;
+        const applicationPack = buildApplicationPack({
+          draftPack: pendingDraft.applicationPack || {},
+          job: jobSnapshot || {},
+          resume: payload,
+        });
+        applicationPack.customizationSummary = (pendingDraft.changesSummary || []).slice(0, 4);
+        const template = payload.settings?.template || "clean";
+        const versionName = [
+          jobSnapshot?.title || pendingDraft.roleTitle,
+          jobSnapshot?.company || pendingDraft.companyName,
+        ]
+          .filter(Boolean)
+          .join(" — ");
         tailoredVersion = await ResumeTailoredVersion.create({
           userId: req.darbakAccess.user?._id,
           contact: req.darbakAccess.contact,
           accessCodeHash: req.darbakAccess.accessCodeHash,
           baseResumeId: pendingDraft.baseResumeId || null,
           opportunityId: pendingDraft.opportunityId || null,
-          companyName: pendingDraft.companyName || "",
-          roleTitle: pendingDraft.roleTitle || "",
+          companyName: jobSnapshot?.company || pendingDraft.companyName || "",
+          roleTitle: jobSnapshot?.title || pendingDraft.roleTitle || "",
+          name: versionName || "نسخة مخصصة",
+          jobSnapshot,
           resumePayload: payload,
+          template,
+          theme: {
+            accentColor: payload.settings?.accentColor || "#42cfc3",
+            language: payload.settings?.language || "ar",
+          },
+          matchScore: match?.score || 0,
+          matchBreakdown: match?.breakdown || {},
+          suggestions: match?.suggestions || [],
           sourceMap: pendingDraft.sourceMap || {},
           validationResult: pendingDraft.validationResult || {},
           changesSummary: pendingDraft.changesSummary || [],
+          applicationPack,
           status: "approved",
           approvedAt: new Date(),
         });
@@ -7397,9 +7696,19 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
     return res.json({
       versions: versions.map((version) => ({
         _id: version._id?.toString?.() || "",
+        name:
+          version.name ||
+          [version.roleTitle, version.companyName].filter(Boolean).join(" — ") ||
+          "نسخة مخصصة",
         companyName: version.companyName || "",
         roleTitle: version.roleTitle || "",
         opportunityId: version.opportunityId?.toString?.() || "",
+        variantType: version.variantType || "tailored",
+        language: version.language || version.resumePayload?.settings?.language || "ar",
+        template: version.template || version.resumePayload?.settings?.template || "clean",
+        matchScore: Number(version.matchScore || 0),
+        matchBreakdown: version.matchBreakdown || {},
+        applicationPack: version.applicationPack || {},
         changesSummary: version.changesSummary || [],
         updatedAt: version.updatedAt || version.approvedAt || null,
       })),
@@ -7407,6 +7716,143 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
   } catch (err) {
     console.error("❌ Tailored versions fetch error:", err);
     return res.status(500).json({ error: "تعذر تحميل النسخ المخصصة." });
+  }
+});
+
+app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "معرف النسخة غير صحيح." });
+    }
+
+    const version = await ResumeTailoredVersion.findOne({
+      _id: req.params.id,
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+      status: "approved",
+    }).lean();
+
+    if (!version) {
+      return res.status(404).json({ error: "النسخة غير موجودة." });
+    }
+
+    const existingLocalizedDisplay = version.resumePayload?.localizedDisplay || {};
+    const recoveredLocalizedDisplay =
+      version.variantType === "translation" && version.language === "en"
+        ? buildEnglishLocalizedDisplay(version.resumePayload || {})
+        : {};
+    const versionPayload = {
+      ...(version.resumePayload || {}),
+      localizedDisplay: {
+        ...recoveredLocalizedDisplay,
+        ...existingLocalizedDisplay,
+        personalInfo: {
+          ...(recoveredLocalizedDisplay.personalInfo || {}),
+          ...(existingLocalizedDisplay.personalInfo || {}),
+        },
+        entries: {
+          ...(recoveredLocalizedDisplay.entries || {}),
+          ...(existingLocalizedDisplay.entries || {}),
+        },
+      },
+    };
+
+    return res.json({
+      version: {
+        _id: version._id?.toString?.() || "",
+        name:
+          version.name ||
+          [version.roleTitle, version.companyName].filter(Boolean).join(" — ") ||
+          "نسخة مخصصة",
+        companyName: version.companyName || "",
+        roleTitle: version.roleTitle || "",
+        opportunityId: version.opportunityId?.toString?.() || "",
+        jobSnapshot: version.jobSnapshot || null,
+        // Older English versions were saved before localizedDisplay was kept by
+        // the version mapper. Reconstruct only deterministic display values at
+        // read time; never alter the underlying student-provided facts.
+        resumePayload: serializeResume(versionPayload, req.darbakAccess),
+        template: version.template || version.resumePayload?.settings?.template || "clean",
+        theme: version.theme || {},
+        matchScore: Number(version.matchScore || 0),
+        matchBreakdown: version.matchBreakdown || {},
+        suggestions: version.suggestions || [],
+        acceptedSuggestions: version.acceptedSuggestions || [],
+        variantType: version.variantType || "tailored",
+        language: version.language || version.resumePayload?.settings?.language || "ar",
+        changesSummary: version.changesSummary || [],
+        applicationPack: version.applicationPack || {},
+        updatedAt: version.updatedAt || version.approvedAt || null,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Tailored version fetch error:", err);
+    return res.status(500).json({ error: "تعذر تحميل النسخة المخصصة." });
+  }
+});
+
+app.put('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "معرف النسخة غير صحيح." });
+    }
+    const version = await ResumeTailoredVersion.findOne({
+      _id: req.params.id,
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+      status: "approved",
+      variantType: "translation",
+    });
+    if (!version) return res.status(404).json({ error: "النسخة الإنجليزية غير موجودة." });
+    const payload = sanitizeResumePayload(req.body);
+    if (payload.settings?.language !== "en") {
+      return res.status(400).json({ error: "يجب أن تبقى هذه النسخة باللغة الإنجليزية." });
+    }
+    version.resumePayload = payload;
+    version.template = payload.settings?.template || version.template;
+    version.theme = { ...(version.theme || {}), accentColor: payload.settings?.accentColor || "#42cfc3", language: "en" };
+    await version.save();
+    return res.json({ resume: serializeResume(version.resumePayload, req.darbakAccess), message: "تم حفظ النسخة الإنجليزية." });
+  } catch (err) {
+    console.error("❌ English resume version save error:", err);
+    return res.status(500).json({ error: "تعذر حفظ النسخة الإنجليزية." });
+  }
+});
+
+app.put('/api/resume-agent/tailored-versions/:id/application-pack', requireResumeAccess, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "معرف ملف التقديم غير صحيح." });
+    const version = await ResumeTailoredVersion.findOne({
+      _id: req.params.id,
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+      status: "approved",
+      variantType: "tailored",
+    });
+    if (!version) return res.status(404).json({ error: "ملف التقديم غير موجود." });
+    const start = sanitizeResumeText(req.body?.trainingStart, 80);
+    const end = sanitizeResumeText(req.body?.trainingEnd, 80);
+    if (!start || !end) return res.status(400).json({ error: "أضف فترة التدريب لإكمال رسالة التقديم." });
+    const pack = version.applicationPack || {};
+    const generatedEmail = buildApplicationEmail({
+      resume: version.resumePayload || {},
+      job: version.jobSnapshot || {},
+      trainingPeriod: `من ${start} إلى ${end}`,
+    });
+    pack.email = {
+      ...(pack.email || {}),
+      status: generatedEmail.status,
+      subject: generatedEmail.subject,
+      body: generatedEmail.body,
+    };
+    pack.missingApplicationFields = generatedEmail.missing;
+    pack.status = pack.missingApplicationFields.length ? "needs_input" : "ready";
+    version.applicationPack = pack;
+    await version.save();
+    return res.json({ applicationPack: pack, message: "اكتملت رسالة التقديم." });
+  } catch (err) {
+    console.error("❌ Application Pack update error:", err);
+    return res.status(500).json({ error: "تعذر تحديث ملف التقديم." });
   }
 });
 
@@ -7642,12 +8088,13 @@ app.post('/api/resume/ai/tailor', requireResumeAccess, async (req, res) => {
     }
 
     const language = req.body.language === "en" ? "en" : "ar";
-    const baseResume =
-      req.body.resume ||
-      (await getResumeForAccess({
-        contact: req.darbakAccess.contact,
-        accessCodeHash: req.darbakAccess.accessCodeHash,
-      }));
+    const baseResume = await getResumeForAccess({
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+    });
+    if (!baseResume) {
+      return res.status(400).json({ error: "احفظ السيرة الأساسية أولًا قبل إنشاء النسخة الإنجليزية." });
+    }
 
     const result = await tailorResumeToOpportunity({
       resume: sanitizeResumeLooseTree(baseResume || {}),
@@ -7731,19 +8178,67 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       });
     }
 
-    const baseResume =
-      req.body.resume ||
-      (await getResumeForAccess({
-        contact: req.darbakAccess.contact,
-        accessCodeHash: req.darbakAccess.accessCodeHash,
-      }));
+    const baseResume = await getResumeForAccess({
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+    });
+    if (!baseResume) {
+      return res.status(400).json({ error: "احفظ السيرة الأساسية أولًا قبل إنشاء النسخة الإنجليزية." });
+    }
+
+    // Translate a complete, normalized copy of the master resume. The resulting
+    // payload intentionally has the exact shape consumed by the builder and preview.
+    const basePayload = sanitizeResumePayload(baseResume);
 
     const result = await translateResumeToEnglish({
-      resume: sanitizeResumeLooseTree(baseResume || {}),
+      resume: basePayload,
       userKey: req.darbakAccess.user?._id?.toString?.() || req.darbakAccess.contact,
     });
+    const translatedPayload = sanitizeResumePayload({
+      ...result.data,
+      settings: {
+        ...(result.data.settings || {}),
+        language: "en",
+        direction: "ltr",
+      },
+    });
+    const localizedDisplay = buildEnglishLocalizedDisplay(translatedPayload);
+    translatedPayload.localizedDisplay = localizedDisplay;
+    const version = await ResumeTailoredVersion.findOneAndUpdate(
+      {
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+        baseResumeId: baseResume._id,
+        variantType: "translation",
+        language: "en",
+      },
+      {
+        $set: {
+          userId: req.darbakAccess.user?._id,
+          name: "English resume",
+          resumePayload: translatedPayload,
+          template: translatedPayload.settings?.template || "clean",
+          theme: {
+            accentColor: translatedPayload.settings?.accentColor || "#42cfc3",
+            language: "en",
+          },
+          sourceLanguage: basePayload.settings?.language || "ar",
+          language: "en",
+          status: "approved",
+          approvedAt: new Date(),
+        },
+        $setOnInsert: {
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+          baseResumeId: baseResume._id,
+          variantType: "translation",
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+    ).lean();
 
-    const usage = await incrementResumeTailorUsage(req.darbakAccess);
+    // Translation is a separate resume representation, not a job customization.
+    const usage = getResumeUsageSnapshot(req.darbakAccess);
 
     await AnalyticsEvent.create({
       eventName: "resume_translated_to_english",
@@ -7757,7 +8252,7 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
 
     const responsePayload = {
       resume: {
-        ...result.data,
+        ...translatedPayload,
         links: [],
         settings: {
           ...(result.data.settings || {}),
@@ -7765,9 +8260,15 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
           direction: "ltr",
         },
       },
+      version: {
+        _id: version._id?.toString?.() || "",
+        variantType: "translation",
+        language: "en",
+        resumePayload: serializeResume(translatedPayload, req.darbakAccess),
+      },
       usage,
       aiUsage: result.usage,
-      message: "تمت ترجمة السيرة إلى الإنجليزية.",
+      message: "تم تجهيز نسخة إنجليزية رسمية للمراجعة. راجعها ثم احفظها عندما تكون جاهزة.",
     };
     setResumeAiCachedResponse(idempotencyKey, responsePayload);
 

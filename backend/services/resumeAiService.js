@@ -160,55 +160,21 @@ const resumeEntryPayloadSchema = z
   })
   .strict();
 
-const translatedResumePayloadSchema = z
+// Translation deliberately asks the model for short text replacements only.
+// Resume structure, IDs, dates and contact data remain entirely server-owned.
+const resumeTextTranslationSchema = z
   .object({
-    personalInfo: z
-      .object({
-        fullName: shortString(180),
-        email: shortString(180),
-        phone: shortString(80),
-        city: shortString(120),
-        major: shortString(180),
-        university: shortString(180),
-        headline: shortString(180),
-        linkedinUrl: shortString(260),
-        portfolioUrl: shortString(260),
-        githubUrl: shortString(260),
-        personalUrl: shortString(260),
-      })
-      .strict(),
-    summary: shortString(1200),
-    education: z.array(resumeEntryPayloadSchema).max(10).default([]),
-    experience: z.array(resumeEntryPayloadSchema).max(10).default([]),
-    experiences: z.array(resumeEntryPayloadSchema).max(10).default([]),
-    projects: z.array(resumeEntryPayloadSchema).max(10).default([]),
-    certifications: z.array(resumeEntryPayloadSchema).max(12).default([]),
-    volunteering: z.array(resumeEntryPayloadSchema).max(10).default([]),
-    languages: z
+    translations: z
       .array(
         z
           .object({
-            id: shortString(100),
-            name: shortString(80),
-            level: shortString(80),
+            id: shortString(180),
+            text: shortString(1600),
           })
           .strict()
       )
-      .max(8)
+      .max(240)
       .default([]),
-    links: z.array(z.any()).max(0).default([]),
-    skills: z.array(z.string().max(80)).max(40).default([]),
-    sectionOrder: z.array(z.string().max(80)).max(12).default([]),
-    hiddenSections: z.array(z.string().max(80)).max(12).default([]),
-    settings: z
-      .object({
-        language: z.literal("en").default("en"),
-        direction: z.literal("ltr").default("ltr"),
-        density: z.enum(["comfortable", "compact"]).default("comfortable"),
-        fontSize: z.enum(["small", "medium", "large"]).default("medium"),
-        accentColor: shortString(20).default("#42cfc3"),
-      })
-      .strict(),
   })
   .strict();
 
@@ -260,12 +226,12 @@ const getUsage = (response = {}) => ({
 
 const parseAiResponse = (response = {}, schema) => {
   const parsed = response.output_parsed;
-  if (!parsed) {
-    const error = new Error("لم يكتمل توليد المسودة بشكل صحيح.");
-    error.code = "OPENAI_PARSE_EMPTY";
-    throw error;
-  }
-  return schema.parse(parsed);
+  if (parsed) return schema.parse(parsed);
+
+  // Some compatible Responses API models return the structured JSON as text while
+  // leaving output_parsed empty. Accept that valid JSON instead of failing a usable
+  // translation solely because the SDK did not hydrate output_parsed.
+  return parseJsonObjectOutput(response, schema);
 };
 
 const parseJsonObjectOutput = (response = {}, schema) => {
@@ -322,7 +288,7 @@ const createStructuredResponse = async ({
       },
       max_output_tokens: maxOutputTokens,
       store: false,
-      ...(safetyIdentifier ? { safety_identifier: safety_identifier } : {}),
+      ...(safetyIdentifier ? { safety_identifier: safetyIdentifier } : {}),
     });
   } catch (error) {
     error.resumeAiModel = model;
@@ -413,32 +379,180 @@ const tailorResumeToOpportunity = async ({ resume, opportunity, language, userKe
     })}`,
   });
 
-const translateResumeToEnglish = async ({ resume, userKey }) =>
-  createStructuredResponse({
-    // Keep translation on the model already verified for the Resume Agent unless a
-    // dedicated lightweight model was intentionally configured.
+const cloneResumePayload = (resume = {}) => JSON.parse(JSON.stringify(resume || {}));
+
+const getResumeEntries = (resume = {}, section) => {
+  if (section === "experience") {
+    if (Array.isArray(resume.experience) && resume.experience.length) return resume.experience;
+    if (Array.isArray(resume.experiences)) return resume.experiences;
+    return Array.isArray(resume.experience) ? resume.experience : [];
+  }
+  return Array.isArray(resume[section]) ? resume[section] : [];
+};
+
+const collectResumeTextForTranslation = (resume = {}) => {
+  const items = [];
+  const add = (id, text, target) => {
+    const cleanText = typeof text === "string" ? text.trim() : "";
+    if (cleanText) items.push({ id, text: cleanText, target });
+  };
+
+  add("summary", resume.summary, { kind: "root", key: "summary" });
+  ["education", "experience", "projects", "certifications", "volunteering"].forEach(
+    (section) => {
+      getResumeEntries(resume, section).forEach((entry, index) => {
+        const entryId = entry?.id || `${section}-${index}`;
+        ["description"].forEach((key) => {
+          const text = key === "description" ? entry.description || entry.details : entry[key];
+          add(`${section}:${entryId}:${key}`, text, { kind: "entry", section, entryId, key });
+        });
+        (Array.isArray(entry?.achievements) ? entry.achievements : []).forEach((achievement, bulletIndex) => {
+          const bulletId = achievement?.id || `${bulletIndex}`;
+          add(`${section}:${entryId}:achievement:${bulletId}`, achievement?.text, {
+            kind: "achievement",
+            section,
+            entryId,
+            bulletId,
+          });
+        });
+      });
+    }
+  );
+
+  return items;
+};
+
+const translationStructure = (resume = {}) => ({
+  personalInfo: resume.personalInfo || {},
+  skills: Array.isArray(resume.skills) ? resume.skills : [],
+  languages: Array.isArray(resume.languages) ? resume.languages : [],
+  entries: ["education", "experience", "projects", "certifications", "volunteering"].map(
+    (section) =>
+      getResumeEntries(resume, section).map((entry) => ({
+        id: entry?.id || "",
+        title: entry?.title || "",
+        subtitle: entry?.subtitle || "",
+        organization: entry?.organization || "",
+        period: entry?.period || "",
+        startDate: entry?.startDate || "",
+        endDate: entry?.endDate || "",
+        location: entry?.location || "",
+        url: entry?.url || "",
+      }))
+  ),
+});
+
+const assertTranslationIntegrity = (source, translated) => {
+  if (JSON.stringify(translationStructure(source)) !== JSON.stringify(translationStructure(translated))) {
+    const error = new Error("تعذر التحقق من ثبات حقائق السيرة أثناء الترجمة.");
+    error.code = "RESUME_TRANSLATION_FACTS_CHANGED";
+    throw error;
+  }
+};
+
+const escapeResumeHtml = (text = "") =>
+  text
+    .toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const applyResumeTranslations = (resume, items, translations) => {
+  const translatedResume = cloneResumePayload(resume);
+  const replacements = new Map(
+    (Array.isArray(translations) ? translations : [])
+      .filter((item) => item?.id && typeof item.text === "string" && item.text.trim())
+      .map((item) => [item.id, item.text.trim()])
+  );
+  let appliedCount = 0;
+
+  items.forEach((item) => {
+    const text = replacements.get(item.id);
+    if (!text) return;
+    const target = item.target;
+    if (target.kind === "root") {
+      translatedResume[target.key] = text;
+    } else if (target.kind === "personal") {
+      translatedResume.personalInfo = { ...(translatedResume.personalInfo || {}), [target.key]: text };
+    } else if (target.kind === "entry" || target.kind === "achievement") {
+      const entries = getResumeEntries(translatedResume, target.section);
+      const entry = entries.find((candidate) => candidate?.id === target.entryId);
+      if (!entry) return;
+      if (target.kind === "entry") {
+        entry[target.key] = text;
+        if (target.key === "description") entry.details = text;
+      } else {
+        const achievement = (entry.achievements || []).find(
+          (candidate, index) => (candidate?.id || `${index}`) === target.bulletId
+        );
+        if (!achievement) return;
+        achievement.text = text;
+        achievement.html = `<p>${escapeResumeHtml(text)}</p>`;
+      }
+    } else if (target.kind === "skill") {
+      if (typeof translatedResume.skills?.[target.index] === "string") {
+        translatedResume.skills[target.index] = text;
+      } else if (translatedResume.skills?.[target.index]) {
+        translatedResume.skills[target.index].name = text;
+      }
+    } else if (target.kind === "languageString") {
+      translatedResume.languages[target.index] = text;
+    } else if (target.kind === "language" && translatedResume.languages?.[target.index]) {
+      translatedResume.languages[target.index][target.key] = text;
+    } else {
+      return;
+    }
+    appliedCount += 1;
+  });
+
+  // The editor uses both keys for historical data; retain the same translated values in each.
+  translatedResume.experiences = cloneResumePayload(getResumeEntries(translatedResume, "experience"));
+  translatedResume.experience = cloneResumePayload(getResumeEntries(translatedResume, "experience"));
+  translatedResume.links = [];
+  translatedResume.settings = {
+    ...(translatedResume.settings || {}),
+    language: "en",
+    direction: "ltr",
+  };
+
+  return { resume: translatedResume, appliedCount };
+};
+
+const translateResumeToEnglish = async ({ resume, userKey }) => {
+  const translationItems = collectResumeTextForTranslation(resume);
+  if (!translationItems.length) {
+    const error = new Error("أضف بعض محتوى السيرة أولًا حتى نجهز النسخة الإنجليزية.");
+    error.code = "RESUME_TRANSLATION_EMPTY";
+    throw error;
+  }
+
+  const result = await createStructuredResponse({
     model:
       process.env.OPENAI_RESUME_AGENT_MODEL ||
       process.env.OPENAI_RESUME_LIGHT_MODEL ||
       DEFAULT_RESUME_MODEL,
-    schema: translatedResumePayloadSchema,
-    schemaName: "darbak_resume_translate_en",
+    schema: resumeTextTranslationSchema,
+    schemaName: "darbak_resume_text_translation_en",
     safetyIdentifier: userKey,
-    // Translation can be longer than the Arabic source; leave enough room for a
-    // full two-page resume rather than returning an incomplete response.
-    maxOutputTokens: 12000,
-    input: `ترجم السيرة التالية إلى الإنجليزية المهنية المناسبة للتدريب التعاوني فقط.
+    maxOutputTokens: Math.min(9000, Math.max(1800, translationItems.length * 70)),
+    instructions: `${SYSTEM_PROMPT}
 
-قواعد صارمة:
-- لا تضف أي خبرة أو مهارة أو رقم أو جهة غير موجودة.
-- لا تغيّر التواريخ أو البريد أو الهاتف.
-- لا تضف روابط داخل السيرة. links يجب أن تكون [].
-- حافظ على نفس ترتيب الأقسام والعناصر.
-- حوّل النقاط إلى صياغة محايدة احترافية بدون ضمير المتكلم.
-- اضبط settings.language="en" و settings.direction="ltr".
-
-${safeJsonInput({ resume })}`,
+You translate only the provided resume text snippets into formal, practical, error-free English suitable for internship applications. Return JSON containing only translations. Keep technical product names and recognized tools such as React, Figma, Java, and Power BI unchanged when appropriate. Do not add facts, skills, achievements, numbers, employers, dates, or links.`,
+    input: `Translate every text item below. Return the same id for each translation and no new ids. This is a JSON translation task.\n\n${safeJsonInput({ items: translationItems.map(({ id, text }) => ({ id, text })) })}`,
   });
+
+  const merged = applyResumeTranslations(resume, translationItems, result.data.translations);
+  if (!merged.appliedCount) {
+    const error = new Error("لم تكتمل ترجمة النصوص المطلوبة.");
+    error.code = "OPENAI_PARSE_EMPTY";
+    throw error;
+  }
+  assertTranslationIntegrity(resume, merged.resume);
+
+  return { ...result, data: merged.resume, translatedCount: merged.appliedCount };
+};
 
 const createAchievementItems = (bullets = [], prefix = "ai") =>
   (Array.isArray(bullets) ? bullets : [])
@@ -458,12 +572,52 @@ const createAchievementItems = (bullets = [], prefix = "ai") =>
       };
     });
 
-const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, language = "ar") => {
+const normalizePresentationKey = (value = "") =>
+  value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[إأآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ");
+
+// Tailoring may change emphasis, but it may only reorder entries that already
+// exist in the master resume. Unknown draft items stay out of the version.
+const orderMasterEntries = (masterEntries = [], draftEntries = []) => {
+  const preferredIds = (draftEntries || [])
+    .map((entry) => normalizePresentationKey(entry?.sourceId))
+    .filter(Boolean);
+  if (!preferredIds.length) return masterEntries;
+
+  const rank = new Map(preferredIds.map((id, index) => [id, index]));
+  return [...masterEntries].sort((left, right) => {
+    const leftRank = rank.get(normalizePresentationKey(left?.id));
+    const rightRank = rank.get(normalizePresentationKey(right?.id));
+    return (leftRank ?? Number.MAX_SAFE_INTEGER) - (rightRank ?? Number.MAX_SAFE_INTEGER);
+  });
+};
+
+const orderMasterSkills = (masterSkills = [], draftSkills = []) => {
+  const preferredSkills = (draftSkills || [])
+    .map((skill) => normalizePresentationKey(skill?.name))
+    .filter(Boolean);
+  if (!preferredSkills.length) return masterSkills;
+
+  const rank = new Map(preferredSkills.map((name, index) => [name, index]));
+  return [...masterSkills].sort((left, right) => {
+    const leftName = normalizePresentationKey(typeof left === "string" ? left : left?.name);
+    const rightName = normalizePresentationKey(typeof right === "string" ? right : right?.name);
+    return (rank.get(leftName) ?? Number.MAX_SAFE_INTEGER) - (rank.get(rightName) ?? Number.MAX_SAFE_INTEGER);
+  });
+};
+
+const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, language = "ar", options = {}) => {
   const personal = rawInput?.basic || rawInput?.personalInfo || {};
   const educationRaw = rawInput?.education || {};
   const resumeLanguage = language === "en" ? "en" : "ar";
 
-  return {
+  const payload = {
     personalInfo: {
       ...(baseResume.personalInfo || {}),
       fullName: personal.fullName || baseResume.personalInfo?.fullName || "",
@@ -584,6 +738,20 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
       accentColor: baseResume.settings?.accentColor || "#42cfc3",
     },
   };
+  // A tailored resume is presentation-only: student identity and immutable
+  // employment/education facts always come from the master resume.
+  if (options.preserveIdentity) {
+    payload.personalInfo = { ...(baseResume.personalInfo || {}) };
+    payload.education = orderMasterEntries(baseResume.education || [], draft.education);
+    payload.experiences = orderMasterEntries(baseResume.experiences || baseResume.experience || [], draft.experiences);
+    payload.experience = payload.experiences;
+    payload.projects = orderMasterEntries(baseResume.projects || [], draft.projects);
+    payload.certifications = orderMasterEntries(baseResume.certifications || [], draft.certifications);
+    payload.volunteering = orderMasterEntries(baseResume.volunteering || [], draft.volunteering);
+    payload.skills = orderMasterSkills(baseResume.skills || [], draft.skills);
+    payload.languages = baseResume.languages || [];
+  }
+  return payload;
 };
 
 module.exports = {
@@ -595,5 +763,6 @@ module.exports = {
   rewriteResumeSection,
   tailorResumeToOpportunity,
   translateResumeToEnglish,
+  assertTranslationIntegrity,
   tailoredResumeDraftSchema,
 };

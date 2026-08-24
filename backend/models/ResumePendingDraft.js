@@ -75,6 +75,10 @@ const resumePendingDraftSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    applicationPack: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
     approvedAt: {
       type: Date,
       default: null,

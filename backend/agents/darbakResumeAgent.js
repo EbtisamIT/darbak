@@ -48,6 +48,11 @@ const sourceMapEntrySchema = z
   .strict();
 
 const sourceMapSchema = z.array(sourceMapEntrySchema).max(120).default([]);
+const applicationPackSchema = z.object({
+  trainingLetter: z.object({ body: z.string().max(2200).default(""), status: z.enum(["ready", "needs_input", "unavailable"]).default("ready") }).strict(),
+  email: z.object({ subject: z.string().max(220).default(""), body: z.string().max(1600).default(""), status: z.enum(["ready", "needs_input", "unavailable"]).default("ready") }).strict(),
+  missingApplicationFields: z.array(z.object({ key: z.string().max(80), label: z.string().max(160), appliesTo: z.enum(["trainingLetter", "email"]) }).strict()).max(6).default([]),
+}).strict().default({ trainingLetter: { body: "", status: "ready" }, email: { subject: "", body: "", status: "ready" }, missingApplicationFields: [] });
 
 const resumeAgentOutputSchema = z
   .object({
@@ -60,6 +65,7 @@ const resumeAgentOutputSchema = z
     message: z.string().max(1200).default(""),
     questions: z.array(questionSchema).max(3).default([]),
     draft: tailoredResumeDraftSchema.nullable().default(null),
+    applicationPack: applicationPackSchema,
     missingInformation: z
       .array(
         z
@@ -128,6 +134,15 @@ const isSkillMentionedInFacts = (skillName = "", factTextComparable = "") => {
   if (!normalizedSkill) return true;
   const aliases = SKILL_ALIASES[normalizedSkill] || [skillName];
   return aliases.some((alias) => containsNormalizedPhrase(factTextComparable, alias));
+};
+
+const isConfirmedSkill = (skillName = "", facts = {}) => {
+  const normalized = normalizeComparable(skillName);
+  if (!normalized) return true;
+  const confirmed = facts?.allowedSkills || new Set();
+  if (confirmed.has(normalized)) return true;
+  const aliases = SKILL_ALIASES[normalized] || [skillName];
+  return aliases.some((alias) => confirmed.has(normalizeComparable(alias)));
 };
 
 const safeArray = (value = [], maxItems = 12, mapper = (item) => item) =>
@@ -385,6 +400,63 @@ const collectFacts = ({ profile, resume, opportunity, collectedFacts } = {}) => 
   };
 };
 
+const isConfirmedQuestion = (question = {}, facts = {}) => {
+  const sectionAliases = {
+    المهارات: "skills",
+    المشاريع: "projects",
+    التعليم: "education",
+    الشهادات: "certifications",
+    الدورات: "certifications",
+  };
+  const normalizedSection = normalizeComparable(question.section);
+  const section = sectionAliases[normalizedSection] || normalizedSection;
+  const text = normalizeComparable(`${question.question || ""} ${question.whyNeeded || ""}`);
+  const profile = facts.profile || {};
+  const resume = facts.resume || {};
+  const confirmedBySection = {
+    skills: (profile.skills || []).length || (resume.skills || []).length,
+    projects: (profile.projects || []).length || (resume.projects || []).length,
+    education: (resume.education || []).length,
+    certifications: (profile.certifications || []).length || (resume.certifications || []).length,
+  };
+  if (confirmedBySection[section]) return true;
+
+  const confirmedText = (facts.sources || []).map((source) => source.text).join(" | ");
+  const confirmedComparable = normalizeComparable(confirmedText);
+  const asksEducationalStatus = ["طالبه", "طالب", "خريجه", "خريج", "متوقع التخرج"].some((term) =>
+    text.includes(term)
+  );
+  if (
+    asksEducationalStatus &&
+    ["طالبه", "طالب", "خريجه", "خريج", "متوقع التخرج"].some((term) =>
+      confirmedComparable.includes(term)
+    )
+  ) {
+    return true;
+  }
+  return text.length > 2 && containsNormalizedPhrase(normalizeComparable(confirmedText), text);
+};
+
+const filterConfirmedQuestions = (output = {}, facts = {}) => {
+  if (output.status !== "needs_information") return output;
+  const questions = (output.questions || []).filter((question) => !isConfirmedQuestion(question, facts));
+  return { ...output, questions };
+};
+
+const isDeferredTailorQuestion = (question = {}) => {
+  const text = normalizeComparable(`${question.section || ""} ${question.question || ""} ${question.whyNeeded || ""}`);
+  return [
+    "مرحله التدريب", "اهليه", "مؤهل", "الجنسية", "المعدل", "جهه تعليميه", "معتمده",
+    "فتره التدريب", "تاريخ البدايه", "تاريخ البدء", "خطاب", "ايميل", "بريد تقديم",
+  ].some((term) => text.includes(term));
+};
+
+const hasNoBlockingTailorQuestions = (output = {}, facts = {}) =>
+  output.status === "needs_information" &&
+  Array.isArray(output.questions) &&
+  output.questions.length > 0 &&
+  output.questions.every((question) => isDeferredTailorQuestion(question) || isConfirmedQuestion(question, facts));
+
 const flattenDraftText = (draft = {}) =>
   safeText(
     [
@@ -602,6 +674,24 @@ const normalizeDraftTone = (draft = {}) => {
   return nextDraft;
 };
 
+// These claims can affect a student's eligibility or identity. They must be
+// explicitly present in Portfolio, ResumeProfile, or an answered question; a
+// requirement in the opportunity is never evidence for them.
+const getSensitiveSummaryClaims = (summary = "") => {
+  const comparable = normalizeComparable(summary);
+  const claimGroups = [
+    ["طالبه", "طالب"],
+    ["خريجه", "خريج"],
+    ["متوقع التخرج"],
+    ["مؤهله للتدريب التعاوني", "مؤهل للتدريب التعاوني", "اهلية التدريب"],
+    ["الجنسيه السعوديه", "سعوديه", "سعودي"],
+    ["المعدل التراكمي", "المعدل", "gpa"],
+  ];
+  return claimGroups
+    .map((terms) => terms.find((term) => comparable.includes(term)) || "")
+    .filter(Boolean);
+};
+
 const repairDraftEvidenceSources = ({ draft, sourceMap = [], facts = {} } = {}) => {
   const repairedDraft = normalizeDraftTone(draft || {});
   const repairedSourceMap = Array.isArray(sourceMap)
@@ -690,6 +780,14 @@ const validateResumeClaims = ({ draft, facts, sourceMap = {}, purpose = "create_
   const opportunityComparable = normalizeComparable(facts?.opportunityText || "");
   const allowedNumbers = facts?.allowedNumbers || extractNumbers(factText);
 
+  if (purpose === "tailor_resume") {
+    getSensitiveSummaryClaims(parsed.professionalSummary).forEach((claim) => {
+      if (!containsNormalizedPhrase(factTextComparable, claim)) {
+        errors.push(`لا يمكن إضافة معلومة حالة أو أهلية داخل النبذة دون دليل من بيانات الطالب: ${claim}`);
+      }
+    });
+  }
+
   const draftNumbers = Array.from(extractNumbers(flattenDraftText(parsed)));
   draftNumbers.forEach((number) => {
     if (!allowedNumbers.has(number)) {
@@ -771,14 +869,14 @@ const validateResumeClaims = ({ draft, facts, sourceMap = {}, purpose = "create_
   (parsed.skills || []).forEach((skill) => {
     const skillName = normalizeComparable(skill.name);
     checkSourceId(skill.evidenceSourceId, `المهارة ${skill.name}`);
-    if (!isSkillMentionedInFacts(skill.name, factTextComparable)) {
+    if (!isConfirmedSkill(skill.name, facts) && !isSkillMentionedInFacts(skill.name, factTextComparable)) {
       errors.push(`تمت إضافة مهارة غير مذكورة في بيانات الطالب: ${skill.name}`);
     }
     if (
       purpose === "tailor_resume" &&
       skillName &&
       containsNormalizedPhrase(opportunityComparable, skill.name) &&
-      !isSkillMentionedInFacts(skill.name, factTextComparable)
+      !isConfirmedSkill(skill.name, facts) && !isSkillMentionedInFacts(skill.name, factTextComparable)
     ) {
       errors.push(`لا يمكن إضافة متطلب الفرصة كمهارة للطالب بدون دليل: ${skill.name}`);
     }
@@ -863,9 +961,10 @@ const createPendingResumeDraftTool = tool({
       draft: tailoredResumeDraftSchema,
       sourceMap: sourceMapSchema,
       changesSummary: z.array(z.string().max(320)).max(12).default([]),
+      applicationPack: applicationPackSchema,
     })
     .strict(),
-  execute: async ({ draft, sourceMap, changesSummary }, runContext) => {
+  execute: async ({ draft, sourceMap, changesSummary, applicationPack }, runContext) => {
     const context = getContext(runContext);
     const facts = await loadFactsForContext(context);
     const repaired = repairDraftEvidenceSources({ draft, sourceMap, facts });
@@ -923,9 +1022,10 @@ const createPendingTailoredVersionTool = tool({
       draft: tailoredResumeDraftSchema,
       sourceMap: sourceMapSchema,
       changesSummary: z.array(z.string().max(320)).max(12).default([]),
+      applicationPack: applicationPackSchema,
     })
     .strict(),
-  execute: async ({ draft, sourceMap, changesSummary }, runContext) => {
+  execute: async ({ draft, sourceMap, changesSummary, applicationPack }, runContext) => {
     const context = getContext(runContext);
     const facts = await loadFactsForContext(context);
     const repaired = repairDraftEvidenceSources({ draft, sourceMap, facts });
@@ -965,6 +1065,7 @@ const createPendingTailoredVersionTool = tool({
           companyName: facts.opportunity?.organizationName || "",
           roleTitle: facts.opportunity?.title || "",
           changesSummary: safeArray(changesSummary, 12, (item) => safeString(item, 320)),
+          applicationPack,
           expiresAt: new Date(Date.now() + PENDING_DRAFT_TTL_MS),
         },
       },
@@ -992,7 +1093,7 @@ const loadFactsForContext = async (context = {}) => {
   return collectFacts({
     profile,
     resume,
-    opportunity,
+    opportunity: context.collectedFacts?.externalJob || opportunity,
     collectedFacts: context.collectedFacts || {},
   });
 };
@@ -1027,6 +1128,13 @@ const createAgentInstructions = () => `أنت وكيل السيرة الذاتي
 * لا تستخدم ضمير المتكلم داخل السيرة.
 * لا تحفظ أي تعديل نهائي قبل موافقة الطالب.
 * أنشئ نسخة جديدة عند تخصيص السيرة لفرصة، ولا تستبدل السيرة الأساسية.
+* عند التخصيص، متطلبات الإعلان هي سياق للمطابقة وليست حقائق عن الطالب: لا تنقل الجنسية أو المعدل أو حالة التخرج أو استحقاق التدريب إلى السيرة.
+* لا تستخدم مسمى الفرصة أو تخصصها لتغيير headline الطالب أو تخصصه أو أدواره أو جهاته أو تواريخه. أبقِ هذه القيم من الملف المهني والسيرة فقط.
+* استخدم متطلبات الفرصة فقط لترتيب الحقائق المثبتة، وإبراز المشاريع والمهارات المرتبطة، وتحسين النبذة والنقاط. إذا كان التخصص مختلفًا، اذكره كفجوة في التوافق ولا تعالجه بتغيير هوية الطالب.
+* تنطبق قاعدة الحقائق أيضًا على النبذة المهنية: لا تصف الطالب بأنه طالب/خريج أو مؤهل للتدريب، ولا تذكر معدله أو جنسيته أو حالة تخرجه إلا إذا ظهرت تلك الحقيقة صراحة في بياناته أو إجابة موثقة منه.
+* عند task=tailor_resume افصل العمل إلى ثلاث طبقات: (أ) السيرة المخصصة تُنشأ مباشرة من facts الطالب؛ (ب) الجنسية، المعدل، أهلية التدريب، والجهة التعليمية المعتمدة تُسجل فقط ضمن missingInformation كـ«متطلب يحتاج منك التأكد» ولا تُسأل عنها ولا توقف المسودة؛ (ج) فترة التدريب وتاريخ البداية وتفاصيل الإيميل أو الخطاب ليست ضمن السيرة، فلا تسأل عنها في هذا المسار.
+* في task=tailor_resume لا تعد status=needs_information بسبب شرط في الإعلان أو تفصيل تقديم. اسأل فقط عن Fact طالب ضروري لادعاء تريد كتابته داخل السيرة ولا يوجد له دليل، وإلا أنشئ المسودة من البيانات المتاحة.
+* عند task=tailor_resume أنشئ مع المسودة Application Pack واحدًا في نفس السياق: خطاب تدريب قصير ورسالة إيميل. لا تضف claim في الخطاب أو الإيميل غير موجود في facts الطالب أو المسودة. إذا كانت تعليمات التقديم تطلب فترة التدريب أو تاريخًا غير متوفر، أنشئ السيرة والخطاب، واجعل email.status=needs_input وأضف missingApplicationFields مناسبًا؛ لا تسأل عنه ولا توقف المسودة.
 
 استخدم الأدوات بهذا الترتيب تقريبًا:
 1. اقرأ الملف المهني والسيرة الحالية.
@@ -1064,6 +1172,7 @@ const buildAgentInput = ({ session, answers = [] }) =>
       sessionId: session.sessionId,
       answeredQuestionIds: session.answeredQuestionIds || [],
       collectedAnswers: session.collectedFacts?.answers || [],
+      externalOpportunity: session.collectedFacts?.externalJob || null,
       newAnswers: safeArray(answers, 3, (answer) => ({
         questionId: safeString(answer.questionId || answer.id, 90),
         section: safeString(answer.section, 90),
@@ -1071,7 +1180,7 @@ const buildAgentInput = ({ session, answers = [] }) =>
         answer: safeText(answer.answer || answer.value, MAX_ANSWER_LENGTH),
       })),
       instruction:
-        "أكمل نفس جلسة وكيل السيرة. لا تعيد سؤالًا تمت الإجابة عنه. إذا تكفي المعلومات أنشئ المسودة والتحقق والمسودة المؤقتة.",
+        "أكمل نفس جلسة وكيل السيرة. لا تعيد سؤالًا تمت الإجابة عنه. إذا وجدت externalOpportunity فهي وصف الفرصة المعتمد: لا تطلب رابطًا أو معرّفًا من دربك. في tailor_resume أنشئ المسودة من facts المتاحة ولا توقفها لأهلية التدريب أو الجنسية أو المعدل أو فترة التدريب؛ أعدها فقط كملاحظات مراجعة. إذا تكفي المعلومات أنشئ المسودة والتحقق والمسودة المؤقتة.",
     }),
     MAX_FACT_TEXT_LENGTH
   );
@@ -1137,15 +1246,29 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     answeredQuestionIds: session.answeredQuestionIds || [],
   };
 
-  const result = await run(agent, buildAgentInput({ session, answers }), {
+  let result = await run(agent, buildAgentInput({ session, answers }), {
     context,
     maxTurns: Number(process.env.RESUME_AGENT_MAX_TURNS || DEFAULT_MAX_TURNS),
     previousResponseId: session.lastResponseId || undefined,
   });
 
-  const output = resumeAgentOutputSchema.parse(result.finalOutput);
+  let output = resumeAgentOutputSchema.parse(result.finalOutput);
+  const facts = await loadFactsForContext(context);
+  if (session.purpose === "tailor_resume" && hasNoBlockingTailorQuestions(output, facts)) {
+    result = await run(
+      agent,
+      "أسئلة أهلية التدريب أو تفاصيل خطاب التقديم غير مانعة لمسار تخصيص السيرة. لا تسأل عنها الآن. أنشئ مسودة مخصصة من facts الطالب المتاحة فقط، وضع الشروط غير المؤكدة ضمن missingInformation للمراجعة.",
+      {
+        context,
+        maxTurns: Number(process.env.RESUME_AGENT_MAX_TURNS || DEFAULT_MAX_TURNS),
+        previousResponseId: result.lastResponseId || undefined,
+      }
+    );
+    output = resumeAgentOutputSchema.parse(result.finalOutput);
+  }
+  const filteredOutput = filterConfirmedQuestions(output, facts);
   return {
-    output,
+    output: filteredOutput,
     lastResponseId: result.lastResponseId || "",
     usage: summarizeRunUsage(result, startedAt),
   };
@@ -1155,6 +1278,8 @@ module.exports = {
   PENDING_DRAFT_TTL_MS,
   resumeAgentOutputSchema,
   collectFacts,
+  filterConfirmedQuestions,
+  isDeferredTailorQuestion,
   runDarbakResumeAgent,
   validateResumeClaims,
 };
