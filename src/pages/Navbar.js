@@ -629,7 +629,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         }
         .navbar-primary-link:hover {
           color: var(--app-brand) !important;
-          background: var(--app-brand-soft) !important;
         }
         .navbar-primary-link {
           display: inline-flex;
@@ -653,10 +652,10 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         .navbar-more-panel {
           position: absolute;
           top: calc(100% + 10px);
-          /* The menu trigger sits at the visual end of the desktop links.
-             Expand the panel into the viewport instead of beyond its edge. */
-          left: 0;
-          right: auto;
+          /* Keep the panel away from "تجاربي" and open it toward the
+             empty CTA side of the navbar. */
+          left: auto;
+          right: 0;
           z-index: 2200;
           width: min(310px, calc(100vw - 48px));
           display: grid;
@@ -671,7 +670,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           content: "";
           position: absolute;
           top: -7px;
-          left: 22px;
+          right: 22px;
           width: 12px;
           height: 12px;
           background: var(--app-surface);
