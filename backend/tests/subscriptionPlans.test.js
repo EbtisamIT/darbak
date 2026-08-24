@@ -14,6 +14,7 @@ const {
 } = require("../subscriptionPlans");
 
 const env = {
+  RESUME_PLAN_LAUNCH_ENABLED: "false",
   SUBSCRIPTION_PRICE_SAR: "5.99",
   SUBSCRIPTION_DURATION_DAYS: "30",
   RESUME_SUBSCRIPTION_PRICE_SAR: "24.99",
@@ -47,14 +48,14 @@ assert.deepStrictEqual(getPlanEntitlements("unknown", env), [PLUS_ENTITLEMENT]);
 assert.strictEqual(isResumePlanLaunchEnabled(env), false);
 assert.deepStrictEqual(
   getPublicSubscriptionPlans(env).map((plan) => plan.id),
-  [PLUS_PLAN_KEY]
+  [PLUS_PLAN_KEY, "one_time_90"]
 );
 assert.deepStrictEqual(
   getPublicSubscriptionPlans({
     ...env,
     RESUME_PLAN_LAUNCH_ENABLED: "true",
   }).map((plan) => plan.id),
-  [PLUS_PLAN_KEY, RESUME_PLAN_KEY]
+  [PLUS_PLAN_KEY, "one_time_90", RESUME_PLAN_KEY]
 );
 
 const now = new Date("2026-08-17T00:00:00.000Z");

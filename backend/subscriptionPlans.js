@@ -18,7 +18,7 @@ const toBoolean = (value, fallback = false) => {
 };
 
 const isResumePlanLaunchEnabled = (env = process.env) =>
-  toBoolean(env.RESUME_PLAN_LAUNCH_ENABLED, false);
+  toBoolean(env.RESUME_PLAN_LAUNCH_ENABLED, true);
 
 const normalizePlanKey = (value = "") => {
   const plan = value.toString().trim().toLowerCase();
@@ -128,7 +128,7 @@ const serializeSubscriptionPlan = (plan = {}) => ({
 const getPublicSubscriptionPlans = (env = process.env) => {
   const plans = buildSubscriptionPlans(env);
   const resumeLaunchEnabled = isResumePlanLaunchEnabled(env);
-  const publicPlans = [plans[PLUS_PLAN_KEY]];
+  const publicPlans = [plans[PLUS_PLAN_KEY], plans.one_time_90];
 
   if (resumeLaunchEnabled) {
     publicPlans.push(plans[RESUME_PLAN_KEY]);
