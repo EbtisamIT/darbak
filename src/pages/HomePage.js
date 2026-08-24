@@ -4,8 +4,6 @@ import {
   FiArrowLeft,
   FiBriefcase,
   FiCheck,
-  FiChevronLeft,
-  FiClipboard,
   FiCompass,
   FiFileText,
   FiMapPin,
@@ -19,14 +17,6 @@ import ResumeServicePromo from "../components/ResumeServicePromo";
 import { cityOptions, specializationOptions } from "../data/trainingOptions";
 
 const homeFont = "'Aniq', 'Cairo', sans-serif";
-
-const journey = [
-  { icon: FiCompass, title: "نكتشف الجهات", copy: "نرتب الجهات والفرص الأقرب لتخصصك ومدينتك.", to: "/where-to-train" },
-  { icon: FiStar, title: "نقرأ التجارب والمقابلات", copy: "تعرف على التجربة قبل اتخاذ قرارك.", to: "/experiences" },
-  { icon: FiFileText, title: "نجهّز سيرتك", copy: "نبدأ من معلوماتك الموجودة في دربك.", to: "/my-resume/build" },
-  { icon: FiSend, title: "نجهّز تقديمك لكل جهة", copy: "سيرة وخطاب وإيميل متسق للجهة.", to: "/my-resume" },
-  { icon: FiClipboard, title: "نتابع تقديماتك", copy: "كل تقديماتك محفوظة في مكان واحد.", to: "/my-resume" },
-];
 
 const services = [
   {
@@ -59,6 +49,26 @@ const readCollection = (payload) => Array.isArray(payload) ? payload : payload?.
 const formatPlanPrice = (plan = {}) => typeof plan.priceSar === "number"
   ? `${plan.priceSar.toLocaleString("en-US", { minimumFractionDigits: plan.priceSar % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })} ريال`
   : "";
+const getPlanPerks = (plan = {}) => {
+  const isResumePlan = plan.planKey === "darbak_resume" || plan.id === "darbak_resume";
+  const limit = Number(plan.aiResumeUsageLimit || 0);
+
+  return isResumePlan
+    ? [
+      "جميع مزايا دربك+",
+      "سيرة أساسية من بياناتك",
+      "نسخة إنجليزية مستقلة",
+      limit ? `${limit} تخصيصات للتقديم شهريًا` : "تخصيصات للتقديم",
+      "خطاب تقديم ورسالة إيميل",
+      "تحميل السيرة PDF",
+    ]
+    : [
+      "استكشف جهات التدريب",
+      "شاهد تجارب الطلاب",
+      "تابع الفرص الحالية",
+      "استخدم وين أتدرب؟",
+    ];
+};
 
 const HeroAtmosphere = () => (
   <div className="home-hero-atmosphere" aria-hidden="true">
@@ -120,39 +130,6 @@ const HomePage = () => {
           <h1>دربك معك من البحث عن جهة حتى التقديم</h1>
           <p>اكتشف الجهات، جهّز سيرتك، وخلّ دربك يجهز تقديمك لكل جهة.</p>
         </div>
-        <div className="home-services-grid">
-          {services.map(({ icon: Icon, title, copy, features, cta, to }) => (
-            <article className="home-service-card" key={title}>
-              <span className="home-service-icon"><Icon aria-hidden="true" /></span>
-              <h2>{title}</h2>
-              <p>{copy}</p>
-              <ul>{features.map((feature) => <li key={feature}><FiCheck aria-hidden="true" />{feature}</li>)}</ul>
-              <Link to={to}>{cta}<FiArrowLeft aria-hidden="true" /></Link>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="home-plans-section" aria-label="الباقات والاشتراكات">
-        <div className="home-plans-intro">
-          <span>الباقات</span>
-          <strong>ابدأ مجانًا، واختر الباقة عند حاجتك لمزايا إضافية</strong>
-          <small>استكشاف دربك والتشخيص السريع متاحان من البداية.</small>
-        </div>
-        <div className="home-plan-list">
-          {subscriptionPlans.map((plan) => {
-            const isResumePlan = plan.planKey === "darbak_resume" || plan.id === "darbak_resume";
-            const limit = Number(plan.aiResumeUsageLimit || 0);
-            return (
-              <Link className={`home-plan-card${isResumePlan ? " home-plan-card-resume" : ""}`} to={`/subscribe?plan=${plan.id}`} key={plan.id}>
-                <span>{plan.label}</span>
-                <strong>{formatPlanPrice(plan)}</strong>
-                <small>{isResumePlan ? `سيرتي بدربك${limit ? ` · ${limit} تخصيصات شهريًا` : ""}` : "المزايا الرقمية المتقدمة"}</small>
-              </Link>
-            );
-          })}
-          {!subscriptionPlans.length && <span className="home-plan-loading">تظهر الباقات الحالية هنا عند تحميلها.</span>}
-        </div>
       </section>
 
       <section className="home-diagnosis-section">
@@ -184,17 +161,18 @@ const HomePage = () => {
       <section className="home-section home-journey-section">
         <div className="home-section-heading">
           <span>رحلتك في دربك</span>
-          <h2>خطوات بسيطة من أول بحث إلى أول تقديم</h2>
+          <h2>كل خطوة تكمل اللي قبلها</h2>
         </div>
-        <div className="home-journey-grid">
-          {journey.map(({ icon: Icon, title, copy, to }, index) => (
-            <Link key={title} className="home-journey-step" to={to}>
+        <div className="home-services-grid">
+          {services.map(({ icon: Icon, title, copy, features, cta, to }, index) => (
+            <article className="home-service-card" key={title}>
               <span className="home-step-number">0{index + 1}</span>
-              <span className="home-step-icon"><Icon aria-hidden="true" /></span>
-              <strong>{title}</strong>
-              <small>{copy}</small>
-              <FiChevronLeft aria-hidden="true" />
-            </Link>
+              <span className="home-service-icon"><Icon aria-hidden="true" /></span>
+              <h3>{title}</h3>
+              <p>{copy}</p>
+              <ul>{features.map((feature) => <li key={feature}><FiCheck aria-hidden="true" />{feature}</li>)}</ul>
+              <Link to={to}>{cta}<FiArrowLeft aria-hidden="true" /></Link>
+            </article>
           ))}
         </div>
       </section>
@@ -223,6 +201,30 @@ const HomePage = () => {
           <div className="home-preview-footer">ماذا خصصنا؟ <span>أبرزنا أقوى مشاريعك ومهاراتك.</span></div>
         </div>
         <ResumeServicePromo placement="home" compact />
+      </section>
+
+      <section className="home-pricing-section" aria-label="الباقات والاشتراكات">
+        <div className="home-section-heading home-pricing-heading">
+          <span>الباقات</span>
+          <h2>اختر اللي يناسب رحلتك</h2>
+          <p>ابدأ بدربك، وإذا احتجت تجهيز سيرتك وتقديماتك بالذكاء ارتقِ في أي وقت.</p>
+        </div>
+        <div className="home-pricing-grid">
+          {subscriptionPlans.map((plan) => {
+            const isResumePlan = plan.planKey === "darbak_resume" || plan.id === "darbak_resume";
+            return (
+              <article className={`home-pricing-card${isResumePlan ? " home-pricing-card-highlighted" : ""}`} key={plan.id}>
+                <div className="home-pricing-card-head">
+                  <div><span>{plan.label}</span>{isResumePlan && <small>الأكمل للتقديم</small>}</div>
+                  <strong>{formatPlanPrice(plan)}<em>/ شهر</em></strong>
+                </div>
+                <ul>{getPlanPerks(plan).slice(0, 6).map((perk) => <li key={perk}><FiCheck aria-hidden="true" />{perk}</li>)}</ul>
+                <Link className="home-button home-button-secondary" to={`/subscribe?plan=${plan.id}`}>{isResumePlan ? "ابدأ سيرتي" : "اشترك الآن"}<FiArrowLeft aria-hidden="true" /></Link>
+              </article>
+            );
+          })}
+          {!subscriptionPlans.length && <p className="home-plan-loading">تظهر الباقات الحالية هنا عند تحميلها.</p>}
+        </div>
       </section>
 
       <section className="home-section home-finder-section">
@@ -303,7 +305,7 @@ const HomePage = () => {
         .home-page { position: relative; min-height: 100vh; color: var(--app-text); background: var(--app-bg); font-family: ${homeFont}; overflow: hidden; padding-bottom: 42px; isolation: isolate; }
         .home-page::before { content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none; background: radial-gradient(ellipse at 50% 10%, rgba(126, 222, 207, .045), transparent 31%), radial-gradient(circle at 18% 18%, rgba(126, 222, 207, .045), transparent 20%); }
         .home-page::after { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 420px; right: -18%; width: 70%; height: 380px; background: radial-gradient(ellipse, rgba(99, 213, 196, .075), transparent 67%); }
-        .home-hero, .home-section, .home-company-section, .home-plans-section, .home-diagnosis-section { width: min(1120px, calc(100% - 40px)); margin-inline: auto; }
+        .home-hero, .home-section, .home-company-section, .home-pricing-section, .home-diagnosis-section { width: min(1120px, calc(100% - 40px)); margin-inline: auto; }
         .home-hero { position: relative; padding: 76px 0 28px; text-align: center; }
         .home-hero-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .92; background-image: radial-gradient(circle, rgba(228, 255, 251, .7) 1px, transparent 1.6px), radial-gradient(circle, rgba(126, 222, 207, .48) 1px, transparent 1.5px), radial-gradient(circle, rgba(255, 255, 255, .38) .8px, transparent 1.4px); background-size: 137px 137px, 211px 211px, 89px 89px; background-position: 18px 29px, 83px 54px, 41px 9px; mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent); }
         .home-hero-atmosphere::before { content: ""; position: absolute; width: min(61%, 710px); height: 250px; top: 18%; left: -4%; border-radius: 50%; background: radial-gradient(ellipse, rgba(59, 159, 154, .18), rgba(52, 121, 133, .07) 38%, transparent 72%); filter: blur(6px); }
@@ -318,8 +320,7 @@ const HomePage = () => {
         .home-button:hover { transform: translateY(-2px); }
         .home-button-primary { border: 1px solid transparent; background: var(--app-brand); color: #061212; box-shadow: 0 12px 28px var(--app-brand-soft); }
         .home-button-secondary { border: 1px solid var(--app-brand-border); background: transparent; color: var(--app-brand-strong); }
-        .home-services-grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; text-align: right; }.home-service-card { display: flex; flex-direction: column; min-height: 230px; padding: 21px; box-sizing: border-box; border: 1px solid var(--app-border); border-radius: 18px; background: color-mix(in srgb, var(--app-surface) 94%, transparent); box-shadow: 0 16px 38px rgba(0, 0, 0, .12); }.home-service-icon { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--app-brand-border); border-radius: 12px; color: var(--app-brand); background: var(--app-brand-soft); }.home-service-card h2 { margin: 14px 0 5px; font-size: 22px; }.home-service-card p { margin: 0; color: var(--app-text-soft); font-size: 13px; line-height: 1.75; }.home-service-card ul { display: grid; gap: 6px; padding: 0; margin: 15px 0; list-style: none; color: var(--app-muted); font-size: 12px; }.home-service-card li { display: flex; align-items: center; gap: 6px; }.home-service-card li svg { color: var(--app-brand); }.home-service-card > a { display: inline-flex; align-items: center; gap: 6px; width: fit-content; margin-top: auto; color: var(--app-brand); font-weight: 900; text-decoration: none; font-size: 13px; }
-        .home-plans-section { display: grid; grid-template-columns: minmax(250px, .75fr) 1.25fr; align-items: center; gap: 22px; margin-top: 14px; padding: 18px 22px; box-sizing: border-box; border: 1px solid var(--app-border); border-radius: 17px; background: color-mix(in srgb, var(--app-surface) 94%, transparent); }.home-plans-intro { display: grid; gap: 4px; }.home-plans-intro strong { font-size: 15px; }.home-plans-intro small, .home-plan-loading { color: var(--app-muted); font-size: 11px; line-height: 1.6; }.home-plan-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }.home-plan-card { display: grid; gap: 3px; padding: 12px 14px; border: 1px solid var(--app-border-soft); border-radius: 12px; color: var(--app-text); text-decoration: none; transition: border-color .18s ease, transform .18s ease; }.home-plan-card:hover { border-color: var(--app-brand-border); transform: translateY(-2px); }.home-plan-card-resume { border-color: var(--app-brand-border); background: var(--app-brand-soft); }.home-plan-card > span { color: var(--app-brand); font-weight: 900; font-size: 12px; }.home-plan-card > strong { font-size: 17px; }.home-plan-card > small { color: var(--app-text-soft); font-size: 10.5px; }.home-plan-loading { align-self: center; }
+        .home-services-grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; text-align: right; }.home-service-card { display: flex; flex-direction: column; min-height: 230px; padding: 21px; box-sizing: border-box; border: 1px solid var(--app-border); border-radius: 18px; background: color-mix(in srgb, var(--app-surface) 94%, transparent); box-shadow: 0 16px 38px rgba(0, 0, 0, .12); }.home-service-icon { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--app-brand-border); border-radius: 12px; color: var(--app-brand); background: var(--app-brand-soft); }.home-service-card h3 { margin: 14px 0 5px; font-size: 22px; }.home-service-card p { margin: 0; color: var(--app-text-soft); font-size: 13px; line-height: 1.75; }.home-service-card ul { display: grid; gap: 6px; padding: 0; margin: 15px 0; list-style: none; color: var(--app-muted); font-size: 12px; }.home-service-card li { display: flex; align-items: center; gap: 6px; }.home-service-card li svg { color: var(--app-brand); }.home-service-card > a { display: inline-flex; align-items: center; gap: 6px; width: fit-content; margin-top: auto; color: var(--app-brand); font-weight: 900; text-decoration: none; font-size: 13px; }
         .home-diagnosis-section { display: grid; grid-template-columns: minmax(250px, .8fr) minmax(420px, 1.2fr); align-items: center; gap: 34px; margin-top: 18px; padding: 31px 36px; box-sizing: border-box; border-radius: 20px; border: 1px solid var(--app-brand-border); background: radial-gradient(circle at 92% 10%, var(--app-brand-soft), transparent 38%), var(--app-input-bg); }.home-diagnosis-copy h2 { margin: 7px 0; font-size: clamp(25px, 3vw, 35px); }.home-diagnosis-copy p { margin: 0; color: var(--app-text-soft); line-height: 1.8; }.home-start-card { display: grid; gap: 13px; padding: 0; background: transparent; }.home-start-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.home-start-card label { display: grid; gap: 6px; color: var(--app-text-soft); font-weight: 800; font-size: 12px; }.home-start-card select { height: 48px; border: 1px solid var(--app-border); border-radius: 12px; background: var(--app-surface); color: var(--app-text); padding: 0 10px; font: inherit; }.home-start-card .home-button { width: 100%; margin-top: 1px; }.home-start-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-top: 5px; border-top: 1px solid var(--app-border-soft); color: var(--app-muted); font-size: 10.5px; font-weight: 800; line-height: 1.6; }.home-start-flow i { width: 10px; height: 1px; background: var(--app-brand-border); }
         .home-hero-path { display: none; }
         .home-hero-path i { width: 34px; height: 1px; background: var(--app-brand-border); }
@@ -330,15 +331,7 @@ const HomePage = () => {
         .home-heading-row > a { display: inline-flex; align-items: center; gap: 6px; color: var(--app-brand); font-weight: 800; text-decoration: none; white-space: nowrap; }
         .home-heading-inline { display: flex; justify-content: space-between; align-items: end; gap: 20px; }
         .home-heading-inline p { max-width: 330px; margin: 0; color: var(--app-text-soft); line-height: 1.7; }
-        .home-journey-section { padding-top: 28px; border-top: 1px solid var(--app-border-soft); }
-        .home-journey-grid { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--app-border); border-radius: 18px; overflow: hidden; }.home-journey-grid::before { content: ""; position: absolute; top: 52px; right: 9%; left: 9%; height: 1px; background: var(--app-brand-border); opacity: .8; }
-        .home-journey-step { position: relative; min-height: 162px; padding: 18px; display: flex; flex-direction: column; gap: 7px; color: var(--app-text); text-decoration: none; border-inline-start: 1px solid var(--app-border-soft); transition: background .18s ease, transform .18s ease; }
-        .home-journey-step:first-child { border-inline-start: 0; }
-        .home-journey-step:hover { background: var(--app-input-bg); transform: translateY(-2px); }
-        .home-step-number { color: var(--app-muted); font-size: 11px; font-weight: 900; }
-        .home-step-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 11px; color: var(--app-brand); background: var(--app-brand-soft); border: 1px solid var(--app-brand-border); }
-        .home-journey-step strong { font-size: 16px; line-height: 1.55; } .home-journey-step small { color: var(--app-text-soft); line-height: 1.6; }
-        .home-journey-step > svg { margin-top: auto; color: var(--app-brand); }
+        .home-journey-section { padding-top: 32px; }.home-step-number { color: var(--app-brand); font-size: 11px; font-weight: 900; letter-spacing: .08em; }
         .home-resume-section { display: grid; grid-template-columns: 1fr minmax(320px, .8fr); align-items: center; gap: 42px; padding: 42px; box-sizing: border-box; border: 1px solid var(--app-brand-border); border-radius: 22px; background: color-mix(in srgb, var(--app-input-bg) 92%, transparent); }
         .home-resume-copy p { max-width: 480px; color: var(--app-text-soft); line-height: 1.8; }
         .home-resume-copy ul { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(3, max-content); gap: 10px 20px; margin: 24px 0; }
@@ -349,6 +342,7 @@ const HomePage = () => {
         .home-preview-row small { color: var(--app-text-muted); font-size: 11px; } .home-preview-ready { color: var(--app-brand); } .home-preview-pending { color: var(--app-muted); }
         .home-preview-footer { padding: 10px 4px 2px; color: var(--app-brand); font-size: 12px; font-weight: 800; } .home-preview-footer span { color: var(--app-text-muted); font-weight: 600; }
         .resume-service-promo { display: none; }
+        .home-pricing-section { padding: 34px 0 38px; }.home-pricing-heading { text-align: center; }.home-pricing-heading p { max-width: 560px; margin: 10px auto 0; color: var(--app-text-soft); line-height: 1.8; }.home-pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; max-width: 760px; margin: 0 auto; }.home-pricing-card { display: grid; gap: 18px; padding: 22px; border: 1px solid var(--app-border); border-radius: 18px; background: var(--app-surface); }.home-pricing-card-highlighted { border-color: var(--app-brand-border); box-shadow: 0 16px 40px var(--app-brand-soft); }.home-pricing-card-head { display: flex; align-items: start; justify-content: space-between; gap: 14px; }.home-pricing-card-head > div { display: grid; gap: 6px; }.home-pricing-card-head span { color: var(--app-brand); font-size: 19px; font-weight: 900; }.home-pricing-card-head small { width: fit-content; padding: 4px 8px; border-radius: 999px; color: var(--app-brand); background: var(--app-brand-soft); font-size: 10px; font-weight: 900; }.home-pricing-card-head strong { display: grid; text-align: left; font-size: 23px; white-space: nowrap; }.home-pricing-card-head em { color: var(--app-muted); font-size: 10px; font-style: normal; font-weight: 700; }.home-pricing-card ul { display: grid; gap: 9px; min-height: 102px; margin: 0; padding: 0; list-style: none; color: var(--app-text-soft); font-size: 13px; }.home-pricing-card li { display: flex; align-items: center; gap: 7px; }.home-pricing-card li svg { color: var(--app-brand); }.home-pricing-card .home-button { width: 100%; }.home-plan-loading { margin: 0; color: var(--app-muted); text-align: center; }
         .home-finder-section { padding: 34px; border-radius: 22px 22px 0 0; background: var(--app-surface); border: 1px solid var(--app-border); border-bottom: 0; box-sizing: border-box; }
         .home-finder-layout { display: grid; grid-template-columns: 1fr 280px; align-items: stretch; gap: 28px; }.home-finder-example { display: grid; align-content: center; gap: 8px; padding: 20px; border-radius: 14px; border: 1px solid var(--app-brand-border); background: var(--app-input-bg); }.home-finder-example span { color: var(--app-brand); font-size: 12px; font-weight: 900; }.home-finder-example strong { font-size: 18px; line-height: 1.5; }.home-finder-example p, .home-finder-example small { margin: 0; color: var(--app-text-soft); font-size: 13px; line-height: 1.6; }.home-finder-example small { display: flex; align-items: center; gap: 6px; color: var(--app-muted); }.home-finder-example svg { color: var(--app-brand); }
         .home-finder-form { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 14px; }
@@ -366,9 +360,9 @@ const HomePage = () => {
         .home-company-section { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; margin-top: 14px; padding: 21px 26px; box-sizing: border-box; border-radius: 15px; border: 1px solid var(--app-border); background: var(--app-surface); }
         .home-company-section > svg { width: 36px; height: 36px; color: var(--app-brand); } .home-company-section h2 { font-size: 23px; margin-top: 3px; } .home-company-section p { margin: 4px 0 0; color: var(--app-text-soft); }
         @media (max-width: 800px) {
-          .home-hero, .home-section, .home-company-section, .home-plans-section, .home-diagnosis-section { width: min(100% - 28px, 600px); }
-          .home-hero { padding: 46px 0 20px; }.home-hero h1 { font-size: 39px; }.home-hero p { font-size: 15.5px; }.home-hero-copy { margin-bottom: 23px; }.home-services-grid { grid-template-columns: 1fr; gap: 10px; }.home-service-card { min-height: auto; padding: 18px; }.home-service-card h2 { margin-top: 10px; }.home-service-card ul { grid-template-columns: 1fr 1fr; margin: 11px 0; }.home-plans-section { grid-template-columns: 1fr; gap: 14px; margin-top: 12px; padding: 18px; }.home-plan-list { grid-template-columns: 1fr; }.home-diagnosis-section { grid-template-columns: 1fr; gap: 19px; margin-top: 14px; padding: 23px 18px; }.home-start-fields { grid-template-columns: 1fr; }.home-start-flow { font-size: 10px; }
-          .home-section { padding: 30px 0; }.home-section-heading { margin-bottom: 17px; }.home-section-heading h2 { font-size: 26px; }.home-journey-section { padding-top: 20px; }.home-journey-grid::before { display: none; }.home-journey-grid { grid-template-columns: 1fr; }.home-journey-step { min-height: auto; display: grid; grid-template-columns: 30px 40px 1fr auto; align-items: center; border-inline-start: 0; border-top: 1px solid var(--app-border-soft); }.home-journey-step:first-child { border-top: 0; }.home-journey-step small { grid-column: 3 / 5; }.home-journey-step > svg { margin: 0; grid-row: 1; grid-column: 4; }
+          .home-hero, .home-section, .home-company-section, .home-pricing-section, .home-diagnosis-section { width: min(100% - 28px, 600px); }
+          .home-hero { padding: 46px 0 20px; }.home-hero h1 { font-size: 39px; }.home-hero p { font-size: 15.5px; }.home-hero-copy { margin-bottom: 23px; }.home-services-grid { grid-template-columns: 1fr; gap: 10px; }.home-service-card { min-height: auto; padding: 18px; }.home-service-card h3 { margin-top: 10px; }.home-service-card ul { grid-template-columns: 1fr 1fr; margin: 11px 0; }.home-diagnosis-section { grid-template-columns: 1fr; gap: 19px; margin-top: 14px; padding: 23px 18px; }.home-start-fields { grid-template-columns: 1fr; }.home-start-flow { font-size: 10px; }
+          .home-section { padding: 30px 0; }.home-section-heading { margin-bottom: 17px; }.home-section-heading h2 { font-size: 26px; }.home-journey-section { padding-top: 24px; }.home-pricing-section { padding: 28px 0 32px; }.home-pricing-card { padding: 19px; }.home-pricing-card ul { min-height: 0; }
           .home-resume-section { grid-template-columns: 1fr; gap: 24px; padding: 26px 18px; }.home-resume-copy ul { grid-template-columns: 1fr; gap: 8px; }.home-heading-inline, .home-heading-row { align-items: flex-start; flex-direction: column; }.home-finder-section { padding: 24px 18px; }.home-finder-layout { grid-template-columns: 1fr; gap: 16px; }.home-finder-form { grid-template-columns: 1fr; }.home-finder-form .home-button { width: 100%; }.home-preview-grid { display: flex; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }.home-content-card { flex: 0 0 min(275px, 82vw); scroll-snap-align: start; }.home-stats-grid { grid-template-columns: repeat(2, 1fr); }.home-stats-grid a:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--app-border-soft); }.home-stats-grid a:nth-child(4) { border-top: 1px solid var(--app-border-soft); }.home-company-section { grid-template-columns: auto 1fr; padding: 20px; }.home-company-section .home-button { grid-column: 1 / -1; width: 100%; }
         }
       `}</style>
