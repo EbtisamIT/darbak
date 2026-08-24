@@ -22,7 +22,9 @@ import {
   FiHome,
   FiMenu,
   FiMessageCircle,
+  FiMoreVertical,
   FiSend,
+  FiStar,
   FiUser,
 } from "react-icons/fi";
 
@@ -374,21 +376,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     </div>
   );
 
-  const quickJourneyPanel = (
-    <aside className="navbar-journey-panel" aria-label="رحلتك في دربك">
-      <span>رحلتك في دربك</span>
-      <strong>خطوة بخطوة نحو تدريبك</strong>
-      <div className="navbar-journey-track" aria-hidden="true"><i /></div>
-      <ul>
-        <li><FiCompass aria-hidden="true" /> استكشاف الجهات</li>
-        <li><FiFileText aria-hidden="true" /> تجهيز السيرة</li>
-        <li><FiSend aria-hidden="true" /> التقديم</li>
-        <li><FiClipboard aria-hidden="true" /> متابعة الطلبات</li>
-      </ul>
-      <small>ابدأ بالخطوة الأقرب لك اليوم.</small>
-    </aside>
-  );
-
   return (
     <>
       <header
@@ -489,23 +476,23 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           }}
         >
           <Link to="/" className="navbar-primary-link" style={linkStyle("/")}>
-            الرئيسية
+            <FiHome aria-hidden="true" /> <span>الرئيسية</span>
           </Link>
 
           <Link to="/where-to-train" className="navbar-primary-link" style={linkStyle("/where-to-train")}>
-            وين أتدرب؟
+            <FiCompass aria-hidden="true" /> <span>وين أتدرب؟</span>
           </Link>
 
           <Link to="/where-to-train?tab=opportunities" className="navbar-primary-link" style={linkStyle("/where-to-train?tab=opportunities")}>
-            الفرص
+            <FiBriefcase aria-hidden="true" /> <span>الفرص</span>
           </Link>
 
           <Link to="/my-resume" className="navbar-primary-link" style={linkStyle("/my-resume")}>
-            سيرتي
+            <FiUser aria-hidden="true" /> <span>سيرتي</span>
           </Link>
 
           <Link to="/experiences" className="navbar-primary-link" style={linkStyle("/experiences")}>
-            تجاربي
+            <FiStar aria-hidden="true" /> <span>تجاربي</span>
           </Link>
 
             <div className="navbar-more-menu" ref={moreMenuRef}>
@@ -516,12 +503,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 onClick={() => setMoreMenuOpen((open) => !open)}
                 style={quietActionButtonStyle}
               >
-                المزيد <FiChevronDown aria-hidden="true" />
+                <FiMoreVertical aria-hidden="true" /> <span>المزيد</span> <FiChevronDown aria-hidden="true" />
               </button>
               {moreMenuOpen && (
                 <div className="navbar-more-panel">
                   {renderMoreItems()}
-                  {quickJourneyPanel}
                 </div>
               )}
             </div>
@@ -645,6 +631,16 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           color: var(--app-brand) !important;
           background: var(--app-brand-soft) !important;
         }
+        .navbar-primary-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+        }
+        .navbar-primary-link svg {
+          width: 17px;
+          height: 17px;
+          stroke-width: 1.9;
+        }
         .navbar-desktop-add-experience {
           justify-self: end;
           min-width: max-content;
@@ -662,27 +658,38 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           left: 0;
           right: auto;
           z-index: 2200;
-          width: min(650px, calc(100vw - 48px));
+          width: min(310px, calc(100vw - 48px));
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 230px;
           gap: 0;
-          padding: 10px;
+          padding: 10px 12px;
           background: var(--app-surface);
           border: 1px solid var(--app-border);
           border-radius: 18px;
           box-shadow: 0 22px 52px var(--app-shadow);
         }
+        .navbar-more-panel::before {
+          content: "";
+          position: absolute;
+          top: -7px;
+          left: 22px;
+          width: 12px;
+          height: 12px;
+          background: var(--app-surface);
+          border-top: 1px solid var(--app-border);
+          border-left: 1px solid var(--app-border);
+          transform: rotate(45deg);
+        }
 
         .navbar-more-list {
           display: grid;
           align-content: start;
-          padding: 2px 10px 2px 14px;
+          padding: 2px;
         }
 
         .navbar-more-list a,
         .navbar-more-list button {
           width: 100%;
-          min-height: 40px;
+          min-height: 48px;
           display: flex;
           align-items: center;
           gap: 10px;
@@ -711,24 +718,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           color: var(--app-brand);
         }
         .navbar-more-list button:disabled { cursor: default; opacity: .55; }
-
-        .navbar-journey-panel {
-          display: grid;
-          align-content: start;
-          gap: 9px;
-          padding: 14px;
-          border-radius: 13px;
-          background: var(--app-input-bg);
-          border: 1px solid var(--app-brand-border);
-        }
-        .navbar-journey-panel > span { color: var(--app-brand); font-size: 12px; font-weight: 900; }
-        .navbar-journey-panel > strong { color: var(--app-text); font-size: 15px; line-height: 1.5; }
-        .navbar-journey-track { height: 5px; overflow: hidden; border-radius: 999px; background: var(--app-border); }
-        .navbar-journey-track i { display: block; width: 38%; height: 100%; border-radius: inherit; background: var(--app-brand); }
-        .navbar-journey-panel ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
-        .navbar-journey-panel li { display: flex; align-items: center; gap: 7px; color: var(--app-text-soft); font-size: 12px; font-weight: 700; }
-        .navbar-journey-panel li svg { color: var(--app-brand); }
-        .navbar-journey-panel > small { color: var(--app-text-muted); font-size: 11px; line-height: 1.55; }
 
         .navbar-mobile-menu-trigger,
         .navbar-mobile-more-toggle,
