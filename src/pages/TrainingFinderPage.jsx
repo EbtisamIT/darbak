@@ -1539,6 +1539,7 @@ export default function TrainingFinderPage() {
   });
   const [showOpportunityRequestModal, setShowOpportunityRequestModal] =
     useState(false);
+  const [tailorConfirmation, setTailorConfirmation] = useState(null);
   const [opportunityRequest, setOpportunityRequest] = useState(
     emptyOpportunityRequest
   );
@@ -2734,6 +2735,44 @@ export default function TrainingFinderPage() {
     });
   };
 
+  const requestResumeTailorFromCard = ({ opportunity = null, organization = null }) => {
+    const contact = getGuideOrganizationContactPreview(organization || {});
+    setTailorConfirmation({
+      opportunity,
+      organization,
+      includesApplicationPack: Boolean(opportunity?._id || opportunity?.id) ||
+        contact.type === "email" ||
+        contact.type === "link",
+    });
+  };
+
+  const renderResumeTailorCta = ({ opportunity = null, organization = null, compact = false }) => {
+    const contact = getGuideOrganizationContactPreview(organization || {});
+    const includesApplicationPack = Boolean(opportunity?._id || opportunity?.id) ||
+      contact.type === "email" ||
+      contact.type === "link";
+
+    return (
+      <button
+        type="button"
+        className="opportunity-secondary-button resume-tailor-cta"
+        onClick={(event) => {
+          event?.stopPropagation();
+          requestResumeTailorFromCard({ opportunity, organization });
+        }}
+      >
+        <span>✨ خلّ دربك يجهّز تقديمك</span>
+        {!compact && (
+          <small>
+            {includesApplicationPack
+              ? "سيرة مخصصة + خطاب تقديم + رسالة إيميل"
+              : "سيرة مخصصة للجهة"}
+          </small>
+        )}
+      </button>
+    );
+  };
+
   const trackTrainingShareAction = (action, itemType, metadata = {}) => {
     trackEvent("share_item_clicked", {
       major: selectedSpecialty,
@@ -2968,13 +3007,7 @@ export default function TrainingFinderPage() {
           </p>
         </div>
         <div className="finder-card-actions">
-          <button
-            type="button"
-            className="opportunity-apply-button"
-            onClick={() => openResumeTailorFromCard({ organization })}
-          >
-            {contactPreview.type === "email" || contactPreview.type === "link" ? "جهّز تقديمي" : "خصص سيرتي للجهة"}
-          </button>
+          {renderResumeTailorCta({ organization })}
           <button
             type="button"
             className="opportunity-secondary-button"
@@ -3810,16 +3843,7 @@ export default function TrainingFinderPage() {
                           التفاصيل
                         </button>
 
-                        <button
-                          type="button"
-                          className="opportunity-secondary-button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openResumeTailorFromCard({ opportunity });
-                          }}
-                        >
-                          جهّز تقديمي
-                        </button>
+                        {renderResumeTailorCta({ opportunity })}
 
                         {(opportunity.applicationUrl || opportunity.hasApplicationUrl) &&
                         applicationState.tone !== "closed" ? (
@@ -4286,14 +4310,10 @@ export default function TrainingFinderPage() {
                               </button>
                             </a>
                           )}
-                          <button
-                            type="button"
-                            className="opportunity-secondary-button"
-                            style={{ width: "100%" }}
-                            onClick={() => openResumeTailorFromCard({ opportunity: relatedOpportunity, organization: target })}
-                          >
-                            {relatedOpportunity ? "جهّز تقديمي" : "خصص سيرتي للجهة"}
-                          </button>
+                          {renderResumeTailorCta({
+                            opportunity: relatedOpportunity,
+                            organization: target,
+                          })}
                         </div>
                       </article>
                     );
@@ -4937,13 +4957,7 @@ export default function TrainingFinderPage() {
             <ResumeServicePromo placement="opportunity_detail" compact />
 
             <div className="opportunity-detail-actions">
-              <button
-                type="button"
-                className="opportunity-secondary-button"
-                onClick={() => openResumeTailorFromCard({ opportunity: selectedOpportunity })}
-              >
-                جهّز تقديمي
-              </button>
+              {renderResumeTailorCta({ opportunity: selectedOpportunity })}
               <button
                 type="button"
                 onClick={closeOpportunityDetails}
@@ -4977,6 +4991,86 @@ export default function TrainingFinderPage() {
                   لا يوجد رابط تقديم
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tailorConfirmation && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="تجهيز ملف التقديم"
+          onClick={() => setTailorConfirmation(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 3200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+            background: "var(--app-overlay)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(440px, 100%)",
+              display: "grid",
+              gap: "14px",
+              padding: "20px",
+              borderRadius: "20px",
+              border: "1px solid var(--app-border)",
+              background: "var(--app-surface)",
+              boxShadow: "0 24px 70px var(--app-shadow)",
+              textAlign: "right",
+            }}
+          >
+            <div>
+              <p style={{ margin: "0 0 6px", color: "var(--app-brand)", fontSize: "13px", fontWeight: "900" }}>
+                ملف تقديم للجهة
+              </p>
+              <h2 style={{ margin: 0, color: "var(--app-text)", fontSize: "22px", lineHeight: 1.4 }}>
+                خلّ دربك يجهّز تقديمك
+              </h2>
+              <p style={{ margin: "7px 0 0", color: "var(--app-text-soft)", fontSize: "14px", lineHeight: 1.8 }}>
+                {tailorConfirmation.opportunity?.organizationName || tailorConfirmation.organization?.name || "للجهة التي اخترتها"}
+              </p>
+            </div>
+            <ul style={{ display: "grid", gap: "8px", margin: 0, padding: "0 18px 0 0", color: "var(--app-text)", fontSize: "14px", lineHeight: 1.7 }}>
+              <li>يقرأ متطلبات الجهة</li>
+              <li>يخصص السيرة</li>
+              {tailorConfirmation.includesApplicationPack ? (
+                <>
+                  <li>يجهز خطاب التقديم</li>
+                  <li>يجهز رسالة الإيميل</li>
+                </>
+              ) : (
+                <li>يحافظ على معلوماتك كما هي</li>
+              )}
+              <li>يستخدم تخصيصًا واحدًا</li>
+            </ul>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+              <button
+                type="button"
+                className="opportunity-secondary-button"
+                onClick={() => setTailorConfirmation(null)}
+              >
+                رجوع
+              </button>
+              <button
+                type="button"
+                className="opportunity-apply-button"
+                onClick={() => {
+                  const context = tailorConfirmation;
+                  setTailorConfirmation(null);
+                  openResumeTailorFromCard(context);
+                }}
+              >
+                ابدأ التخصيص
+              </button>
             </div>
           </div>
         </div>
@@ -6146,6 +6240,25 @@ export default function TrainingFinderPage() {
           cursor: pointer;
         }
 
+        .resume-tailor-cta {
+          display: grid;
+          gap: 2px;
+          min-height: 48px;
+          padding: 7px 8px;
+          text-align: center;
+        }
+
+        .resume-tailor-cta span {
+          font-weight: 900;
+        }
+
+        .resume-tailor-cta small {
+          color: var(--app-text-soft);
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 1.35;
+        }
+
         .search-insight-eyebrow {
           margin: 0;
           color: var(--app-brand);
@@ -6771,6 +6884,14 @@ export default function TrainingFinderPage() {
             border-radius: 8px !important;
             font-size: 10px !important;
             line-height: 1.25 !important;
+          }
+
+          .resume-tailor-cta {
+            min-height: 36px !important;
+          }
+
+          .resume-tailor-cta small {
+            display: none;
           }
 
           .opportunity-actions a,
