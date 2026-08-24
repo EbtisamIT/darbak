@@ -28,7 +28,37 @@ const journey = [
   { icon: FiClipboard, title: "نتابع تقديماتك", copy: "كل تقديماتك محفوظة في مكان واحد.", to: "/my-resume" },
 ];
 
+const services = [
+  {
+    icon: FiCompass,
+    title: "اكتشف",
+    copy: "جهات وفرص وتجارب طلاب تساعدك تختار بثقة.",
+    features: ["وين أتدرب؟", "فرص حالية", "تجارب ومقابلات الطلاب"],
+    cta: "استكشف الجهات",
+    to: "/where-to-train",
+  },
+  {
+    icon: FiFileText,
+    title: "جهّز سيرتك",
+    copy: "نبدأ من معلوماتك الموجودة في دربك ونكمل الناقص فقط.",
+    features: ["سيرتك الأساسية", "نسخة إنجليزية", "قوالب ومعاينة"],
+    cta: "ابدأ سيرتي",
+    to: "/my-resume",
+  },
+  {
+    icon: FiSend,
+    title: "جهّز تقديمك",
+    copy: "خصص تقديمك للجهة مع الحفاظ على معلوماتك الحقيقية.",
+    features: ["سيرة مخصصة", "خطاب تقديم", "رسالة إيميل"],
+    cta: "شوف سيرتي",
+    to: "/my-resume",
+  },
+];
+
 const readCollection = (payload) => Array.isArray(payload) ? payload : payload?.data || [];
+const formatPlanPrice = (plan = {}) => typeof plan.priceSar === "number"
+  ? `${plan.priceSar.toLocaleString("en-US", { minimumFractionDigits: plan.priceSar % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })} ريال`
+  : "";
 
 const HeroAtmosphere = () => (
   <div className="home-hero-atmosphere" aria-hidden="true">
@@ -44,6 +74,7 @@ const HomePage = () => {
   const [stats, setStats] = useState({});
   const [opportunities, setOpportunities] = useState([]);
   const [experiences, setExperiences] = useState([]);
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
   const [major, setMajor] = useState("");
   const [city, setCity] = useState("");
 
@@ -53,11 +84,13 @@ const HomePage = () => {
       fetch(`${API_BASE_URL}/api/home-stats`).then((response) => response.json()),
       fetch(`${API_BASE_URL}/api/opportunities`).then((response) => response.json()),
       fetch(`${API_BASE_URL}/api/experiences?limit=3`).then((response) => response.json()),
-    ]).then(([statsResult, opportunitiesResult, experiencesResult]) => {
+      fetch(`${API_BASE_URL}/api/subscriptions/plans`).then((response) => response.json()),
+    ]).then(([statsResult, opportunitiesResult, experiencesResult, plansResult]) => {
       if (!alive) return;
       if (statsResult.status === "fulfilled") setStats(statsResult.value || {});
       if (opportunitiesResult.status === "fulfilled") setOpportunities(readCollection(opportunitiesResult.value).slice(0, 3));
       if (experiencesResult.status === "fulfilled") setExperiences(readCollection(experiencesResult.value).slice(0, 3));
+      if (plansResult.status === "fulfilled") setSubscriptionPlans(readCollection(plansResult.value?.plans));
     });
     return () => { alive = false; };
   }, []);
@@ -82,39 +115,70 @@ const HomePage = () => {
     <main className="home-page" dir="rtl">
       <section className="home-hero">
         <HeroAtmosphere />
-        <div className="home-hero-content">
-          <div className="home-hero-copy">
-            <span className="home-eyebrow">دربك للتدريب التعاوني</span>
-            <h1>دربك معك من البحث عن جهة حتى التقديم.</h1>
-            <p>عرّفنا بتخصصك ومدينتك، ودربك يرتب لك الرحلة من اكتشاف الجهات وتجارب الطلاب إلى سيرتك وتقديمك لكل جهة.</p>
-            <div className="home-hero-actions">
-              <button className="home-button home-button-primary" type="button" onClick={beginJourney}>
-                ابدأ رحلتي <FiArrowLeft aria-hidden="true" />
-              </button>
-              <Link className="home-button home-button-secondary" to="/where-to-train?tab=opportunities">استعرض الفرص</Link>
-            </div>
-          </div>
-          <form className="home-start-card" onSubmit={(event) => { event.preventDefault(); beginJourney(); }}>
-            <span>تشخيص سريع لرحلتك</span>
-            <h2>اختر تخصصك ومدينتك، ودربك يجهز لك البداية</h2>
-            <div className="home-start-fields">
-              <label>تخصصك
-                <select required value={major} onChange={(event) => setMajor(event.target.value)}>
-                  <option value="">اختر تخصصك</option>
-                  {specializationOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </label>
-              <label>مدينتك
-                <select required value={city} onChange={(event) => setCity(event.target.value)}>
-                  <option value="">اختر مدينتك</option>
-                  {cityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </label>
-            </div>
-            <button className="home-button home-button-primary" type="submit">شخّص رحلتي <FiArrowLeft aria-hidden="true" /></button>
-            <div className="home-start-flow">جهات مناسبة <i /> تجارب ومقابلات <i /> سيرتك <i /> تقديمك لكل جهة</div>
-          </form>
+        <div className="home-hero-copy">
+          <span className="home-eyebrow">دربك للتدريب التعاوني</span>
+          <h1>دربك معك من البحث عن جهة حتى التقديم</h1>
+          <p>اكتشف الجهات، جهّز سيرتك، وخلّ دربك يجهز تقديمك لكل جهة.</p>
         </div>
+        <div className="home-services-grid">
+          {services.map(({ icon: Icon, title, copy, features, cta, to }) => (
+            <article className="home-service-card" key={title}>
+              <span className="home-service-icon"><Icon aria-hidden="true" /></span>
+              <h2>{title}</h2>
+              <p>{copy}</p>
+              <ul>{features.map((feature) => <li key={feature}><FiCheck aria-hidden="true" />{feature}</li>)}</ul>
+              <Link to={to}>{cta}<FiArrowLeft aria-hidden="true" /></Link>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="home-plans-section" aria-label="الباقات والاشتراكات">
+        <div className="home-plans-intro">
+          <span>الباقات</span>
+          <strong>ابدأ مجانًا، واختر الباقة عند حاجتك لمزايا إضافية</strong>
+          <small>استكشاف دربك والتشخيص السريع متاحان من البداية.</small>
+        </div>
+        <div className="home-plan-list">
+          {subscriptionPlans.map((plan) => {
+            const isResumePlan = plan.planKey === "darbak_resume" || plan.id === "darbak_resume";
+            const limit = Number(plan.aiResumeUsageLimit || 0);
+            return (
+              <Link className={`home-plan-card${isResumePlan ? " home-plan-card-resume" : ""}`} to={`/subscribe?plan=${plan.id}`} key={plan.id}>
+                <span>{plan.label}</span>
+                <strong>{formatPlanPrice(plan)}</strong>
+                <small>{isResumePlan ? `سيرتي بدربك${limit ? ` · ${limit} تخصيصات شهريًا` : ""}` : "المزايا الرقمية المتقدمة"}</small>
+              </Link>
+            );
+          })}
+          {!subscriptionPlans.length && <span className="home-plan-loading">تظهر الباقات الحالية هنا عند تحميلها.</span>}
+        </div>
+      </section>
+
+      <section className="home-diagnosis-section">
+        <div className="home-diagnosis-copy">
+          <span>تشخيص سريع لرحلتك</span>
+          <h2>خلّنا نرتب لك البداية</h2>
+          <p>اختر تخصصك ومدينتك، ثم نأخذك من الجهات المناسبة إلى التقديم خطوة بخطوة.</p>
+        </div>
+        <form className="home-start-card" onSubmit={(event) => { event.preventDefault(); beginJourney(); }}>
+          <div className="home-start-fields">
+            <label>تخصصك
+              <select required value={major} onChange={(event) => setMajor(event.target.value)}>
+                <option value="">اختر تخصصك</option>
+                {specializationOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <label>مدينتك
+              <select required value={city} onChange={(event) => setCity(event.target.value)}>
+                <option value="">اختر مدينتك</option>
+                {cityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>
+          </div>
+          <button className="home-button home-button-primary" type="submit">شخّص رحلتي <FiArrowLeft aria-hidden="true" /></button>
+          <div className="home-start-flow">جهات مناسبة <i /> تجارب ومقابلات <i /> سيرتك <i /> تقديمك لكل جهة</div>
+        </form>
       </section>
 
       <section className="home-section home-journey-section">
@@ -239,26 +303,24 @@ const HomePage = () => {
         .home-page { position: relative; min-height: 100vh; color: var(--app-text); background: var(--app-bg); font-family: ${homeFont}; overflow: hidden; padding-bottom: 42px; isolation: isolate; }
         .home-page::before { content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none; background: radial-gradient(ellipse at 50% 10%, rgba(126, 222, 207, .045), transparent 31%), radial-gradient(circle at 18% 18%, rgba(126, 222, 207, .045), transparent 20%); }
         .home-page::after { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 420px; right: -18%; width: 70%; height: 380px; background: radial-gradient(ellipse, rgba(99, 213, 196, .075), transparent 67%); }
-        .home-hero, .home-section, .home-company-section { width: min(1120px, calc(100% - 40px)); margin-inline: auto; }
-        .home-hero { position: relative; padding: 76px 0 42px; text-align: right; }
-        .home-hero-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .9; }
-        .home-hero-atmosphere::before { content: ""; position: absolute; width: min(58%, 670px); height: 2px; top: 54%; left: 1%; border-radius: 999px; background: linear-gradient(90deg, transparent, rgba(126, 222, 207, .5) 22%, rgba(126, 222, 207, .1) 75%, transparent); box-shadow: 0 0 18px rgba(126, 222, 207, .1); }
-        .home-hero-atmosphere::after { content: ""; position: absolute; width: 440px; height: 280px; top: 17%; left: 21%; background: radial-gradient(ellipse, rgba(126, 222, 207, .06), transparent 68%); }
+        .home-hero, .home-section, .home-company-section, .home-plans-section, .home-diagnosis-section { width: min(1120px, calc(100% - 40px)); margin-inline: auto; }
+        .home-hero { position: relative; padding: 76px 0 28px; text-align: center; }
+        .home-hero-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .92; background-image: radial-gradient(circle, rgba(228, 255, 251, .7) 1px, transparent 1.6px), radial-gradient(circle, rgba(126, 222, 207, .48) 1px, transparent 1.5px), radial-gradient(circle, rgba(255, 255, 255, .38) .8px, transparent 1.4px); background-size: 137px 137px, 211px 211px, 89px 89px; background-position: 18px 29px, 83px 54px, 41px 9px; mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent); }
+        .home-hero-atmosphere::before { content: ""; position: absolute; width: min(61%, 710px); height: 250px; top: 18%; left: -4%; border-radius: 50%; background: radial-gradient(ellipse, rgba(59, 159, 154, .18), rgba(52, 121, 133, .07) 38%, transparent 72%); filter: blur(6px); }
+        .home-hero-atmosphere::after { content: ""; position: absolute; width: min(58%, 670px); height: 2px; top: 54%; left: 1%; border-radius: 999px; background: linear-gradient(90deg, transparent, rgba(126, 222, 207, .56) 24%, rgba(126, 222, 207, .09) 78%, transparent); box-shadow: 0 0 20px rgba(126, 222, 207, .12); }
         .home-star { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: rgba(238, 255, 251, .82); box-shadow: 0 0 10px rgba(211, 255, 246, .32); animation: homeTwinkle 3.6s ease-in-out infinite; }
         .home-star-one { top: 24%; right: 11%; }.home-star-two { top: 43%; right: 43%; animation-delay: .65s; }.home-star-three { top: 22%; left: 31%; animation-delay: 1.2s; }.home-star-four { bottom: 18%; left: 13%; animation-delay: 1.75s; }
         @keyframes homeTwinkle { 0%, 100% { opacity: .26; transform: scale(.75); } 50% { opacity: .86; transform: scale(1.15); } }
-        .home-eyebrow, .home-section-heading > span, .home-resume-copy > span, .home-company-section > div > span { color: var(--app-brand); font-weight: 900; font-size: 13px; }
+        .home-eyebrow, .home-section-heading > span, .home-resume-copy > span, .home-company-section > div > span, .home-diagnosis-copy > span, .home-plans-intro > span { color: var(--app-brand); font-weight: 900; font-size: 13px; }
         .home-eyebrow { display: inline-flex; padding: 7px 12px; border: 1px solid var(--app-brand-border); border-radius: 999px; background: var(--app-brand-soft); }
-        .home-hero-content { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, .78fr); align-items: center; gap: clamp(32px, 6vw, 80px); }
-        .home-hero h1 { max-width: 690px; margin: 18px 0 14px; font-size: clamp(40px, 4.7vw, 60px); line-height: 1.22; letter-spacing: -1px; }
-        .home-hero p { max-width: 650px; margin: 0; color: var(--app-text-soft); font-size: 17px; line-height: 1.95; }
-        .home-hero-actions { display: flex; justify-content: flex-start; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+        .home-hero-copy { position: relative; z-index: 1; max-width: 790px; margin: 0 auto 30px; }.home-hero h1 { max-width: 760px; margin: 16px auto 12px; font-size: clamp(42px, 5.2vw, 67px); line-height: 1.18; letter-spacing: -1px; }.home-hero p { max-width: 590px; margin: 0 auto; color: var(--app-text-soft); font-size: 17px; line-height: 1.9; }
         .home-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 12px; font: inherit; font-weight: 900; text-decoration: none; cursor: pointer; transition: transform .18s ease, background .18s ease; }
         .home-button:hover { transform: translateY(-2px); }
         .home-button-primary { border: 1px solid transparent; background: var(--app-brand); color: #061212; box-shadow: 0 12px 28px var(--app-brand-soft); }
         .home-button-secondary { border: 1px solid var(--app-brand-border); background: transparent; color: var(--app-brand-strong); }
-        .home-start-card { display: grid; gap: 13px; padding: 24px; border: 1px solid var(--app-brand-border); border-radius: 22px; background: color-mix(in srgb, var(--app-surface) 94%, transparent); box-shadow: 0 24px 62px var(--app-shadow), 0 0 42px var(--app-brand-soft); }
-        .home-start-card > span { color: var(--app-brand); font-weight: 900; font-size: 13px; }.home-start-card h2 { margin: -2px 0 4px; font-size: 23px; line-height: 1.45; }.home-start-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.home-start-card label { display: grid; gap: 6px; color: var(--app-text-soft); font-weight: 800; font-size: 12px; }.home-start-card select { height: 48px; border: 1px solid var(--app-border); border-radius: 12px; background: var(--app-input-bg); color: var(--app-text); padding: 0 10px; font: inherit; }.home-start-card .home-button { width: 100%; margin-top: 1px; }.home-start-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-top: 5px; border-top: 1px solid var(--app-border-soft); color: var(--app-muted); font-size: 10.5px; font-weight: 800; line-height: 1.6; }.home-start-flow i { width: 10px; height: 1px; background: var(--app-brand-border); }
+        .home-services-grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; text-align: right; }.home-service-card { display: flex; flex-direction: column; min-height: 230px; padding: 21px; box-sizing: border-box; border: 1px solid var(--app-border); border-radius: 18px; background: color-mix(in srgb, var(--app-surface) 94%, transparent); box-shadow: 0 16px 38px rgba(0, 0, 0, .12); }.home-service-icon { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--app-brand-border); border-radius: 12px; color: var(--app-brand); background: var(--app-brand-soft); }.home-service-card h2 { margin: 14px 0 5px; font-size: 22px; }.home-service-card p { margin: 0; color: var(--app-text-soft); font-size: 13px; line-height: 1.75; }.home-service-card ul { display: grid; gap: 6px; padding: 0; margin: 15px 0; list-style: none; color: var(--app-muted); font-size: 12px; }.home-service-card li { display: flex; align-items: center; gap: 6px; }.home-service-card li svg { color: var(--app-brand); }.home-service-card > a { display: inline-flex; align-items: center; gap: 6px; width: fit-content; margin-top: auto; color: var(--app-brand); font-weight: 900; text-decoration: none; font-size: 13px; }
+        .home-plans-section { display: grid; grid-template-columns: minmax(250px, .75fr) 1.25fr; align-items: center; gap: 22px; margin-top: 14px; padding: 18px 22px; box-sizing: border-box; border: 1px solid var(--app-border); border-radius: 17px; background: color-mix(in srgb, var(--app-surface) 94%, transparent); }.home-plans-intro { display: grid; gap: 4px; }.home-plans-intro strong { font-size: 15px; }.home-plans-intro small, .home-plan-loading { color: var(--app-muted); font-size: 11px; line-height: 1.6; }.home-plan-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }.home-plan-card { display: grid; gap: 3px; padding: 12px 14px; border: 1px solid var(--app-border-soft); border-radius: 12px; color: var(--app-text); text-decoration: none; transition: border-color .18s ease, transform .18s ease; }.home-plan-card:hover { border-color: var(--app-brand-border); transform: translateY(-2px); }.home-plan-card-resume { border-color: var(--app-brand-border); background: var(--app-brand-soft); }.home-plan-card > span { color: var(--app-brand); font-weight: 900; font-size: 12px; }.home-plan-card > strong { font-size: 17px; }.home-plan-card > small { color: var(--app-text-soft); font-size: 10.5px; }.home-plan-loading { align-self: center; }
+        .home-diagnosis-section { display: grid; grid-template-columns: minmax(250px, .8fr) minmax(420px, 1.2fr); align-items: center; gap: 34px; margin-top: 18px; padding: 31px 36px; box-sizing: border-box; border-radius: 20px; border: 1px solid var(--app-brand-border); background: radial-gradient(circle at 92% 10%, var(--app-brand-soft), transparent 38%), var(--app-input-bg); }.home-diagnosis-copy h2 { margin: 7px 0; font-size: clamp(25px, 3vw, 35px); }.home-diagnosis-copy p { margin: 0; color: var(--app-text-soft); line-height: 1.8; }.home-start-card { display: grid; gap: 13px; padding: 0; background: transparent; }.home-start-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.home-start-card label { display: grid; gap: 6px; color: var(--app-text-soft); font-weight: 800; font-size: 12px; }.home-start-card select { height: 48px; border: 1px solid var(--app-border); border-radius: 12px; background: var(--app-surface); color: var(--app-text); padding: 0 10px; font: inherit; }.home-start-card .home-button { width: 100%; margin-top: 1px; }.home-start-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-top: 5px; border-top: 1px solid var(--app-border-soft); color: var(--app-muted); font-size: 10.5px; font-weight: 800; line-height: 1.6; }.home-start-flow i { width: 10px; height: 1px; background: var(--app-brand-border); }
         .home-hero-path { display: none; }
         .home-hero-path i { width: 34px; height: 1px; background: var(--app-brand-border); }
         .home-section { padding: 42px 0; }
@@ -304,9 +366,8 @@ const HomePage = () => {
         .home-company-section { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; margin-top: 14px; padding: 21px 26px; box-sizing: border-box; border-radius: 15px; border: 1px solid var(--app-border); background: var(--app-surface); }
         .home-company-section > svg { width: 36px; height: 36px; color: var(--app-brand); } .home-company-section h2 { font-size: 23px; margin-top: 3px; } .home-company-section p { margin: 4px 0 0; color: var(--app-text-soft); }
         @media (max-width: 800px) {
-          .home-hero, .home-section, .home-company-section { width: min(100% - 28px, 600px); }
-          .home-hero { padding: 46px 0 24px; }.home-hero-content { grid-template-columns: 1fr; gap: 28px; }.home-hero h1 { font-size: 38px; }.home-hero p { font-size: 15.5px; }.home-hero-actions .home-button { width: min(100%, 330px); }
-          .home-start-card { padding: 18px; }.home-start-card h2 { font-size: 21px; }.home-start-fields { grid-template-columns: 1fr; }.home-start-flow { font-size: 10px; }
+          .home-hero, .home-section, .home-company-section, .home-plans-section, .home-diagnosis-section { width: min(100% - 28px, 600px); }
+          .home-hero { padding: 46px 0 20px; }.home-hero h1 { font-size: 39px; }.home-hero p { font-size: 15.5px; }.home-hero-copy { margin-bottom: 23px; }.home-services-grid { grid-template-columns: 1fr; gap: 10px; }.home-service-card { min-height: auto; padding: 18px; }.home-service-card h2 { margin-top: 10px; }.home-service-card ul { grid-template-columns: 1fr 1fr; margin: 11px 0; }.home-plans-section { grid-template-columns: 1fr; gap: 14px; margin-top: 12px; padding: 18px; }.home-plan-list { grid-template-columns: 1fr; }.home-diagnosis-section { grid-template-columns: 1fr; gap: 19px; margin-top: 14px; padding: 23px 18px; }.home-start-fields { grid-template-columns: 1fr; }.home-start-flow { font-size: 10px; }
           .home-section { padding: 30px 0; }.home-section-heading { margin-bottom: 17px; }.home-section-heading h2 { font-size: 26px; }.home-journey-section { padding-top: 20px; }.home-journey-grid::before { display: none; }.home-journey-grid { grid-template-columns: 1fr; }.home-journey-step { min-height: auto; display: grid; grid-template-columns: 30px 40px 1fr auto; align-items: center; border-inline-start: 0; border-top: 1px solid var(--app-border-soft); }.home-journey-step:first-child { border-top: 0; }.home-journey-step small { grid-column: 3 / 5; }.home-journey-step > svg { margin: 0; grid-row: 1; grid-column: 4; }
           .home-resume-section { grid-template-columns: 1fr; gap: 24px; padding: 26px 18px; }.home-resume-copy ul { grid-template-columns: 1fr; gap: 8px; }.home-heading-inline, .home-heading-row { align-items: flex-start; flex-direction: column; }.home-finder-section { padding: 24px 18px; }.home-finder-layout { grid-template-columns: 1fr; gap: 16px; }.home-finder-form { grid-template-columns: 1fr; }.home-finder-form .home-button { width: 100%; }.home-preview-grid { display: flex; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }.home-content-card { flex: 0 0 min(275px, 82vw); scroll-snap-align: start; }.home-stats-grid { grid-template-columns: repeat(2, 1fr); }.home-stats-grid a:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--app-border-soft); }.home-stats-grid a:nth-child(4) { border-top: 1px solid var(--app-border-soft); }.home-company-section { grid-template-columns: auto 1fr; padding: 20px; }.home-company-section .home-button { grid-column: 1 / -1; width: 100%; }
         }
