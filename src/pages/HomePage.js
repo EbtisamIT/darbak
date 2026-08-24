@@ -9,7 +9,6 @@ import {
   FiCompass,
   FiFileText,
   FiMapPin,
-  FiSearch,
   FiSend,
   FiStar,
   FiUsers,
@@ -22,11 +21,11 @@ import { cityOptions, specializationOptions } from "../data/trainingOptions";
 const homeFont = "'Aniq', 'Cairo', sans-serif";
 
 const journey = [
-  { icon: FiSearch, title: "اختر تخصصك ومدينتك", copy: "ابدأ بما تعرفه عن رحلتك.", to: "/where-to-train" },
-  { icon: FiCompass, title: "اكتشف الجهات والفرص", copy: "شاهد أين تدرب الطلاب قبلك.", to: "/where-to-train" },
-  { icon: FiFileText, title: "جهّز سيرتك", copy: "نبدأ من معلوماتك الموجودة في دربك.", to: "/my-resume/build" },
-  { icon: FiSend, title: "جهّز تقديمك", copy: "سيرة وخطاب وإيميل للجهة.", to: "/my-resume" },
-  { icon: FiClipboard, title: "تابع تقديماتك", copy: "كل تقديماتك محفوظة في مكان واحد.", to: "/my-resume" },
+  { icon: FiCompass, title: "نكتشف الجهات", copy: "نرتب الجهات والفرص الأقرب لتخصصك ومدينتك.", to: "/where-to-train" },
+  { icon: FiStar, title: "نقرأ التجارب والمقابلات", copy: "تعرف على التجربة قبل اتخاذ قرارك.", to: "/experiences" },
+  { icon: FiFileText, title: "نجهّز سيرتك", copy: "نبدأ من معلوماتك الموجودة في دربك.", to: "/my-resume/build" },
+  { icon: FiSend, title: "نجهّز تقديمك لكل جهة", copy: "سيرة وخطاب وإيميل متسق للجهة.", to: "/my-resume" },
+  { icon: FiClipboard, title: "نتابع تقديماتك", copy: "كل تقديماتك محفوظة في مكان واحد.", to: "/my-resume" },
 ];
 
 const readCollection = (payload) => Array.isArray(payload) ? payload : payload?.data || [];
@@ -47,7 +46,6 @@ const HomePage = () => {
   const [experiences, setExperiences] = useState([]);
   const [major, setMajor] = useState("");
   const [city, setCity] = useState("");
-  const [intent, setIntent] = useState("finder");
 
   useEffect(() => {
     let alive = true;
@@ -78,11 +76,7 @@ const HomePage = () => {
     return `/where-to-train${params.toString() ? `?${params}` : ""}`;
   };
 
-  const beginJourney = (intent) => {
-    if (intent === "resume") navigate("/my-resume/build");
-    else if (intent === "apply") navigate("/my-resume");
-    else navigate(finderUrl());
-  };
+  const beginJourney = () => navigate(finderUrl());
 
   return (
     <main className="home-page" dir="rtl">
@@ -94,35 +88,30 @@ const HomePage = () => {
             <h1>دربك معك من البحث عن جهة حتى التقديم.</h1>
             <p>عرّفنا بتخصصك ومدينتك، ودربك يرتب لك الرحلة من اكتشاف الجهات وتجارب الطلاب إلى سيرتك وتقديمك لكل جهة.</p>
             <div className="home-hero-actions">
-              <button className="home-button home-button-primary" type="button" onClick={() => beginJourney(intent)}>
+              <button className="home-button home-button-primary" type="button" onClick={beginJourney}>
                 ابدأ رحلتي <FiArrowLeft aria-hidden="true" />
               </button>
               <Link className="home-button home-button-secondary" to="/where-to-train?tab=opportunities">استعرض الفرص</Link>
             </div>
           </div>
-          <form className="home-start-card" onSubmit={(event) => { event.preventDefault(); beginJourney(intent); }}>
-            <span>خلّنا نبدأ منك أنت</span>
-            <h2>عرّفنا عن وضعك في أقل من دقيقة</h2>
-            <label>تخصصك
-              <select value={major} onChange={(event) => setMajor(event.target.value)}>
-                <option value="">اختر تخصصك</option>
-                {specializationOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
-            <label>مدينتك
-              <select value={city} onChange={(event) => setCity(event.target.value)}>
-                <option value="">اختر مدينتك</option>
-                {cityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-            </label>
-            <label>وش تحتاج الآن؟
-              <select value={intent} onChange={(event) => setIntent(event.target.value)}>
-                <option value="finder">أدور جهة مناسبة</option>
-                <option value="apply">عندي جهة وأبي أجهز تقديمي</option>
-                <option value="resume">أبي أجهز سيرتي</option>
-              </select>
-            </label>
-            <button className="home-button home-button-primary" type="submit">ابدأ رحلتي <FiArrowLeft aria-hidden="true" /></button>
+          <form className="home-start-card" onSubmit={(event) => { event.preventDefault(); beginJourney(); }}>
+            <span>تشخيص سريع لرحلتك</span>
+            <h2>اختر تخصصك ومدينتك، ودربك يجهز لك البداية</h2>
+            <div className="home-start-fields">
+              <label>تخصصك
+                <select required value={major} onChange={(event) => setMajor(event.target.value)}>
+                  <option value="">اختر تخصصك</option>
+                  {specializationOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <label>مدينتك
+                <select required value={city} onChange={(event) => setCity(event.target.value)}>
+                  <option value="">اختر مدينتك</option>
+                  {cityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </label>
+            </div>
+            <button className="home-button home-button-primary" type="submit">شخّص رحلتي <FiArrowLeft aria-hidden="true" /></button>
             <div className="home-start-flow">جهات مناسبة <i /> تجارب ومقابلات <i /> سيرتك <i /> تقديمك لكل جهة</div>
           </form>
         </div>
@@ -268,8 +257,8 @@ const HomePage = () => {
         .home-button:hover { transform: translateY(-2px); }
         .home-button-primary { border: 1px solid transparent; background: var(--app-brand); color: #061212; box-shadow: 0 12px 28px var(--app-brand-soft); }
         .home-button-secondary { border: 1px solid var(--app-brand-border); background: transparent; color: var(--app-brand-strong); }
-        .home-start-card { display: grid; gap: 10px; padding: 22px; border: 1px solid var(--app-brand-border); border-radius: 20px; background: color-mix(in srgb, var(--app-surface) 93%, transparent); box-shadow: 0 24px 62px var(--app-shadow), 0 0 42px var(--app-brand-soft); }
-        .home-start-card > span { color: var(--app-brand); font-weight: 900; font-size: 13px; }.home-start-card h2 { margin: -2px 0 5px; font-size: 23px; line-height: 1.45; }.home-start-card label { display: grid; gap: 6px; color: var(--app-text-soft); font-weight: 800; font-size: 12px; }.home-start-card select { height: 43px; border: 1px solid var(--app-border); border-radius: 10px; background: var(--app-input-bg); color: var(--app-text); padding: 0 10px; font: inherit; }.home-start-card .home-button { width: 100%; margin-top: 4px; }.home-start-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-top: 4px; color: var(--app-muted); font-size: 10.5px; font-weight: 800; line-height: 1.6; }.home-start-flow i { width: 10px; height: 1px; background: var(--app-brand-border); }
+        .home-start-card { display: grid; gap: 13px; padding: 24px; border: 1px solid var(--app-brand-border); border-radius: 22px; background: color-mix(in srgb, var(--app-surface) 94%, transparent); box-shadow: 0 24px 62px var(--app-shadow), 0 0 42px var(--app-brand-soft); }
+        .home-start-card > span { color: var(--app-brand); font-weight: 900; font-size: 13px; }.home-start-card h2 { margin: -2px 0 4px; font-size: 23px; line-height: 1.45; }.home-start-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.home-start-card label { display: grid; gap: 6px; color: var(--app-text-soft); font-weight: 800; font-size: 12px; }.home-start-card select { height: 48px; border: 1px solid var(--app-border); border-radius: 12px; background: var(--app-input-bg); color: var(--app-text); padding: 0 10px; font: inherit; }.home-start-card .home-button { width: 100%; margin-top: 1px; }.home-start-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding-top: 5px; border-top: 1px solid var(--app-border-soft); color: var(--app-muted); font-size: 10.5px; font-weight: 800; line-height: 1.6; }.home-start-flow i { width: 10px; height: 1px; background: var(--app-brand-border); }
         .home-hero-path { display: none; }
         .home-hero-path i { width: 34px; height: 1px; background: var(--app-brand-border); }
         .home-section { padding: 42px 0; }
@@ -317,7 +306,7 @@ const HomePage = () => {
         @media (max-width: 800px) {
           .home-hero, .home-section, .home-company-section { width: min(100% - 28px, 600px); }
           .home-hero { padding: 46px 0 24px; }.home-hero-content { grid-template-columns: 1fr; gap: 28px; }.home-hero h1 { font-size: 38px; }.home-hero p { font-size: 15.5px; }.home-hero-actions .home-button { width: min(100%, 330px); }
-          .home-start-card { padding: 18px; }.home-start-card h2 { font-size: 21px; }.home-start-flow { font-size: 10px; }
+          .home-start-card { padding: 18px; }.home-start-card h2 { font-size: 21px; }.home-start-fields { grid-template-columns: 1fr; }.home-start-flow { font-size: 10px; }
           .home-section { padding: 30px 0; }.home-section-heading { margin-bottom: 17px; }.home-section-heading h2 { font-size: 26px; }.home-journey-section { padding-top: 20px; }.home-journey-grid::before { display: none; }.home-journey-grid { grid-template-columns: 1fr; }.home-journey-step { min-height: auto; display: grid; grid-template-columns: 30px 40px 1fr auto; align-items: center; border-inline-start: 0; border-top: 1px solid var(--app-border-soft); }.home-journey-step:first-child { border-top: 0; }.home-journey-step small { grid-column: 3 / 5; }.home-journey-step > svg { margin: 0; grid-row: 1; grid-column: 4; }
           .home-resume-section { grid-template-columns: 1fr; gap: 24px; padding: 26px 18px; }.home-resume-copy ul { grid-template-columns: 1fr; gap: 8px; }.home-heading-inline, .home-heading-row { align-items: flex-start; flex-direction: column; }.home-finder-section { padding: 24px 18px; }.home-finder-layout { grid-template-columns: 1fr; gap: 16px; }.home-finder-form { grid-template-columns: 1fr; }.home-finder-form .home-button { width: 100%; }.home-preview-grid { display: flex; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }.home-content-card { flex: 0 0 min(275px, 82vw); scroll-snap-align: start; }.home-stats-grid { grid-template-columns: repeat(2, 1fr); }.home-stats-grid a:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--app-border-soft); }.home-stats-grid a:nth-child(4) { border-top: 1px solid var(--app-border-soft); }.home-company-section { grid-template-columns: auto 1fr; padding: 20px; }.home-company-section .home-button { grid-column: 1 / -1; width: 100%; }
         }
