@@ -21,7 +21,6 @@ import {
   FiHome,
   FiMenu,
   FiMessageCircle,
-  FiMoreVertical,
   FiSend,
   FiStar,
   FiUser,
@@ -154,9 +153,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     fontSize: isMobile ? "10.5px" : "inherit",
     background: "transparent",
     border: "none",
-    borderBottom: isPathActive(path)
-      ? `${isMobile ? 1 : 2}px solid var(--app-brand)`
-      : `${isMobile ? 1 : 2}px solid transparent`,
+    borderBottom: `${isMobile ? 1 : 2}px solid transparent`,
   });
 
   const actionButtonStyle = {
@@ -495,7 +492,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 onClick={() => setMoreMenuOpen((open) => !open)}
                 style={quietActionButtonStyle}
               >
-                <FiMoreVertical aria-hidden="true" /> <span>المزيد</span> <FiChevronDown aria-hidden="true" />
+                <span>المزيد</span>
               </button>
               {moreMenuOpen && (
                 <div className="navbar-more-panel">
