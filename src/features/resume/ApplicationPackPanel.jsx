@@ -28,6 +28,7 @@ const PackPart = ({ icon, title, secondaryLabel = "", description = "", status, 
 const ApplicationPackPanel = ({ pack, onCompleteDetails, onOpenResume }) => {
   const [trainingStart, setTrainingStart] = useState("");
   const [trainingEnd, setTrainingEnd] = useState("");
+  const [targetField, setTargetField] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [openPart, setOpenPart] = useState("");
@@ -37,17 +38,19 @@ const ApplicationPackPanel = ({ pack, onCompleteDetails, onOpenResume }) => {
   );
   if (!pack || !Object.keys(pack).length) return null;
   const info = pack.applicationInfo || {};
-  const needsPeriod = (pack.missingApplicationFields || []).some((item) => item.key === "trainingPeriod");
+  const missingFields = pack.missingApplicationFields || [];
+  const needsPeriod = missingFields.some((item) => item.key === "trainingPeriod");
+  const needsTargetField = missingFields.some((item) => item.key === "targetField");
   const completePeriod = async (event) => {
     event.preventDefault();
-    if (!trainingStart.trim() || !trainingEnd.trim()) {
-      setError("أضف بداية ونهاية فترة التدريب.");
+    if ((needsPeriod && (!trainingStart.trim() || !trainingEnd.trim())) || (needsTargetField && !targetField.trim())) {
+      setError(needsTargetField ? "أكمل فترة التدريب والمجال المستهدف." : "أضف بداية ونهاية فترة التدريب.");
       return;
     }
     try {
       setSaving(true);
       setError("");
-      await onCompleteDetails({ trainingStart, trainingEnd });
+      await onCompleteDetails({ trainingStart, trainingEnd, targetField });
     } catch (requestError) {
       setError(requestError?.message || "تعذر إكمال رسالة التقديم.");
     } finally {
@@ -68,7 +71,7 @@ const ApplicationPackPanel = ({ pack, onCompleteDetails, onOpenResume }) => {
   return (
     <section className="application-pack-panel">
       <header>
-        <span>ملف التقديم</span>
+        <span>{pack.packType === "company_outreach_pack" ? "تواصل مع جهة" : "ملف التقديم"}</span>
         <h2>تقديمك لـ {info.organizationName || "هذه الجهة"}</h2>
         <p>{readyCount} من 3 جاهزة</p>
       </header>
@@ -79,19 +82,25 @@ const ApplicationPackPanel = ({ pack, onCompleteDetails, onOpenResume }) => {
         <PackPart icon={<FiCheckCircle aria-hidden="true" />} title="خطاب التقديم" secondaryLabel="Cover Letter" description="رسالة مهنية مخصصة للجهة، وليست خطاب التدريب الرسمي الصادر من الجامعة." status={pack.trainingLetter?.status} open={openPart === "letter"} onOpen={() => setOpenPart(openPart === "letter" ? "" : "letter")}>
           {pack.trainingLetter?.body ? <p className="application-pack-copy">{pack.trainingLetter.body}</p> : <p>لا يحتاج هذا التقديم خطاب تقديم منفصلًا.</p>}
         </PackPart>
-        <PackPart icon={<FiMail aria-hidden="true" />} title="رسالة الإيميل" status={pack.email?.status} open={openPart === "email"} onOpen={() => setOpenPart(openPart === "email" ? "" : "email")}>
+        <PackPart icon={<FiMail aria-hidden="true" />} title="رسالة الإيميل" status={pack.email?.status} open={openPart === "email" || pack.email?.status === "needs_input"} onOpen={() => setOpenPart(openPart === "email" ? "" : "email")}>
           {pack.email?.status === "ready" ? <>
             <p className="application-pack-copy"><b>الموضوع:</b> {pack.email.subject}</p>
             <p className="application-pack-copy">{pack.email.body}</p>
             <button type="button" onClick={copyEmail}><FiCopy aria-hidden="true" /> نسخ الإيميل</button>
           </> : pack.email?.status === "unavailable" ? <p>لا توجد وسيلة تقديم موثوقة مرتبطة بهذه الجهة.</p> : null}
-          {needsPeriod && <form className="application-pack-details" onSubmit={completePeriod}>
-            <strong>باقي معلومة واحدة لإكمال رسالة التقديم</strong>
-            <span>فترة التدريب</span>
-            <div>
-              <input value={trainingStart} onChange={(event) => setTrainingStart(event.target.value)} placeholder="من" />
-              <input value={trainingEnd} onChange={(event) => setTrainingEnd(event.target.value)} placeholder="إلى" />
-            </div>
+          {(needsPeriod || needsTargetField) && <form className="application-pack-details" onSubmit={completePeriod}>
+            <strong>باقي {missingFields.length === 1 ? "معلومة واحدة" : "معلومتان"} لإكمال رسالة التقديم</strong>
+            {needsPeriod && <>
+              <span>فترة التدريب</span>
+              <div>
+                <input value={trainingStart} onChange={(event) => setTrainingStart(event.target.value)} placeholder="من" />
+                <input value={trainingEnd} onChange={(event) => setTrainingEnd(event.target.value)} placeholder="إلى" />
+              </div>
+            </>}
+            {needsTargetField && <label>
+              <span>المسمى أو المجال التدريبي المستهدف</span>
+              <input value={targetField} onChange={(event) => setTargetField(event.target.value)} placeholder="مثل: تقنية المعلومات أو تطوير الويب" />
+            </label>}
             {error && <small className="application-pack-error">{error}</small>}
             <button type="submit" disabled={saving}>{saving ? "جارٍ الإكمال..." : "إكمال رسالة التقديم"}</button>
           </form>}

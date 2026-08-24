@@ -2726,6 +2726,7 @@ export default function TrainingFinderPage() {
     navigate("/my-resume/tailor", {
       state: {
         tailorContext: {
+          sourceType: "company_suggestion",
           title: organization?.applicationWindow || "تدريب تعاوني",
           company: organization?.name || organization?.organizationName || "",
           description: [organization?.sector, organization?.note, ...(organization?.specialties || [])].filter(Boolean).join(". "),

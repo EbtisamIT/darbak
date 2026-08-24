@@ -1826,6 +1826,14 @@ const sanitizePortfolioUrl = (value = "", maxLength = 260) => {
   }
 };
 
+const sanitizeApplicationContact = (value = "", maxLength = 260) => {
+  const raw = sanitizeResumeText(value, maxLength);
+  if (/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(raw) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(raw)) {
+    return raw;
+  }
+  return sanitizePortfolioUrl(raw, maxLength);
+};
+
 const normalizePortfolioSlug = (value = "") =>
   value
     .toString()
@@ -6947,13 +6955,14 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
   });
 };
 
-const buildApplicationEmail = ({ resume = {}, job = {}, trainingPeriod = "" }) => {
+const buildApplicationEmail = ({ resume = {}, job = {}, trainingPeriod = "", targetField = "" }) => {
   const personal = resume.personalInfo || {};
   const fullName = sanitizeResumeText(personal.fullName, 120);
   const major = sanitizeResumeText(personal.major || personal.headline, 140);
   const university = sanitizeResumeText(personal.university, 180);
   const organizationName = sanitizeResumeText(job.company, 180);
   const opportunityTitle = sanitizeResumeText(job.title, 180);
+  const isCompanyOutreach = job.packType === "company_outreach_pack";
   const jobText = `${job.description || ""} ${(job.requirements || []).join(" ")}`.toLowerCase();
   const skills = (resume.skills || []).map((item) => typeof item === "string" ? item : item?.name).filter(Boolean);
   const projects = (resume.projects || []).map((item) => item?.name || item?.title).filter(Boolean);
@@ -6964,12 +6973,15 @@ const buildApplicationEmail = ({ resume = {}, job = {}, trainingPeriod = "" }) =
   const relevant = (matchedFacts.length ? matchedFacts : [...projects, ...skills]).slice(0, 2);
   const missing = [];
   if (!fullName) missing.push({ key: "fullName", label: "اسمك الكامل", appliesTo: "email" });
-  if (/فتر[ةه]\s+التدريب|تاريخ\s+(?:البداية|البدء)|من\s*[-–]\s*إلى/u.test(jobText) && !trainingPeriod) {
+  if ((isCompanyOutreach || /فتر[ةه]\s+التدريب|تاريخ\s+(?:البداية|البدء)|من\s*[-–]\s*إلى/u.test(jobText)) && !trainingPeriod) {
     missing.push({ key: "trainingPeriod", label: "فترة التدريب", appliesTo: "email" });
+  }
+  if (isCompanyOutreach && !targetField) {
+    missing.push({ key: "targetField", label: "المسمى أو المجال التدريبي المستهدف", appliesTo: "email" });
   }
   if (missing.length) return { status: "needs_input", subject: "", body: "", missing };
 
-  const subjectParts = ["طلب تدريب تعاوني", major, trainingPeriod, fullName].filter(Boolean);
+  const subjectParts = ["طلب تدريب تعاوني", targetField || opportunityTitle, major, trainingPeriod, fullName].filter(Boolean);
   const academicLine = [major, university].filter(Boolean).join(" في ");
   const hasTechContext = /تقني|رقمي|برمج|تطوير|ويب|منتج|واجهة|تجرب/u.test(jobText);
   const hasDesignContext = /تصميم|محتوى|إعلام|تسويق/u.test(jobText);
@@ -6990,7 +7002,9 @@ const buildApplicationEmail = ({ resume = {}, job = {}, trainingPeriod = "" }) =
     : "أرفق سيرتي الذاتية التي توضح مشاريعي ومهاراتي الحالية.";
   const body = [
     "السلام عليكم ورحمة الله وبركاته،",
-    `أتقدم بطلب التدريب التعاوني${opportunityTitle ? ` في ${opportunityTitle}` : ""}${organizationName ? ` لدى ${organizationName}` : ""}.`,
+    isCompanyOutreach
+      ? `أتقدم للاستفسار عن فرص التدريب التعاوني${targetField ? ` في مجال ${targetField}` : ""}${organizationName ? ` لدى ${organizationName}` : ""}.`
+      : `أتقدم بطلب التدريب التعاوني${opportunityTitle ? ` في ${opportunityTitle}` : ""}${organizationName ? ` لدى ${organizationName}` : ""}.`,
     academicLine ? `اسمي ${fullName}، وتخصصي ${academicLine}.` : `اسمي ${fullName}.`,
     interest,
     factsLine,
@@ -7013,7 +7027,10 @@ const buildApplicationPack = ({ draftPack = {}, job = {}, resume = {} }) => {
   const personal = resume.personalInfo || {};
   const organizationName = job.company || "الجهة التدريبية";
   const instructions = `${job.description || ""} ${(job.requirements || []).join(" ")}`;
-  const contact = job.url || "";
+  const packType = job.packType === "company_outreach_pack" || !job.id
+    ? "company_outreach_pack"
+    : "opportunity_pack";
+  const contact = sanitizeResumeText(job.url || "", 500).replace(/^https?:\/\/mailto:/i, "mailto:");
   const applicationMethod = contact.startsWith("mailto:") || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)
     ? "email"
     : contact ? "link" : "unavailable";
@@ -7027,9 +7044,10 @@ const buildApplicationPack = ({ draftPack = {}, job = {}, resume = {} }) => {
     personal.fullName || "",
   ].filter(Boolean).join("\n\n");
   const canSendEmail = applicationMethod !== "unavailable";
-  const generatedEmail = buildApplicationEmail({ resume, job });
+  const generatedEmail = buildApplicationEmail({ resume, job: { ...job, packType } });
   const missingApplicationFields = canSendEmail ? generatedEmail.missing : [];
   return {
+    packType,
     status: missingApplicationFields.length ? "needs_input" : "ready",
     resume: { status: "ready" },
     trainingLetter: {
@@ -7217,10 +7235,13 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
           title: sanitizeResumeText(req.body.externalJob.title, 160),
           organizationName: sanitizeResumeText(req.body.externalJob.company, 160),
           note: sanitizeResumeText(req.body.externalJob.description, 8000),
-          applicationUrl: sanitizePortfolioUrl(req.body.externalJob.url, 260),
+          applicationUrl: sanitizeApplicationContact(req.body.externalJob.url, 260),
           specialties: [],
           majorCategories: [],
-          city: "",
+          city: sanitizeResumeText(req.body.externalJob.city, 120),
+          sourceType: req.body.externalJob.sourceType === "company_suggestion"
+            ? "company_suggestion"
+            : "external_job",
         }
       : null;
     const { contact, accessCodeHash, user } = req.darbakAccess;
@@ -7498,15 +7519,19 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
               ],
               city: opportunity.city || "",
               url: opportunity.applicationUrl || "",
+              packType: "opportunity_pack",
             }
           : externalJob
           ? {
               title: externalJob.title || pendingDraft.roleTitle || "",
-              company: externalJob.organizationName || pendingDraft.companyName || "",
-              description: externalJob.note || "",
+              company: externalJob.company || externalJob.organizationName || pendingDraft.companyName || "",
+              description: externalJob.description || externalJob.note || "",
               requirements: [],
               city: externalJob.city || "",
-              url: externalJob.applicationUrl || "",
+              url: externalJob.url || externalJob.applicationUrl || "",
+              packType: externalJob.sourceType === "company_suggestion"
+                ? "company_outreach_pack"
+                : "opportunity_pack",
             }
           : null;
         const match = jobSnapshot ? compareResumeToJob({ resume: payload, job: jobSnapshot }) : null;
@@ -7832,12 +7857,21 @@ app.put('/api/resume-agent/tailored-versions/:id/application-pack', requireResum
     if (!version) return res.status(404).json({ error: "ملف التقديم غير موجود." });
     const start = sanitizeResumeText(req.body?.trainingStart, 80);
     const end = sanitizeResumeText(req.body?.trainingEnd, 80);
-    if (!start || !end) return res.status(400).json({ error: "أضف فترة التدريب لإكمال رسالة التقديم." });
+    const targetField = sanitizeResumeText(req.body?.targetField, 160);
     const pack = version.applicationPack || {};
+    const isCompanyOutreach = pack.packType === "company_outreach_pack";
+    if (!start || !end || (isCompanyOutreach && !targetField)) {
+      return res.status(400).json({
+        error: isCompanyOutreach
+          ? "أضف فترة التدريب والمجال المستهدف لإكمال رسالة التقديم."
+          : "أضف فترة التدريب لإكمال رسالة التقديم.",
+      });
+    }
     const generatedEmail = buildApplicationEmail({
       resume: version.resumePayload || {},
-      job: version.jobSnapshot || {},
+      job: { ...(version.jobSnapshot || {}), packType: pack.packType },
       trainingPeriod: `من ${start} إلى ${end}`,
+      targetField,
     });
     pack.email = {
       ...(pack.email || {}),
@@ -7847,6 +7881,11 @@ app.put('/api/resume-agent/tailored-versions/:id/application-pack', requireResum
     };
     pack.missingApplicationFields = generatedEmail.missing;
     pack.status = pack.missingApplicationFields.length ? "needs_input" : "ready";
+    pack.applicationInfo = {
+      ...(pack.applicationInfo || {}),
+      trainingPeriod: `من ${start} إلى ${end}`,
+      targetField: targetField || pack.applicationInfo?.targetField || "",
+    };
     version.applicationPack = pack;
     await version.save();
     return res.json({ applicationPack: pack, message: "اكتملت رسالة التقديم." });

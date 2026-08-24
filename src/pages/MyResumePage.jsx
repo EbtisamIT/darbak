@@ -671,11 +671,11 @@ const MyResumePage = () => {
     setJourneyStep("data");
   }, [loadResume, loadTailoredVersion, location.pathname, location.search, routeVersionId, routeView, searchParams]);
 
-  const completeApplicationPackDetails = async ({ trainingStart, trainingEnd }) => {
+  const completeApplicationPackDetails = async ({ trainingStart, trainingEnd, targetField }) => {
     if (!editingVersionId) return;
     const { data } = await axios.put(
       `${API_BASE_URL}/api/resume-agent/tailored-versions/${editingVersionId}/application-pack`,
-      { trainingStart, trainingEnd },
+      { trainingStart, trainingEnd, targetField },
       { headers: getAccessHeaders({ itemKey: `resume-application-pack:${editingVersionId}` }) }
     );
     setApplicationPack(data.applicationPack || null);
