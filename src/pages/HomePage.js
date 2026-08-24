@@ -133,7 +133,7 @@ const HomePage = () => {
         <HeroAtmosphere />
         <div className="home-hero-copy">
           <span className="home-eyebrow">دربك للتدريب التعاوني</span>
-          <h1>دربك معك من البحث عن جهة حتى التقديم</h1>
+          <h1><span className="home-title-brand">دربك</span> معك من البحث عن جهة حتى <span className="home-title-brand">التقديم</span></h1>
           <p>اكتشف الجهات، جهّز سيرتك، وخلّ دربك يجهز تقديمك لكل جهة.</p>
         </div>
       </section>
@@ -309,19 +309,19 @@ const HomePage = () => {
 
       <style>{`
         .home-page { position: relative; min-height: 100vh; color: var(--app-text); background: var(--app-bg); font-family: ${homeFont}; overflow: hidden; padding-bottom: 42px; isolation: isolate; }
-        .home-page::before { content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none; background: radial-gradient(ellipse at 50% 10%, rgba(126, 222, 207, .045), transparent 31%), radial-gradient(circle at 18% 18%, rgba(126, 222, 207, .045), transparent 20%); }
-        .home-page::after { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 420px; right: -18%; width: 70%; height: 380px; background: radial-gradient(ellipse, rgba(99, 213, 196, .075), transparent 67%); }
+        .home-page::before { content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none; opacity: .82; background-image: radial-gradient(circle, rgba(228, 255, 251, .48) 1px, transparent 1.6px), radial-gradient(circle, rgba(126, 222, 207, .32) 1px, transparent 1.5px), radial-gradient(circle, rgba(255, 255, 255, .24) .8px, transparent 1.4px), radial-gradient(ellipse at 20% 8%, rgba(59, 159, 154, .13), transparent 27%), radial-gradient(ellipse at 80% 50%, rgba(52, 121, 133, .08), transparent 29%); background-size: 137px 137px, 211px 211px, 89px 89px, auto, auto; background-position: 18px 29px, 83px 54px, 41px 9px, center, center; }
+        .home-page::after { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 390px; right: -18%; width: 70%; height: 620px; background: radial-gradient(ellipse, rgba(99, 213, 196, .06), transparent 67%); }
         .home-hero, .home-section, .home-company-section, .home-pricing-section, .home-diagnosis-section { width: min(1120px, calc(100% - 40px)); margin-inline: auto; }
         .home-hero { position: relative; padding: 76px 0 28px; text-align: center; }
-        .home-hero-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .92; background-image: radial-gradient(circle, rgba(228, 255, 251, .7) 1px, transparent 1.6px), radial-gradient(circle, rgba(126, 222, 207, .48) 1px, transparent 1.5px), radial-gradient(circle, rgba(255, 255, 255, .38) .8px, transparent 1.4px); background-size: 137px 137px, 211px 211px, 89px 89px; background-position: 18px 29px, 83px 54px, 41px 9px; mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent); }
+        .home-hero-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .92; }
         .home-hero-atmosphere::before { content: ""; position: absolute; width: min(61%, 710px); height: 250px; top: 18%; left: -4%; border-radius: 50%; background: radial-gradient(ellipse, rgba(59, 159, 154, .18), rgba(52, 121, 133, .07) 38%, transparent 72%); filter: blur(6px); }
-        .home-hero-atmosphere::after { content: ""; position: absolute; width: min(58%, 670px); height: 2px; top: 54%; left: 1%; border-radius: 999px; background: linear-gradient(90deg, transparent, rgba(126, 222, 207, .56) 24%, rgba(126, 222, 207, .09) 78%, transparent); box-shadow: 0 0 20px rgba(126, 222, 207, .12); }
+        .home-hero-atmosphere::after { content: ""; position: absolute; width: 370px; height: 250px; top: 7%; right: -12%; border-radius: 50%; background: radial-gradient(ellipse, rgba(126, 222, 207, .09), transparent 70%); filter: blur(8px); }
         .home-star { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: rgba(238, 255, 251, .82); box-shadow: 0 0 10px rgba(211, 255, 246, .32); animation: homeTwinkle 3.6s ease-in-out infinite; }
         .home-star-one { top: 24%; right: 11%; }.home-star-two { top: 43%; right: 43%; animation-delay: .65s; }.home-star-three { top: 22%; left: 31%; animation-delay: 1.2s; }.home-star-four { bottom: 18%; left: 13%; animation-delay: 1.75s; }
         @keyframes homeTwinkle { 0%, 100% { opacity: .26; transform: scale(.75); } 50% { opacity: .86; transform: scale(1.15); } }
         .home-eyebrow, .home-section-heading > span, .home-resume-copy > span, .home-company-section > div > span, .home-diagnosis-copy > span, .home-plans-intro > span { color: var(--app-brand); font-weight: 900; font-size: 13px; }
         .home-eyebrow { display: inline-flex; padding: 7px 12px; border: 1px solid var(--app-brand-border); border-radius: 999px; background: var(--app-brand-soft); }
-        .home-hero-copy { position: relative; z-index: 1; max-width: 790px; margin: 0 auto 30px; }.home-hero h1 { max-width: 760px; margin: 16px auto 12px; font-size: clamp(42px, 5.2vw, 67px); line-height: 1.18; letter-spacing: -1px; }.home-hero p { max-width: 590px; margin: 0 auto; color: var(--app-text-soft); font-size: 17px; line-height: 1.9; }
+        .home-hero-copy { position: relative; z-index: 1; max-width: 790px; margin: 0 auto 30px; }.home-hero h1 { max-width: 760px; margin: 16px auto 12px; font-size: clamp(42px, 5.2vw, 67px); line-height: 1.18; letter-spacing: -1px; }.home-title-brand { color: var(--app-brand); text-shadow: 0 0 22px var(--app-brand-soft); }.home-hero p { max-width: 590px; margin: 0 auto; color: var(--app-text-soft); font-size: 17px; line-height: 1.9; }
         .home-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 12px; font: inherit; font-weight: 900; text-decoration: none; cursor: pointer; transition: transform .18s ease, background .18s ease; }
         .home-button:hover { transform: translateY(-2px); }
         .home-button-primary { border: 1px solid transparent; background: var(--app-brand); color: #061212; box-shadow: 0 12px 28px var(--app-brand-soft); }
