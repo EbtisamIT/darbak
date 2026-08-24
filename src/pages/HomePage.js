@@ -37,7 +37,6 @@ const HeroAtmosphere = () => (
     <i className="home-star home-star-two" />
     <i className="home-star home-star-three" />
     <i className="home-star home-star-four" />
-    <i className="home-shooting-star" />
   </div>
 );
 
@@ -249,16 +248,16 @@ const HomePage = () => {
 
       <style>{`
         .home-page { position: relative; min-height: 100vh; color: var(--app-text); background: var(--app-bg); font-family: ${homeFont}; overflow: hidden; padding-bottom: 42px; isolation: isolate; }
-        .home-page::before { content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none; opacity: .45; background-image: radial-gradient(circle at 16% 15%, rgba(126, 222, 207, .11), transparent 25%), radial-gradient(circle at 82% 40%, rgba(126, 222, 207, .065), transparent 22%), radial-gradient(circle, rgba(180, 255, 244, .32) 1px, transparent 1.5px); background-size: auto, auto, 44px 44px; background-position: center, center, 0 0; }
+        .home-page::before { content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none; background: radial-gradient(ellipse at 50% 10%, rgba(126, 222, 207, .045), transparent 31%), radial-gradient(circle at 18% 18%, rgba(126, 222, 207, .045), transparent 20%); }
         .home-page::after { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 420px; right: -18%; width: 70%; height: 380px; background: radial-gradient(ellipse, rgba(99, 213, 196, .075), transparent 67%); }
         .home-hero, .home-section, .home-company-section { width: min(1120px, calc(100% - 40px)); margin-inline: auto; }
         .home-hero { position: relative; padding: 76px 0 42px; text-align: right; }
-        .home-hero-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .85; }
-        .home-star { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: var(--app-text); box-shadow: 0 0 8px var(--app-brand-border); animation: homeTwinkle 2.8s ease-in-out infinite; }
-        .home-star-one { top: 16%; right: 10%; }.home-star-two { top: 37%; right: 43%; animation-delay: .65s; }.home-star-three { top: 14%; left: 29%; animation-delay: 1.2s; }.home-star-four { bottom: 12%; left: 7%; animation-delay: 1.75s; }
-        .home-shooting-star { position: absolute; top: 15%; left: 16%; width: 118px; height: 2px; background: linear-gradient(90deg, var(--app-brand), transparent); border-radius: 999px; opacity: 0; transform: rotate(-23deg); animation: homeShoot 5.5s ease-out infinite; }
-        @keyframes homeTwinkle { 0%, 100% { opacity: .2; transform: scale(.75); } 50% { opacity: .9; transform: scale(1.25); } }
-        @keyframes homeShoot { 0%, 62% { opacity: 0; transform: translateX(0) rotate(-23deg); } 66% { opacity: .65; } 82% { opacity: 0; transform: translateX(220px) rotate(-23deg); } 100% { opacity: 0; } }
+        .home-hero-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .9; }
+        .home-hero-atmosphere::before { content: ""; position: absolute; width: min(58%, 670px); height: 2px; top: 54%; left: 1%; border-radius: 999px; background: linear-gradient(90deg, transparent, rgba(126, 222, 207, .5) 22%, rgba(126, 222, 207, .1) 75%, transparent); box-shadow: 0 0 18px rgba(126, 222, 207, .1); }
+        .home-hero-atmosphere::after { content: ""; position: absolute; width: 440px; height: 280px; top: 17%; left: 21%; background: radial-gradient(ellipse, rgba(126, 222, 207, .06), transparent 68%); }
+        .home-star { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: rgba(238, 255, 251, .82); box-shadow: 0 0 10px rgba(211, 255, 246, .32); animation: homeTwinkle 3.6s ease-in-out infinite; }
+        .home-star-one { top: 24%; right: 11%; }.home-star-two { top: 43%; right: 43%; animation-delay: .65s; }.home-star-three { top: 22%; left: 31%; animation-delay: 1.2s; }.home-star-four { bottom: 18%; left: 13%; animation-delay: 1.75s; }
+        @keyframes homeTwinkle { 0%, 100% { opacity: .26; transform: scale(.75); } 50% { opacity: .86; transform: scale(1.15); } }
         .home-eyebrow, .home-section-heading > span, .home-resume-copy > span, .home-company-section > div > span { color: var(--app-brand); font-weight: 900; font-size: 13px; }
         .home-eyebrow { display: inline-flex; padding: 7px 12px; border: 1px solid var(--app-brand-border); border-radius: 999px; background: var(--app-brand-soft); }
         .home-hero-content { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, .78fr); align-items: center; gap: clamp(32px, 6vw, 80px); }
