@@ -27,6 +27,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   );
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
   const [floatingMenuOpen, setFloatingMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   const location = useLocation();
   const isExperiencesPage = location.pathname === "/experiences";
@@ -65,7 +66,17 @@ const Navbar = ({ theme = "dark", setTheme }) => {
 
   useEffect(() => {
     setFloatingMenuOpen(false);
+    setMoreMenuOpen(false);
   }, [location.pathname]);
+
+  const isPathActive = (path) =>
+    path.includes("?")
+      ? `${location.pathname}${location.search}` === path
+      : path === "/my-resume"
+      ? location.pathname === "/my-resume" || location.pathname.startsWith("/my-resume/")
+      : path === "/where-to-train"
+      ? location.pathname.startsWith("/where-to-train")
+      : location.pathname === path;
 
   useEffect(() => {
     const refreshPremiumStatus = () => {
@@ -98,8 +109,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
 
   const linkStyle = (path) => ({
     textDecoration: "none",
-    color: location.pathname === path ? "var(--app-brand)" : "var(--app-text-soft)",
-    fontWeight: location.pathname === path ? "bold" : "normal",
+    color: isPathActive(path) ? "var(--app-brand)" : "var(--app-text-soft)",
+    fontWeight: isPathActive(path) ? "bold" : "normal",
     transition: "0.3s",
     whiteSpace: "nowrap",
     flex: isMobile ? "0 1 auto" : "initial",
@@ -109,7 +120,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     background: "transparent",
     border: "none",
     borderBottom:
-      isMobile && location.pathname === path
+      isMobile && isPathActive(path)
         ? "1px solid var(--app-brand)"
         : "1px solid transparent",
   });
@@ -173,6 +184,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const openAccountModal = () => {
     window.dispatchEvent(new Event(ACCOUNT_MODAL_EVENT));
     setFloatingMenuOpen(false);
+    setMoreMenuOpen(false);
   };
 
   const openPremiumGate = (source = "navbar_button") => {
@@ -197,11 +209,13 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const openTrainingDiagnosis = () => {
     window.dispatchEvent(new Event("darbak:open-training-diagnosis"));
     setFloatingMenuOpen(false);
+    setMoreMenuOpen(false);
   };
 
   const openPortfolioAnnouncement = () => {
     window.dispatchEvent(new Event("darbak:open-portfolio-announcement"));
     setFloatingMenuOpen(false);
+    setMoreMenuOpen(false);
   };
 
   const trackTelegramClick = (source) => {
@@ -212,6 +226,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       },
     });
     setFloatingMenuOpen(false);
+    setMoreMenuOpen(false);
   };
 
   const floatingLinkStyle = (path) => ({
@@ -220,12 +235,12 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     justifyContent: "space-between",
     gap: "10px",
     textDecoration: "none",
-    color: location.pathname === path ? "var(--app-brand)" : "var(--app-text)",
+    color: isPathActive(path) ? "var(--app-brand)" : "var(--app-text)",
     background:
-      location.pathname === path ? "var(--app-brand-soft)" : "transparent",
+      isPathActive(path) ? "var(--app-brand-soft)" : "transparent",
     border: "1px solid",
     borderColor:
-      location.pathname === path ? "var(--app-brand-border)" : "var(--app-border)",
+      isPathActive(path) ? "var(--app-brand-border)" : "var(--app-border)",
     borderRadius: "14px",
     padding: "10px 12px",
     fontSize: "13px",
@@ -380,6 +395,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               دربك+
             </button>
           )}
+          {!isMobile && (
+            <button type="button" onClick={openAddExperienceModal} style={actionButtonStyle}>
+              + أضف تجربتك
+            </button>
+          )}
         </div>
 
         <div
@@ -399,79 +419,51 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           }}
         >
           <Link to="/" style={linkStyle("/")}>
-            {isMobile ? "الرئيسية" : "🏠 الرئيسية"}
-          </Link>
-
-          <Link to="/experiences" style={linkStyle("/experiences")}>
-            {isMobile ? "التجارب" : "📄 التجارب"}
+            الرئيسية
           </Link>
 
           <Link to="/where-to-train" style={linkStyle("/where-to-train")}>
-            {isMobile ? "وين أتدرب" : "🎯 وين أتدرب؟"}
+            وين أتدرب؟
           </Link>
 
-          {!isMobile && (
-            <a
-              href={TELEGRAM_CHANNEL_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => trackTelegramClick("navbar")}
-              style={{
-                ...quietActionButtonStyle,
-                color: "var(--app-brand)",
-                textDecoration: "none",
-              }}
-            >
-              قناة الفرص
-            </a>
-          )}
-
-          <button
-            type="button"
-            onClick={openTrainingDiagnosis}
-            style={quietActionButtonStyle}
-          >
-            {isMobile ? "تشخيص" : "تشخيص التدريب"}
-          </button>
-
-          <Link to="/interviews" style={linkStyle("/interviews")}>
-            {isMobile ? "مقابلات" : "💬 مقابلات"}
+          <Link to="/where-to-train?tab=opportunities" style={linkStyle("/where-to-train?tab=opportunities")}>
+            الفرص
           </Link>
 
-          <button
-            type="button"
-            onClick={openPortfolioAnnouncement}
-            style={quietActionButtonStyle}
-          >
-            portfolio
-          </button>
+          <Link to="/my-resume" style={linkStyle("/my-resume")}>
+            سيرتي
+          </Link>
 
-          <button
-            type="button"
-            onClick={openAccountModal}
-            style={quietActionButtonStyle}
-          >
-            حسابي
-          </button>
+          {!isMobile && <Link to="/experiences" style={linkStyle("/experiences")}>
+            تجاربي
+          </Link>}
 
-          <div
-            style={{
-              display: "flex",
-              gap: isMobile ? "6px" : "10px",
-              alignItems: "center",
-              flexWrap: "nowrap",
-              justifyContent: "center",
-              flex: isMobile ? "0 1 auto" : "initial",
-            }}
-          >
-            <button
-              type="button"
-              onClick={openAddExperienceModal}
-              style={actionButtonStyle}
-            >
-              {isMobile ? "+ تجربة" : "+ أضف تجربتك"}
+          {!isMobile ? (
+            <div className="navbar-more-menu">
+              <button
+                type="button"
+                aria-expanded={moreMenuOpen}
+                onClick={() => setMoreMenuOpen((open) => !open)}
+                style={quietActionButtonStyle}
+              >
+                المزيد ▾
+              </button>
+              {moreMenuOpen && (
+                <div className="navbar-more-panel">
+                  <button type="button" onClick={openTrainingDiagnosis}>تشخيص التدريب</button>
+                  <Link to="/interviews" onClick={() => setMoreMenuOpen(false)}>مقالات ومقابلات</Link>
+                  <button type="button" onClick={openPortfolioAnnouncement}>Portfolio</button>
+                  <Link to="/applications" onClick={() => setMoreMenuOpen(false)}>طلباتي</Link>
+                  <button type="button" onClick={openAccountModal}>حسابي</button>
+                  <a href={TELEGRAM_CHANNEL_URL} target="_blank" rel="noopener noreferrer" onClick={() => trackTelegramClick("navbar_more")}>قناة الفرص</a>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button type="button" onClick={() => setFloatingMenuOpen((open) => !open)} style={quietActionButtonStyle}>
+              القائمة
             </button>
-          </div>
+          )}
 
         </div>
       </nav>
@@ -484,7 +476,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         />
       )}
 
-      {isNavbarCollapsed && !showModal && (
+      {(isNavbarCollapsed || isMobile) && !showModal && (
         <div
           className="floating-nav-shell"
           style={{
@@ -522,7 +514,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 <span aria-hidden="true">🏠</span>
               </Link>
               <Link to="/experiences" style={floatingLinkStyle("/experiences")}>
-                <span>التجارب</span>
+                <span>تجاربي</span>
                 <span aria-hidden="true">📄</span>
               </Link>
               <Link
@@ -531,6 +523,16 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               >
                 <span>وين أتدرب؟</span>
                 <span aria-hidden="true">🎯</span>
+              </Link>
+
+              <Link to="/where-to-train?tab=opportunities" style={floatingLinkStyle("/where-to-train?tab=opportunities")}>
+                <span>الفرص</span>
+                <span aria-hidden="true">✦</span>
+              </Link>
+
+              <Link to="/my-resume" style={floatingLinkStyle("/my-resume")}>
+                <span>سيرتي</span>
+                <span aria-hidden="true">▤</span>
               </Link>
 
               <a
@@ -569,6 +571,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 <span>portfolio</span>
                 <span aria-hidden="true">▤</span>
               </button>
+
+              <Link to="/applications" style={floatingLinkStyle("/applications")}>
+                <span>طلباتي</span>
+                <span aria-hidden="true">▦</span>
+              </Link>
 
               <button
                 type="button"
@@ -632,7 +639,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             </div>
           )}
 
-          <button
+          {!isMobile && <button
             type="button"
             onClick={() => setFloatingMenuOpen((open) => !open)}
             aria-expanded={floatingMenuOpen}
@@ -667,11 +674,52 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             >
               {floatingMenuOpen ? "×" : "☰"}
             </span>
-          </button>
+          </button>}
         </div>
       )}
 
       <style>{`
+        .navbar-more-menu {
+          position: relative;
+        }
+
+        .navbar-more-panel {
+          position: absolute;
+          top: calc(100% + 10px);
+          right: 0;
+          z-index: 2200;
+          width: 210px;
+          display: grid;
+          gap: 4px;
+          padding: 8px;
+          background: var(--app-surface);
+          border: 1px solid var(--app-border);
+          border-radius: 14px;
+          box-shadow: 0 16px 40px var(--app-shadow);
+        }
+
+        .navbar-more-panel a,
+        .navbar-more-panel button {
+          width: 100%;
+          padding: 9px 10px;
+          border: 0;
+          border-radius: 9px;
+          background: transparent;
+          color: var(--app-text);
+          cursor: pointer;
+          font: inherit;
+          font-size: 13px;
+          font-weight: 700;
+          text-align: right;
+          text-decoration: none;
+        }
+
+        .navbar-more-panel a:hover,
+        .navbar-more-panel button:hover {
+          background: var(--app-brand-soft);
+          color: var(--app-brand);
+        }
+
         @media (max-width: 767px) {
           .navbar-links-row::-webkit-scrollbar {
             display: none;
