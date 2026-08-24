@@ -5,7 +5,7 @@ import {
   FiFilePlus,
   FiPlayCircle,
 } from "react-icons/fi";
-import { PersonalInfoEditor } from "./ResumeBuilder";
+import { ApplicationDetailsEditor, PersonalInfoEditor } from "./ResumeBuilder";
 
 export const RESUME_JOURNEY_STEPS = [
   { id: "data", label: "بياناتك" },
@@ -178,6 +178,7 @@ export const ResumeJourneyPersonal = ({
 
       <div className="resume-journey-personal-editor">
         <PersonalInfoEditor resume={resume} onChange={onChange} />
+        <ApplicationDetailsEditor resume={resume} onChange={onChange} />
       </div>
 
       <footer className="resume-journey-actions">

@@ -255,6 +255,35 @@ export const PersonalInfoEditor = ({ resume, onChange }) => {
   );
 };
 
+export const ApplicationDetailsEditor = ({ resume, onChange }) => {
+  const personal = resume.personalInfo || {};
+  const updatePersonal = (field, value) =>
+    onChange({ ...resume, personalInfo: { ...personal, [field]: value } });
+
+  return (
+    <section className="resume-builder-card resume-application-details-card">
+      <div className="resume-card-title">
+        <h3>تفاصيل التدريب</h3>
+        <p>نستخدمها عند تجهيز خطاب التقديم ورسالة الإيميل، ولا تظهر داخل السيرة الذاتية.</p>
+      </div>
+      <div className="resume-form-grid">
+        <label>
+          بداية التدريب المتوقعة
+          <input type="month" value={personal.trainingStart || ""} onChange={(event) => updatePersonal("trainingStart", event.target.value)} />
+        </label>
+        <label>
+          نهاية التدريب المتوقعة
+          <input type="month" value={personal.trainingEnd || ""} onChange={(event) => updatePersonal("trainingEnd", event.target.value)} />
+        </label>
+        <label className="resume-form-field-wide">
+          المجال التدريبي الذي تستهدفه
+          <input value={personal.trainingField || ""} onChange={(event) => updatePersonal("trainingField", event.target.value)} placeholder="مثال: تقنية المعلومات أو تطوير الويب" />
+        </label>
+      </div>
+    </section>
+  );
+};
+
 const AchievementListEditor = ({ achievements = [], onChange }) => {
   const items = achievements.length ? achievements : [emptyAchievement()];
 
@@ -854,6 +883,7 @@ const ResumeBuilder = ({
       <CompletionPanel resume={resume} onChange={onChange} hideCompletedChecklist={hideCompletedChecklist} />
       <SettingsEditor resume={resume} onChange={onChange} />
       <PersonalInfoEditor resume={resume} onChange={onChange} />
+      <ApplicationDetailsEditor resume={resume} onChange={onChange} />
 
       <DragDropProvider
         onDragEnd={(event) => {

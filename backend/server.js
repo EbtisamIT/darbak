@@ -6280,6 +6280,9 @@ const sanitizeResumePayload = (body = {}) => {
       portfolioUrl: sanitizePortfolioUrl(personalInfo.portfolioUrl, 260),
       githubUrl: sanitizePortfolioUrl(personalInfo.githubUrl, 260),
       personalUrl: sanitizePortfolioUrl(personalInfo.personalUrl, 260),
+      trainingStart: sanitizePortfolioText(personalInfo.trainingStart, 40),
+      trainingEnd: sanitizePortfolioText(personalInfo.trainingEnd, 40),
+      trainingField: sanitizePortfolioText(personalInfo.trainingField, 160),
     },
     summary: sanitizeResumeText(body.summary, 900),
     education: sanitizeResumeEntries(body.education, 6),
@@ -7044,7 +7047,15 @@ const buildApplicationPack = ({ draftPack = {}, job = {}, resume = {} }) => {
     personal.fullName || "",
   ].filter(Boolean).join("\n\n");
   const canSendEmail = applicationMethod !== "unavailable";
-  const generatedEmail = buildApplicationEmail({ resume, job: { ...job, packType } });
+  const savedTrainingPeriod = personal.trainingStart && personal.trainingEnd
+    ? `من ${personal.trainingStart} إلى ${personal.trainingEnd}`
+    : "";
+  const generatedEmail = buildApplicationEmail({
+    resume,
+    job: { ...job, packType },
+    trainingPeriod: savedTrainingPeriod,
+    targetField: personal.trainingField || "",
+  });
   const missingApplicationFields = canSendEmail ? generatedEmail.missing : [];
   return {
     packType,

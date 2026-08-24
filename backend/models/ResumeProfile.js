@@ -79,6 +79,9 @@ const resumeProfileSchema = new mongoose.Schema(
       portfolioUrl: { type: String, default: "", trim: true },
       githubUrl: { type: String, default: "", trim: true },
       personalUrl: { type: String, default: "", trim: true },
+      trainingStart: { type: String, default: "", trim: true },
+      trainingEnd: { type: String, default: "", trim: true },
+      trainingField: { type: String, default: "", trim: true },
     },
     summary: {
       type: String,
