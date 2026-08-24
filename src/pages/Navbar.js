@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -11,6 +11,20 @@ import {
 import { trackEvent } from "../utils/analytics";
 import logo from "./logo.png";
 import AddExperienceModal from "./AddExperienceModal";
+import {
+  FiActivity,
+  FiBookOpen,
+  FiBriefcase,
+  FiChevronDown,
+  FiClipboard,
+  FiCompass,
+  FiFileText,
+  FiHome,
+  FiMenu,
+  FiMessageCircle,
+  FiSend,
+  FiUser,
+} from "react-icons/fi";
 
 const TELEGRAM_CHANNEL_URL = "https://t.me/darbak_1";
 
@@ -28,6 +42,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
   const [floatingMenuOpen, setFloatingMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const moreMenuRef = useRef(null);
 
   const location = useLocation();
   const isExperiencesPage = location.pathname === "/experiences";
@@ -67,7 +83,25 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   useEffect(() => {
     setFloatingMenuOpen(false);
     setMoreMenuOpen(false);
+    setMobileMoreOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const closeMoreMenu = (event) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setMoreMenuOpen(false);
+    };
+    document.addEventListener("mousedown", closeMoreMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeMoreMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
 
   const isPathActive = (path) =>
     path.includes("?")
@@ -248,24 +282,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     whiteSpace: "nowrap",
   });
 
-  const floatingActionStyle = {
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "10px",
-    background: "var(--app-input-bg)",
-    color: "var(--app-text)",
-    border: "1px solid var(--app-border)",
-    borderRadius: "14px",
-    padding: "10px 12px",
-    cursor: "pointer",
-    fontFamily: "inherit",
-    fontSize: "13px",
-    fontWeight: "800",
-    textAlign: "right",
-  };
-
   const themeToggleButton = (
     <button
       type="button"
@@ -333,6 +349,47 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     </button>
   );
 
+  const renderMoreItems = () => (
+    <div className="navbar-more-list" role="menu" aria-label="خدمات إضافية">
+      <button type="button" role="menuitem" onClick={openTrainingDiagnosis}>
+        <FiActivity aria-hidden="true" /> <span>تشخيص التدريب</span>
+      </button>
+      <Link to="/interviews" role="menuitem" onClick={() => setMoreMenuOpen(false)}>
+        <FiMessageCircle aria-hidden="true" /> <span>مقابلات</span>
+      </Link>
+      <button type="button" disabled title="ستتوفر قريبًا">
+        <FiBookOpen aria-hidden="true" /> <span>مقالات</span><small>قريبًا</small>
+      </button>
+      <button type="button" role="menuitem" onClick={openPortfolioAnnouncement}>
+        <FiBriefcase aria-hidden="true" /> <span>Portfolio</span>
+      </button>
+      <Link to="/applications" role="menuitem" onClick={() => setMoreMenuOpen(false)}>
+        <FiClipboard aria-hidden="true" /> <span>طلباتي</span>
+      </Link>
+      <button type="button" role="menuitem" onClick={openAccountModal}>
+        <FiUser aria-hidden="true" /> <span>حسابي</span>
+      </button>
+      <a href={TELEGRAM_CHANNEL_URL} target="_blank" rel="noopener noreferrer" onClick={() => trackTelegramClick("navbar_more")}>
+        <FiSend aria-hidden="true" /> <span>قناة الفرص</span>
+      </a>
+    </div>
+  );
+
+  const quickJourneyPanel = (
+    <aside className="navbar-journey-panel" aria-label="رحلتك في دربك">
+      <span>رحلتك في دربك</span>
+      <strong>خطوة بخطوة نحو تدريبك</strong>
+      <div className="navbar-journey-track" aria-hidden="true"><i /></div>
+      <ul>
+        <li><FiCompass aria-hidden="true" /> استكشاف الجهات</li>
+        <li><FiFileText aria-hidden="true" /> تجهيز السيرة</li>
+        <li><FiSend aria-hidden="true" /> التقديم</li>
+        <li><FiClipboard aria-hidden="true" /> متابعة الطلبات</li>
+      </ul>
+      <small>ابدأ بالخطوة الأقرب لك اليوم.</small>
+    </aside>
+  );
+
   return (
     <>
       <header
@@ -360,7 +417,10 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           backgroundColor: "var(--app-surface)",
           borderBottom: "1px solid var(--app-border)",
           gap: isMobile ? "5px" : "30px",
-          overflow: "hidden",
+          // The desktop "المزيد" panel is anchored to this navigation row.
+          // Keep it visible outside the header while retaining the compact
+          // mobile header behavior.
+          overflow: isMobile ? "hidden" : "visible",
           transition: "background-color 0.25s ease, border-color 0.25s ease",
         }}
       >
@@ -400,9 +460,19 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               + أضف تجربتك
             </button>
           )}
+          {isMobile && (
+            <button
+              type="button"
+              className="navbar-mobile-menu-trigger"
+              aria-expanded={floatingMenuOpen}
+              onClick={() => setFloatingMenuOpen((open) => !open)}
+            >
+              <FiMenu aria-hidden="true" /> القائمة
+            </button>
+          )}
         </div>
 
-        <div
+        {!isMobile && <div
           className="navbar-links-row"
           style={{
             display: "flex",
@@ -411,8 +481,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             flexWrap: isMobile ? "nowrap" : "wrap",
             justifyContent: isMobile ? "space-between" : "center",
             width: isMobile ? "100%" : "auto",
-            overflowX: "hidden",
-            overflowY: "hidden",
+            overflowX: isMobile ? "hidden" : "visible",
+            overflowY: isMobile ? "hidden" : "visible",
             paddingBottom: isMobile ? "2px" : 0,
             WebkitOverflowScrolling: "touch",
             scrollbarWidth: isMobile ? "none" : "auto",
@@ -434,38 +504,29 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             سيرتي
           </Link>
 
-          {!isMobile && <Link to="/experiences" style={linkStyle("/experiences")}>
+          <Link to="/experiences" style={linkStyle("/experiences")}>
             تجاربي
-          </Link>}
+          </Link>
 
-          {!isMobile ? (
-            <div className="navbar-more-menu">
+            <div className="navbar-more-menu" ref={moreMenuRef}>
               <button
                 type="button"
                 aria-expanded={moreMenuOpen}
+                aria-haspopup="menu"
                 onClick={() => setMoreMenuOpen((open) => !open)}
                 style={quietActionButtonStyle}
               >
-                المزيد ▾
+                المزيد <FiChevronDown aria-hidden="true" />
               </button>
               {moreMenuOpen && (
                 <div className="navbar-more-panel">
-                  <button type="button" onClick={openTrainingDiagnosis}>تشخيص التدريب</button>
-                  <Link to="/interviews" onClick={() => setMoreMenuOpen(false)}>مقالات ومقابلات</Link>
-                  <button type="button" onClick={openPortfolioAnnouncement}>Portfolio</button>
-                  <Link to="/applications" onClick={() => setMoreMenuOpen(false)}>طلباتي</Link>
-                  <button type="button" onClick={openAccountModal}>حسابي</button>
-                  <a href={TELEGRAM_CHANNEL_URL} target="_blank" rel="noopener noreferrer" onClick={() => trackTelegramClick("navbar_more")}>قناة الفرص</a>
+                  {renderMoreItems()}
+                  {quickJourneyPanel}
                 </div>
               )}
             </div>
-          ) : (
-            <button type="button" onClick={() => setFloatingMenuOpen((open) => !open)} style={quietActionButtonStyle}>
-              القائمة
-            </button>
-          )}
-
         </div>
+        }
       </nav>
     </header>
 
@@ -509,133 +570,18 @@ const Navbar = ({ theme = "dark", setTheme }) => {
                 overflowY: "auto",
               }}
             >
-              <Link to="/" style={floatingLinkStyle("/")}>
-                <span>الرئيسية</span>
-                <span aria-hidden="true">🏠</span>
-              </Link>
-              <Link to="/experiences" style={floatingLinkStyle("/experiences")}>
-                <span>تجاربي</span>
-                <span aria-hidden="true">📄</span>
-              </Link>
-              <Link
-                to="/where-to-train"
-                style={floatingLinkStyle("/where-to-train")}
-              >
-                <span>وين أتدرب؟</span>
-                <span aria-hidden="true">🎯</span>
-              </Link>
-
-              <Link to="/where-to-train?tab=opportunities" style={floatingLinkStyle("/where-to-train?tab=opportunities")}>
-                <span>الفرص</span>
-                <span aria-hidden="true">✦</span>
-              </Link>
-
-              <Link to="/my-resume" style={floatingLinkStyle("/my-resume")}>
-                <span>سيرتي</span>
-                <span aria-hidden="true">▤</span>
-              </Link>
-
-              <a
-                href={TELEGRAM_CHANNEL_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackTelegramClick("floating_nav")}
-                style={{
-                  ...floatingLinkStyle("/telegram-channel"),
-                  color: "var(--app-brand)",
-                }}
-              >
-                <span>قناة فرص التدريب</span>
-                <span aria-hidden="true">↗</span>
-              </a>
-
-              <button
-                type="button"
-                onClick={openTrainingDiagnosis}
-                style={floatingActionStyle}
-              >
-                <span>تشخيص التدريب</span>
-                <span aria-hidden="true">▣</span>
-              </button>
-
-              <Link to="/interviews" style={floatingLinkStyle("/interviews")}>
-                <span>مقابلات</span>
-                <span aria-hidden="true">💬</span>
-              </Link>
-
-              <button
-                type="button"
-                onClick={openPortfolioAnnouncement}
-                style={floatingActionStyle}
-              >
-                <span>portfolio</span>
-                <span aria-hidden="true">▤</span>
-              </button>
-
-              <Link to="/applications" style={floatingLinkStyle("/applications")}>
-                <span>طلباتي</span>
-                <span aria-hidden="true">▦</span>
-              </Link>
-
-              <button
-                type="button"
-                onClick={openAccountModal}
-                style={floatingActionStyle}
-              >
-                <span>حسابي</span>
-                <span aria-hidden="true">◎</span>
-              </button>
-              {isPremiumGateVisible && !isPremiumActive && (
-                <button
-                  type="button"
-                  onClick={() => openPremiumGate("floating_nav_cta")}
-                  style={{
-                    ...floatingActionStyle,
-                    background: "var(--app-brand)",
-                    color: "#071315",
-                    borderColor: "transparent",
-                    boxShadow: "0 10px 24px var(--app-brand-border)",
-                  }}
-                >
-                  <span>دربك+</span>
-                  <span aria-hidden="true">+</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={openAddExperienceModal}
-                style={{
-                  ...floatingActionStyle,
-                  background: "var(--app-brand)",
-                  color: "#071315",
-                  borderColor: "transparent",
-                  boxShadow: "0 10px 24px var(--app-brand-border)",
-                }}
-              >
-                <span>أضف تجربتك</span>
-                <span aria-hidden="true">+</span>
-              </button>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "10px",
-                  padding: "2px 2px 0",
-                }}
-              >
-                <span
-                  style={{
-                    color: "var(--app-text-soft)",
-                    fontSize: "12px",
-                    fontWeight: "700",
-                  }}
-                >
-                  المظهر
-                </span>
-                {themeToggleButton}
+              <div className="navbar-mobile-primary-links">
+                <Link to="/" style={floatingLinkStyle("/")}><FiHome aria-hidden="true" /><span>الرئيسية</span></Link>
+                <Link to="/where-to-train" style={floatingLinkStyle("/where-to-train")}><FiCompass aria-hidden="true" /><span>وين أتدرب؟</span></Link>
+                <Link to="/where-to-train?tab=opportunities" style={floatingLinkStyle("/where-to-train?tab=opportunities")}><FiBriefcase aria-hidden="true" /><span>الفرص</span></Link>
+                <Link to="/my-resume" style={floatingLinkStyle("/my-resume")}><FiFileText aria-hidden="true" /><span>سيرتي</span></Link>
+                <Link to="/experiences" style={floatingLinkStyle("/experiences")}><FiClipboard aria-hidden="true" /><span>تجاربي</span></Link>
               </div>
+              <button type="button" className="navbar-mobile-more-toggle" aria-expanded={mobileMoreOpen} onClick={() => setMobileMoreOpen((open) => !open)}>
+                <span>المزيد</span><FiChevronDown aria-hidden="true" />
+              </button>
+              {mobileMoreOpen && renderMoreItems()}
+              <button type="button" onClick={openAddExperienceModal} className="navbar-mobile-add-experience">+ أضف تجربتك</button>
             </div>
           )}
 
@@ -686,24 +632,38 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         .navbar-more-panel {
           position: absolute;
           top: calc(100% + 10px);
-          right: 0;
+          /* The menu trigger sits at the visual end of the desktop links.
+             Expand the panel into the viewport instead of beyond its edge. */
+          left: 0;
+          right: auto;
           z-index: 2200;
-          width: 210px;
+          width: min(650px, calc(100vw - 48px));
           display: grid;
-          gap: 4px;
-          padding: 8px;
+          grid-template-columns: minmax(0, 1fr) 230px;
+          gap: 0;
+          padding: 10px;
           background: var(--app-surface);
           border: 1px solid var(--app-border);
-          border-radius: 14px;
-          box-shadow: 0 16px 40px var(--app-shadow);
+          border-radius: 18px;
+          box-shadow: 0 22px 52px var(--app-shadow);
         }
 
-        .navbar-more-panel a,
-        .navbar-more-panel button {
+        .navbar-more-list {
+          display: grid;
+          align-content: start;
+          padding: 2px 10px 2px 14px;
+        }
+
+        .navbar-more-list a,
+        .navbar-more-list button {
           width: 100%;
+          min-height: 40px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
           padding: 9px 10px;
           border: 0;
-          border-radius: 9px;
+          border-radius: 10px;
           background: transparent;
           color: var(--app-text);
           cursor: pointer;
@@ -714,13 +674,57 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           text-decoration: none;
         }
 
-        .navbar-more-panel a:hover,
-        .navbar-more-panel button:hover {
+        .navbar-more-list svg { color: var(--app-brand); font-size: 16px; }
+        .navbar-more-list small { margin-right: auto; color: var(--app-text-muted); font-size: 10px; }
+        .navbar-more-list a + a,
+        .navbar-more-list button + a,
+        .navbar-more-list a + button,
+        .navbar-more-list button + button { border-top: 1px solid var(--app-border-soft); }
+        .navbar-more-list a:hover,
+        .navbar-more-list button:not(:disabled):hover {
           background: var(--app-brand-soft);
           color: var(--app-brand);
         }
+        .navbar-more-list button:disabled { cursor: default; opacity: .55; }
+
+        .navbar-journey-panel {
+          display: grid;
+          align-content: start;
+          gap: 9px;
+          padding: 14px;
+          border-radius: 13px;
+          background: var(--app-input-bg);
+          border: 1px solid var(--app-brand-border);
+        }
+        .navbar-journey-panel > span { color: var(--app-brand); font-size: 12px; font-weight: 900; }
+        .navbar-journey-panel > strong { color: var(--app-text); font-size: 15px; line-height: 1.5; }
+        .navbar-journey-track { height: 5px; overflow: hidden; border-radius: 999px; background: var(--app-border); }
+        .navbar-journey-track i { display: block; width: 38%; height: 100%; border-radius: inherit; background: var(--app-brand); }
+        .navbar-journey-panel ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+        .navbar-journey-panel li { display: flex; align-items: center; gap: 7px; color: var(--app-text-soft); font-size: 12px; font-weight: 700; }
+        .navbar-journey-panel li svg { color: var(--app-brand); }
+        .navbar-journey-panel > small { color: var(--app-text-muted); font-size: 11px; line-height: 1.55; }
+
+        .navbar-mobile-menu-trigger,
+        .navbar-mobile-more-toggle,
+        .navbar-mobile-add-experience {
+          border: 1px solid var(--app-border);
+          background: var(--app-input-bg);
+          color: var(--app-text);
+          border-radius: 10px;
+          font: inherit;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .navbar-mobile-menu-trigger { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; font-size: 12px; }
+        .navbar-mobile-primary-links { display: grid; gap: 6px; }
+        .navbar-mobile-primary-links a { justify-content: flex-start; }
+        .navbar-mobile-more-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 11px 12px; }
+        .navbar-mobile-add-experience { width: 100%; padding: 11px 12px; border-color: var(--app-brand-border); color: var(--app-brand); }
 
         @media (max-width: 767px) {
+          .floating-nav-shell { left: 12px; right: 12px !important; top: 60px !important; }
+          .floating-nav-panel { width: 100% !important; box-sizing: border-box; max-height: calc(100vh - 76px) !important; }
           .navbar-links-row::-webkit-scrollbar {
             display: none;
           }
