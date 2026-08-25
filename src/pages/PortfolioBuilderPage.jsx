@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import QRCode from "qrcode";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -129,6 +129,8 @@ const portfolioCityOptions = Array.from(
 
 const emptyProject = { title: "", description: "", url: "" };
 const emptyCertification = { title: "", provider: "", year: "" };
+const emptyExperience = { title: "", organization: "", period: "", description: "" };
+const emptyLanguage = { name: "", level: "" };
 
 const emptyForm = {
   slug: "",
@@ -142,16 +144,30 @@ const emptyForm = {
   dateOfBirth: "",
   degreeLevel: "",
   degreeOther: "",
+  studentStatus: "",
+  graduationYear: "",
+  gpa: "",
+  gpaScale: "",
+  professionalHeadline: "",
+  phone: "",
   readinessStatus: "مستعد ومؤهل للمقابلات الشخصية",
   readinessOther: "",
   targetOrganizations: "",
   bio: "",
   skills: "",
   linkedinUrl: "",
+  githubUrl: "",
+  personalWebsite: "",
+  targetTrainingField: "",
+  trainingStart: "",
+  trainingEnd: "",
   email: "",
   isPublished: false,
   projects: [{ ...emptyProject }],
   certifications: [{ ...emptyCertification }],
+  experiences: [{ ...emptyExperience }],
+  volunteering: [{ ...emptyExperience }],
+  languages: [{ ...emptyLanguage }],
 };
 
 const getDeviceType = () => {
@@ -175,12 +191,23 @@ const normalizeForm = (portfolio = {}) => ({
   city: portfolio.city || "",
   dateOfBirth: portfolio.dateOfBirth || "",
   degreeLevel: portfolio.degreeLevel || "",
+  studentStatus: portfolio.studentStatus || "",
+  graduationYear: portfolio.graduationYear || "",
+  gpa: portfolio.gpa || "",
+  gpaScale: portfolio.gpaScale || "",
+  professionalHeadline: portfolio.professionalHeadline || "",
+  phone: portfolio.phone || "",
   readinessStatus:
     portfolio.readinessStatus || "مستعد ومؤهل للمقابلات الشخصية",
   targetOrganizations: formatList(portfolio.targetOrganizations),
   bio: portfolio.bio || "",
   skills: formatList(portfolio.skills),
   linkedinUrl: portfolio.linkedinUrl || "",
+  githubUrl: portfolio.githubUrl || "",
+  personalWebsite: portfolio.personalWebsite || "",
+  targetTrainingField: portfolio.targetTrainingField || "",
+  trainingStart: portfolio.trainingStart || "",
+  trainingEnd: portfolio.trainingEnd || "",
   email: portfolio.email || "",
   isPublished: Boolean(portfolio.isPublished),
   projects:
@@ -199,6 +226,18 @@ const normalizeForm = (portfolio = {}) => ({
           year: certification.year || "",
         }))
       : [{ ...emptyCertification }],
+  experiences:
+    portfolio.experiences?.length > 0
+      ? portfolio.experiences.map((entry) => ({ ...emptyExperience, ...entry }))
+      : [{ ...emptyExperience }],
+  volunteering:
+    portfolio.volunteering?.length > 0
+      ? portfolio.volunteering.map((entry) => ({ ...emptyExperience, ...entry }))
+      : [{ ...emptyExperience }],
+  languages:
+    portfolio.languages?.length > 0
+      ? portfolio.languages.map((language) => ({ ...emptyLanguage, ...language }))
+      : [{ ...emptyLanguage }],
 });
 
 const compressAvatar = (file) =>
@@ -379,6 +418,17 @@ export default function PortfolioBuilderPage() {
   const [badgePostReady, setBadgePostReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const formRef = useRef(emptyForm);
+  const autosaveTimerRef = useRef(null);
+  const retryTimerRef = useRef(null);
+  const hasLoadedPortfolioRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const immediateSaveRef = useRef(false);
+  const savePortfolioRef = useRef(null);
+  const saveInFlightRef = useRef(false);
+  const queuedSaveRef = useRef(false);
+  const revisionRef = useRef(0);
 
   const contact = identity.contact || identity.email || authForm.contact.trim();
   const accessCode = identity.accessCode || authForm.accessCode.trim();
@@ -411,15 +461,28 @@ export default function PortfolioBuilderPage() {
     (certification) =>
       certification.title || certification.provider || certification.year
   );
+  const activeExperiences = form.experiences.filter(
+    (experience) =>
+      experience.title || experience.organization || experience.description
+  );
   const resumeSetupFields = [
     ["fullName", "الاسم", Boolean(form.fullName.trim())],
     ["major", "التخصص", Boolean(majorValue.trim())],
     ["city", "المدينة", Boolean(cityValue.trim())],
     ["university", "الجامعة", Boolean(universityValue.trim())],
-    ["degreeLevel", "الدرجة أو المرحلة التعليمية", Boolean(degreeValue.trim())],
+    [
+      "education",
+      "الدرجة أو الحالة التعليمية",
+      Boolean(degreeValue.trim() || form.studentStatus),
+    ],
     ["email", "وسيلة التواصل", Boolean(form.email.trim() || isValidEmail(contact))],
     ["bio", "نبذة مهنية", Boolean(form.bio.trim())],
-    ["evidence", "مهارة أو مشروع", Boolean(skillItems.length || activeProjects.length)],
+    ["skills", "مهارة واحدة على الأقل", Boolean(skillItems.length)],
+    [
+      "evidence",
+      "مشروع أو خبرة واحدة على الأقل",
+      Boolean(activeProjects.length || activeExperiences.length),
+    ],
   ];
   const resumeSetupMissing = resumeSetupFields.filter(([, , complete]) => !complete);
   const resumeSetupCompleted = resumeSetupFields.length - resumeSetupMissing.length;
@@ -467,12 +530,14 @@ export default function PortfolioBuilderPage() {
           "x-darbak-access-code": nextAccessCode,
         },
       });
+      hasLoadedPortfolioRef.current = false;
       setForm(normalizeForm(data.portfolio));
       setPublicUrl(data.publicUrl || "");
       setSavedCvLabel(data.portfolio?.cvAssetId ? "تم حفظ ملف PDF" : "");
       const storedAvatar =
         data.portfolio?.avatarAssetUrl || data.portfolio?.avatarUrl || "";
       if (storedAvatar) setAvatarPreview(storedAvatar);
+      setSaveStatus("idle");
     } catch (err) {
       setMessage(err.response?.data?.error || "تعذر تحميل ملف الأعمال.");
     } finally {
@@ -486,12 +551,18 @@ export default function PortfolioBuilderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const updateField = (field, value) => {
+  const updateField = (field, value, { immediate = false } = {}) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    immediateSaveRef.current = immediate;
     setForm((current) => ({ ...current, [field]: value }));
     setMessage("");
   };
 
-  const updateListItem = (listName, index, field, value) => {
+  const updateListItem = (listName, index, field, value, { immediate = false } = {}) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    immediateSaveRef.current = immediate;
     setForm((current) => ({
       ...current,
       [listName]: current[listName].map((item, itemIndex) =>
@@ -502,6 +573,9 @@ export default function PortfolioBuilderPage() {
   };
 
   const addListItem = (listName, emptyItem, maxItems = 6) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    immediateSaveRef.current = true;
     setForm((current) => {
       if (current[listName].length >= maxItems) return current;
       return { ...current, [listName]: [...current[listName], { ...emptyItem }] };
@@ -509,6 +583,9 @@ export default function PortfolioBuilderPage() {
   };
 
   const removeListItem = (listName, index, emptyItem) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    immediateSaveRef.current = true;
     setForm((current) => ({
       ...current,
       [listName]:
@@ -598,59 +675,82 @@ export default function PortfolioBuilderPage() {
     return data;
   };
 
-  const buildPayload = () => ({
-    slug: form.slug,
-    fullName: form.fullName,
-    major: majorValue,
-    university: universityValue,
-    city: cityValue,
-    dateOfBirth: form.dateOfBirth,
-    degreeLevel: degreeValue,
-    readinessStatus: readinessValue,
-    targetOrganizations: form.targetOrganizations,
-    bio: form.bio,
-    skills: form.skills,
-    linkedinUrl: form.linkedinUrl,
-    email: form.email,
-    isPublished: form.isPublished,
-    projects: form.projects,
-    certifications: form.certifications,
+  const buildPayload = (source = formRef.current) => ({
+    slug: source.slug,
+    fullName: source.fullName,
+    major: source.major === "أخرى" ? source.majorOther : source.major,
+    university: source.university === "أخرى" ? source.universityOther : source.university,
+    city: source.city === "أخرى" ? source.cityOther : source.city,
+    dateOfBirth: source.dateOfBirth,
+    degreeLevel: source.degreeLevel === "أخرى" ? source.degreeOther : source.degreeLevel,
+    studentStatus: source.studentStatus,
+    graduationYear: source.graduationYear,
+    gpa: source.gpa,
+    gpaScale: source.gpaScale,
+    professionalHeadline: source.professionalHeadline,
+    phone: source.phone,
+    readinessStatus: source.readinessStatus === "أخرى" ? source.readinessOther : source.readinessStatus,
+    targetOrganizations: source.targetOrganizations,
+    bio: source.bio,
+    skills: source.skills,
+    linkedinUrl: source.linkedinUrl,
+    githubUrl: source.githubUrl,
+    personalWebsite: source.personalWebsite,
+    targetTrainingField: source.targetTrainingField,
+    trainingStart: source.trainingStart,
+    trainingEnd: source.trainingEnd,
+    email: source.email,
+    isPublished: source.isPublished,
+    projects: source.projects,
+    certifications: source.certifications,
+    experiences: source.experiences,
+    volunteering: source.volunteering,
+    languages: source.languages,
     visitorId: getVisitorId(),
     deviceType: getDeviceType(),
   });
 
-  const savePortfolio = async (event) => {
-    event.preventDefault();
+  const savePortfolio = async ({ manual = false } = {}) => {
+    if (saveInFlightRef.current) {
+      queuedSaveRef.current = true;
+      return;
+    }
+
+    const source = formRef.current;
+    const snapshotRevision = revisionRef.current;
+    const sourceMajor = source.major === "أخرى" ? source.majorOther : source.major;
 
     if (!isAuthenticated) {
       setMessage("سجّل الدخول بالبريد والرمز قبل الحفظ.");
       return;
     }
 
-    if (!form.fullName.trim() || !majorValue.trim()) {
-      setMessage("الاسم والتخصص مطلوبة قبل الحفظ.");
+    if (manual && (!source.fullName.trim() || !sourceMajor.trim())) {
+      setMessage("الاسم والتخصص مطلوبة قبل الحفظ اليدوي.");
       return;
     }
 
-    if (resumeSetupMode && resumeSetupMissing.length) {
+    if (manual && resumeSetupMode && resumeSetupMissing.length) {
       setMessage(`أكمل المعلومات الأساسية أولًا: ${resumeSetupMissing.map(([, label]) => label).join("، ")}.`);
       return;
     }
 
-    if (form.email && !isValidEmail(form.email)) {
+    if (source.email && !isValidEmail(source.email)) {
       setMessage("بريد التواصل غير صحيح.");
+      setSaveStatus("error");
       return;
     }
 
     try {
+      saveInFlightRef.current = true;
       setSaving(true);
-      setMessage("");
-      if (avatarFile) await uploadAsset("avatar", avatarFile);
-      if (cvFile) await uploadAsset("cv", cvFile);
+      setSaveStatus("saving");
+      if (manual && avatarFile) await uploadAsset("avatar", avatarFile);
+      if (manual && cvFile) await uploadAsset("cv", cvFile);
 
       const { data } = await axios.post(
         `${API_BASE_URL}/api/portfolio/me`,
-        buildPayload(),
+        buildPayload(source),
         {
           headers: {
             "x-darbak-contact": contact,
@@ -659,23 +759,80 @@ export default function PortfolioBuilderPage() {
         }
       );
 
-      setForm(normalizeForm(data.portfolio));
+      const hasNewerChanges = revisionRef.current !== snapshotRevision;
+      if (!hasNewerChanges) {
+        hasLoadedPortfolioRef.current = false;
+        setForm(normalizeForm(data.portfolio));
+      }
       setPublicUrl(data.publicUrl || "");
       setAvatarFile(null);
       setCvFile(null);
-      setMessage(data.message || "تم حفظ ملف الأعمال.");
+      dirtyRef.current = hasNewerChanges;
+      setSaveStatus(hasNewerChanges ? "saving" : "saved");
+      if (manual) setMessage(data.message || "تم حفظ ملف الأعمال.");
       trackEvent("portfolio_saved_from_page", {
         metadata: { publicActive: Boolean(data.portfolio?.publicActive) },
       });
-      if (resumeSetupMode) {
+      if (manual && resumeSetupMode) {
         setMessage("اكتمل ملفك المهني. ننتقل الآن إلى سيرتك...");
         window.setTimeout(() => navigate("/my-resume/build"), 450);
       }
     } catch (err) {
-      setMessage(err.response?.data?.error || "تعذر حفظ ملف الأعمال.");
+      setSaveStatus("error");
+      if (manual) setMessage(err.response?.data?.error || "تعذر حفظ ملف الأعمال.");
+      if (!manual && dirtyRef.current) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = window.setTimeout(() => {
+          savePortfolioRef.current?.({ manual: false });
+        }, 2000);
+      }
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
+      if (queuedSaveRef.current || dirtyRef.current && revisionRef.current !== snapshotRevision) {
+        queuedSaveRef.current = false;
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = window.setTimeout(() => {
+          savePortfolioRef.current?.({ manual: false });
+        }, 0);
+      }
     }
+  };
+
+  useEffect(() => {
+    formRef.current = form;
+    if (!hasLoadedPortfolioRef.current) {
+      hasLoadedPortfolioRef.current = true;
+      return;
+    }
+    if (!dirtyRef.current || !isAuthenticated) return;
+
+    window.clearTimeout(autosaveTimerRef.current);
+    setSaveStatus("saving");
+    const delay = immediateSaveRef.current ? 0 : 850;
+    immediateSaveRef.current = false;
+    autosaveTimerRef.current = window.setTimeout(() => {
+      savePortfolioRef.current?.({ manual: false });
+    }, delay);
+  }, [form, isAuthenticated]);
+
+  useEffect(() => {
+    savePortfolioRef.current = savePortfolio;
+  });
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(autosaveTimerRef.current);
+      window.clearTimeout(retryTimerRef.current);
+    },
+    []
+  );
+
+  const flushAutosave = () => {
+    if (!dirtyRef.current || !isAuthenticated) return;
+    window.clearTimeout(autosaveTimerRef.current);
+    setSaveStatus("saving");
+    savePortfolioRef.current?.({ manual: false });
   };
 
   const sharePortfolio = async () => {
@@ -1042,7 +1199,7 @@ export default function PortfolioBuilderPage() {
           </section>
         )}
 
-        <form className="portfolio-resume-setup-form" onSubmit={savePortfolio}>
+        <form className="portfolio-resume-setup-form" onSubmit={(event) => { event.preventDefault(); savePortfolio({ manual: true }); }} onBlur={flushAutosave}>
           <section className="portfolio-builder-panel">
             <div className="portfolio-builder-section-head">
               <div><h2>الموجود والناقص</h2><p>LinkedIn والشهادات اختيارية ولا تؤخر سيرتك.</p></div>
@@ -1056,22 +1213,23 @@ export default function PortfolioBuilderPage() {
           <section className="portfolio-builder-panel">
             <div className="portfolio-builder-grid">
               {!form.fullName.trim() && <label>الاسم<input value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} placeholder="سارة أحمد" /></label>}
-              {!majorValue.trim() && <label>التخصص<select value={form.major} onChange={(event) => updateField("major", event.target.value)}><option value="">اختر التخصص</option>{specializationOptions.map((specialization) => <option key={specialization.value} value={specialization.value}>{specialization.label}</option>)}<option value="أخرى">أخرى</option></select></label>}
+              {!majorValue.trim() && <label>التخصص<select value={form.major} onChange={(event) => updateField("major", event.target.value, { immediate: true })}><option value="">اختر التخصص</option>{specializationOptions.map((specialization) => <option key={specialization.value} value={specialization.value}>{specialization.label}</option>)}<option value="أخرى">أخرى</option></select></label>}
               {form.major === "أخرى" && <label>اكتب التخصص<input value={form.majorOther} onChange={(event) => updateField("majorOther", event.target.value)} placeholder="اسم التخصص" /></label>}
-              {!universityValue.trim() && <label>الجامعة<select value={form.university} onChange={(event) => updateField("university", event.target.value)}><option value="">اختر الجامعة</option>{saudiUniversities.map((university) => <option key={university} value={university}>{university}</option>)}</select></label>}
+              {!universityValue.trim() && <label>الجامعة<select value={form.university} onChange={(event) => updateField("university", event.target.value, { immediate: true })}><option value="">اختر الجامعة</option>{saudiUniversities.map((university) => <option key={university} value={university}>{university}</option>)}</select></label>}
               {form.university === "أخرى" && <label>اكتب الجامعة<input value={form.universityOther} onChange={(event) => updateField("universityOther", event.target.value)} placeholder="اسم الجامعة" /></label>}
-              {!cityValue.trim() && <label>المدينة<select value={form.city} onChange={(event) => updateField("city", event.target.value)}><option value="">اختر المدينة</option>{portfolioCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></label>}
+              {!cityValue.trim() && <label>المدينة<select value={form.city} onChange={(event) => updateField("city", event.target.value, { immediate: true })}><option value="">اختر المدينة</option>{portfolioCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></label>}
               {form.city === "أخرى" && <label>اكتب المدينة<input value={form.cityOther} onChange={(event) => updateField("cityOther", event.target.value)} placeholder="اسم المدينة" /></label>}
-              {!degreeValue.trim() && <label>الدرجة أو المرحلة التعليمية<select value={form.degreeLevel} onChange={(event) => updateField("degreeLevel", event.target.value)}><option value="">اختر الدرجة</option>{degreeOptions.map((degree) => <option key={degree} value={degree}>{degree}</option>)}</select></label>}
+              {!degreeValue.trim() && !form.studentStatus && <label>الدرجة أو المرحلة التعليمية<select value={form.degreeLevel} onChange={(event) => updateField("degreeLevel", event.target.value, { immediate: true })}><option value="">اختر الدرجة</option>{degreeOptions.map((degree) => <option key={degree} value={degree}>{degree}</option>)}</select></label>}
+              {!degreeValue.trim() && !form.studentStatus && <label>أو الحالة التعليمية<select value={form.studentStatus} onChange={(event) => updateField("studentStatus", event.target.value, { immediate: true })}><option value="">اختر الحالة</option><option value="student">طالب/ة</option><option value="graduate">خريج/ة</option><option value="expected_graduate">متوقع/ة التخرج</option></select></label>}
               {form.degreeLevel === "أخرى" && <label>اكتب الدرجة<input value={form.degreeOther} onChange={(event) => updateField("degreeOther", event.target.value)} placeholder="مثال: شهادة مهنية" /></label>}
               {!form.email.trim() && !isValidEmail(contact) && <label>بريد التواصل<input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
               {!form.bio.trim() && <label className="is-wide">نبذة مهنية<textarea value={form.bio} onChange={(event) => updateField("bio", event.target.value)} placeholder="اكتب سطرين عن اهتمامك المهني وما الذي تستطيع تقديمه." /></label>}
               {!skillItems.length && <label className="is-wide">مهارة واحدة على الأقل<input value={form.skills} onChange={(event) => updateField("skills", event.target.value)} placeholder="مثال: Excel، React، تحليل بيانات" /></label>}
-              {!skillItems.length && !activeProjects.length && <label className="is-wide">أو مشروع واحد<input value={form.projects[0]?.title || ""} onChange={(event) => updateListItem("projects", 0, "title", event.target.value)} placeholder="اسم مشروع عملت عليه" /></label>}
+              {!activeProjects.length && !activeExperiences.length && <label className="is-wide">مشروع أو خبرة واحدة<input value={form.projects[0]?.title || ""} onChange={(event) => updateListItem("projects", 0, "title", event.target.value)} placeholder="اسم مشروع عملت عليه" /></label>}
             </div>
           </section>
           {message && <p className="portfolio-resume-setup-message">{message}</p>}
-          <div className="portfolio-builder-savebar"><div><button type="submit" disabled={saving || !isAuthenticated}>{saving ? "جاري الحفظ..." : "حفظ ومتابعة إلى سيرتي ←"}</button></div></div>
+          <div className="portfolio-builder-savebar"><span className={`portfolio-save-status is-${saveStatus}`}>{saveStatus === "saving" ? "جاري الحفظ..." : saveStatus === "saved" ? "تم الحفظ ✓" : saveStatus === "error" ? "تعذر الحفظ، سنحاول مرة أخرى" : ""}</span><div><button type="submit" disabled={saving || !isAuthenticated}>{saving ? "جاري الحفظ..." : "حفظ ومتابعة إلى سيرتي ←"}</button></div></div>
         </form>
       </main>
     );
@@ -1091,7 +1249,7 @@ export default function PortfolioBuilderPage() {
       <ResumeServicePromo placement="portfolio" compact />
 
       <section className="portfolio-builder-layout">
-        <form className="portfolio-builder-form" onSubmit={savePortfolio}>
+        <form className="portfolio-builder-form" onSubmit={(event) => { event.preventDefault(); savePortfolio({ manual: true }); }} onBlur={flushAutosave}>
           <div className="portfolio-builder-panel">
             <h2>الدخول والحفظ</h2>
             <p>استخدم بريدك ورمز دخول بسيط. إذا عندك دربك+ استخدم نفس بياناتك.</p>
@@ -1149,14 +1307,14 @@ export default function PortfolioBuilderPage() {
                 <input
                   value={form.fullName}
                   onChange={(event) => updateField("fullName", event.target.value)}
-                  placeholder="اسم الطالب"
+                  placeholder="سارة أحمد"
                 />
               </label>
               <label>
                 التخصص
                 <select
                   value={form.major}
-                  onChange={(event) => updateField("major", event.target.value)}
+                  onChange={(event) => updateField("major", event.target.value, { immediate: true })}
                 >
                   <option value="">اختر التخصص</option>
                   {specializationOptions.map((specialization) => (
@@ -1184,7 +1342,7 @@ export default function PortfolioBuilderPage() {
                 <select
                   value={form.university}
                   onChange={(event) =>
-                    updateField("university", event.target.value)
+                    updateField("university", event.target.value, { immediate: true })
                   }
                 >
                   <option value="">اختر الجامعة</option>
@@ -1211,7 +1369,7 @@ export default function PortfolioBuilderPage() {
                 المدينة
                 <select
                   value={form.city}
-                  onChange={(event) => updateField("city", event.target.value)}
+                  onChange={(event) => updateField("city", event.target.value, { immediate: true })}
                 >
                   <option value="">اختر المدينة</option>
                   {portfolioCityOptions.map((city) => (
@@ -1246,7 +1404,7 @@ export default function PortfolioBuilderPage() {
                 <select
                   value={form.degreeLevel}
                   onChange={(event) =>
-                    updateField("degreeLevel", event.target.value)
+                    updateField("degreeLevel", event.target.value, { immediate: true })
                   }
                 >
                   <option value="">اختر الدرجة</option>
@@ -1267,6 +1425,24 @@ export default function PortfolioBuilderPage() {
                   />
                 </label>
               )}
+              <label>
+                الحالة الدراسية
+                <select value={form.studentStatus} onChange={(event) => updateField("studentStatus", event.target.value, { immediate: true })}>
+                  <option value="">غير محددة</option>
+                  <option value="student">طالب/ة</option>
+                  <option value="graduate">خريج/ة</option>
+                  <option value="expected_graduate">متوقع/ة التخرج</option>
+                </select>
+              </label>
+              <label>
+                سنة التخرج أو المتوقعة
+                <input value={form.graduationYear} onChange={(event) => updateField("graduationYear", event.target.value)} placeholder="مثال: 2027" inputMode="numeric" />
+              </label>
+              <label className="is-wide">
+                المسمى المهني
+                <input value={form.professionalHeadline} onChange={(event) => updateField("professionalHeadline", event.target.value)} placeholder={majorValue ? `متخصص/ة في ${majorValue}` : "مثال: متخصص/ة في تقنية المعلومات"} />
+                <small>اختياري؛ إن تركته فارغًا نقترح مسمىً مبنيًا على تخصصك فقط.</small>
+              </label>
             </div>
           </div>
 
@@ -1278,7 +1454,7 @@ export default function PortfolioBuilderPage() {
                 <select
                   value={form.readinessStatus}
                   onChange={(event) =>
-                    updateField("readinessStatus", event.target.value)
+                    updateField("readinessStatus", event.target.value, { immediate: true })
                   }
                 >
                   {readinessOptions.map((option) => (
@@ -1351,6 +1527,76 @@ export default function PortfolioBuilderPage() {
                   dir="ltr"
                 />
               </label>
+              <label>
+                رقم الجوال
+                <input
+                  value={form.phone}
+                  onChange={(event) => updateField("phone", event.target.value)}
+                  placeholder="05xxxxxxxx"
+                  inputMode="tel"
+                  dir="ltr"
+                />
+              </label>
+              <label>
+                GitHub
+                <input
+                  value={form.githubUrl}
+                  onChange={(event) => updateField("githubUrl", event.target.value)}
+                  placeholder="https://github.com/..."
+                  dir="ltr"
+                />
+              </label>
+              <label>
+                موقعك الشخصي
+                <input
+                  value={form.personalWebsite}
+                  onChange={(event) => updateField("personalWebsite", event.target.value)}
+                  placeholder="https://..."
+                  dir="ltr"
+                />
+              </label>
+              <label>
+                المعدل
+                <input
+                  value={form.gpa}
+                  onChange={(event) => updateField("gpa", event.target.value)}
+                  placeholder="مثال: 4.50"
+                  inputMode="decimal"
+                />
+              </label>
+              <label>
+                من أصل
+                <input
+                  value={form.gpaScale}
+                  onChange={(event) => updateField("gpaScale", event.target.value)}
+                  placeholder="مثال: 5"
+                  inputMode="decimal"
+                />
+              </label>
+              <label>
+                المجال التدريبي المستهدف
+                <input
+                  value={form.targetTrainingField}
+                  onChange={(event) => updateField("targetTrainingField", event.target.value)}
+                  placeholder="مثال: تطوير الويب أو تحليل البيانات"
+                />
+              </label>
+              <label>
+                بداية التدريب المتوقعة
+                <input
+                  type="date"
+                  value={form.trainingStart}
+                  onChange={(event) => updateField("trainingStart", event.target.value, { immediate: true })}
+                />
+              </label>
+              <label>
+                نهاية التدريب المتوقعة
+                <input
+                  type="date"
+                  value={form.trainingEnd}
+                  onChange={(event) => updateField("trainingEnd", event.target.value, { immediate: true })}
+                />
+              </label>
               <label className="is-wide">
                 الوجهات أو القطاعات المستهدفة
                 <input
@@ -1409,6 +1655,55 @@ export default function PortfolioBuilderPage() {
                 >
                   حذف
                 </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="portfolio-builder-panel">
+            <div className="portfolio-builder-section-head">
+              <h2>الخبرات العملية</h2>
+              <button type="button" onClick={() => addListItem("experiences", emptyExperience, 8)}>
+                إضافة خبرة
+              </button>
+            </div>
+            {form.experiences.map((experience, index) => (
+              <div className="portfolio-builder-repeat is-experience" key={index}>
+                <input value={experience.title} onChange={(event) => updateListItem("experiences", index, "title", event.target.value)} placeholder="المسمى أو الدور" />
+                <input value={experience.organization} onChange={(event) => updateListItem("experiences", index, "organization", event.target.value)} placeholder="الجهة" />
+                <input value={experience.period} onChange={(event) => updateListItem("experiences", index, "period", event.target.value)} placeholder="الفترة" />
+                <textarea value={experience.description} onChange={(event) => updateListItem("experiences", index, "description", event.target.value)} placeholder="ماذا أنجزت أو تعلمت؟" />
+                <button type="button" onClick={() => removeListItem("experiences", index, emptyExperience)}>حذف</button>
+              </div>
+            ))}
+          </div>
+
+          <div className="portfolio-builder-panel">
+            <div className="portfolio-builder-section-head">
+              <h2>الأنشطة واللغات</h2>
+              <button type="button" onClick={() => addListItem("volunteering", emptyExperience, 8)}>
+                إضافة نشاط
+              </button>
+            </div>
+            {form.volunteering.map((activity, index) => (
+              <div className="portfolio-builder-repeat is-experience" key={index}>
+                <input value={activity.title} onChange={(event) => updateListItem("volunteering", index, "title", event.target.value)} placeholder="اسم النشاط أو المبادرة" />
+                <input value={activity.organization} onChange={(event) => updateListItem("volunteering", index, "organization", event.target.value)} placeholder="الجهة أو النادي" />
+                <input value={activity.period} onChange={(event) => updateListItem("volunteering", index, "period", event.target.value)} placeholder="الفترة" />
+                <textarea value={activity.description} onChange={(event) => updateListItem("volunteering", index, "description", event.target.value)} placeholder="دورك أو مساهمتك" />
+                <button type="button" onClick={() => removeListItem("volunteering", index, emptyExperience)}>حذف</button>
+              </div>
+            ))}
+            <div className="portfolio-builder-section-head portfolio-languages-head">
+              <h3>اللغات</h3>
+              <button type="button" onClick={() => addListItem("languages", emptyLanguage, 6)}>
+                إضافة لغة
+              </button>
+            </div>
+            {form.languages.map((language, index) => (
+              <div className="portfolio-builder-repeat is-compact" key={index}>
+                <input value={language.name} onChange={(event) => updateListItem("languages", index, "name", event.target.value)} placeholder="اللغة" />
+                <input value={language.level} onChange={(event) => updateListItem("languages", index, "level", event.target.value)} placeholder="المستوى، مثال: متوسط" />
+                <button type="button" onClick={() => removeListItem("languages", index, emptyLanguage)}>حذف</button>
               </div>
             ))}
           </div>
@@ -1484,16 +1779,25 @@ export default function PortfolioBuilderPage() {
               <input
                 type="checkbox"
                 checked={form.isPublished}
-                onChange={(event) => updateField("isPublished", event.target.checked)}
+                onChange={(event) => updateField("isPublished", event.target.checked, { immediate: true })}
               />
               نشر الرابط العام عند تفعيل دربك+
             </label>
+            <span className={`portfolio-save-status is-${saveStatus}`} aria-live="polite">
+              {saveStatus === "saving"
+                ? "جاري الحفظ…"
+                : saveStatus === "saved"
+                  ? "تم الحفظ ✓"
+                  : saveStatus === "error"
+                    ? "تعذر الحفظ، سنحاول مرة أخرى"
+                    : ""}
+            </span>
             <div>
               <button type="button" className="secondary" onClick={sharePortfolio}>
                 مشاركة البطاقة
               </button>
               <button type="submit" disabled={saving}>
-                {saving ? "جاري الحفظ..." : "حفظ ملف الأعمال"}
+                {saving ? "جاري الحفظ..." : "حفظ الآن"}
               </button>
             </div>
           </div>

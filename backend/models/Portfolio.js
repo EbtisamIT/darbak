@@ -42,6 +42,24 @@ const portfolioCertificationSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const portfolioExperienceSchema = new mongoose.Schema(
+  {
+    title: { type: String, default: "", trim: true },
+    organization: { type: String, default: "", trim: true },
+    period: { type: String, default: "", trim: true },
+    description: { type: String, default: "", trim: true },
+  },
+  { _id: false }
+);
+
+const portfolioLanguageSchema = new mongoose.Schema(
+  {
+    name: { type: String, default: "", trim: true },
+    level: { type: String, default: "", trim: true },
+  },
+  { _id: false }
+);
+
 const portfolioSchema = new mongoose.Schema(
   {
     contact: {
@@ -94,6 +112,17 @@ const portfolioSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    studentStatus: {
+      type: String,
+      enum: ["", "student", "graduate", "expected_graduate"],
+      default: "",
+      trim: true,
+    },
+    graduationYear: { type: String, default: "", trim: true },
+    gpa: { type: String, default: "", trim: true },
+    gpaScale: { type: String, default: "", trim: true },
+    professionalHeadline: { type: String, default: "", trim: true },
+    phone: { type: String, default: "", trim: true },
     readinessStatus: {
       type: String,
       default: "مستعد ومؤهل للمقابلات الشخصية",
@@ -120,6 +149,9 @@ const portfolioSchema = new mongoose.Schema(
       type: [portfolioCertificationSchema],
       default: [],
     },
+    experiences: { type: [portfolioExperienceSchema], default: [] },
+    volunteering: { type: [portfolioExperienceSchema], default: [] },
+    languages: { type: [portfolioLanguageSchema], default: [] },
     cvAssetId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "portfolio_assets",
@@ -135,6 +167,11 @@ const portfolioSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    githubUrl: { type: String, default: "", trim: true },
+    personalWebsite: { type: String, default: "", trim: true },
+    targetTrainingField: { type: String, default: "", trim: true },
+    trainingStart: { type: String, default: "", trim: true },
+    trainingEnd: { type: String, default: "", trim: true },
     email: {
       type: String,
       default: "",

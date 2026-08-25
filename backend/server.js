@@ -1883,6 +1883,26 @@ const sanitizePortfolioCertifications = (certifications = []) => {
     .slice(0, 8);
 };
 
+const sanitizePortfolioExperiences = (entries = [], maxItems = 8) =>
+  (Array.isArray(entries) ? entries : [])
+    .map((entry = {}) => ({
+      title: sanitizePortfolioText(entry.title, 110),
+      organization: sanitizePortfolioText(entry.organization, 120),
+      period: sanitizePortfolioText(entry.period, 80),
+      description: sanitizePortfolioLongText(entry.description, 360),
+    }))
+    .filter((entry) => entry.title || entry.organization || entry.description)
+    .slice(0, maxItems);
+
+const sanitizePortfolioLanguages = (languages = []) =>
+  (Array.isArray(languages) ? languages : [])
+    .map((language = {}) => ({
+      name: sanitizePortfolioText(language.name, 70),
+      level: sanitizePortfolioText(language.level, 70),
+    }))
+    .filter((language) => language.name)
+    .slice(0, 8);
+
 const sanitizePortfolioDate = (value = "") => {
   const raw = value.toString().trim();
   if (!raw) return "";
@@ -1909,6 +1929,14 @@ const sanitizePortfolioPayload = (body = {}, contact = "") => {
     city: sanitizePortfolioText(body.city, 60),
     dateOfBirth: sanitizePortfolioDate(body.dateOfBirth),
     degreeLevel: sanitizePortfolioText(body.degreeLevel, 70),
+    studentStatus: ["student", "graduate", "expected_graduate"].includes(body.studentStatus)
+      ? body.studentStatus
+      : "",
+    graduationYear: sanitizePortfolioText(body.graduationYear, 12),
+    gpa: sanitizePortfolioText(body.gpa, 20),
+    gpaScale: sanitizePortfolioText(body.gpaScale, 20),
+    professionalHeadline: sanitizePortfolioText(body.professionalHeadline, 140),
+    phone: sanitizePortfolioText(body.phone, 40),
     readinessStatus:
       sanitizePortfolioText(body.readinessStatus, 110) ||
       "مستعد ومؤهل للمقابلات الشخصية",
@@ -1921,8 +1949,16 @@ const sanitizePortfolioPayload = (body = {}, contact = "") => {
     skills: normalizePortfolioList(body.skills, 12, 36),
     projects: sanitizePortfolioProjects(body.projects),
     certifications: sanitizePortfolioCertifications(body.certifications),
+    experiences: sanitizePortfolioExperiences(body.experiences),
+    volunteering: sanitizePortfolioExperiences(body.volunteering),
+    languages: sanitizePortfolioLanguages(body.languages),
     cvUrl: sanitizePortfolioUrl(body.cvUrl, 260),
     linkedinUrl: sanitizePortfolioUrl(body.linkedinUrl, 260),
+    githubUrl: sanitizePortfolioUrl(body.githubUrl, 260),
+    personalWebsite: sanitizePortfolioUrl(body.personalWebsite, 260),
+    targetTrainingField: sanitizePortfolioText(body.targetTrainingField, 160),
+    trainingStart: sanitizePortfolioText(body.trainingStart, 40),
+    trainingEnd: sanitizePortfolioText(body.trainingEnd, 40),
     email: isValidEmail(rawEmail) ? normalizeEmail(rawEmail) : "",
     avatarUrl: sanitizePortfolioUrl(body.avatarUrl, 260),
     isPublished: Boolean(body.isPublished),
@@ -1983,6 +2019,12 @@ const serializePortfolio = (portfolio = {}, accessStatus = {}, req = null) => ({
   city: portfolio.city || "",
   dateOfBirth: portfolio.dateOfBirth || "",
   degreeLevel: portfolio.degreeLevel || "",
+  studentStatus: portfolio.studentStatus || "",
+  graduationYear: portfolio.graduationYear || "",
+  gpa: portfolio.gpa || "",
+  gpaScale: portfolio.gpaScale || "",
+  professionalHeadline: portfolio.professionalHeadline || "",
+  phone: portfolio.phone || "",
   readinessStatus: portfolio.readinessStatus || "",
   targetOrganizations: Array.isArray(portfolio.targetOrganizations)
     ? portfolio.targetOrganizations
@@ -1993,11 +2035,19 @@ const serializePortfolio = (portfolio = {}, accessStatus = {}, req = null) => ({
   certifications: Array.isArray(portfolio.certifications)
     ? portfolio.certifications
     : [],
+  experiences: Array.isArray(portfolio.experiences) ? portfolio.experiences : [],
+  volunteering: Array.isArray(portfolio.volunteering) ? portfolio.volunteering : [],
+  languages: Array.isArray(portfolio.languages) ? portfolio.languages : [],
   cvAssetId: portfolio.cvAssetId?.toString?.() || portfolio.cvAssetId || "",
   cvAssetUrl:
     req && portfolio.cvAssetId ? getPortfolioAssetUrl(req, portfolio.cvAssetId) : "",
   cvUrl: portfolio.cvUrl || "",
   linkedinUrl: portfolio.linkedinUrl || "",
+  githubUrl: portfolio.githubUrl || "",
+  personalWebsite: portfolio.personalWebsite || "",
+  targetTrainingField: portfolio.targetTrainingField || "",
+  trainingStart: portfolio.trainingStart || "",
+  trainingEnd: portfolio.trainingEnd || "",
   email: portfolio.email || "",
   avatarAssetId:
     portfolio.avatarAssetId?.toString?.() || portfolio.avatarAssetId || "",
@@ -6358,16 +6408,19 @@ const getPortfolioResumeReadiness = (portfolio = {}, contact = "") => {
   const hasProject = (portfolio.projects || []).some(
     (project) => project?.title || project?.description
   );
-  const hasEvidence = (portfolio.skills || []).some(Boolean) || hasProject;
+  const hasExperience = (portfolio.experiences || []).some(
+    (experience) => experience?.title || experience?.organization || experience?.description
+  );
   const fields = [
     ["fullName", "الاسم", Boolean(portfolio.fullName?.trim())],
     ["major", "التخصص", Boolean(portfolio.major?.trim())],
     ["city", "المدينة", Boolean(portfolio.city?.trim())],
     ["university", "الجامعة", Boolean(portfolio.university?.trim())],
-    ["degreeLevel", "الدرجة أو المرحلة التعليمية", Boolean(portfolio.degreeLevel?.trim())],
+    ["education", "الدرجة أو الحالة التعليمية", Boolean(portfolio.degreeLevel?.trim() || portfolio.studentStatus)],
     ["email", "وسيلة التواصل", Boolean(portfolio.email?.trim() || isValidEmail(contact))],
     ["bio", "نبذة مهنية", Boolean(portfolio.bio?.trim())],
-    ["evidence", "مهارة أو مشروع واحد على الأقل", hasEvidence],
+    ["skills", "مهارة واحدة على الأقل", (portfolio.skills || []).some(Boolean)],
+    ["evidence", "مشروع أو خبرة واحدة على الأقل", hasProject || hasExperience],
   ];
 
   const required = fields.map(([key, label, complete]) => ({ key, label, complete }));
@@ -6388,25 +6441,53 @@ const getPortfolioResumeReadiness = (portfolio = {}, contact = "") => {
 
 const buildPortfolioHeadline = (portfolio = {}) => {
   const major = sanitizePortfolioText(portfolio.major, 120);
+  const statusLabels = {
+    student: "طالب/ة",
+    graduate: "خريج/ة",
+    expected_graduate: "متوقع/ة التخرج",
+  };
   const stage = sanitizePortfolioText(portfolio.degreeLevel, 120);
   if (!major) return "";
+  if (portfolio.professionalHeadline?.trim()) return sanitizePortfolioText(portfolio.professionalHeadline, 140);
+  if (statusLabels[portfolio.studentStatus]) return `${statusLabels[portfolio.studentStatus]} ${major}`;
   const confirmedStage = stage.match(/(?:طالبة|طالب|خريجة|خريج)/)?.[0];
   return confirmedStage ? `${confirmedStage} ${major}` : `متخصص/ة في ${major}`;
 };
+
+const mapPortfolioEntryToResume = (entry = {}, prefix = "portfolio-entry") => ({
+  id: entry._id?.toString?.() || entry.title || `${prefix}-${Date.now().toString(36)}`,
+  title: entry.title || "",
+  subtitle: entry.organization || "",
+  organization: entry.organization || "",
+  period: entry.period || "",
+  startDate: "",
+  endDate: "",
+  isCurrent: false,
+  location: "",
+  url: "",
+  description: entry.description || "",
+  details: entry.description || "",
+  achievements: entry.description
+    ? [{ id: `${prefix}-detail`, text: sanitizeResumeText(entry.description, 700), html: `<p>${escapeResumeHtml(sanitizeResumeText(entry.description, 700))}</p>` }]
+    : [],
+});
 
 const mapPortfolioToResumePayload = (portfolio = {}, contact = "") => ({
   personalInfo: {
     fullName: portfolio.fullName || "",
     email: portfolio.email || (isValidEmail(contact) ? contact : ""),
-    phone: "",
+    phone: portfolio.phone || "",
     city: portfolio.city || "",
     major: portfolio.major || "",
     university: portfolio.university || "",
     linkedinUrl: portfolio.linkedinUrl || "",
     headline: buildPortfolioHeadline(portfolio),
     portfolioUrl: portfolio.slug ? `${getFrontendUrl()}/p/${portfolio.slug}` : "",
-    githubUrl: "",
-    personalUrl: "",
+    githubUrl: portfolio.githubUrl || "",
+    personalUrl: portfolio.personalWebsite || "",
+    trainingStart: portfolio.trainingStart || "",
+    trainingEnd: portfolio.trainingEnd || "",
+    trainingField: portfolio.targetTrainingField || "",
   },
   summary: portfolio.bio || "",
   education: portfolio.university
@@ -6422,14 +6503,14 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "") => ({
           isCurrent: true,
           location: portfolio.city || "",
           url: "",
-          description: portfolio.major || "",
+          description: [portfolio.major, portfolio.graduationYear && `سنة التخرج: ${portfolio.graduationYear}`, portfolio.gpa && `المعدل: ${portfolio.gpa}${portfolio.gpaScale ? ` / ${portfolio.gpaScale}` : ""}`].filter(Boolean).join(" · "),
           details: portfolio.major || "",
           achievements: [],
         },
       ]
     : [],
-  experiences: [],
-  experience: [],
+  experiences: (portfolio.experiences || []).map((entry) => mapPortfolioEntryToResume(entry, "portfolio-experience")),
+  experience: (portfolio.experiences || []).map((entry) => mapPortfolioEntryToResume(entry, "portfolio-experience")),
   projects: (portfolio.projects || []).map((project) => ({
     id: project._id?.toString?.() || project.title || `project-${Date.now().toString(36)}`,
     title: project.title || "",
@@ -6471,10 +6552,12 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "") => ({
     details: "",
     achievements: [],
   })),
-  volunteering: [],
-  languages: [],
+  volunteering: (portfolio.volunteering || []).map((entry) => mapPortfolioEntryToResume(entry, "portfolio-volunteering")),
+  languages: (portfolio.languages || []).map((language, index) => ({ id: language._id?.toString?.() || `portfolio-language-${index}`, name: language.name || "", level: language.level || "" })),
   links: [
     portfolio.linkedinUrl ? { id: "linkedin", label: "LinkedIn", url: portfolio.linkedinUrl } : null,
+    portfolio.githubUrl ? { id: "github", label: "GitHub", url: portfolio.githubUrl } : null,
+    portfolio.personalWebsite ? { id: "website", label: "الموقع الشخصي", url: portfolio.personalWebsite } : null,
     portfolio.slug ? { id: "portfolio", label: "ملفي المهني", url: `${getFrontendUrl()}/p/${portfolio.slug}` } : null,
   ].filter(Boolean),
   skills: portfolio.skills || [],
@@ -8463,6 +8546,9 @@ app.get('/api/portfolio/me', async (req, res) => {
       skills: [],
       projects: [],
       certifications: [],
+      experiences: [],
+      volunteering: [],
+      languages: [],
       isPublished: false,
       viewCount: 0,
     };
@@ -8502,12 +8588,6 @@ app.post('/api/portfolio/me', async (req, res) => {
 
     const payload = sanitizePortfolioPayload(req.body, contact);
 
-    if (!payload.fullName || !payload.major) {
-      return res.status(400).json({
-        error: "اسم الطالب والتخصص مطلوبة لملف الأعمال.",
-      });
-    }
-
     if (payload.slug.length < 3) {
       return res.status(400).json({
         error: "الرابط المختصر لازم يكون 3 أحرف على الأقل.",
@@ -8542,7 +8622,7 @@ app.post('/api/portfolio/me', async (req, res) => {
     const accessStatus = await getPortfolioAccessStatus(portfolio);
     const cleanPortfolio = serializePortfolio(portfolio, accessStatus, req);
 
-    await AnalyticsEvent.create({
+    AnalyticsEvent.create({
       eventName: "portfolio_saved",
       visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
       page: "/account",

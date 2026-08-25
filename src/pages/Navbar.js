@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ACCOUNT_MODAL_EVENT,
 } from "../utils/premiumAccess";
@@ -36,6 +36,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const moreMenuRef = useRef(null);
 
   const location = useLocation();
+  const navigate = useNavigate();
   const isExperiencesPage = location.pathname === "/experiences";
   const shouldStickNavbar = !isMobile && location.pathname !== "/experiences";
   const floatingNavTop = isExperiencesPage
@@ -197,8 +198,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     setMoreMenuOpen(false);
   };
 
-  const openPortfolioAnnouncement = () => {
-    window.dispatchEvent(new Event("darbak:open-portfolio-announcement"));
+  const openPortfolio = () => {
+    navigate("/portfolio");
     setFloatingMenuOpen(false);
     setMoreMenuOpen(false);
   };
@@ -308,7 +309,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       <Link to="/interviews" role="menuitem" onClick={() => setMoreMenuOpen(false)}>
         <FiMessageCircle aria-hidden="true" /> <span>مقابلات</span>
       </Link>
-      <button type="button" role="menuitem" onClick={openPortfolioAnnouncement}>
+      <button type="button" role="menuitem" onClick={openPortfolio}>
         <FiBriefcase aria-hidden="true" /> <span>Portfolio</span>
       </button>
       <Link to="/applications" role="menuitem" onClick={() => setMoreMenuOpen(false)}>

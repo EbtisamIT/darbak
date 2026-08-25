@@ -3377,6 +3377,20 @@ body {
   grid-template-columns: minmax(0, 1fr) minmax(150px, 0.7fr) 90px auto;
 }
 
+.portfolio-builder-repeat.is-experience {
+  grid-template-columns: minmax(130px, 0.7fr) minmax(130px, 0.7fr) minmax(110px, 0.5fr) minmax(0, 1fr) auto;
+}
+
+.portfolio-languages-head {
+  margin-top: 18px;
+}
+
+.portfolio-languages-head h3 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 15px;
+}
+
 .portfolio-builder-savebar {
   display: flex;
   align-items: center;
@@ -3403,6 +3417,18 @@ body {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.portfolio-save-status {
+  min-height: 20px;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.portfolio-save-status.is-saving { color: var(--app-brand); }
+.portfolio-save-status.is-saved { color: var(--app-brand); }
+.portfolio-save-status.is-error { color: #d58a67; }
 
 .portfolio-growth-panel {
   display: grid;
@@ -5206,7 +5232,8 @@ body {
   .portfolio-auth-row,
   .portfolio-builder-grid,
   .portfolio-builder-repeat,
-  .portfolio-builder-repeat.is-compact {
+  .portfolio-builder-repeat.is-compact,
+  .portfolio-builder-repeat.is-experience {
     grid-template-columns: 1fr;
   }
 
