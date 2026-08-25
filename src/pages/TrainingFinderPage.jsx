@@ -13,7 +13,6 @@ import AnimatedCount from "../components/AnimatedCount";
 import ShareButton from "../components/ShareButton";
 import PremiumInlineNotice from "../components/PremiumInlineNotice";
 import ResumeServicePromo from "../components/ResumeServicePromo";
-import { guideUrl } from "../components/TrainingGuideBanner";
 import {
   cityOptions,
   specializationOptions,
@@ -3021,25 +3020,6 @@ export default function TrainingFinderPage() {
     );
   };
 
-  const opportunityGuideBannerIndex =
-    visibleOpportunities.length >= 7
-      ? 5
-      : visibleOpportunities.length >= 4
-        ? 2
-        : -1;
-
-  const trackOpportunityGuideBannerClick = () => {
-    trackEvent("training_guide_opportunities_banner_click", {
-      major: selectedSpecialtyLabel,
-      city,
-      resultsCount: visibleOpportunities.length,
-      metadata: {
-        selectedSpecialty,
-        source: "where_to_train_opportunities_grid",
-      },
-    });
-  };
-
   const openOpportunityPremiumBanner = () => {
     trackEvent("premium_where_to_train_opportunities_banner_clicked", {
       major: selectedSpecialtyLabel,
@@ -3081,73 +3061,6 @@ export default function TrainingFinderPage() {
         onClick={() => trackTelegramChannelClick("where_to_train_banner")}
       >
         انضم للقناة
-      </a>
-    </aside>
-  );
-
-  const renderOpportunityGuideBanner = () => (
-    <aside
-      className="opportunity-guide-inline-banner"
-      aria-label="دليل رحلة المتدرب"
-      style={{
-        gridColumn: "1 / -1",
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) auto",
-        alignItems: "center",
-        gap: "14px",
-        border: "1px solid var(--app-brand-border)",
-        borderRadius: "16px",
-        background:
-          "linear-gradient(135deg, var(--app-brand-soft), var(--app-surface) 65%, rgba(245,158,11,0.10))",
-        padding: "14px 16px",
-        boxShadow: "0 12px 28px var(--app-shadow)",
-      }}
-    >
-      <div style={{ display: "grid", gap: "5px", minWidth: 0 }}>
-        <strong
-          style={{
-            color: "var(--app-brand)",
-            fontSize: "16px",
-            lineHeight: 1.5,
-          }}
-        >
-          ما لقيت فرصة مناسبة؟
-        </strong>
-        <span
-          style={{
-            color: "var(--app-text-soft)",
-            fontSize: "13px",
-            lineHeight: 1.8,
-            fontWeight: "700",
-          }}
-        >
-          جرّب دليل رحلة المتدرب للوصول إلى مئات الجهات وروابط التقديم.
-        </span>
-      </div>
-      <a
-        href={guideUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={trackOpportunityGuideBannerClick}
-        style={{ textDecoration: "none" }}
-      >
-        <button
-          type="button"
-          style={{
-            border: "none",
-            borderRadius: "13px",
-            background: "var(--app-brand)",
-            color: "#07100e",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontSize: "13px",
-            fontWeight: "900",
-            padding: "10px 14px",
-            whiteSpace: "nowrap",
-          }}
-        >
-          افتح دليل رحلة المتدرب
-        </button>
       </a>
     </aside>
   );
@@ -3877,9 +3790,6 @@ export default function TrainingFinderPage() {
                         )}
                       </div>
                     </article>
-                    {index === opportunityGuideBannerIndex && (
-                      renderOpportunityGuideBanner()
-                    )}
                     </React.Fragment>
                   );
                 })}

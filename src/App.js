@@ -18,7 +18,6 @@ import "./App.css";
 import Navbar from "./pages/Navbar";
 import HomePage from "./pages/HomePage";
 import Footer from "./pages/Footer";
-import { guideUrl } from "./components/TrainingGuideBanner";
 import {
   cityOptions as trainingCityOptions,
   specializationOptions,
@@ -49,11 +48,7 @@ const AccountModal = lazy(() => import("./components/AccountModal"));
 const SavedItemsDrawer = lazy(() => import("./components/SavedItemsDrawer"));
 const DarbakAssistant = lazy(() => import("./components/DarbakAssistant"));
 
-const PLATFORM_UPDATE_NOTICE_KEY = "darbak_portfolio_announcement_seen_v1";
-const PORTFOLIO_ANNOUNCEMENT_EVENT = "darbak:open-portfolio-announcement";
 const ADMIN_REVIEW_PATH = "/darbak-owner-review-2026";
-const cvProductUrl =
-  "https://darbakk.com/%D8%B3%D9%8A%D8%B1%D8%A9-%D8%A7%D9%84%D8%AA%D8%AF%D8%B1%D9%8A%D8%A8-%D8%A7%D9%84%D8%AA%D8%B9%D8%A7%D9%88%D9%86%D9%8A/p1027158085";
 
 const diagnosisFearOptions = [
   { value: "unknownTargets", label: "ما أعرف الجهات" },
@@ -201,16 +196,6 @@ const buildGuideRecommendation = (answers) => {
     title: "حوّل التشخيص إلى خطة تقديم",
     text: "خذ نتيجة التشخيص وحولها لخطوات عملية من البحث إلى التقديم والمتابعة.",
   };
-};
-
-const markPlatformUpdateNoticeSeen = () => {
-  if (typeof window === "undefined") return;
-
-  try {
-    window.localStorage.setItem(PLATFORM_UPDATE_NOTICE_KEY, "true");
-  } catch {
-    // Ignore storage quota or private browsing errors.
-  }
 };
 
 const PageLoadingFallback = () => (
@@ -537,11 +522,9 @@ function PlatformUpdateNotice() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showNotice, setShowNotice] = useState(false);
-  const [noticeMode, setNoticeMode] = useState("portfolio");
   const [step, setStep] = useState("intro");
   const [answers, setAnswers] = useState(diagnosisDefaultAnswers);
   const [shareStatus, setShareStatus] = useState("");
-  const portfolioAnnouncementTrackedRef = useRef(false);
 
   useEffect(() => {
     const isAdminPage = location.pathname === ADMIN_REVIEW_PATH;
@@ -549,54 +532,21 @@ function PlatformUpdateNotice() {
   }, [location.pathname]);
 
   useEffect(() => {
-    const openPortfolioAnnouncement = () => {
-      setNoticeMode("portfolio");
-      setStep("intro");
-      setShareStatus("");
-      portfolioAnnouncementTrackedRef.current = false;
-      setShowNotice(true);
-    };
-
     const openDiagnosisCard = () => {
-      setNoticeMode("diagnosis");
       setStep("intro");
       setAnswers(diagnosisDefaultAnswers);
       setShareStatus("");
       setShowNotice(true);
     };
 
-    window.addEventListener(
-      PORTFOLIO_ANNOUNCEMENT_EVENT,
-      openPortfolioAnnouncement
-    );
     window.addEventListener("darbak:open-training-diagnosis", openDiagnosisCard);
     return () => {
-      window.removeEventListener(
-        PORTFOLIO_ANNOUNCEMENT_EVENT,
-        openPortfolioAnnouncement
-      );
       window.removeEventListener(
         "darbak:open-training-diagnosis",
         openDiagnosisCard
       );
     };
   }, []);
-
-  useEffect(() => {
-    if (
-      !showNotice ||
-      noticeMode !== "portfolio" ||
-      portfolioAnnouncementTrackedRef.current
-    ) {
-      return;
-    }
-
-    portfolioAnnouncementTrackedRef.current = true;
-    trackEvent("portfolio_announcement_viewed", {
-      page: location.pathname,
-      metadata: { source: "portfolio_nav_click" },
-    });
-  }, [location.pathname, noticeMode, showNotice]);
 
   const diagnosis = useMemo(
     () => buildTrainingDiagnosis(answers),
@@ -617,31 +567,6 @@ function PlatformUpdateNotice() {
   const experienceCount = answers.appliedBefore === "yes" ? 6 : 4;
   const suggestedSolution = `${targetCount} جهة مناسبة + ${experienceCount} تجارب سابقة + نموذج إيميل تقديم`;
   const guideRecommendation = buildGuideRecommendation(answers);
-  const shouldShowCvProduct =
-    answers.hasCv === "no" ||
-    answers.fear === "noCv" ||
-    diagnosis.name.includes("CV");
-  const diagnosisPromo = shouldShowCvProduct
-    ? {
-        eventName: "diagnosis_cv_product_click",
-        source: "cv_design_product",
-        eyebrow: "تحتاج ترتيب السيرة؟",
-        title: "لا تؤجل التقديم بسبب السيرة الذاتية.",
-        description:
-          "ننشئ لك سيرة ذاتية احترافية من الصفر، جاهزة للتقديم ومتوافقة مع أنظمة ATS.",
-        buttonText: "أنشئ سيرتي الذاتية",
-        href: cvProductUrl,
-      }
-    : {
-        eventName: "diagnosis_store_click",
-        source: "training_guide_file",
-        eyebrow: "جاهز تبدأ بخطة أوضح؟",
-        title: "خذ دليل رحلة المتدرب وابدأ من قائمة مرتبة.",
-        description:
-          "ملف يساعدك تختصر البحث: جهات، روابط تقديم، إيميلات، متابعة الطلبات، وخطوات من البداية إلى التقرير.",
-        buttonText: "افتح دليل رحلة المتدرب",
-        href: guideUrl,
-      };
   const shareOrigin =
     typeof window !== "undefined" ? window.location.origin : "https://darbak.space";
   const shareText = `تشخيص دربك
@@ -655,40 +580,7 @@ function PlatformUpdateNotice() {
 
 ابدأ من دربك: ${shareOrigin}/where-to-train`;
 
-  const closeNotice = () => {
-    if (noticeMode === "portfolio") {
-      markPlatformUpdateNoticeSeen();
-    }
-    setShowNotice(false);
-  };
-
-  const goToPortfolioBuilder = () => {
-    markPlatformUpdateNoticeSeen();
-    setShowNotice(false);
-    trackEvent("portfolio_announcement_cta_clicked", {
-      page: location.pathname,
-      metadata: { action: "create_portfolio" },
-    });
-    navigate("/portfolio");
-  };
-
-  const browsePlatformFirst = () => {
-    markPlatformUpdateNoticeSeen();
-    setShowNotice(false);
-    trackEvent("portfolio_announcement_cta_clicked", {
-      page: location.pathname,
-      metadata: { action: "browse_platform" },
-    });
-    navigate("/");
-  };
-
-  const openTraineeGuide = () => {
-    markPlatformUpdateNoticeSeen();
-    trackEvent("portfolio_announcement_cta_clicked", {
-      page: location.pathname,
-      metadata: { action: "trainee_guide" },
-    });
-  };
+  const closeNotice = () => setShowNotice(false);
 
   const updateAnswer = (field, value) => {
     setAnswers((currentAnswers) => ({
@@ -706,27 +598,6 @@ function PlatformUpdateNotice() {
     if (answers.city) params.set("city", answers.city);
 
     navigate(`/where-to-train${params.toString() ? `?${params}` : ""}`);
-  };
-
-  const trackDiagnosisPromoClick = () => {
-    trackEvent(diagnosisPromo.eventName, {
-      major: selectedMajorLabel,
-      city: answers.city,
-      resultsCount: diagnosis.percent,
-      metadata: {
-        diagnosisName: diagnosis.name,
-        diagnosisPercent: diagnosis.percent,
-        stage: diagnosis.stage,
-        hasCv: answers.hasCv,
-        appliedBefore: answers.appliedBefore,
-        knowsWhere: answers.knowsWhere,
-        priority: answers.priority,
-        fear: answers.fear,
-        guideTitle: guideRecommendation.title,
-        source: diagnosisPromo.source,
-      },
-    });
-    markPlatformUpdateNoticeSeen();
   };
 
   const completeDiagnosis = () => {
@@ -765,55 +636,6 @@ function PlatformUpdateNotice() {
       setShareStatus("انسخ التشخيص يدويًا إذا ما ظهرت المشاركة.");
     }
   };
-
-  const renderPortfolioAnnouncement = () => (
-    <>
-      <div className="portfolio-announcement-badge">ميزة جديدة ⚡</div>
-      <div className="portfolio-announcement-icon" aria-hidden="true">
-        ▤
-      </div>
-      <h2 id="portfolio-announcement-title" className="portfolio-announcement-title">
-        أطلقنا ملف الأعمال الرقمي الخاص بك
-      </h2>
-      <p className="portfolio-announcement-text">
-        الآن في <strong>دربك</strong> تقدر تبني هويتك المهنية في رابط مستقل:
-        بطاقة رقمية، جاهزيتك للمقابلات، مشاريعك، وسيرتك الذاتية بشكل مرتب
-        ومناسب للمشاركة مع جهات التدريب.
-      </p>
-
-      <div className="portfolio-announcement-features">
-        <div>✨ رابط مخصص باسمك ومشاركته سريعة.</div>
-        <div>🪪 بطاقة رقمية تعرض جاهزيتك ومعلوماتك المهنية.</div>
-        <div>📁 مساحة مرتبة لمشاريعك وشهاداتك وسيرتك الذاتية.</div>
-      </div>
-
-      <div className="portfolio-announcement-actions">
-        <button
-          type="button"
-          className="portfolio-announcement-primary"
-          onClick={goToPortfolioBuilder}
-        >
-          استكشف الميزة
-        </button>
-        <button
-          type="button"
-          className="portfolio-announcement-secondary"
-          onClick={browsePlatformFirst}
-        >
-          منصة دربك
-        </button>
-        <a
-          className="portfolio-announcement-link"
-          href={guideUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={openTraineeGuide}
-        >
-          رحلة المتدرب
-        </a>
-      </div>
-    </>
-  );
 
   const optionButtonStyle = (active) => ({
     border: `1px solid ${
@@ -1268,76 +1090,6 @@ function PlatformUpdateNotice() {
             </span>
           </button>
 
-          <a
-            href={diagnosisPromo.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={trackDiagnosisPromoClick}
-            style={{ textDecoration: "none", minWidth: 0 }}
-          >
-            <span
-              style={{
-                width: "100%",
-                height: "100%",
-                display: "grid",
-                gap: "8px",
-                background:
-                  "linear-gradient(135deg, var(--app-brand-soft), transparent 72%), var(--app-card)",
-                color: "var(--app-text)",
-                border: "1px solid var(--app-brand-border)",
-                borderRadius: "14px",
-                padding: "12px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                textAlign: "right",
-                boxSizing: "border-box",
-              }}
-            >
-              <span
-                style={{
-                  color: "var(--app-brand)",
-                  fontSize: "12px",
-                  lineHeight: 1.5,
-                  fontWeight: "900",
-                }}
-              >
-                {diagnosisPromo.eyebrow}
-              </span>
-              <strong
-                style={{
-                  color: "var(--app-text)",
-                  fontSize: "14px",
-                  lineHeight: 1.5,
-                }}
-              >
-                {diagnosisPromo.title}
-              </strong>
-              <span
-                style={{
-                  color: "var(--app-text-soft)",
-                  fontSize: "12px",
-                  lineHeight: 1.6,
-                  fontWeight: "700",
-                }}
-              >
-                {diagnosisPromo.description}
-              </span>
-              <span
-                style={{
-                  width: "fit-content",
-                  borderRadius: "12px",
-                  background: "var(--app-brand)",
-                  color: "#07100e",
-                  fontSize: "12.5px",
-                  fontWeight: "900",
-                  lineHeight: 1.5,
-                  padding: "8px 11px",
-                }}
-              >
-                {diagnosisPromo.buttonText}
-              </span>
-            </span>
-          </a>
         </div>
 
         <div
@@ -1404,28 +1156,16 @@ function PlatformUpdateNotice() {
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby={
-        noticeMode === "portfolio"
-          ? "portfolio-announcement-title"
-          : "platform-update-title"
-      }
+      aria-labelledby="platform-update-title"
       onClick={closeNotice}
       aria-live="polite"
-      className={
-        noticeMode === "portfolio"
-          ? "portfolio-announcement-overlay"
-          : "platform-update-overlay"
-      }
+      className="platform-update-overlay"
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        className={
-          noticeMode === "portfolio"
-            ? "portfolio-announcement-card"
-            : "platform-update-card"
-        }
+        className="platform-update-card"
         style={
-          noticeMode === "diagnosis" && step === "questions"
+          step === "questions"
             ? { width: "min(680px, 100%)" }
             : undefined
         }
@@ -1433,20 +1173,15 @@ function PlatformUpdateNotice() {
         <button
           type="button"
           onClick={closeNotice}
-          aria-label={noticeMode === "portfolio" ? "إغلاق إعلان ملف الأعمال" : "إغلاق بطاقة التشخيص"}
-          className={
-            noticeMode === "portfolio"
-              ? "portfolio-announcement-close"
-              : "platform-update-close"
-          }
+          aria-label="إغلاق بطاقة التشخيص"
+          className="platform-update-close"
         >
           ×
         </button>
 
-        {noticeMode === "portfolio" && renderPortfolioAnnouncement()}
-        {noticeMode === "diagnosis" && step === "intro" && renderIntro()}
-        {noticeMode === "diagnosis" && step === "questions" && renderQuestions()}
-        {noticeMode === "diagnosis" && step === "result" && renderResult()}
+        {step === "intro" && renderIntro()}
+        {step === "questions" && renderQuestions()}
+        {step === "result" && renderResult()}
       </div>
     </div>
   );
