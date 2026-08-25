@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
 
-const pageFont = "'Aniq', 'Cairo', sans-serif";
+const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 
 const partnerEmailHref = `mailto:info@darbak.space?subject=${encodeURIComponent(
   "انضمام كشريك إطلاق في دربك"

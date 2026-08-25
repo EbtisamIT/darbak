@@ -220,7 +220,7 @@ const PageLoadingFallback = () => (
       display: "grid",
       placeItems: "center",
       color: "var(--app-text-soft)",
-      fontFamily: "'Aniq', 'Cairo', sans-serif",
+      fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
       fontWeight: 800,
     }}
   >
@@ -246,7 +246,7 @@ function PageBanner() {
         fontWeight: "400",
         letterSpacing: 0,
         lineHeight: 1.75,
-        fontFamily: "'Aniq', 'Cairo', sans-serif",
+        fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
       }}
     >
       <span style={{ color: "var(--app-brand)", fontWeight: "600" }}>
@@ -290,7 +290,6 @@ function SubscribeRoute() {
   const [isPremiumActive, setIsPremiumActive] = useState(
     () => typeof window !== "undefined" && hasRequestedPlanAccess()
   );
-
   const openSubscribeGate = useCallback(() => {
     if (hasRequestedPlanAccess()) {
       setIsPremiumActive(true);
@@ -344,6 +343,7 @@ function SubscribeRoute() {
     openSubscribeGate,
     subscribePlan,
     subscribeSource,
+    subscribeStep,
   ]);
 
   if (isPremiumActive) {
@@ -497,7 +497,7 @@ function SubscribeRoute() {
         >
           <button
             type="button"
-            onClick={openSubscribeGate}
+            onClick={() => navigate("/subscribe")}
             style={{
               border: "none",
               borderRadius: "14px",
@@ -1456,11 +1456,12 @@ function AppLayout({ theme, setTheme }) {
   const location = useLocation();
   const isAdminPage = location.pathname === ADMIN_REVIEW_PATH;
   const isPublicPortfolioPage = location.pathname.startsWith("/p/");
+  const isHomePage = location.pathname === "/";
   const appStyle = {
     minHeight: "100vh",
     backgroundColor: "var(--app-bg)",
     color: "var(--app-text-soft)",
-    fontFamily: "'Cairo', sans-serif",
+    fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
     display: "flex",
     flexDirection: "column",
     transition: "background-color 0.25s ease, color 0.25s ease",
@@ -1475,8 +1476,8 @@ function AppLayout({ theme, setTheme }) {
 
   const contentStyle = {
     width: "100%",
-    maxWidth: "1200px",
-    padding: "40px 20px",
+    maxWidth: isHomePage ? "none" : "1200px",
+    padding: isHomePage ? "0" : "40px 20px",
   };
 
   useEffect(() => {

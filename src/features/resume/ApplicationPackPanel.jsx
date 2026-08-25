@@ -39,8 +39,15 @@ const ApplicationPackPanel = ({ pack, onCompleteDetails, onOpenResume }) => {
   if (!pack || !Object.keys(pack).length) return null;
   const info = pack.applicationInfo || {};
   const missingFields = pack.missingApplicationFields || [];
-  const needsPeriod = missingFields.some((item) => item.key === "trainingPeriod");
-  const needsTargetField = missingFields.some((item) => item.key === "targetField");
+  // Packs created before missingApplicationFields was persisted still have an
+  // email needs_input status. Keep those saved packs completable instead of
+  // showing a dead-end status with no fields.
+  const legacyMissingDetails = pack.email?.status === "needs_input" && missingFields.length === 0;
+  const needsPeriod = missingFields.some((item) => item.key === "trainingPeriod") || legacyMissingDetails;
+  const needsTargetField = missingFields.some((item) => item.key === "targetField") || (
+    legacyMissingDetails && pack.packType === "company_outreach_pack"
+  );
+  const visibleMissingCount = missingFields.length || (needsTargetField ? 2 : needsPeriod ? 1 : 0);
   const completePeriod = async (event) => {
     event.preventDefault();
     if ((needsPeriod && (!trainingStart.trim() || !trainingEnd.trim())) || (needsTargetField && !targetField.trim())) {
@@ -74,7 +81,7 @@ const ApplicationPackPanel = ({ pack, onCompleteDetails, onOpenResume }) => {
         <span>{pack.packType === "company_outreach_pack" ? "تواصل مع جهة" : "ملف التقديم"}</span>
         <h2>تقديمك لـ {info.organizationName || "هذه الجهة"} {readyCount === 3 ? "جاهز ✓" : ""}</h2>
         <p>{pack.email?.status === "needs_input" && pack.resume?.status === "ready" && pack.trainingLetter?.status === "ready"
-          ? `السيرة وخطاب التقديم جاهزان ✓ باقي ${missingFields.length === 1 ? "معلومة واحدة" : "معلومات"} لإكمال رسالة الإيميل.`
+          ? `السيرة وخطاب التقديم جاهزان ✓ باقي ${visibleMissingCount === 1 ? "معلومة واحدة" : "معلومات"} لإكمال رسالة الإيميل.`
           : `${readyCount} من 3 جاهزة`}</p>
       </header>
       <div className="application-pack-parts">
@@ -91,7 +98,7 @@ const ApplicationPackPanel = ({ pack, onCompleteDetails, onOpenResume }) => {
             <button type="button" onClick={copyEmail}><FiCopy aria-hidden="true" /> نسخ الإيميل</button>
           </> : pack.email?.status === "unavailable" ? <p>لا توجد وسيلة تقديم موثوقة مرتبطة بهذه الجهة.</p> : null}
           {(needsPeriod || needsTargetField) && <form className="application-pack-details" onSubmit={completePeriod}>
-            <strong>باقي {missingFields.length === 1 ? "معلومة واحدة" : "معلومتان"} لإكمال رسالة التقديم</strong>
+            <strong>باقي {visibleMissingCount === 1 ? "معلومة واحدة" : "معلومتان"} لإكمال رسالة التقديم</strong>
             {needsPeriod && <>
               <span>فترة التدريب</span>
               <div>

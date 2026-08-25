@@ -287,6 +287,7 @@ const emptyAnalytics = {
   cvProductAdClicks: 0,
   topAdClicks: [],
   premiumEventCounts: [],
+  dailyPremiumFunnel: [],
   premiumFunnelSummary: {
     gateOpened: { events: 0, uniqueVisitors: 0 },
     planSelected: { events: 0, uniqueVisitors: 0 },
@@ -4366,7 +4367,7 @@ export default function AdminReviewPage() {
         width: "100%",
         maxWidth: "1000px",
         margin: "0 auto",
-        fontFamily: "'Cairo', sans-serif",
+        fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
       }}
     >
       <header style={{ marginBottom: "20px", textAlign: "right" }}>
@@ -4849,6 +4850,164 @@ export default function AdminReviewPage() {
               ].map(([label, value, hint]) => renderAdminMetricCard([label, value, hint]))}
             </div>
 
+            <section
+              style={{
+                border: "1px solid rgba(102,208,195,0.16)",
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.02)",
+                overflow: "hidden",
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  alignItems: "center",
+                  padding: "14px 16px",
+                  borderBottom: "1px solid rgba(102,208,195,0.12)",
+                }}
+              >
+                <div>
+                  <h4 style={{ color: adminColors.text, margin: "0 0 4px" }}>
+                    قمع الاشتراك اليومي
+                  </h4>
+                  <p
+                    style={{
+                      color: adminColors.muted,
+                      margin: 0,
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    الزيارات ← ظهور نافذة الاشتراك ← ضغط صفحة الدفع ← بدأ الدفع ← دفع ناجح
+                  </p>
+                </div>
+                <span
+                  style={{
+                    color: adminColors.brand,
+                    fontSize: 12,
+                    fontWeight: 900,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  يومي
+                </span>
+              </div>
+
+              <div style={{ overflowX: "auto" }}>
+                <table
+                  style={{
+                    width: "100%",
+                    minWidth: 760,
+                    borderCollapse: "collapse",
+                    color: adminColors.text,
+                    fontSize: 13,
+                  }}
+                >
+                  <thead>
+                    <tr style={{ color: adminColors.muted }}>
+                      {[
+                        "اليوم",
+                        "الزيارات",
+                        "ظهور النافذة",
+                        "ضغط صفحة الدفع",
+                        "بدأ الدفع",
+                        "دفع ناجح",
+                      ].map((heading) => (
+                        <th
+                          key={heading}
+                          style={{
+                            textAlign: "right",
+                            padding: "11px 14px",
+                            borderBottom: "1px solid rgba(255,255,255,0.08)",
+                            fontWeight: 900,
+                          }}
+                        >
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(analytics.dailyPremiumFunnel || []).length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan="6"
+                          style={{
+                            color: adminColors.muted,
+                            padding: "18px 14px",
+                            textAlign: "center",
+                          }}
+                        >
+                          ما فيه بيانات يومية في هذه الفترة.
+                        </td>
+                      </tr>
+                    ) : (
+                      (analytics.dailyPremiumFunnel || []).map((row) => {
+                        const cells = [
+                          {
+                            value: row.visits || 0,
+                            hint: `${row.visitsVisitors || 0} فريد`,
+                          },
+                          {
+                            value: row.subscriptionWindowShown || 0,
+                            hint: `${row.subscriptionWindowVisitors || 0} فريد`,
+                          },
+                          {
+                            value: row.paymentPageClicks || 0,
+                            hint: `${row.paymentPageClickVisitors || 0} فريد`,
+                          },
+                          {
+                            value: row.checkoutStarted || 0,
+                            hint: `${row.checkoutStartedVisitors || 0} فريد`,
+                          },
+                          {
+                            value: row.paymentSuccessful || 0,
+                            hint: `${row.paymentSuccessfulVisitors || 0} فريد`,
+                          },
+                        ];
+
+                        return (
+                          <tr key={row.date}>
+                            <td
+                              style={{
+                                padding: "12px 14px",
+                                borderBottom: "1px solid rgba(255,255,255,0.07)",
+                                color: adminColors.brand,
+                                fontWeight: 900,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {row.date}
+                            </td>
+                            {cells.map((cell, index) => (
+                              <td
+                                key={`${row.date}-${index}`}
+                                style={{
+                                  padding: "12px 14px",
+                                  borderBottom: "1px solid rgba(255,255,255,0.07)",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                <strong style={{ display: "block", fontSize: 16 }}>
+                                  {cell.value}
+                                </strong>
+                                <small style={{ color: adminColors.muted }}>
+                                  {cell.hint}
+                                </small>
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
             <div
               style={{
                 display: "grid",
@@ -4867,7 +5026,7 @@ export default function AdminReviewPage() {
                 </h3>
                 <p style={{ color: adminColors.textSoft, margin: 0, lineHeight: 1.8 }}>
                   هذه الأرقام مخزنة مؤقتًا لتخفيف الضغط على قاعدة البيانات، وتُحدّث
-                  أسبوعيًا تقريبًا أو عند إعادة تشغيل الخدمة.
+                  تلقائيًا خلال دقائق.
                 </p>
               </section>
             </div>

@@ -46,6 +46,21 @@ const ResumeDashboard = ({
     (version) => version.variantType === "translation" || version.language === "en"
   );
   const applicationPacks = versions.filter((version) => version.variantType === "tailored");
+  const getPackIdentity = (version) => [
+    version.companyName || version.applicationPack?.applicationInfo?.organizationName || "",
+    version.applicationPack?.applicationInfo?.opportunityTitle || version.roleTitle || "",
+  ].join("|").trim();
+  const getPackContext = (version) => {
+    const identity = getPackIdentity(version);
+    const matchingPacks = applicationPacks.filter((candidate) => getPackIdentity(candidate) === identity);
+    const occurrence = matchingPacks.findIndex((candidate) => candidate._id === version._id) + 1;
+    const opportunityTitle = version.applicationPack?.applicationInfo?.opportunityTitle || version.roleTitle || "";
+    const savedLabel = matchingPacks.length > 1 ? `تقديم محفوظ ${occurrence}` : "";
+
+    return [opportunityTitle, savedLabel, version.applicationPack?.applicationInfo?.city, formatDate(version.updatedAt)]
+      .filter(Boolean)
+      .join(" · ");
+  };
   const packStatus = (version, key) => version.applicationPack?.[key]?.status || "ready";
   const packLine = (version, key, label) => {
     const status = packStatus(version, key);
@@ -125,7 +140,7 @@ const ResumeDashboard = ({
             <article className="resume-dashboard-application-card" key={version._id}>
               <div>
                 <strong>{version.companyName || version.name}</strong>
-                <span>{[version.roleTitle, version.applicationPack?.applicationInfo?.city, formatDate(version.updatedAt)].filter(Boolean).join(" · ") || "تقديم مخصص"}</span>
+                <span>{getPackContext(version) || "تقديم مخصص"}</span>
                 <span className="resume-dashboard-pack-status">{packLine(version, "resume", "السيرة الذاتية")} · {packLine(version, "trainingLetter", "خطاب التقديم")} · {packLine(version, "email", "الإيميل")}</span>
               </div>
               <button type="button" onClick={() => onOpenVersion(version)}>فتح ملف التقديم <FiArrowLeft aria-hidden="true" /></button>

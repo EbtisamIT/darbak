@@ -5,7 +5,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FiDownload,
   FiEye,
-  FiLock,
+  FiCheck,
   FiRefreshCw,
   FiSave,
   FiZap,
@@ -15,6 +15,8 @@ import {
   PREMIUM_ACCESS_EVENT,
   PREMIUM_STATUS_EVENT,
   getAccessHeaders,
+  getStoredPremiumPass,
+  passHasEntitlement,
 } from "../utils/premiumAccess";
 import { getVisitorId, trackEvent } from "../utils/analytics";
 import ResumeAgentFlow from "../features/resume/ResumeAgentFlow";
@@ -64,6 +66,77 @@ const writeLocalDraft = (resume) => {
   } catch {
     // Local draft is a safety net only; failing here should not block editing.
   }
+};
+
+const ResumeAccessPreview = ({ premiumPass, onUpgrade, onExplore }) => {
+  const [resumePlan, setResumePlan] = useState(null);
+  const currentPlanId = premiumPass?.planId || "";
+  const currentPlanLabel = currentPlanId === "one_time_90"
+    ? "دربك 90 يوم"
+    : currentPlanId === "darbak_plus"
+      ? "دربك+"
+      : "";
+
+  useEffect(() => {
+    let isMounted = true;
+    axios.get(`${API_BASE_URL}/api/subscriptions/plans`)
+      .then(({ data }) => {
+        if (!isMounted) return;
+        const plans = Array.isArray(data?.plans) ? data.plans : [];
+        setResumePlan(plans.find((plan) => plan.id === "darbak_resume") || null);
+      })
+      .catch(() => isMounted && setResumePlan(null));
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const priceLabel = typeof resumePlan?.priceSar === "number"
+    ? `${resumePlan.priceSar.toLocaleString("en-US", {
+      minimumFractionDigits: resumePlan.priceSar % 1 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    })} ر.س`
+    : "السعر يظهر قبل الاشتراك";
+  const durationLabel = resumePlan?.durationDays ? `${resumePlan.durationDays} يوم` : "";
+  const monthlyCustomizations = resumePlan?.aiResumeUsageLimit
+    ? `${resumePlan.aiResumeUsageLimit} تخصيصات شهريًا`
+    : "تخصيصات شهرية للسيرة";
+
+  return (
+    <main className="resume-page resume-page-v2" dir="rtl">
+      <section className="resume-access-state resume-access-preview">
+        <span className="resume-access-badge">ضمن باقة دربك + سيرتي ✨</span>
+        <h1>✨ جهّز تقديمك كامل للجهة</h1>
+        <p>بدل ما تعدل سيرتك وتكتب الخطاب والإيميل كل مرة، دربك يجهزها لك حسب الجهة اللي اخترتها.</p>
+        <div className="resume-access-pack" aria-label="معاينة ملف التقديم">
+          <div className="resume-access-pack-title">
+            <strong>تقديمك للجهة</strong>
+            <span>3 من 3 جاهزة ✓</span>
+          </div>
+          {[
+            ["السيرة المخصصة", "نبرز الأنسب من خبراتك ومشاريعك"],
+            ["خطاب التقديم", "مخصص للجهة"],
+            ["رسالة الإيميل", "جاهزة للنسخ والإرسال"],
+          ].map(([title, note]) => (
+            <div className="resume-access-pack-item" key={title}>
+              <FiCheck aria-hidden="true" />
+              <span><strong>{title} — جاهزة ✓</strong><small>{note}</small></span>
+            </div>
+          ))}
+        </div>
+        <div className="resume-access-value">
+          <strong>{monthlyCustomizations}</strong>
+          <span>{priceLabel}{durationLabel && ` / ${durationLabel}`}</span>
+        </div>
+        {currentPlanLabel && <p className="resume-current-plan">باقتك الحالية: <strong>{currentPlanLabel}</strong></p>}
+        <div className="resume-access-actions">
+          <button type="button" onClick={onUpgrade}>✨ رقِّ وابدأ تجهيز تقديمك</button>
+          <button type="button" onClick={onExplore}>أكمل استكشاف الجهات</button>
+        </div>
+      </section>
+    </main>
+  );
 };
 
 const MyResumePage = () => {
@@ -121,14 +194,14 @@ const MyResumePage = () => {
   const isTailoredApplicationFlow = routeView === "tailor" ||
     (editingTailoredVersion && editingVersionType === "tailored");
 
-  const openLogin = useCallback(() => {
+  const openResumeUpgrade = useCallback(() => {
     window.dispatchEvent(
       new CustomEvent(PREMIUM_ACCESS_EVENT, {
         detail: {
-          loginOnly: true,
           feature: "my_resume",
-          title: "تسجيل الدخول إلى سيرتي بدربك",
-          source: "my_resume",
+          title: "جهّز سيرتك وتقديمك لكل جهة",
+          source: "my_resume_preview",
+          defaultPlanId: "darbak_resume",
         },
       })
     );
@@ -745,6 +818,13 @@ const MyResumePage = () => {
     return "جاهز للتحرير";
   };
 
+  const localPremiumPass = getStoredPremiumPass();
+  const hasLocalResumeAccess = passHasEntitlement(localPremiumPass, "resume_builder");
+
+  if (!hasLocalResumeAccess) {
+    return <ResumeAccessPreview premiumPass={localPremiumPass} onUpgrade={openResumeUpgrade} onExplore={() => navigate("/")} />;
+  }
+
   if (loading) {
     return (
       <main className="resume-page resume-page-v2" dir="rtl">
@@ -754,41 +834,7 @@ const MyResumePage = () => {
   }
 
   if (error && accessIssue) {
-    const needsLogin = accessIssue === "login_required";
-    const isNotLaunched = accessIssue === "not_launched";
-    return (
-      <main className="resume-page resume-page-v2" dir="rtl">
-        <section className="resume-access-state">
-          <FiLock aria-hidden="true" />
-          <span>سيرتي بدربك ✨</span>
-          <h1>
-            {needsLogin
-              ? "سجل دخولك للمتابعة"
-              : isNotLaunched
-              ? "الخدمة قيد التجهيز"
-              : "فعّل دربك+ سيرة"}
-          </h1>
-          <p>{error}</p>
-          <div className="resume-access-actions">
-            {needsLogin ? (
-              <button type="button" onClick={openLogin}>
-                تسجيل الدخول
-              </button>
-            ) : isNotLaunched ? null : (
-              <button
-                type="button"
-                onClick={() => navigate("/subscribe?plan=darbak_resume&source=my-resume")}
-              >
-                عرض الباقات
-              </button>
-            )}
-            <button type="button" onClick={() => navigate("/portfolio")}>
-              فتح ملفي المهني
-            </button>
-          </div>
-        </section>
-      </main>
-    );
+    return <ResumeAccessPreview premiumPass={localPremiumPass} onUpgrade={openResumeUpgrade} onExplore={() => navigate("/")} />;
   }
 
   return (

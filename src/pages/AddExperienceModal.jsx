@@ -979,7 +979,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           justifyContent: "center",
           zIndex: 12000,
           padding: 20,
-          fontFamily: "'Cairo', sans-serif",
+          fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
           direction: "rtl",
           boxSizing: "border-box",
         }}
@@ -1149,7 +1149,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
         justifyContent: "center",
         zIndex: 12000,
         padding: 20,
-        fontFamily: "'Cairo', sans-serif",
+        fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
         direction: "rtl",
         boxSizing: "border-box",
       }}

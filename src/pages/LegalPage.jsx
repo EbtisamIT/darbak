@@ -60,7 +60,7 @@ export default function LegalPage() {
         width: "100%",
         maxWidth: "1120px",
         margin: "0 auto",
-        fontFamily: "'Cairo', sans-serif",
+        fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
       }}
     >
       <header style={{ marginBottom: "24px", textAlign: "center" }}>

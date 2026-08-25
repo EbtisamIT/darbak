@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import QRCode from "qrcode";
 import API_BASE_URL from "../config/api";
+import ResumeServicePromo from "../components/ResumeServicePromo";
 import { cityOptions, specializationOptions } from "../data/trainingOptions";
 import {
   getStoredAccessIdentity,
@@ -1001,6 +1002,8 @@ export default function PortfolioBuilderPage() {
           يعمل للمشتركين عند نشر الملف.
         </p>
       </section>
+
+      <ResumeServicePromo placement="portfolio" compact />
 
       <section className="portfolio-builder-layout">
         <form className="portfolio-builder-form" onSubmit={savePortfolio}>

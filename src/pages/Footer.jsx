@@ -157,7 +157,7 @@ export default function Footer() {
         color: "var(--app-muted)",
         borderTop: "1px solid var(--app-border)",
         backgroundColor: "var(--app-bg)",
-        fontFamily: "'Cairo', sans-serif",
+        fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
       }}
     >
       <section

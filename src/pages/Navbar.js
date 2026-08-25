@@ -3,10 +3,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ACCOUNT_MODAL_EVENT,
-  PREMIUM_ACCESS_EVENT,
-  PREMIUM_STATUS_EVENT,
-  hasActivePremiumPass,
-  isPremiumGateEnabled,
 } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
 import logo from "./logo.png";
@@ -32,12 +28,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const [showModal, setShowModal] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 768 : false
-  );
-  const [isPremiumActive, setIsPremiumActive] = useState(() =>
-    typeof window !== "undefined" ? hasActivePremiumPass() : false
-  );
-  const [isPremiumGateVisible, setIsPremiumGateVisible] = useState(() =>
-    typeof window !== "undefined" ? isPremiumGateEnabled() : false
   );
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
   const [floatingMenuOpen, setFloatingMenuOpen] = useState(false);
@@ -111,23 +101,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       : path === "/where-to-train"
       ? location.pathname.startsWith("/where-to-train")
       : location.pathname === path;
-
-  useEffect(() => {
-    const refreshPremiumStatus = () => {
-      setIsPremiumActive(hasActivePremiumPass());
-      setIsPremiumGateVisible(isPremiumGateEnabled());
-    };
-
-    refreshPremiumStatus();
-    window.addEventListener(PREMIUM_STATUS_EVENT, refreshPremiumStatus);
-    window.addEventListener("storage", refreshPremiumStatus);
-    window.addEventListener("focus", refreshPremiumStatus);
-    return () => {
-      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshPremiumStatus);
-      window.removeEventListener("storage", refreshPremiumStatus);
-      window.removeEventListener("focus", refreshPremiumStatus);
-    };
-  }, [location.pathname]);
 
   useEffect(() => {
     const openAddExperienceModal = () => setShowModal(true);
@@ -216,25 +189,6 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     window.dispatchEvent(new Event(ACCOUNT_MODAL_EVENT));
     setFloatingMenuOpen(false);
     setMoreMenuOpen(false);
-  };
-
-  const openPremiumGate = (source = "navbar_button") => {
-    trackEvent("premium_nav_cta_clicked", {
-      metadata: {
-        source,
-        path: location.pathname,
-      },
-    });
-    window.dispatchEvent(
-      new CustomEvent(PREMIUM_ACCESS_EVENT, {
-        detail: {
-          feature: "navigation_cta",
-          title: "دربك+",
-          source,
-        },
-      })
-    );
-    setFloatingMenuOpen(false);
   };
 
   const openTrainingDiagnosis = () => {
@@ -431,15 +385,9 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             />
           </Link>
           {themeToggleButton}
-          {isPremiumGateVisible && !isPremiumActive && (
-            <button
-              type="button"
-              onClick={() => openPremiumGate("navbar_top_cta")}
-              style={premiumCtaButtonStyle}
-            >
+          <Link to="/subscribe" style={{ ...premiumCtaButtonStyle, textDecoration: "none" }}>
               دربك+
-            </button>
-          )}
+          </Link>
           {isMobile && (
             <button
               type="button"
@@ -531,7 +479,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             top: floatingNavTop,
             zIndex: 2450,
             direction: "rtl",
-            fontFamily: "'Cairo', sans-serif",
+            fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
           }}
         >
           {floatingMenuOpen && (

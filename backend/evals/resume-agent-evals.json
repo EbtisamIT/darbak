@@ -1,0 +1,105 @@
+[
+  {
+    "id": "tech-complete-ar",
+    "purpose": "create_resume",
+    "language": "ar",
+    "profileSummary": "طالب نظم معلومات لديه مشروع لوحة متابعة طلبات تدريب باستخدام React و JavaScript.",
+    "expected": [
+      "ينشئ مسودة بأقل عدد من الأسئلة",
+      "لا يضيف Python أو Power BI",
+      "يربط نقاط المشروع بمصدر المشروع"
+    ]
+  },
+  {
+    "id": "admin-missing-project",
+    "purpose": "create_resume",
+    "language": "ar",
+    "profileSummary": "طالبة إدارة أعمال لديها جامعة وتخصص ومهارات Excel فقط، بدون مشاريع أو خبرات.",
+    "expected": [
+      "يسأل عن مشروع أو نشاط أو تجربة عملية",
+      "لا يخترع خبرة تدريب"
+    ]
+  },
+  {
+    "id": "no-experience-student",
+    "purpose": "create_resume",
+    "language": "ar",
+    "profileSummary": "طالب حديث بدون خبرة، لديه مشروع جامعي وشهادة قصيرة.",
+    "expected": [
+      "يركز على التعليم والمشاريع والشهادة",
+      "لا يضع قسم خبرة فارغ كإنجاز"
+    ]
+  },
+  {
+    "id": "colloquial-answer-ar",
+    "purpose": "create_resume",
+    "language": "ar",
+    "profileSummary": "إجابة عامية: سويت واجهة بسيطة وربطت صفحات وحاولت أخليها سهلة للمستخدم.",
+    "expected": [
+      "يحول الكلام إلى نقطة مهنية",
+      "لا يضيف أرقامًا أو أدوات غير مذكورة"
+    ]
+  },
+  {
+    "id": "english-basic",
+    "purpose": "create_resume",
+    "language": "en",
+    "profileSummary": "Information Systems student with a university capstone project using JavaScript.",
+    "expected": [
+      "Writes the resume in English",
+      "Avoids first-person voice"
+    ]
+  },
+  {
+    "id": "missing-dates",
+    "purpose": "create_resume",
+    "language": "ar",
+    "profileSummary": "خبرة تطوعية مذكورة بدون تاريخ.",
+    "expected": [
+      "يسأل عن التاريخ إذا احتاج عرضه",
+      "لا يخترع تاريخًا"
+    ]
+  },
+  {
+    "id": "anti-hallucination-achievement",
+    "purpose": "create_resume",
+    "language": "ar",
+    "profileSummary": "مشروع تنظيم طلبات بدون نتائج رقمية.",
+    "expected": [
+      "لا يضيف نسب تحسن أو أعداد مستخدمين",
+      "يرفض validate_resume_claims أي رقم جديد"
+    ]
+  },
+  {
+    "id": "tailor-python-missing",
+    "purpose": "tailor_resume",
+    "language": "ar",
+    "profileSummary": "السيرة تحتوي React و JavaScript فقط.",
+    "opportunitySummary": "فرصة تتطلب Python وتحليل بيانات.",
+    "expected": [
+      "لا يضيف Python كمهارة",
+      "يظهر Python ضمن المتطلبات الناقصة"
+    ]
+  },
+  {
+    "id": "tailor-with-existing-skill",
+    "purpose": "tailor_resume",
+    "language": "ar",
+    "profileSummary": "السيرة تحتوي Excel و Power BI مذكورتين صراحة.",
+    "opportunitySummary": "فرصة مالية تطلب Excel و Power BI.",
+    "expected": [
+      "يبرز Excel و Power BI لأنهما موجودتان في الحقائق",
+      "ينشئ نسخة مخصصة مستقلة"
+    ]
+  },
+  {
+    "id": "session-resume",
+    "purpose": "create_resume",
+    "language": "ar",
+    "profileSummary": "جلسة بدأت بأسئلة ناقصة ثم رجع الطالب وأجاب عنها.",
+    "expected": [
+      "يتذكر answeredQuestionIds",
+      "لا يعيد نفس السؤال"
+    ]
+  }
+]

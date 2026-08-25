@@ -51,7 +51,7 @@ import {
 } from "../utils/seoRoutes";
 import { buildTrainingFinderSeoMeta, setPageSeo } from "../utils/seoMetadata";
 
-const pageFont = "'Aniq', 'Cairo', sans-serif";
+const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_FINDER_FAQ = false;
 const TELEGRAM_CHANNEL_URL = "https://t.me/darbak_1";
 const LOCKED_OPPORTUNITY_PREVIEW =

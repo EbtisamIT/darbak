@@ -6,7 +6,12 @@ import API_BASE_URL from "../config/api";
 import ShareButton from "../components/ShareButton";
 import PremiumInlineNotice from "../components/PremiumInlineNotice";
 import { trackEvent } from "../utils/analytics";
-import { getAccessHeaders, requestPremiumAccess } from "../utils/premiumAccess";
+import {
+  PREMIUM_STATUS_EVENT,
+  getAccessHeaders,
+  hasActivePremiumPass,
+  requestPremiumAccess,
+} from "../utils/premiumAccess";
 import {
   getSavedItemIds,
   getSavedItemUpdateState,
@@ -171,6 +176,18 @@ const getCompanySearchFromUrl = (search = "") => {
 const getInitialCompanySearch = () => {
   if (typeof window === "undefined") return "";
   return getCompanySearchFromUrl(window.location.search);
+};
+
+const getJourneyFiltersFromUrl = (search = "") => {
+  try {
+    const params = new URLSearchParams(search);
+    return {
+      major: params.get("major") || "",
+      city: params.get("city") || "",
+    };
+  } catch {
+    return { major: "", city: "" };
+  }
 };
 
 const getCachedExperiences = () => {
@@ -556,14 +573,19 @@ const ExperiencesPage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedExperience, setSelectedExperience] = useState(null);
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedMajors, setSelectedMajors] = useState([]);
+  const [selectedMajors, setSelectedMajors] = useState(() => {
+    const { major } = getJourneyFiltersFromUrl(location.search);
+    return major ? [major] : [];
+  });
   const [majorsMenuOpen, setMajorsMenuOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [companySearch, setCompanySearch] = useState(getInitialCompanySearch);
   const [sortOption, setSortOption] = useState(() =>
     getInitialCompanySearch() ? "relevance" : "latest"
   );
-  const [selectedCity, setSelectedCity] = useState("");
+  const [selectedCity, setSelectedCity] = useState(
+    () => getJourneyFiltersFromUrl(location.search).city
+  );
   const [rewardFilter, setRewardFilter] = useState("");
   const [environmentFilter, setEnvironmentFilter] = useState("");
   const [fetchError, setFetchError] = useState("");
@@ -580,17 +602,36 @@ const ExperiencesPage = () => {
   const [savedItemIds, setSavedItemIds] = useState(() => getSavedItemIds());
   const [relatedExperiences, setRelatedExperiences] = useState([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
+  const [isPremiumActive, setIsPremiumActive] = useState(
+    () => typeof window !== "undefined" && hasActivePremiumPass()
+  );
   const lastTrackedExperienceSearchRef = useRef("");
   const handledRouteExperienceIdRef = useRef("");
   const selectedExperienceIsLoading = Boolean(selectedExperience?.isLoadingDetails);
   const selectedExperienceId =
     selectedExperience?._id || selectedExperience?.id || "";
+  const selectedExperienceLocked =
+    Boolean(selectedExperience?.isPremiumPreviewLocked) && !isPremiumActive;
   const experiencesPlusCountLabel = formatPlusCount(
     platformStats.experiencesCount || totalExperiences
   );
 
   const steps = ["معلومات التدريب", "التقييم والتجربة"];
   const isLastExperienceStep = currentStep === steps.length;
+
+  useEffect(() => {
+    const refreshPremiumStatus = () => setIsPremiumActive(hasActivePremiumPass());
+
+    refreshPremiumStatus();
+    window.addEventListener(PREMIUM_STATUS_EVENT, refreshPremiumStatus);
+    window.addEventListener("storage", refreshPremiumStatus);
+    window.addEventListener("focus", refreshPremiumStatus);
+    return () => {
+      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshPremiumStatus);
+      window.removeEventListener("storage", refreshPremiumStatus);
+      window.removeEventListener("focus", refreshPremiumStatus);
+    };
+  }, []);
 
   useEffect(() => {
     setPageSeo(
@@ -609,6 +650,11 @@ const ExperiencesPage = () => {
 
   useEffect(() => {
     const companyFromUrl = getCompanySearchFromUrl(location.search);
+    const { major, city } = getJourneyFiltersFromUrl(location.search);
+
+    if (!seoSpecialty) setSelectedMajors(major ? [major] : []);
+    if (!seoCity) setSelectedCity(city);
+
     if (companyFromUrl) {
       setCompanySearch(companyFromUrl);
       setSortOption("relevance");
@@ -619,7 +665,7 @@ const ExperiencesPage = () => {
       setCompanySearch("");
       setSortOption("latest");
     }
-  }, [location.search]);
+  }, [location.search, seoCity, seoSpecialty]);
 
   useEffect(() => {
     const updateSavedItems = () => setSavedItemIds(getSavedItemIds());
@@ -1691,6 +1737,7 @@ const ExperiencesPage = () => {
   const renderStepContent = () => {
     const exp = selectedExperience;
     if (!exp) return null;
+    const isExperienceLocked = selectedExperienceLocked;
 
     if (exp.isLoadingDetails) {
       return (
@@ -1871,7 +1918,7 @@ const ExperiencesPage = () => {
           </div>
         )}
 
-        {exp.isPremiumPreviewLocked && !exp.isPremiumUpsellHidden && (
+        {isExperienceLocked && !exp.isPremiumUpsellHidden && (
           <PremiumInlineNotice
             lockedItems={getExperiencePremiumLockedItems(exp)}
             onUnlock={() => openPremiumFromLockedExperience(exp)}
@@ -1908,14 +1955,14 @@ const ExperiencesPage = () => {
                 margin: 0,
                 whiteSpace: "pre-wrap",
                 overflowWrap: "anywhere",
-                filter: exp.isPremiumPreviewLocked ? "blur(5px)" : "none",
-                userSelect: exp.isPremiumPreviewLocked ? "none" : "auto",
-                minHeight: exp.isPremiumPreviewLocked ? "96px" : "auto",
+                filter: isExperienceLocked ? "blur(5px)" : "none",
+                userSelect: isExperienceLocked ? "none" : "auto",
+                minHeight: isExperienceLocked ? "96px" : "auto",
               }}
             >
               {exp.description}
             </p>
-            {exp.isPremiumPreviewLocked && (
+            {isExperienceLocked && (
               <div
                 style={{
                   position: "absolute",
@@ -1945,7 +1992,7 @@ const ExperiencesPage = () => {
         background: "var(--app-bg)",
         minHeight: "100vh",
         color: "var(--app-text)",
-        fontFamily: "'Cairo', sans-serif",
+        fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
         direction: "rtl",
       }}
     >
@@ -1994,21 +2041,23 @@ const ExperiencesPage = () => {
           </section>
         )}
 
-        <section className="experiences-plus-banner" aria-label="إعلان دربك بلس">
-          <div className="experiences-plus-banner-copy">
-            <span>دربك+</span>
-            <strong>باقي لك مئات التجارب المهمة 👀</strong>
-            <p>
-              اختصر على نفسك وقت البحث عن التدريب
-              {experiencesPlusCountLabel
-                ? ` - ${experiencesPlusCountLabel} تجربة حقيقية من طلاب`
-                : ""}
-            </p>
-          </div>
-          <button type="button" onClick={openExperiencesPlusBanner}>
-            كمل استكشافك
-          </button>
-        </section>
+        {!isPremiumActive && (
+          <section className="experiences-plus-banner" aria-label="إعلان دربك بلس">
+            <div className="experiences-plus-banner-copy">
+              <span>دربك+</span>
+              <strong>باقي لك مئات التجارب المهمة 👀</strong>
+              <p>
+                اختصر على نفسك وقت البحث عن التدريب
+                {experiencesPlusCountLabel
+                  ? ` - ${experiencesPlusCountLabel} تجربة حقيقية من طلاب`
+                  : ""}
+              </p>
+            </div>
+            <button type="button" onClick={openExperiencesPlusBanner}>
+              كمل استكشافك
+            </button>
+          </section>
+        )}
 
         <div
           className={`experience-controls-sticky${

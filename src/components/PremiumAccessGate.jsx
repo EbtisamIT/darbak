@@ -51,46 +51,31 @@ const SUBSCRIPTION_BROWSE_BAR_DELAY_MS = 3 * 60 * 1000;
 const SUBSCRIPTION_REMINDER_SUBSCRIBE_URL =
   "/subscribe?source=experience-reminder";
 
-const formatPlusStat = (value) =>
-  typeof value === "number" ? `${value.toLocaleString("en-US")}+` : "جار التحميل";
-
-const getSubscriberSocialProof = (count) =>
-  typeof count === "number" && count > 0
-    ? `انضم لـ ${formatPlusStat(count)} طالب اشتركوا في دربك`
-    : "طلاب كثير بدأوا يكملون طريقهم مع دربك+";
-
-const PremiumStat = ({ value, label }) => (
-  <div className="premium-landing-stat">
-    <strong>{value}</strong>
-    <span>{label}</span>
-  </div>
-);
-
 const PremiumPlanCard = ({
   plan,
   selected,
+  isCurrentPlan,
+  isUpgradePlan,
   onSelect,
   loading,
 }) => {
-  const priceLabel = formatPlanPrice(plan);
-  const priceParts = priceLabel.split(" ");
-
   return (
-    <article className={`premium-plan-card${selected ? " is-selected" : ""}`}>
-      {plan.recommended && (
+    <article className={`premium-plan-card${selected ? " is-selected" : ""}${plan.id === RESUME_PLAN_ID ? " is-resume-plan" : ""}${isCurrentPlan ? " is-current-plan" : ""}`}>
+      {isCurrentPlan ? (
+        <span className="premium-plan-current-badge">باقتك الحالية ✓</span>
+      ) : plan.recommended && (
         <span className="premium-plan-ribbon">
           {plan.badge || "الأكثر فائدة"}
         </span>
       )}
       <div className="premium-plan-card-head">
-        <span>{plan.note}</span>
         <h3>{plan.title}</h3>
         <p>{plan.description}</p>
       </div>
       <div className="premium-plan-price">
-        <strong>{priceParts[0]}</strong>
-        {priceParts[1] && <span>{priceParts.slice(1).join(" ")}</span>}
-        <small>{formatPlanDuration(plan)}</small>
+        <strong>{formatPlanAmount(plan)}</strong>
+        <span>ر.س</span>
+        <small>/ {formatPlanPeriod(plan)}</small>
       </div>
       <ul>
         {plan.perks.map((perk) => (
@@ -99,20 +84,22 @@ const PremiumPlanCard = ({
             <span>{perk}</span>
           </li>
         ))}
-        <li>
-          <FiCheck aria-hidden="true" />
-          <span>بدون تجديد تلقائي</span>
-        </li>
       </ul>
       <button
         type="button"
         className="premium-plan-cta"
         onClick={() => {
-          onSelect(plan);
+          if (!isCurrentPlan) onSelect(plan);
         }}
-        disabled={loading}
+        disabled={loading || isCurrentPlan}
       >
-        {loading ? "جاري التجهيز..." : plan.ctaLabel || "اشترك الآن"}
+        {isCurrentPlan
+          ? "مشترك حاليًا"
+          : loading
+          ? "جاري التجهيز..."
+          : isUpgradePlan
+          ? "رقِّ إلى دربك + سيرتي"
+          : plan.ctaLabel || "اشترك الآن"}
       </button>
     </article>
   );
@@ -150,9 +137,9 @@ const fallbackSubscriptionPlans = [
     planKey: PLUS_PLAN_ID,
     title: "دربك+",
     label: "دربك+",
-    priceSar: null,
+    priceSar: 5.99,
     durationDays: 30,
-    description: "وصول كامل للمزايا الرقمية المتقدمة لمدة شهر.",
+    description: "كل مزايا البحث والاستكشاف في دربك.",
     badge: "شهري",
     note: "ابدأ الآن واكتشف فرصك",
     ctaLabel: "اشترك الآن",
@@ -160,7 +147,42 @@ const fallbackSubscriptionPlans = [
       "الوصول للتجارب",
       "الوصول للفرص",
       "الاستفادة من وين أتدرب",
+    ],
+  },
+  {
+    id: "one_time_90",
+    planKey: PLUS_PLAN_ID,
+    title: "دربك+ 3 أشهر",
+    label: "دربك+ 3 أشهر",
+    priceSar: 15,
+    durationDays: 90,
+    description: "نفس مزايا دربك+ لمدة أطول.",
+    badge: "90 يوم",
+    note: "مدة أطول لرحلة التدريب",
+    ctaLabel: "اشترك الآن",
+    perks: [
+      "نفس مزايا دربك+",
       "المزايا الحالية في النظام",
+    ],
+  },
+  {
+    id: RESUME_PLAN_ID,
+    planKey: RESUME_PLAN_ID,
+    title: "دربك+ سيرة",
+    label: "دربك+ سيرة",
+    priceSar: null,
+    durationDays: 30,
+    aiResumeUsageLimit: 10,
+    description: "كل مزايا دربك + تجهيز سيرتك وتقديماتك.",
+    badge: "الأكمل للتقديم",
+    note: "سيرة مخصصة وخطاب تقديم ورسالة إيميل",
+    recommended: true,
+    ctaLabel: "اشترك وابدأ سيرتك",
+    perks: [
+      "جميع مزايا دربك+",
+      "سيرة مخصصة للجهة",
+      "خطاب تقديم ورسالة إيميل",
+      "10 تخصيصات شهريًا",
     ],
   },
 ];
@@ -172,6 +194,19 @@ const formatPlanPrice = (plan = {}) =>
         maximumFractionDigits: 2,
       })} ريال`
     : "جار التحميل";
+
+const formatPlanAmount = (plan = {}) =>
+  typeof plan.priceSar === "number"
+    ? plan.priceSar.toLocaleString("en-US", {
+        minimumFractionDigits: plan.priceSar % 1 === 0 ? 0 : 2,
+        maximumFractionDigits: 2,
+      })
+    : "…";
+
+const formatPlanPeriod = (plan = {}) => {
+  const days = Number(plan.durationDays || 0);
+  return days ? `${days} يوم` : "30 يوم";
+};
 
 const formatPlanDuration = (plan = {}) => {
   const days = Number(plan.durationDays || 0);
@@ -196,17 +231,21 @@ const buildPlanPerks = (plan = {}) => {
     ];
   }
 
+  if (plan.id === "one_time_90") {
+    return ["نفس مزايا دربك+"];
+  }
+
   return [
     "الوصول للتجارب",
     "الوصول للفرص",
     "الاستفادة من وين أتدرب",
-    "المزايا الحالية في النظام",
   ];
 };
 
 const normalizeServerPlan = (plan = {}) => {
   const planKey = plan.planKey || normalizePlanId(plan.id);
   const isResumePlan = planKey === RESUME_PLAN_ID || plan.id === RESUME_PLAN_ID;
+  const isNinetyDayPlan = plan.id === "one_time_90";
 
   return {
     ...plan,
@@ -214,14 +253,45 @@ const normalizeServerPlan = (plan = {}) => {
     planKey,
     title: plan.label || (isResumePlan ? "دربك+ سيرة" : "دربك+"),
     description: isResumePlan
-      ? "كل مزايا دربك+ مع خدمة سيرتي بدربك لفترة التقديم."
-      : "وصول كامل للمزايا الرقمية المتقدمة لمدة شهر.",
-    badge: plan.badge || (isResumePlan ? "⭐ الأفضل لفترة التقديم" : "شهري"),
-    note: isResumePlan ? "الأفضل لفترة التقديم" : "ابدأ الآن واكتشف فرصك",
+      ? "كل مزايا دربك + تجهيز سيرتك وتقديماتك."
+      : isNinetyDayPlan
+      ? "نفس مزايا دربك+ لمدة أطول."
+      : "كل مزايا البحث والاستكشاف في دربك.",
+    badge: plan.badge || (isResumePlan ? "الأكمل للتقديم ✨" : ""),
+    note: isResumePlan ? "الأكمل للتقديم" : isNinetyDayPlan ? "مدة أطول لرحلة التدريب" : "ابدأ الآن واكتشف فرصك",
     recommended: isResumePlan,
-    ctaLabel: isResumePlan ? "اشترك وابدأ سيرتك" : "اشترك الآن",
+    ctaLabel: isResumePlan
+      ? "ابدأ مع سيرتي ✨"
+      : isNinetyDayPlan
+      ? "اختر 90 يوم"
+      : "اشترك الآن",
     perks: buildPlanPerks(plan),
   };
+};
+
+const mergeSubscriptionPlans = (serverPlans = []) => {
+  const serverPlansById = new Map(
+    serverPlans.map((plan) => [normalizePlanId(plan.id), plan])
+  );
+  const knownPlans = fallbackSubscriptionPlans.map((fallbackPlan) => {
+    const serverPlan = serverPlansById.get(normalizePlanId(fallbackPlan.id));
+    return serverPlan
+      ? {
+          ...fallbackPlan,
+          ...serverPlan,
+          perks:
+            Array.isArray(serverPlan.perks) && serverPlan.perks.length
+              ? serverPlan.perks
+              : fallbackPlan.perks,
+        }
+      : fallbackPlan;
+  });
+  const knownPlanIds = new Set(knownPlans.map((plan) => normalizePlanId(plan.id)));
+
+  return [
+    ...knownPlans,
+    ...serverPlans.filter((plan) => !knownPlanIds.has(normalizePlanId(plan.id))),
+  ];
 };
 
 const normalizePlanId = (planId = "") => {
@@ -398,8 +468,85 @@ export default function PremiumAccessGate() {
   const sessionPageViewsRef = useRef(0);
   const lastTrackedPathRef = useRef("");
   const selectedPlan =
-    subscriptionPlans.find((plan) => plan.id === selectedPlanId) ||
-    subscriptionPlans[0];
+    findSubscriptionPlanById(subscriptionPlans, selectedPlanId) ||
+    subscriptionPlans[0] ||
+    fallbackSubscriptionPlans[0];
+  const currentPlanId = getStoredPremiumPass()?.planId || "";
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchSubscriptionPlans = async () => {
+      try {
+        setPlansLoading(true);
+        const { data } = await axios.get(`${API_BASE_URL}/api/subscriptions/plans`);
+        if (!isMounted) return;
+
+        const publicPlans = Array.isArray(data.plans)
+          ? data.plans.map(normalizeServerPlan)
+          : [];
+        const nextPlans = publicPlans.length
+          ? mergeSubscriptionPlans(publicPlans)
+          : fallbackSubscriptionPlans;
+
+        setSubscriptionPlans(nextPlans);
+        setPlansError("");
+        setSelectedPlanId((currentPlanId) =>
+          findSubscriptionPlanById(nextPlans, currentPlanId)
+            ? currentPlanId
+            : nextPlans[0]?.id || PLUS_PLAN_ID
+        );
+      } catch {
+        if (!isMounted) return;
+        setSubscriptionPlans(fallbackSubscriptionPlans);
+        setPlansError("تعذر تحميل الباقات من السيرفر حاليًا.");
+      } finally {
+        if (isMounted) setPlansLoading(false);
+      }
+    };
+
+    fetchSubscriptionPlans();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const requestedPlan = findSubscriptionPlanById(
+      subscriptionPlans,
+      params.get("plan")
+    );
+    if (requestedPlan) {
+      setSelectedPlanId(requestedPlan.id);
+    }
+  }, [location.search, subscriptionPlans]);
+
+  useEffect(() => {
+    const refreshPremiumState = () => setIsPremiumActive(hasActivePremiumPass());
+
+    refreshPremiumState();
+    window.addEventListener(PREMIUM_STATUS_EVENT, refreshPremiumState);
+    return () =>
+      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshPremiumState);
+  }, []);
+
+  useEffect(() => {
+    if (!isPremiumActive) return;
+
+    if (reminderBarTimerRef.current) {
+      window.clearTimeout(reminderBarTimerRef.current);
+      reminderBarTimerRef.current = null;
+    }
+
+    pendingActionRef.current = null;
+    reminderDetailRef.current = null;
+    setSubscriptionReminder(null);
+    setIsReminderBarVisible(false);
+    setIsOpen(false);
+    setIsLimitGateOpen(false);
+  }, [isPremiumActive]);
 
   const markSubscriptionReminderShown = useCallback((detail = {}, accessStatus = {}) => {
     const shownAt = Date.now();
@@ -431,7 +578,7 @@ export default function PremiumAccessGate() {
   const queueReminderBar = useCallback(
     (delayMs = SUBSCRIPTION_BROWSE_BAR_DELAY_MS) => {
       if (typeof window === "undefined") return;
-      if (!isPremiumGateEnabled() || hasActivePremiumPass()) return;
+      if (!isPremiumGateEnabled() || isPremiumActive) return;
       if (
         !shouldShowReminderBar() ||
         getSessionFlag(SUBSCRIPTION_BAR_SHOWN_SESSION_KEY)
@@ -446,13 +593,13 @@ export default function PremiumAccessGate() {
       reminderBarTimerRef.current = window.setTimeout(() => {
         reminderBarTimerRef.current = null;
 
-        if (!hasActivePremiumPass() && shouldShowReminderBar()) {
+        if (!isPremiumActive && shouldShowReminderBar()) {
           setSessionFlag(SUBSCRIPTION_BAR_SHOWN_SESSION_KEY);
           setIsReminderBarVisible(true);
         }
       }, delayMs);
     },
-    []
+    [isPremiumActive]
   );
 
   const closeSubscriptionReminder = useCallback(() => {
@@ -523,7 +670,7 @@ export default function PremiumAccessGate() {
   }, []);
 
   useEffect(() => {
-    if (!isPremiumGateEnabled() || hasActivePremiumPass()) return;
+    if (!isPremiumGateEnabled() || isPremiumActive) return;
 
     const lastVisitAt = getStoredReminderTimestamp(SUBSCRIPTION_LAST_VISIT_PREFIX);
     const lastReturnReminderAt = getStoredReminderTimestamp(
@@ -539,7 +686,7 @@ export default function PremiumAccessGate() {
     );
 
     setStoredReminderTimestamp(SUBSCRIPTION_LAST_VISIT_PREFIX, now);
-  }, []);
+  }, [isPremiumActive]);
 
   useEffect(() => {
     queueReminderBar();
@@ -553,7 +700,7 @@ export default function PremiumAccessGate() {
   }, [queueReminderBar]);
 
   useEffect(() => {
-    if (!isPremiumGateEnabled() || hasActivePremiumPass()) return;
+    if (!isPremiumGateEnabled() || isPremiumActive) return;
 
     const pathKey = `${location.pathname}${location.search}`;
     if (lastTrackedPathRef.current !== pathKey) {
@@ -590,12 +737,28 @@ export default function PremiumAccessGate() {
         pageViews: sessionPageViewsRef.current,
       },
     });
-  }, [isOpen, location.pathname, location.search, queueReminderBar, subscriptionReminder]);
+  }, [
+    isOpen,
+    isPremiumActive,
+    location.pathname,
+    location.search,
+    queueReminderBar,
+    subscriptionReminder,
+  ]);
 
   useEffect(() => {
     const handlePremiumRequest = (event) => {
       const detail = event.detail || {};
-      if (!isPremiumGateEnabled() && !detail.loginOnly) return;
+      // The subscription page must always be able to show the existing plan
+      // picker. The environment flag only controls feature-gating elsewhere.
+      const isSubscriptionBrowseRequest = detail.feature === "subscribe_page";
+      if (
+        !isPremiumGateEnabled() &&
+        !detail.loginOnly &&
+        !isSubscriptionBrowseRequest
+      ) {
+        return;
+      }
 
       const accessStatus = detail.accessStatus || {};
       const requestedPlan = findSubscriptionPlanById(
@@ -647,10 +810,13 @@ export default function PremiumAccessGate() {
       if (detail.reminderOnly) return;
 
       pendingActionRef.current = detail.onGranted || null;
+      if (requestedPlan) {
+        setSelectedPlanId(requestedPlan.id);
+      }
       setFeature(detail.feature || "");
       setIsLimitGateOpen(false);
       setIsLoginOnly(Boolean(detail.loginOnly));
-      setShowCheckoutForm(false);
+      setShowCheckoutForm(Boolean(detail.openCheckout) && !detail.loginOnly);
       setIsResetMode(false);
       setResetToken("");
       const gateMessage = detail.gateMessage || "";
@@ -682,7 +848,12 @@ export default function PremiumAccessGate() {
     window.addEventListener(PREMIUM_ACCESS_EVENT, handlePremiumRequest);
     return () =>
       window.removeEventListener(PREMIUM_ACCESS_EVENT, handlePremiumRequest);
-  }, [markSubscriptionReminderShown, queueReminderBar]);
+  }, [
+    isPremiumActive,
+    markSubscriptionReminderShown,
+    queueReminderBar,
+    subscriptionPlans,
+  ]);
 
   const closeGate = () => {
     if (isOpen) {
@@ -1338,8 +1509,8 @@ export default function PremiumAccessGate() {
                 >
                   <div className="premium-selected-plan-summary">
                     <span>{selectedPlan.note}</span>
-                    <strong>{selectedPlan.price}</strong>
-                    <small>{selectedPlan.duration} · بدون تجديد تلقائي</small>
+                    <strong>{formatPlanPrice(selectedPlan)}</strong>
+                    <small>{formatPlanDuration(selectedPlan)} · بدون تجديد تلقائي</small>
                   </div>
                   <div className="premium-access-fields">
                     <label className="premium-access-field">
@@ -1405,41 +1576,46 @@ export default function PremiumAccessGate() {
             ) : (
               <section className="premium-section premium-plans-section premium-plan-picker">
                 <div className="premium-section-heading">
-                  <span>دربك+</span>
+                  <span>الاشتراك بسيط</span>
                   <h2 id="premium-access-title">
-                    اختصر طريقك للتدريب 🎯
+                    اختر المدة والخدمة اللي تناسب رحلتك
                   </h2>
                   <p>
-                    كل اللي تحتاجه في مكان واحد: تجارب، جهات، فرص، ونصائح
-                    حقيقية تساعدك تاخذ قرارك بثقة.
+                    كل الباقات بدون تجديد تلقائي.
                   </p>
                 </div>
 
-                <div className="premium-landing-stats" aria-label="أرقام دربك">
-                  <PremiumStat
-                    value={formatPlusStat(platformStats.experiencesCount)}
-                    label="تجربة منشورة"
-                  />
-                  <PremiumStat
-                    value={formatPlusStat(platformStats.organizationsCount)}
-                    label="جهة تدريبية"
-                  />
-                </div>
+                {typeof platformStats.activeSubscribersCount === "number" &&
+                  platformStats.activeSubscribersCount > 0 && (
+                    <p className="premium-subscriber-badge">
+                      +{platformStats.activeSubscribersCount.toLocaleString("en-US")} طالب مشترك
+                    </p>
+                  )}
 
-                <p className="premium-social-proof">
-                  {getSubscriberSocialProof(platformStats.activeSubscribersCount)}
-                </p>
+                {plansError && (
+                  <p className="premium-access-message">{plansError}</p>
+                )}
 
                 <div className="premium-plan-options" aria-label="اختيار الباقة">
-                  {subscriptionPlans.map((plan) => (
+                  {plansLoading ? (
+                    <p className="premium-access-message">جارِ تحميل الباقات...</p>
+                  ) : (
+                    subscriptionPlans.map((plan) => (
                     <PremiumPlanCard
                       key={plan.id}
                       plan={plan}
                       selected={selectedPlan.id === plan.id}
-                      loading={false}
+                      isCurrentPlan={plan.id === currentPlanId}
+                      isUpgradePlan={
+                        plan.id === RESUME_PLAN_ID &&
+                        Boolean(currentPlanId) &&
+                        currentPlanId !== RESUME_PLAN_ID
+                      }
+                      loading={plansLoading || isStartingCheckout}
                       onSelect={selectPlanAndCreateAccount}
                     />
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 <button
@@ -1470,7 +1646,7 @@ export default function PremiumAccessGate() {
         </div>
       )}
 
-      {isReminderBarVisible && !subscriptionReminder && !isOpen && (
+      {shouldRenderReminderBar && (
         <div className="subscription-reminder-bar" dir="rtl" role="status">
           <button
             type="button"

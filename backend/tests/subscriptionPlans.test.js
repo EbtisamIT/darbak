@@ -17,7 +17,7 @@ const env = {
   RESUME_PLAN_LAUNCH_ENABLED: "false",
   SUBSCRIPTION_PRICE_SAR: "5.99",
   SUBSCRIPTION_DURATION_DAYS: "30",
-  RESUME_SUBSCRIPTION_PRICE_SAR: "24.99",
+  RESUME_SUBSCRIPTION_PRICE_SAR: "34.99",
   RESUME_SUBSCRIPTION_DURATION_DAYS: "30",
   RESUME_AI_USAGE_LIMIT: "10",
 };
@@ -31,14 +31,14 @@ assert.strictEqual(plusPlan.priceSar, 5.99);
 assert.deepStrictEqual(plusPlan.entitlements, [PLUS_ENTITLEMENT]);
 
 const resumePlan = getSubscriptionPlan(RESUME_PLAN_KEY, env);
-assert.strictEqual(resumePlan.priceSar, 24.99);
+assert.strictEqual(resumePlan.priceSar, 34.99);
 assert.strictEqual(resumePlan.aiResumeUsageLimit, 10);
 assert.strictEqual(resumePlan.label, "دربك+ سيرة");
 assert.ok(resumePlan.entitlements.includes(PLUS_ENTITLEMENT));
 assert.ok(resumePlan.entitlements.includes(RESUME_ENTITLEMENT));
 
 const defaultResumePlan = getSubscriptionPlan(RESUME_PLAN_KEY, {});
-assert.strictEqual(defaultResumePlan.priceSar, 24.99);
+assert.strictEqual(defaultResumePlan.priceSar, 34.99);
 assert.strictEqual(defaultResumePlan.aiResumeUsageLimit, 10);
 
 assert.ok(hasPlanEntitlement(RESUME_PLAN_KEY, PLUS_ENTITLEMENT, env));

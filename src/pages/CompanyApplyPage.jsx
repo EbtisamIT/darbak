@@ -10,7 +10,7 @@ import {
   getStoredAccessIdentity,
 } from "../utils/premiumAccess";
 
-const pageFont = "'Aniq', 'Cairo', sans-serif";
+const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 
 const normalizeLabel = (value = "") =>
   value

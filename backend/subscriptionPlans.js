@@ -41,7 +41,7 @@ const normalizePlanKey = (value = "") => {
 const buildSubscriptionPlans = (env = process.env) => {
   const plusPrice = toPositiveNumber(env.SUBSCRIPTION_PRICE_SAR, 5.99);
   const plusDuration = toPositiveNumber(env.SUBSCRIPTION_DURATION_DAYS, 30);
-  const resumePrice = toPositiveNumber(env.RESUME_SUBSCRIPTION_PRICE_SAR, 24.99);
+  const resumePrice = toPositiveNumber(env.RESUME_SUBSCRIPTION_PRICE_SAR, 34.99);
   const resumeDuration = toPositiveNumber(env.RESUME_SUBSCRIPTION_DURATION_DAYS, 30);
   const resumeUsageLimit = toPositiveNumber(env.RESUME_AI_USAGE_LIMIT, 10);
   const oneTimePrice = toPositiveNumber(

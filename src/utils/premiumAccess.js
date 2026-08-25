@@ -59,6 +59,24 @@ export const getStoredPremiumPass = () => {
 
 export const hasActivePremiumPass = () => Boolean(getStoredPremiumPass());
 
+export const passHasEntitlement = (pass = {}, entitlement = "") => {
+  if (pass?.isAdmin) return true;
+  const entitlements = Array.isArray(pass?.entitlements) ? pass.entitlements : [];
+  if (
+    entitlement === "darbak_plus" &&
+    (pass?.accessType === "premium" || pass?.accessType === "admin")
+  ) {
+    return true;
+  }
+  return entitlements.includes(entitlement);
+};
+
+export const hasResumeAccessPass = () =>
+  passHasEntitlement(getStoredPremiumPass(), "resume_builder");
+
+export const hasDarbakPlusPass = () =>
+  passHasEntitlement(getStoredPremiumPass(), "darbak_plus");
+
 export const getStoredAccessIdentity = () => {
   if (typeof window === "undefined") return {};
 
@@ -99,6 +117,14 @@ export const savePremiumPass = (pass) => {
     expiresAt: pass.expiresAt,
     isAdmin: Boolean(pass.isAdmin),
     accessType: pass.accessType || "premium",
+    planId: pass.planId || "",
+    planKey: pass.planKey || pass.planId || "",
+    planLabel: pass.planLabel || "",
+    entitlements: Array.isArray(pass.entitlements) ? pass.entitlements : [],
+    hasResumeAccess: Boolean(pass.hasResumeAccess),
+    aiResumeUsageCount: Number(pass.aiResumeUsageCount || 0),
+    aiResumeUsageLimit: Number(pass.aiResumeUsageLimit || 0),
+    aiResumeUsageResetAt: pass.aiResumeUsageResetAt || null,
     savedAt: new Date().toISOString(),
   };
 
