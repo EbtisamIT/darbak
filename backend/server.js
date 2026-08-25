@@ -50,6 +50,10 @@ const {
   runDarbakResumeAgent,
 } = require("./agents/darbakResumeAgent");
 const { compareResumeToJob } = require("./services/resumeMatchService");
+const {
+  mapPortfolioToResumePayload: mapPortfolioToResumeHydration,
+  hydrateResumeFromPortfolio,
+} = require("./services/resumePortfolioHydration");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -6348,6 +6352,13 @@ const sanitizeResumePayload = (body = {}) => {
       city: sanitizePortfolioText(personalInfo.city, 80),
       major: sanitizePortfolioText(personalInfo.major, 120),
       university: sanitizePortfolioText(personalInfo.university, 160),
+      degree: sanitizePortfolioText(personalInfo.degree, 80),
+      studentStatus: ["student", "graduate", "expected_graduate"].includes(personalInfo.studentStatus)
+        ? personalInfo.studentStatus
+        : "",
+      graduationYear: sanitizePortfolioText(personalInfo.graduationYear, 20),
+      gpa: sanitizePortfolioText(personalInfo.gpa, 20),
+      gpaScale: sanitizePortfolioText(personalInfo.gpaScale, 20),
       linkedinUrl: sanitizePortfolioUrl(personalInfo.linkedinUrl, 260),
       headline: sanitizePortfolioText(personalInfo.headline, 140),
       portfolioUrl: sanitizePortfolioUrl(personalInfo.portfolioUrl, 260),
@@ -7361,8 +7372,40 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
         status: "approved",
       })
     );
-    const fallback = mapPortfolioToResumePayload(portfolio || {}, contact);
-    const enrichedResume = enrichResumeWithPortfolio(resume, fallback);
+    const fallback = mapPortfolioToResumeHydration(portfolio || {}, contact, {
+      frontendUrl: getFrontendUrl(),
+      sectionOrder: RESUME_SECTION_KEYS,
+    });
+    const hydration = hydrateResumeFromPortfolio(resume, fallback);
+
+    // A previous UI flow could create a nearly empty master profile before the
+    // portfolio import completed. Backfill it once here so refreshes, other
+    // devices, and the editor all receive the same durable resume payload.
+    if (hydration.changed && portfolio?._id) {
+      if (resume?._id) {
+        resume = await ResumeProfile.findByIdAndUpdate(
+          resume._id,
+          { $set: hydration.patch },
+          { new: true, runValidators: true }
+        ).lean();
+      } else {
+        resume = await ResumeProfile.findOneAndUpdate(
+          { contact, accessCodeHash },
+          {
+            $setOnInsert: {
+              contact,
+              accessCodeHash,
+              userId: req.darbakAccess.user?._id,
+              workflow: { source: "portfolio", lastStep: "data", isSetupComplete: false },
+            },
+            $set: hydration.patch,
+          },
+          { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+        ).lean();
+      }
+    }
+
+    const enrichedResume = resume || hydration.resume;
 
     res.json({
       exists: Boolean(resume),
