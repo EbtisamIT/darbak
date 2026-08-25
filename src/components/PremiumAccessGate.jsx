@@ -13,6 +13,7 @@ import {
   getStoredAccessIdentity,
   getStoredPremiumPass,
   hasActivePremiumPass,
+  hasDarbakPlusPass,
   hasResumeAccessPass,
   isPremiumGateEnabled,
   saveAccessIdentity,
@@ -422,6 +423,22 @@ const isSubscriptionReminderCandidate = (detail = {}, accessStatus = {}) => {
   );
 };
 
+const isCoreDarbakFeature = (detail = {}) => {
+  const feature = (detail.feature || "").toString();
+  const itemKey = (detail.itemKey || "").toString();
+  return (
+    feature.includes("experience") ||
+    feature.includes("opportunity") ||
+    feature.includes("where_to_train") ||
+    feature.includes("training_guide") ||
+    itemKey.startsWith("experience:") ||
+    itemKey.startsWith("opportunity:") ||
+    itemKey.startsWith("where-to-train:") ||
+    itemKey.startsWith("where-to-train-opportunities:") ||
+    itemKey.startsWith("guide-organization:")
+  );
+};
+
 const shouldShowReminderBar = () => {
   const lastDismissedAt = getStoredReminderTimestamp(
     SUBSCRIPTION_REMINDER_BAR_DISMISSED_PREFIX
@@ -770,11 +787,17 @@ export default function PremiumAccessGate() {
         subscriptionPlans,
         detail.defaultPlanId
       );
-      const requiresResumePlan = requestedPlan?.id === "darbak_resume";
+      const coreFeature = isCoreDarbakFeature(detail);
+      const effectivePlan = requestedPlan || (coreFeature
+        ? findSubscriptionPlanById(subscriptionPlans, PLUS_PLAN_ID)
+        : null);
+      const requiresResumePlan = effectivePlan?.id === "darbak_resume";
       const hasRequestedPlanAccess = requiresResumePlan
         ? hasResumeAccessPass()
-        : !requestedPlan ||
-          getStoredPremiumPass()?.planId === requestedPlan.id;
+        : coreFeature
+          ? hasDarbakPlusPass()
+          : !effectivePlan ||
+            getStoredPremiumPass()?.planId === effectivePlan.id;
 
       if (
         isPremiumActive &&
@@ -815,8 +838,8 @@ export default function PremiumAccessGate() {
       if (detail.reminderOnly) return;
 
       pendingActionRef.current = detail.onGranted || null;
-      if (requestedPlan) {
-        setSelectedPlanId(requestedPlan.id);
+      if (effectivePlan) {
+        setSelectedPlanId(effectivePlan.id);
       }
       setFeature(detail.feature || "");
       setIsLimitGateOpen(false);

@@ -44,6 +44,8 @@ assert.strictEqual(defaultResumePlan.aiResumeUsageLimit, 10);
 assert.ok(hasPlanEntitlement(RESUME_PLAN_KEY, PLUS_ENTITLEMENT, env));
 assert.ok(hasPlanEntitlement(RESUME_PLAN_KEY, RESUME_ENTITLEMENT, env));
 assert.ok(!hasPlanEntitlement(PLUS_PLAN_KEY, RESUME_ENTITLEMENT, env));
+assert.ok(hasPlanEntitlement("one_time_90", PLUS_ENTITLEMENT, env));
+assert.ok(!hasPlanEntitlement("one_time_90", RESUME_ENTITLEMENT, env));
 assert.deepStrictEqual(getPlanEntitlements("unknown", env), [PLUS_ENTITLEMENT]);
 assert.strictEqual(isResumePlanLaunchEnabled(env), false);
 assert.deepStrictEqual(
