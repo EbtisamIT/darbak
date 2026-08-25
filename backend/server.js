@@ -2413,6 +2413,14 @@ const sanitizeAnalyticsMetadata = (metadata = {}) => {
   }, {});
 };
 
+// Analytics must never delay a student-facing operation. Admin reporting can
+// query these events later; failures are intentionally isolated here.
+const recordAnalyticsEventAsync = (event = {}) => {
+  AnalyticsEvent.create(event).catch((err) => {
+    console.warn("Analytics event was not recorded:", err.message);
+  });
+};
+
 const recordPremiumAccessVerifiedEvent = async ({
   subscription,
   visitorId = "",
@@ -2482,13 +2490,28 @@ const recordPremiumAccessVerifiedEvent = async ({
     return existingCompletedEvent;
   }
 
-  return AnalyticsEvent.create({
+  const completedEvent = await AnalyticsEvent.create({
     eventName: "subscription_completed",
     visitorId: cleanVisitorId,
     page: "/subscriptions/moyasar",
     deviceType: "unknown",
     metadata,
   });
+
+  if (getSubscriptionPlanKey(subscription) === RESUME_PLAN_KEY) {
+    recordAnalyticsEventAsync({
+      eventName: "resume_subscription_success",
+      visitorId: cleanVisitorId,
+      page: "/subscriptions/moyasar",
+      deviceType: "unknown",
+      metadata: sanitizeAnalyticsMetadata({
+        planId: RESUME_PLAN_KEY,
+        sourcePage: source,
+      }),
+    });
+  }
+
+  return completedEvent;
 };
 
 const recordPremiumPaymentEmailAttempt = async ({
@@ -6331,6 +6354,46 @@ const buildEnglishLocalizedDisplay = (resume = {}) => {
   return localized;
 };
 
+const getPortfolioResumeReadiness = (portfolio = {}, contact = "") => {
+  const hasProject = (portfolio.projects || []).some(
+    (project) => project?.title || project?.description
+  );
+  const hasEvidence = (portfolio.skills || []).some(Boolean) || hasProject;
+  const fields = [
+    ["fullName", "الاسم", Boolean(portfolio.fullName?.trim())],
+    ["major", "التخصص", Boolean(portfolio.major?.trim())],
+    ["city", "المدينة", Boolean(portfolio.city?.trim())],
+    ["university", "الجامعة", Boolean(portfolio.university?.trim())],
+    ["degreeLevel", "الدرجة أو المرحلة التعليمية", Boolean(portfolio.degreeLevel?.trim())],
+    ["email", "وسيلة التواصل", Boolean(portfolio.email?.trim() || isValidEmail(contact))],
+    ["bio", "نبذة مهنية", Boolean(portfolio.bio?.trim())],
+    ["evidence", "مهارة أو مشروع واحد على الأقل", hasEvidence],
+  ];
+
+  const required = fields.map(([key, label, complete]) => ({ key, label, complete }));
+  const optional = [
+    { key: "linkedinUrl", label: "LinkedIn", complete: Boolean(portfolio.linkedinUrl?.trim()) },
+    { key: "certifications", label: "الشهادات", complete: (portfolio.certifications || []).some((item) => item?.title) },
+  ];
+
+  return {
+    exists: Boolean(portfolio?._id),
+    complete: required.every((field) => field.complete),
+    completedCount: required.filter((field) => field.complete).length,
+    totalCount: required.length,
+    required,
+    optional,
+  };
+};
+
+const buildPortfolioHeadline = (portfolio = {}) => {
+  const major = sanitizePortfolioText(portfolio.major, 120);
+  const stage = sanitizePortfolioText(portfolio.degreeLevel, 120);
+  if (!major) return "";
+  const confirmedStage = stage.match(/(?:طالبة|طالب|خريجة|خريج)/)?.[0];
+  return confirmedStage ? `${confirmedStage} ${major}` : `متخصص/ة في ${major}`;
+};
+
 const mapPortfolioToResumePayload = (portfolio = {}, contact = "") => ({
   personalInfo: {
     fullName: portfolio.fullName || "",
@@ -6340,7 +6403,7 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "") => ({
     major: portfolio.major || "",
     university: portfolio.university || "",
     linkedinUrl: portfolio.linkedinUrl || "",
-    headline: portfolio.degreeLevel || portfolio.major || "",
+    headline: buildPortfolioHeadline(portfolio),
     portfolioUrl: portfolio.slug ? `${getFrontendUrl()}/p/${portfolio.slug}` : "",
     githubUrl: "",
     personalUrl: "",
@@ -6350,7 +6413,7 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "") => ({
     ? [
         {
           id: "portfolio-education",
-          title: portfolio.degreeLevel || "طالب تدريب تعاوني",
+          title: portfolio.degreeLevel || portfolio.major || "",
           subtitle: portfolio.university,
           organization: portfolio.university,
           period: "",
@@ -7107,12 +7170,21 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
       ).lean();
     }
     const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
+    const hasTailoredVersion = !resume && Boolean(
+      await ResumeTailoredVersion.exists({
+        contact,
+        accessCodeHash,
+        status: "approved",
+      })
+    );
     const fallback = mapPortfolioToResumePayload(portfolio || {}, contact);
 
     res.json({
       exists: Boolean(resume),
+      hasExistingResumeData: Boolean(resume || hasTailoredVersion),
       resume: serializeResume(resume || fallback, req.darbakAccess),
       portfolioImported: Boolean(!resume && portfolio),
+      portfolioReadiness: getPortfolioResumeReadiness(portfolio || {}, contact),
     });
   } catch (err) {
     console.error("❌ Resume fetch error:", err);
@@ -7596,17 +7668,15 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
           { $set: { status: "completed", expiresAt: getResumeAgentExpiry() } }
         );
 
-        await AnalyticsEvent.create({
-          eventName: "resume_agent_tailored_approved",
+        recordAnalyticsEventAsync({
+          eventName: "application_pack_completed",
           visitorId: sanitizeAnalyticsText(req.body.visitorId, 90),
           page: "/my-resume",
           metadata: sanitizeAnalyticsMetadata({
             opportunityId: pendingDraft.opportunityId?.toString?.() || "",
-            companyName: pendingDraft.companyName || "",
-            usageCount: usage.aiResumeUsageCount,
-            usageLimit: usage.aiResumeUsageLimit,
+            packType: applicationPack.packType || "opportunity_pack",
           }),
-        }).catch(() => null);
+        });
 
         return res.json({
           tailoredVersion,
@@ -10337,7 +10407,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     const { days, rangeLabel, match } = getAnalyticsDateScope(req.query.days);
     const cleanMatch = getCleanAnalyticsMatch(match);
     const analyticsCacheKey = getRequestCacheKey(
-      "admin-analytics-light:v4",
+      "admin-analytics-light:v5",
       req.query
     );
     const cachedAnalytics = getReadCache(analyticsCacheKey);
@@ -10393,6 +10463,16 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       ? { updatedAt: match.createdAt }
       : {};
     const visitorIdFilter = { visitorId: { $type: "string", $nin: [""] } };
+    const resumeFunnelEventNames = [
+      "resume_preview_viewed",
+      "resume_upgrade_clicked",
+      "resume_subscription_success",
+      "application_pack_started",
+      "application_pack_completed",
+      "application_pack_failed",
+      "resume_pdf_downloaded",
+      "email_copied",
+    ];
 
     const [
       totalEvents,
@@ -10416,6 +10496,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       topPremiumPlans,
       paidMoyasarSubscriptions,
       dailyPremiumFunnel,
+      subscriptionPlanBreakdown,
+      resumeFunnelEventCounts,
       topSharedExperiences,
       topSharedOpportunities,
     ] = await Promise.all([
@@ -10519,6 +10601,40 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         providerPaymentId: { $nin: [null, ""] },
       }),
       buildDailyPremiumFunnel(match),
+      Subscription.aggregate([
+        {
+          $match: {
+            provider: "moyasar",
+            providerPaymentId: { $nin: [null, ""] },
+            status: { $in: ["active", "expired"] },
+            planId: { $in: ["monthly", "darbak_plus", "one_time_90", RESUME_PLAN_KEY] },
+          },
+        },
+        {
+          $addFields: {
+            analyticsPlanId: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $in: ["$planId", ["monthly", "darbak_plus"]] },
+                    then: "darbak_plus",
+                  },
+                ],
+                default: "$planId",
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$analyticsPlanId",
+            subscriptions: { $sum: 1 },
+            revenueSar: { $sum: { $ifNull: ["$priceSar", 0] } },
+          },
+        },
+        { $project: { _id: 0, planId: "$_id", subscriptions: 1, revenueSar: 1 } },
+      ]),
+      getSimpleEventAnalytics(cleanMatch, resumeFunnelEventNames),
       AnalyticsEvent.aggregate([
         {
           $match: {
@@ -10601,6 +10717,54 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     };
     const subscriptionCompletedSummary =
       getPremiumEventSummary("subscription_completed");
+    const getResumeEventCount = (eventName) =>
+      (resumeFunnelEventCounts || []).find((item) => item.label === eventName)
+        ?.count || 0;
+    const subscriptionPlanIds = ["darbak_plus", "one_time_90", RESUME_PLAN_KEY];
+    const totalSubscriptions = (subscriptionPlanBreakdown || []).reduce(
+      (sum, item) => sum + Number(item.subscriptions || 0),
+      0
+    );
+    const totalRevenueSar = (subscriptionPlanBreakdown || []).reduce(
+      (sum, item) => sum + Number(item.revenueSar || 0),
+      0
+    );
+    const subscriptionAnalytics = {
+      totalSubscriptions,
+      totalRevenueSar,
+      plans: subscriptionPlanIds.map((planId) => {
+        const item = (subscriptionPlanBreakdown || []).find(
+          (plan) => plan.planId === planId
+        );
+        const subscriptions = Number(item?.subscriptions || 0);
+        return {
+          planId,
+          subscriptions,
+          revenueSar: Number(item?.revenueSar || 0),
+          share: totalSubscriptions
+            ? Number(((subscriptions / totalSubscriptions) * 100).toFixed(1))
+            : 0,
+        };
+      }),
+    };
+    const resumeFunnel = [
+      ["resume_preview_viewed", "Preview"],
+      ["resume_upgrade_clicked", "Upgrade Click"],
+      ["resume_subscription_success", "Paid"],
+      ["application_pack_started", "Pack Started"],
+      ["application_pack_completed", "Pack Completed"],
+    ].map(([eventName, label], index, items) => {
+      const count = getResumeEventCount(eventName);
+      const previousCount = index ? getResumeEventCount(items[index - 1][0]) : 0;
+      return {
+        eventName,
+        label,
+        count,
+        conversion: previousCount
+          ? Number(((count / previousCount) * 100).toFixed(1))
+          : null,
+      };
+    });
     const premiumAnalyticsPayload = {
       days,
       rangeLabel,
@@ -10639,6 +10803,9 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       cvProductAdClicks,
       topAdClicks,
       premiumEventCounts,
+      subscriptionAnalytics,
+      resumeFunnel,
+      resumeAnalyticsEvents: resumeFunnelEventCounts,
       premiumFunnelSummary: {
         reminderShown: getPremiumEventSummary("subscription_reminder_shown"),
         reminderClicked: getPremiumEventSummary("subscription_reminder_clicked"),

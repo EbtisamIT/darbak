@@ -73,8 +73,8 @@ const ResumePreview = ({ resume }) => {
   const estimatedPages = estimateResumePages(resume);
   const headline =
     personal.headline ||
-    [personal.major, personal.university].filter(Boolean).join(" - ") ||
-    (language === "en" ? "Co-op Training Candidate" : "مرشح للتدريب التعاوني");
+    personal.major ||
+    (language === "en" ? "Professional profile" : "الملف المهني");
   const contactItems = [
     personal.email,
     personal.phone,

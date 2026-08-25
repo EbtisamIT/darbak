@@ -298,6 +298,13 @@ const emptyAnalytics = {
     adminAccessUsers: 0,
   },
   topPremiumPlans: [],
+  subscriptionAnalytics: {
+    totalSubscriptions: 0,
+    totalRevenueSar: 0,
+    plans: [],
+  },
+  resumeFunnel: [],
+  resumeAnalyticsEvents: [],
   shareMenuOpens: 0,
   shareActions: 0,
   experienceShareMenuOpens: 0,
@@ -456,7 +463,9 @@ const defaultTelegramContentItemForm = {
 
 const premiumPlanLabels = {
   monthly: "دربك+ شهري",
+  darbak_plus: "دربك+",
   one_time_90: "دربك+ 3 أشهر",
+  darbak_resume: "دربك + سيرتي ✨",
   admin: "حساب إدارة",
 };
 
@@ -4765,6 +4774,99 @@ export default function AdminReviewPage() {
                 </strong>
               </div>
             ))}
+          </section>
+
+          <section style={cardStyle}>
+            <div style={{ marginBottom: "14px" }}>
+              <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                الاشتراكات حسب الباقة
+              </h3>
+              <p style={{ color: adminColors.muted, margin: 0, fontSize: 13 }}>
+                الإيراد من قيمة الدفع المحفوظة وقت الاشتراك، وليس من السعر الحالي للباقة.
+              </p>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              {[
+                {
+                  label: "إجمالي الاشتراكات",
+                  subscriptions: analytics.subscriptionAnalytics?.totalSubscriptions || 0,
+                  revenueSar: analytics.subscriptionAnalytics?.totalRevenueSar || 0,
+                  share: null,
+                },
+                ...["darbak_plus", "one_time_90", "darbak_resume"].map((planId) => ({
+                  label: premiumPlanLabels[planId],
+                  ...(analytics.subscriptionAnalytics?.plans || []).find(
+                    (plan) => plan.planId === planId
+                  ),
+                })),
+              ].map((plan) => (
+                <article
+                  key={plan.label}
+                  style={{
+                    border: `1px solid ${plan.planId === "darbak_resume" ? "rgba(102,208,195,0.38)" : adminColors.cardBorder}`,
+                    borderRadius: 12,
+                    padding: "14px",
+                    background: plan.planId === "darbak_resume" ? "rgba(102,208,195,0.06)" : "rgba(255,255,255,0.02)",
+                  }}
+                >
+                  <strong style={{ color: plan.planId === "darbak_resume" ? adminColors.brand : adminColors.text }}>
+                    {plan.label}
+                  </strong>
+                  <b style={{ display: "block", color: adminColors.text, fontSize: 26, marginTop: 10 }}>
+                    {Number(plan.subscriptions || 0).toLocaleString("en-US")}
+                  </b>
+                  <small style={{ color: adminColors.muted }}>اشتراك</small>
+                  <p style={{ color: adminColors.textSoft, margin: "10px 0 0", fontSize: 13 }}>
+                    {formatAdminCurrency(plan.revenueSar || 0)}
+                    {plan.share !== null && plan.share !== undefined ? ` · ${plan.share}% من الإجمالي` : ""}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section style={cardStyle}>
+            <div style={{ marginBottom: "14px" }}>
+              <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                أداء سيرتي بدربك
+              </h3>
+              <p style={{ color: adminColors.muted, margin: 0, fontSize: 13 }}>
+                يبدأ القياس من إطلاق أحداث سيرتي؛ لا نخمّن بيانات ما قبل ذلك.
+              </p>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              {(analytics.resumeFunnel || []).map((stage) => (
+                <article
+                  key={stage.eventName}
+                  style={{
+                    border: `1px solid ${adminColors.cardBorder}`,
+                    borderRadius: 12,
+                    padding: "14px",
+                    background: "rgba(255,255,255,0.02)",
+                  }}
+                >
+                  <strong style={{ color: adminColors.text }}>{stage.label}</strong>
+                  <b style={{ display: "block", color: adminColors.brand, fontSize: 27, marginTop: 9 }}>
+                    {Number(stage.count || 0).toLocaleString("en-US")}
+                  </b>
+                  <small style={{ color: adminColors.muted }}>
+                    {stage.conversion === null ? "بداية القمع" : `${stage.conversion}% من المرحلة السابقة`}
+                  </small>
+                </article>
+              ))}
+            </div>
           </section>
 
           <section style={cardStyle}>

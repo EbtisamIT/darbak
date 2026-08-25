@@ -18,7 +18,7 @@ import {
   getStoredPremiumPass,
   passHasEntitlement,
 } from "../utils/premiumAccess";
-import { getVisitorId, trackEvent } from "../utils/analytics";
+import { getVisitorId, trackEvent, trackEventOncePerSession } from "../utils/analytics";
 import ResumeAgentFlow from "../features/resume/ResumeAgentFlow";
 import ResumeBuilder, { SettingsEditor } from "../features/resume/ResumeBuilder";
 import ResumePdfDocument from "../features/resume/ResumePdfDocument";
@@ -76,6 +76,19 @@ const ResumeAccessPreview = ({ premiumPass, onUpgrade, onExplore }) => {
     : currentPlanId === "darbak_plus"
       ? "دربك+"
       : "";
+
+  useEffect(() => {
+    trackEventOncePerSession(
+      "resume_preview_viewed",
+      {
+        metadata: {
+          planId: "darbak_resume",
+          sourcePage: "my_resume",
+        },
+      },
+      `my_resume:${currentPlanId || "visitor"}`
+    );
+  }, [currentPlanId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -139,6 +152,37 @@ const ResumeAccessPreview = ({ premiumPass, onUpgrade, onExplore }) => {
   );
 };
 
+const PortfolioPrerequisite = ({ readiness, onCompleteProfile }) => {
+  const required = readiness?.required || [];
+  const completedCount = Number(readiness?.completedCount || 0);
+  const totalCount = Number(readiness?.totalCount || required.length || 1);
+  const percentage = Math.round((completedCount / totalCount) * 100);
+  const missing = required.filter((field) => !field.complete);
+
+  return (
+    <main className="resume-page resume-page-v2" dir="rtl">
+      <section className="resume-portfolio-prerequisite">
+        <span className="resume-access-badge">ملفك المهني هو أساس سيرتك ✨</span>
+        <h1>قبل ما نبني سيرتك ✨</h1>
+        <p>خلّنا نكمل ملفك المهني أولًا، عشان نستخدم معلوماتك في سيرتك وتقديماتك بدون ما تعيد كتابتها كل مرة.</p>
+        <div className="resume-portfolio-progress" aria-label={`اكتمال الملف المهني ${percentage}%`}>
+          <div className="resume-portfolio-progress-head"><strong>اكتمال المعلومات الأساسية</strong><span>{completedCount} من {totalCount}</span></div>
+          <div><i style={{ width: `${percentage}%` }} /></div>
+        </div>
+        <div className="resume-portfolio-checklist">
+          {required.map((field) => (
+            <span className={field.complete ? "is-complete" : ""} key={field.key}>
+              {field.complete ? "✓" : "○"} {field.label}
+            </span>
+          ))}
+        </div>
+        {missing.length > 0 && <p className="resume-portfolio-note">سنطلب منك الناقص فقط، أما LinkedIn والشهادات فاختيارية.</p>}
+        <button type="button" onClick={onCompleteProfile}>كمّل ملفي المهني ←</button>
+      </section>
+    </main>
+  );
+};
+
 const MyResumePage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -152,6 +196,7 @@ const MyResumePage = () => {
   const [message, setMessage] = useState("");
   const [lastServerResume, setLastServerResume] = useState(null);
   const [resumeExists, setResumeExists] = useState(false);
+  const [hasExistingResumeData, setHasExistingResumeData] = useState(false);
   const [resumeMode, setResumeMode] = useState("dashboard");
   const [agentConfig, setAgentConfig] = useState(null);
   const [editingTailoredVersion, setEditingTailoredVersion] = useState(false);
@@ -168,6 +213,7 @@ const MyResumePage = () => {
   const [journeyStep, setJourneyStep] = useState("data");
   const [journeyView, setJourneyView] = useState("start");
   const [journeySource, setJourneySource] = useState("portfolio");
+  const [portfolioReadiness, setPortfolioReadiness] = useState(null);
 
   const hasLoadedRef = useRef(false);
   const saveTimerRef = useRef(null);
@@ -195,6 +241,12 @@ const MyResumePage = () => {
     (editingTailoredVersion && editingVersionType === "tailored");
 
   const openResumeUpgrade = useCallback(() => {
+    trackEvent("resume_upgrade_clicked", {
+      metadata: {
+        planId: "darbak_resume",
+        sourcePage: "my_resume_preview",
+      },
+    });
     window.dispatchEvent(
       new CustomEvent(PREMIUM_ACCESS_EVENT, {
         detail: {
@@ -250,6 +302,8 @@ const MyResumePage = () => {
 
         setResume(nextResume);
         setResumeExists(Boolean(data.exists));
+        setHasExistingResumeData(Boolean(data.hasExistingResumeData || data.exists));
+        setPortfolioReadiness(data.portfolioReadiness || null);
         setLastServerResume(serverResume);
         lastSavedSnapshotRef.current = getSnapshot(serverResume);
         hasLoadedRef.current = true;
@@ -345,6 +399,7 @@ const MyResumePage = () => {
         lastSavedSnapshotRef.current = getSnapshot(savedResume);
         setLastServerResume(savedResume);
         setResumeExists(true);
+        setHasExistingResumeData(true);
         setSaveState("saved");
         setMessage(manual ? data.message || "تم حفظ سيرتك." : "");
         return true;
@@ -410,9 +465,12 @@ const MyResumePage = () => {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1200);
-      trackEvent("resume_pdf_download_clicked", {
+      trackEvent("resume_pdf_downloaded", {
         page: "/my-resume",
-        language: normalizedResume.settings?.language || "ar",
+        metadata: {
+          sourcePage: editingTailoredVersion ? "tailored_resume" : "master_resume",
+          packType: applicationPack?.packType || "",
+        },
       });
     } catch (err) {
       console.error("Resume PDF download error:", err);
@@ -424,7 +482,7 @@ const MyResumePage = () => {
     } finally {
       setPdfLoading(false);
     }
-  }, [lastServerResume, resume]);
+  }, [applicationPack?.packType, editingTailoredVersion, lastServerResume, resume]);
 
   const createEnglishVersion = useCallback(async () => {
     try {
@@ -779,6 +837,7 @@ const MyResumePage = () => {
     if (data.resume) {
       setLastServerResume(savedResume);
       setResumeExists(true);
+      setHasExistingResumeData(true);
       setEditingTailoredVersion(false);
       lastSavedSnapshotRef.current = getSnapshot(savedResume);
     } else {
@@ -837,6 +896,15 @@ const MyResumePage = () => {
     return <ResumeAccessPreview premiumPass={localPremiumPass} onUpgrade={openResumeUpgrade} onExplore={() => navigate("/")} />;
   }
 
+  if (!hasExistingResumeData && portfolioReadiness && !portfolioReadiness.complete) {
+    return (
+      <PortfolioPrerequisite
+        readiness={portfolioReadiness}
+        onCompleteProfile={() => navigate("/portfolio?from=resume")}
+      />
+    );
+  }
+
   return (
     <main className="resume-page resume-page-v2" dir="rtl">
       {englishNameStepOpen && (
@@ -850,7 +918,7 @@ const MyResumePage = () => {
               <input
                 value={englishNameInput}
                 onChange={(event) => { setEnglishNameInput(event.target.value); setEnglishNameError(""); }}
-                placeholder="Ebtisam Ali"
+                placeholder="Sara Ahmed"
                 dir="ltr"
                 autoFocus
               />

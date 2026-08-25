@@ -170,7 +170,7 @@ export const PersonalInfoEditor = ({ resume, onChange }) => {
           <input
             value={personal.fullName || ""}
             onChange={(event) => updatePersonal("fullName", event.target.value)}
-            placeholder="مثال: ابتسام علي"
+            placeholder="مثال: سارة أحمد"
           />
         </label>
         <label>
@@ -178,7 +178,7 @@ export const PersonalInfoEditor = ({ resume, onChange }) => {
           <input
             value={personal.headline || ""}
             onChange={(event) => updatePersonal("headline", event.target.value)}
-            placeholder="مثال: طالبة نظم معلومات"
+            placeholder="مثال: متخصص/ة في نظم المعلومات"
           />
         </label>
         <label>

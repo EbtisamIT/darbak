@@ -212,6 +212,18 @@ const ResumeAgentFlow = ({
         setSession(data.session);
         setOutput(data.output);
         setAnswers({});
+        if (purpose === "tailor_resume") {
+          trackEvent("application_pack_started", {
+            page: "/my-resume/tailor",
+            metadata: {
+              packType: externalJob?.sourceType === "company_suggestion"
+                ? "company_outreach_pack"
+                : "opportunity_pack",
+              opportunityId,
+              sourcePage: "my_resume_tailor",
+            },
+          });
+        }
         trackEvent("resume_agent_flow_started", {
           page: "/my-resume",
           metadata: {
@@ -222,6 +234,18 @@ const ResumeAgentFlow = ({
         });
       } catch (err) {
         if (cancelled) return;
+        if (purpose === "tailor_resume") {
+          trackEvent("application_pack_failed", {
+            page: "/my-resume/tailor",
+            metadata: {
+              packType: externalJob?.sourceType === "company_suggestion"
+                ? "company_outreach_pack"
+                : "opportunity_pack",
+              opportunityId,
+              failureStage: "start",
+            },
+          });
+        }
         setError(getAgentErrorMessage(err));
       } finally {
         if (!cancelled) setLoading(false);
@@ -293,6 +317,18 @@ const ResumeAgentFlow = ({
         },
       });
     } catch (err) {
+      if (isTailored) {
+        trackEvent("application_pack_failed", {
+          page: "/my-resume/tailor",
+          metadata: {
+            packType: externalJob?.sourceType === "company_suggestion"
+              ? "company_outreach_pack"
+              : "opportunity_pack",
+            opportunityId,
+            failureStage: "answers",
+          },
+        });
+      }
       setError(getAgentErrorMessage(err));
       setNotice("");
     } finally {
@@ -328,6 +364,18 @@ const ResumeAgentFlow = ({
       });
       onApproved?.(data);
     } catch (err) {
+      if (isTailored) {
+        trackEvent("application_pack_failed", {
+          page: "/my-resume/tailor",
+          metadata: {
+            packType: externalJob?.sourceType === "company_suggestion"
+              ? "company_outreach_pack"
+              : "opportunity_pack",
+            opportunityId,
+            failureStage: "approval",
+          },
+        });
+      }
       setError(err.response?.data?.error || "تعذر اعتماد المسودة الآن.");
     } finally {
       setApproving(false);

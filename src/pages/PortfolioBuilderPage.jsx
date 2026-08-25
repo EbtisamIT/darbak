@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import QRCode from "qrcode";
+import { useLocation, useNavigate } from "react-router-dom";
 import API_BASE_URL from "../config/api";
 import ResumeServicePromo from "../components/ResumeServicePromo";
 import { cityOptions, specializationOptions } from "../data/trainingOptions";
@@ -356,6 +357,9 @@ const drawCircularImage = (context, image, x, y, size) => {
 };
 
 export default function PortfolioBuilderPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const resumeSetupMode = new URLSearchParams(location.search).get("from") === "resume";
   const [identity, setIdentity] = useState(() => getStoredAccessIdentity());
   const [authForm, setAuthForm] = useState(() => {
     const stored = getStoredAccessIdentity();
@@ -407,6 +411,18 @@ export default function PortfolioBuilderPage() {
     (certification) =>
       certification.title || certification.provider || certification.year
   );
+  const resumeSetupFields = [
+    ["fullName", "الاسم", Boolean(form.fullName.trim())],
+    ["major", "التخصص", Boolean(majorValue.trim())],
+    ["city", "المدينة", Boolean(cityValue.trim())],
+    ["university", "الجامعة", Boolean(universityValue.trim())],
+    ["degreeLevel", "الدرجة أو المرحلة التعليمية", Boolean(degreeValue.trim())],
+    ["email", "وسيلة التواصل", Boolean(form.email.trim() || isValidEmail(contact))],
+    ["bio", "نبذة مهنية", Boolean(form.bio.trim())],
+    ["evidence", "مهارة أو مشروع", Boolean(skillItems.length || activeProjects.length)],
+  ];
+  const resumeSetupMissing = resumeSetupFields.filter(([, , complete]) => !complete);
+  const resumeSetupCompleted = resumeSetupFields.length - resumeSetupMissing.length;
   const portfolioShareUrl = getPortfolioShareUrl(publicUrl, form.slug);
   const referralCode = useMemo(
     () => getReferralCode(contact, form.slug),
@@ -616,6 +632,11 @@ export default function PortfolioBuilderPage() {
       return;
     }
 
+    if (resumeSetupMode && resumeSetupMissing.length) {
+      setMessage(`أكمل المعلومات الأساسية أولًا: ${resumeSetupMissing.map(([, label]) => label).join("، ")}.`);
+      return;
+    }
+
     if (form.email && !isValidEmail(form.email)) {
       setMessage("بريد التواصل غير صحيح.");
       return;
@@ -646,6 +667,10 @@ export default function PortfolioBuilderPage() {
       trackEvent("portfolio_saved_from_page", {
         metadata: { publicActive: Boolean(data.portfolio?.publicActive) },
       });
+      if (resumeSetupMode) {
+        setMessage("اكتمل ملفك المهني. ننتقل الآن إلى سيرتك...");
+        window.setTimeout(() => navigate("/my-resume/build"), 450);
+      }
     } catch (err) {
       setMessage(err.response?.data?.error || "تعذر حفظ ملف الأعمال.");
     } finally {
@@ -991,6 +1016,66 @@ export default function PortfolioBuilderPage() {
       },
     });
   };
+
+  if (resumeSetupMode) {
+    return (
+      <main className="portfolio-builder-page portfolio-resume-setup" dir="rtl">
+        <section className="portfolio-resume-setup-hero">
+          <span>ملفك المهني · سيرتي بدربك</span>
+          <h1>نكمل معلوماتك الأساسية فقط</h1>
+          <p>هذه المعلومات هي مصدر سيرتك وتقديماتك في دربك؛ لن تحتاج لإدخالها مرة ثانية.</p>
+          <div className="portfolio-resume-setup-progress">
+            <strong>{resumeSetupCompleted} من {resumeSetupFields.length} مكتملة</strong>
+            <div><i style={{ width: `${Math.round((resumeSetupCompleted / resumeSetupFields.length) * 100)}%` }} /></div>
+          </div>
+        </section>
+
+        {!isAuthenticated && (
+          <section className="portfolio-builder-panel portfolio-resume-setup-auth">
+            <h2>افتح ملفك المهني</h2>
+            <p>استخدم بريدك ورمز الدخول نفسه في دربك.</p>
+            <div className="portfolio-auth-row">
+              <label>البريد الإلكتروني<input type="email" value={authForm.contact} onChange={(event) => setAuthForm((current) => ({ ...current, contact: event.target.value }))} placeholder="example@email.com" dir="ltr" /></label>
+              <label>رمز الدخول<input value={authForm.accessCode} onChange={(event) => setAuthForm((current) => ({ ...current, accessCode: event.target.value }))} placeholder="4 إلى 12 حرف أو رقم" dir="ltr" maxLength={12} /></label>
+              <button type="button" onClick={handleLogin} disabled={loading}>{loading ? "جاري التحميل..." : "فتح ملفي"}</button>
+            </div>
+          </section>
+        )}
+
+        <form className="portfolio-resume-setup-form" onSubmit={savePortfolio}>
+          <section className="portfolio-builder-panel">
+            <div className="portfolio-builder-section-head">
+              <div><h2>الموجود والناقص</h2><p>LinkedIn والشهادات اختيارية ولا تؤخر سيرتك.</p></div>
+              <span className="portfolio-resume-setup-status">{resumeSetupMissing.length ? `باقي ${resumeSetupMissing.length}` : "مكتمل ✓"}</span>
+            </div>
+            <div className="portfolio-resume-setup-checklist">
+              {resumeSetupFields.map(([key, label, complete]) => <span key={key} className={complete ? "is-complete" : ""}>{complete ? "✓" : "○"} {label}</span>)}
+            </div>
+          </section>
+
+          <section className="portfolio-builder-panel">
+            <div className="portfolio-builder-grid">
+              {!form.fullName.trim() && <label>الاسم<input value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} placeholder="سارة أحمد" /></label>}
+              {!majorValue.trim() && <label>التخصص<select value={form.major} onChange={(event) => updateField("major", event.target.value)}><option value="">اختر التخصص</option>{specializationOptions.map((specialization) => <option key={specialization.value} value={specialization.value}>{specialization.label}</option>)}<option value="أخرى">أخرى</option></select></label>}
+              {form.major === "أخرى" && <label>اكتب التخصص<input value={form.majorOther} onChange={(event) => updateField("majorOther", event.target.value)} placeholder="اسم التخصص" /></label>}
+              {!universityValue.trim() && <label>الجامعة<select value={form.university} onChange={(event) => updateField("university", event.target.value)}><option value="">اختر الجامعة</option>{saudiUniversities.map((university) => <option key={university} value={university}>{university}</option>)}</select></label>}
+              {form.university === "أخرى" && <label>اكتب الجامعة<input value={form.universityOther} onChange={(event) => updateField("universityOther", event.target.value)} placeholder="اسم الجامعة" /></label>}
+              {!cityValue.trim() && <label>المدينة<select value={form.city} onChange={(event) => updateField("city", event.target.value)}><option value="">اختر المدينة</option>{portfolioCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></label>}
+              {form.city === "أخرى" && <label>اكتب المدينة<input value={form.cityOther} onChange={(event) => updateField("cityOther", event.target.value)} placeholder="اسم المدينة" /></label>}
+              {!degreeValue.trim() && <label>الدرجة أو المرحلة التعليمية<select value={form.degreeLevel} onChange={(event) => updateField("degreeLevel", event.target.value)}><option value="">اختر الدرجة</option>{degreeOptions.map((degree) => <option key={degree} value={degree}>{degree}</option>)}</select></label>}
+              {form.degreeLevel === "أخرى" && <label>اكتب الدرجة<input value={form.degreeOther} onChange={(event) => updateField("degreeOther", event.target.value)} placeholder="مثال: شهادة مهنية" /></label>}
+              {!form.email.trim() && !isValidEmail(contact) && <label>بريد التواصل<input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
+              {!form.bio.trim() && <label className="is-wide">نبذة مهنية<textarea value={form.bio} onChange={(event) => updateField("bio", event.target.value)} placeholder="اكتب سطرين عن اهتمامك المهني وما الذي تستطيع تقديمه." /></label>}
+              {!skillItems.length && <label className="is-wide">مهارة واحدة على الأقل<input value={form.skills} onChange={(event) => updateField("skills", event.target.value)} placeholder="مثال: Excel، React، تحليل بيانات" /></label>}
+              {!skillItems.length && !activeProjects.length && <label className="is-wide">أو مشروع واحد<input value={form.projects[0]?.title || ""} onChange={(event) => updateListItem("projects", 0, "title", event.target.value)} placeholder="اسم مشروع عملت عليه" /></label>}
+            </div>
+          </section>
+          {message && <p className="portfolio-resume-setup-message">{message}</p>}
+          <div className="portfolio-builder-savebar"><div><button type="submit" disabled={saving || !isAuthenticated}>{saving ? "جاري الحفظ..." : "حفظ ومتابعة إلى سيرتي ←"}</button></div></div>
+        </form>
+      </main>
+    );
+  }
 
   return (
     <main className="portfolio-builder-page" dir="rtl">

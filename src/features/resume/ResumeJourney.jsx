@@ -197,7 +197,7 @@ export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue }) =
   const personal = resume.personalInfo || {};
   const missing = [
     ["phone", "رقم التواصل", "05xxxxxxxx"],
-    ["headline", "المسمى المهني", "مثال: متدرب نظم معلومات"],
+    ["headline", "المسمى المهني", "مثال: متخصص/ة في نظم المعلومات"],
   ].filter(([field]) => !personal[field]);
 
   const updatePersonal = (field, value) =>

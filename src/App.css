@@ -5568,6 +5568,51 @@ body {
   .resume-completion-actions { flex-wrap: wrap; justify-content: end; }
 }
 
+/* Resume onboarding starts from the student's professional profile, not a second form. */
+.resume-portfolio-prerequisite {
+  width: min(720px, calc(100% - 32px));
+  margin: 64px auto;
+  padding: clamp(24px, 5vw, 44px);
+  border: 1px solid rgba(89, 222, 207, .35);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(16, 29, 34, .98), rgba(12, 21, 25, .98));
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .22);
+}
+.resume-portfolio-prerequisite h1 { margin: 14px 0 10px; font-size: clamp(28px, 4vw, 40px); }
+.resume-portfolio-prerequisite > p { color: var(--muted-text, #9eacad); line-height: 1.85; max-width: 590px; }
+.resume-portfolio-progress { margin: 26px 0 16px; }
+.resume-portfolio-progress-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 9px; color: #e8f1f0; }
+.resume-portfolio-progress > div:last-child, .portfolio-resume-setup-progress > div:last-child { height: 8px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.09); }
+.resume-portfolio-progress i, .portfolio-resume-setup-progress i { display: block; height: 100%; border-radius: inherit; background: #71d8cc; }
+.resume-portfolio-checklist, .portfolio-resume-setup-checklist { display: flex; flex-wrap: wrap; gap: 9px; }
+.resume-portfolio-checklist span, .portfolio-resume-setup-checklist span { padding: 8px 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; color: #aebdbc; font-size: 14px; }
+.resume-portfolio-checklist .is-complete, .portfolio-resume-setup-checklist .is-complete { color: #76ded2; border-color: rgba(112, 218, 204, .28); background: rgba(70, 190, 176, .08); }
+.resume-portfolio-note { font-size: 14px; }
+.resume-portfolio-prerequisite > button, .portfolio-resume-setup-form button[type="submit"] { min-height: 48px; margin-top: 24px; border: 0; border-radius: 12px; padding: 0 20px; background: #73d9ce; color: #0c1719; font: inherit; font-weight: 800; cursor: pointer; }
+
+.portfolio-resume-setup { width: min(860px, calc(100% - 32px)); margin: 40px auto 72px; }
+.portfolio-resume-setup-hero { margin-bottom: 18px; padding: 24px 0; }
+.portfolio-resume-setup-hero > span { color: #74d8ce; font-size: 14px; font-weight: 700; }
+.portfolio-resume-setup-hero h1 { margin: 9px 0; font-size: clamp(28px, 4vw, 40px); }
+.portfolio-resume-setup-hero p { color: #9eacad; margin: 0; }
+.portfolio-resume-setup-progress { margin-top: 18px; max-width: 420px; }
+.portfolio-resume-setup-progress strong { display: block; margin-bottom: 8px; }
+.portfolio-resume-setup-form { display: grid; gap: 14px; }
+.portfolio-resume-setup-auth { margin-bottom: 14px; }
+.portfolio-resume-setup-status { color: #73d9ce; font-weight: 800; white-space: nowrap; }
+.portfolio-resume-setup-message { margin: 0; color: #f2c879; }
+.portfolio-resume-setup .portfolio-builder-savebar { margin-top: 0; }
+
+@media (max-width: 640px) {
+  .resume-portfolio-prerequisite { width: min(100% - 24px, 720px); margin: 24px auto; padding: 22px 18px; }
+  .resume-portfolio-progress-head { font-size: 14px; }
+  .portfolio-resume-setup { width: min(100% - 24px, 860px); margin: 22px auto 42px; }
+  .portfolio-resume-setup-hero { padding: 14px 0; }
+  .portfolio-resume-setup .portfolio-builder-section-head { align-items: flex-start; }
+  .portfolio-resume-setup-status { font-size: 13px; }
+  .portfolio-resume-setup .portfolio-auth-row { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 860px) {
   .resume-mobile-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .resume-editor-pane .resume-settings-card { display: none; }

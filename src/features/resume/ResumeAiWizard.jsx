@@ -225,7 +225,7 @@ const ResumeAiWizard = ({
                 <input
                   value={rawInput.basic.fullName}
                   onChange={(event) => updateBasic("fullName", event.target.value)}
-                  placeholder="مثال: ابتسام علي"
+                  placeholder="مثال: سارة أحمد"
                 />
               </label>
               <label>
@@ -273,7 +273,7 @@ const ResumeAiWizard = ({
                 <input
                   value={rawInput.basic.targetTitle}
                   onChange={(event) => updateBasic("targetTitle", event.target.value)}
-                  placeholder="مثال: متدرب نظم معلومات، محلل بيانات متدرب"
+                  placeholder="مثال: متخصص/ة في نظم المعلومات"
                 />
               </label>
               <label>
@@ -303,7 +303,7 @@ const ResumeAiWizard = ({
                   rows={8}
                   value={rawInput.educationText}
                   onChange={(event) => updateField("educationText", event.target.value)}
-                  placeholder="مثال: بكالوريوس نظم معلومات، جامعة الملك سعود، 2022 - حتى الآن، معدل ..."
+                  placeholder="مثال: بكالوريوس نظم معلومات، جامعة ...، 2022 - حتى الآن، معدل ..."
                 />
               </label>
               <label>

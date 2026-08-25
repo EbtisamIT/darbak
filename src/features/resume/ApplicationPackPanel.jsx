@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { FiCheckCircle, FiChevronDown, FiCopy, FiExternalLink, FiFileText, FiMail } from "react-icons/fi";
+import { trackEvent } from "../../utils/analytics";
 
 const labels = {
   ready: "جاهز ✓",
@@ -66,6 +67,13 @@ const ApplicationPackPanel = ({ pack, onCompleteDetails, onOpenResume }) => {
   };
   const copyEmail = async () => {
     await navigator.clipboard?.writeText([pack.email?.subject, pack.email?.body].filter(Boolean).join("\n\n"));
+    trackEvent("email_copied", {
+      metadata: {
+        packType: pack.packType || "",
+        opportunityId: pack.applicationInfo?.opportunityId || "",
+        sourcePage: "application_pack",
+      },
+    });
   };
   const studentSummary = (pack.customizationSummary || []).map((item) => {
     if (/مشروع.*دربك|دربك.*مشروع/u.test(item)) return "أبرزنا مشروع دربك.";
