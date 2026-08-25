@@ -7499,7 +7499,13 @@ app.post('/api/resume/match', requireResumeAccess, async (req, res) => {
       const title = sanitizeResumeText(req.body?.job?.title, 160);
       const company = sanitizeResumeText(req.body?.job?.company, 160);
       const description = sanitizeResumeText(req.body?.job?.description, 8000);
-      if (!title || !description) {
+      const sourceType = req.body?.job?.sourceType === "where_to_train"
+        ? "where_to_train"
+        : req.body?.job?.sourceType === "company_suggestion"
+          ? "company_suggestion"
+          : "external_job";
+      const isCompanyOutreach = ["where_to_train", "company_suggestion"].includes(sourceType);
+      if (!title || (!description && !isCompanyOutreach)) {
         return res.status(400).json({
           error: "أضف مسمى الفرصة ووصفها حتى نحلل التوافق.",
         });
@@ -7510,6 +7516,8 @@ app.post('/api/resume/match', requireResumeAccess, async (req, res) => {
         description,
         requirements: [],
         url: sanitizePortfolioUrl(req.body?.job?.url, 260),
+        sourceType,
+        packType: isCompanyOutreach ? "company_outreach_pack" : "opportunity_pack",
       };
     }
 
@@ -7550,7 +7558,7 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
           specialties: [],
           majorCategories: [],
           city: sanitizeResumeText(req.body.externalJob.city, 120),
-          sourceType: req.body.externalJob.sourceType === "company_suggestion"
+          sourceType: ["company_suggestion", "where_to_train"].includes(req.body.externalJob.sourceType)
             ? "company_suggestion"
             : "external_job",
         }
@@ -7565,7 +7573,13 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
           reason: "base_resume_required",
         });
       }
-      if ((!opportunityId || !mongoose.Types.ObjectId.isValid(opportunityId)) && !(externalJob?.title && externalJob?.note)) {
+      const hasCompanyOutreachContext =
+        externalJob?.sourceType === "company_suggestion" &&
+        Boolean(externalJob.organizationName || externalJob.title);
+      if (
+        (!opportunityId || !mongoose.Types.ObjectId.isValid(opportunityId)) &&
+        !(externalJob?.title && (externalJob?.note || hasCompanyOutreachContext))
+      ) {
         return res.status(400).json({
           error: "اختاري فرصة من دربك أو ألصقي وصف فرصة واضحًا حتى نخصص السيرة عليها.",
           reason: "opportunity_required",

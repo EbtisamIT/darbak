@@ -216,7 +216,7 @@ const ResumeAgentFlow = ({
           trackEvent("application_pack_started", {
             page: "/my-resume/tailor",
             metadata: {
-              packType: externalJob?.sourceType === "company_suggestion"
+              packType: ["company_suggestion", "where_to_train"].includes(externalJob?.sourceType)
                 ? "company_outreach_pack"
                 : "opportunity_pack",
               opportunityId,
@@ -238,7 +238,7 @@ const ResumeAgentFlow = ({
           trackEvent("application_pack_failed", {
             page: "/my-resume/tailor",
             metadata: {
-              packType: externalJob?.sourceType === "company_suggestion"
+              packType: ["company_suggestion", "where_to_train"].includes(externalJob?.sourceType)
                 ? "company_outreach_pack"
                 : "opportunity_pack",
               opportunityId,
@@ -321,7 +321,7 @@ const ResumeAgentFlow = ({
         trackEvent("application_pack_failed", {
           page: "/my-resume/tailor",
           metadata: {
-            packType: externalJob?.sourceType === "company_suggestion"
+            packType: ["company_suggestion", "where_to_train"].includes(externalJob?.sourceType)
               ? "company_outreach_pack"
               : "opportunity_pack",
             opportunityId,
@@ -368,7 +368,7 @@ const ResumeAgentFlow = ({
         trackEvent("application_pack_failed", {
           page: "/my-resume/tailor",
           metadata: {
-            packType: externalJob?.sourceType === "company_suggestion"
+            packType: ["company_suggestion", "where_to_train"].includes(externalJob?.sourceType)
               ? "company_outreach_pack"
               : "opportunity_pack",
             opportunityId,
