@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { FiAlertCircle, FiArrowLeft, FiCheckCircle, FiX } from "react-icons/fi";
 import API_BASE_URL from "../../config/api";
@@ -12,6 +12,8 @@ const ResumeJobMatchPanel = ({ opportunityId = "", externalJob = null, onStartTa
   const [result, setResult] = useState(null);
   const [opportunities, setOpportunities] = useState([]);
   const [selectedOpportunityId, setSelectedOpportunityId] = useState(opportunityId);
+  const companyOutreachStartedRef = useRef(false);
+  const isCompanyOutreach = ["company_suggestion", "where_to_train"].includes(externalJob?.sourceType);
 
   const analyze = useCallback(async (payload) => {
     try {
@@ -33,8 +35,16 @@ const ResumeJobMatchPanel = ({ opportunityId = "", externalJob = null, onStartTa
 
   useEffect(() => {
     if (opportunityId) analyze({ opportunityId, autoStart: true });
-    else if (externalJob?.company) analyze({ job: externalJob, autoStart: true });
-  }, [opportunityId, externalJob, analyze]);
+    else if (externalJob?.company && isCompanyOutreach) {
+      // A Where-to-train entity is a company context, not a job ad. It has no
+      // job description to analyze, so begin the outreach pack with only the
+      // trusted company context and the student's existing facts.
+      if (!companyOutreachStartedRef.current) {
+        companyOutreachStartedRef.current = true;
+        onStartTailoring?.({ job: externalJob });
+      }
+    } else if (externalJob?.company) analyze({ job: externalJob, autoStart: true });
+  }, [opportunityId, externalJob, isCompanyOutreach, analyze, onStartTailoring]);
 
   useEffect(() => {
     if (mode !== "darbak" || opportunityId) return;
