@@ -156,13 +156,14 @@ const fallbackSubscriptionPlans = [
     label: "دربك+ 3 أشهر",
     priceSar: 15,
     durationDays: 90,
-    description: "نفس مزايا دربك+ لمدة أطول.",
+    description: "مناسبة لموسم البحث والتقديم للتدريب.",
     badge: "90 يوم",
-    note: "مدة أطول لرحلة التدريب",
-    ctaLabel: "اشترك الآن",
+    note: "90 يومًا من البحث حتى التقديم",
+    ctaLabel: "اختر 90 يوم",
     perks: [
-      "نفس مزايا دربك+",
-      "المزايا الحالية في النظام",
+      "كل مزايا البحث والاستكشاف في دربك",
+      "فرص وتجارب ومقابلات طوال الموسم",
+      "90 يومًا تغطي رحلة التدريب",
     ],
   },
   {
@@ -232,7 +233,11 @@ const buildPlanPerks = (plan = {}) => {
   }
 
   if (plan.id === "one_time_90") {
-    return ["نفس مزايا دربك+"];
+    return [
+      "كل مزايا البحث والاستكشاف في دربك",
+      "فرص وتجارب ومقابلات طوال الموسم",
+      "90 يومًا تغطي رحلة التدريب",
+    ];
   }
 
   return [
@@ -255,10 +260,10 @@ const normalizeServerPlan = (plan = {}) => {
     description: isResumePlan
       ? "كل مزايا دربك + تجهيز سيرتك وتقديماتك."
       : isNinetyDayPlan
-      ? "نفس مزايا دربك+ لمدة أطول."
+      ? "مناسبة لموسم البحث والتقديم للتدريب."
       : "كل مزايا البحث والاستكشاف في دربك.",
     badge: plan.badge || (isResumePlan ? "الأكمل للتقديم ✨" : ""),
-    note: isResumePlan ? "الأكمل للتقديم" : isNinetyDayPlan ? "مدة أطول لرحلة التدريب" : "ابدأ الآن واكتشف فرصك",
+    note: isResumePlan ? "الأكمل للتقديم" : isNinetyDayPlan ? "90 يومًا من البحث حتى التقديم" : "ابدأ الآن واكتشف فرصك",
     recommended: isResumePlan,
     ctaLabel: isResumePlan
       ? "ابدأ مع سيرتي ✨"

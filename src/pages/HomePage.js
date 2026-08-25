@@ -391,7 +391,7 @@ const HomePage = () => {
             const summary = isResumePlan
               ? `سيرة مخصصة + خطاب تقديم + رسالة إيميل · ${plan.aiResumeUsageLimit || 10} تخصيصات شهريًا`
               : plan.id === "one_time_90"
-                ? "نفس مزايا دربك+ لمدة أطول"
+                ? "مناسبة لموسم البحث والتقديم للتدريب"
                 : "استكشف الجهات والفرص والتجارب";
             const cta = isCurrentPlan ? (isResumePlan ? "افتح سيرتي" : "باقتك الحالية ✓") : "عرض التفاصيل";
             return (
