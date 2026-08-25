@@ -68,6 +68,48 @@ const writeLocalDraft = (resume) => {
   }
 };
 
+const hasResumeDraftContent = (resume = {}) => {
+  const personal = resume.personalInfo || {};
+  return Boolean(
+    Object.values(personal).some((value) => value && value.toString().trim()) ||
+      resume.summary?.trim() ||
+      (resume.skills || []).some(Boolean) ||
+      ["education", "experience", "experiences", "projects", "certifications", "volunteering", "languages", "links"].some(
+        (section) => (resume[section] || []).some((item) => Object.values(item || {}).some(Boolean))
+      )
+  );
+};
+
+const mergeLocalResumeDraft = (serverResume = {}, localResume = {}) => {
+  const mergedPersonalInfo = { ...(serverResume.personalInfo || {}) };
+  Object.entries(localResume.personalInfo || {}).forEach(([key, value]) => {
+    if (value && value.toString().trim()) mergedPersonalInfo[key] = value;
+  });
+  const preferLocalSection = (section) =>
+    (localResume[section] || []).some((item) => Object.values(item || {}).some(Boolean))
+      ? localResume[section]
+      : serverResume[section] || [];
+
+  return normalizeResume({
+    ...serverResume,
+    ...localResume,
+    personalInfo: mergedPersonalInfo,
+    summary: localResume.summary?.trim() || serverResume.summary || "",
+    education: preferLocalSection("education"),
+    experience: preferLocalSection("experience"),
+    experiences: preferLocalSection("experiences"),
+    projects: preferLocalSection("projects"),
+    certifications: preferLocalSection("certifications"),
+    volunteering: preferLocalSection("volunteering"),
+    languages: preferLocalSection("languages"),
+    links: preferLocalSection("links"),
+    skills: (localResume.skills || []).some(Boolean)
+      ? localResume.skills
+      : serverResume.skills || [],
+    access: serverResume.access,
+  });
+};
+
 const ResumeAccessPreview = ({ premiumPass, onUpgrade, onExplore }) => {
   const [resumePlan, setResumePlan] = useState(null);
   const currentPlanId = premiumPass?.planId || "";
@@ -292,12 +334,13 @@ const MyResumePage = () => {
           : null;
         const shouldUseLocal =
           localResume &&
+          hasResumeDraftContent(localResume) &&
           localDraft?.savedAt &&
           (!data.resume?.updatedAt ||
             new Date(localDraft.savedAt).getTime() > new Date(data.resume.updatedAt).getTime());
 
         const nextResume = shouldUseLocal
-          ? normalizeResume({ ...serverResume, ...localResume, access: serverResume.access })
+          ? mergeLocalResumeDraft(serverResume, localResume)
           : serverResume;
 
         setResume(nextResume);

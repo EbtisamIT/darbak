@@ -465,6 +465,18 @@ export default function PortfolioBuilderPage() {
     (experience) =>
       experience.title || experience.organization || experience.description
   );
+  const sectionStatus = (missingCount) =>
+    missingCount ? `ناقص ${missingCount}` : "✓ مكتمل";
+  const basicStatus = sectionStatus(
+    [form.fullName.trim(), majorValue.trim(), universityValue.trim(), cityValue.trim(), degreeValue.trim() || form.studentStatus]
+      .filter((value) => !value).length
+  );
+  const contactStatus = sectionStatus(
+    [form.email.trim() || isValidEmail(contact), form.bio.trim()]
+      .filter((value) => !value).length
+  );
+  const experienceStatus = sectionStatus(activeProjects.length || activeExperiences.length ? 0 : 1);
+  const skillsStatus = sectionStatus(skillItems.length ? 0 : 1);
   const resumeSetupFields = [
     ["fullName", "الاسم", Boolean(form.fullName.trim())],
     ["major", "التخصص", Boolean(majorValue.trim())],
@@ -789,7 +801,10 @@ export default function PortfolioBuilderPage() {
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
-      if (queuedSaveRef.current || dirtyRef.current && revisionRef.current !== snapshotRevision) {
+      if (
+        queuedSaveRef.current ||
+        (dirtyRef.current && revisionRef.current !== snapshotRevision)
+      ) {
         queuedSaveRef.current = false;
         window.clearTimeout(autosaveTimerRef.current);
         autosaveTimerRef.current = window.setTimeout(() => {
@@ -833,29 +848,6 @@ export default function PortfolioBuilderPage() {
     window.clearTimeout(autosaveTimerRef.current);
     setSaveStatus("saving");
     savePortfolioRef.current?.({ manual: false });
-  };
-
-  const sharePortfolio = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `ملف أعمال ${form.fullName || "دربك"}`,
-          text: "ملف أعمال رقمي من دربك",
-          url: portfolioShareUrl,
-        });
-        trackEvent("portfolio_native_share_clicked", {
-          metadata: { source: "builder_savebar", hasPublicUrl: Boolean(publicUrl) },
-        });
-        return;
-      }
-      await navigator.clipboard.writeText(portfolioShareUrl);
-      setMessage("تم نسخ رابط ملف الأعمال.");
-      trackEvent("portfolio_link_copied", {
-        metadata: { source: "builder_savebar", hasPublicUrl: Boolean(publicUrl) },
-      });
-    } catch {
-      setMessage("انسخ الرابط يدويًا إذا لم تظهر المشاركة.");
-    }
   };
 
   const openLinkedInShare = () => {
@@ -1290,8 +1282,9 @@ export default function PortfolioBuilderPage() {
             </div>
           </div>
 
+          <details className="portfolio-collapsible-section" open>
+            <summary><span>البيانات الأساسية</span><small className={basicStatus.startsWith("✓") ? "is-complete" : ""}>{basicStatus}</small></summary>
           <div className="portfolio-builder-panel">
-            <h2>البيانات الأساسية</h2>
             <div className="portfolio-builder-grid">
               <label>
                 الرابط المختصر
@@ -1445,9 +1438,11 @@ export default function PortfolioBuilderPage() {
               </label>
             </div>
           </div>
+          </details>
 
+          <details className="portfolio-collapsible-section">
+            <summary><span>التقديم والتدريب</span><small>اختياري</small></summary>
           <div className="portfolio-builder-panel">
-            <h2>الملفات والجاهزية</h2>
             <div className="portfolio-builder-grid">
               <label>
                 حالة الجاهزية
@@ -1486,11 +1481,21 @@ export default function PortfolioBuilderPage() {
                 <input type="file" accept="application/pdf" onChange={handleCvChange} />
                 <small>{savedCvLabel || "الحد الأقصى 3MB."}</small>
               </label>
+              <label className="portfolio-publish-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.isPublished}
+                  onChange={(event) => updateField("isPublished", event.target.checked, { immediate: true })}
+                />
+                نشر الرابط العام عند تفعيل دربك+
+              </label>
             </div>
           </div>
+          </details>
 
+          <details className="portfolio-collapsible-section">
+            <summary><span>التواصل والروابط</span><small className={contactStatus.startsWith("✓") ? "is-complete" : ""}>{contactStatus}</small></summary>
           <div className="portfolio-builder-panel">
-            <h2>نبذة وروابط</h2>
             <div className="portfolio-builder-grid">
               <label className="is-wide">
                 نبذة شخصية
@@ -1498,14 +1503,6 @@ export default function PortfolioBuilderPage() {
                   value={form.bio}
                   onChange={(event) => updateField("bio", event.target.value)}
                   placeholder="اكتب سطرين عن اهتمامك المهني وما الذي تستطيع تقديمه."
-                />
-              </label>
-              <label className="is-wide">
-                المهارات
-                <input
-                  value={form.skills}
-                  onChange={(event) => updateField("skills", event.target.value)}
-                  placeholder="Excel، Python، React، تحليل بيانات"
                 />
               </label>
               <label>
@@ -1609,7 +1606,10 @@ export default function PortfolioBuilderPage() {
               </label>
             </div>
           </div>
+          </details>
 
+          <details className="portfolio-collapsible-section">
+            <summary><span>الخبرات والمشاريع</span><small className={experienceStatus.startsWith("✓") ? "is-complete" : ""}>{experienceStatus}</small></summary>
           <div className="portfolio-builder-panel">
             <div className="portfolio-builder-section-head">
               <h2>المشاريع</h2>
@@ -1659,7 +1659,7 @@ export default function PortfolioBuilderPage() {
             ))}
           </div>
 
-          <div className="portfolio-builder-panel">
+          <div className="portfolio-builder-panel portfolio-section-subpanel">
             <div className="portfolio-builder-section-head">
               <h2>الخبرات العملية</h2>
               <button type="button" onClick={() => addListItem("experiences", emptyExperience, 8)}>
@@ -1676,8 +1676,21 @@ export default function PortfolioBuilderPage() {
               </div>
             ))}
           </div>
+          </details>
 
+          <details className="portfolio-collapsible-section">
+            <summary><span>المهارات واللغات والشهادات</span><small className={skillsStatus.startsWith("✓") ? "is-complete" : ""}>{skillsStatus}</small></summary>
           <div className="portfolio-builder-panel">
+            <div className="portfolio-builder-grid">
+              <label className="is-wide">
+                المهارات
+                <input
+                  value={form.skills}
+                  onChange={(event) => updateField("skills", event.target.value)}
+                  placeholder="Excel، Python، React، تحليل بيانات"
+                />
+              </label>
+            </div>
             <div className="portfolio-builder-section-head">
               <h2>الأنشطة واللغات</h2>
               <button type="button" onClick={() => addListItem("volunteering", emptyExperience, 8)}>
@@ -1708,7 +1721,7 @@ export default function PortfolioBuilderPage() {
             ))}
           </div>
 
-          <div className="portfolio-builder-panel">
+          <div className="portfolio-builder-panel portfolio-section-subpanel">
             <div className="portfolio-builder-section-head">
               <h2>الشهادات والدورات التدريبية</h2>
               <button
@@ -1773,16 +1786,9 @@ export default function PortfolioBuilderPage() {
               </div>
             ))}
           </div>
+          </details>
 
-          <div className="portfolio-builder-savebar">
-            <label>
-              <input
-                type="checkbox"
-                checked={form.isPublished}
-                onChange={(event) => updateField("isPublished", event.target.checked, { immediate: true })}
-              />
-              نشر الرابط العام عند تفعيل دربك+
-            </label>
+          <div className="portfolio-builder-savebar portfolio-autosave-bar">
             <span className={`portfolio-save-status is-${saveStatus}`} aria-live="polite">
               {saveStatus === "saving"
                 ? "جاري الحفظ…"
@@ -1792,14 +1798,11 @@ export default function PortfolioBuilderPage() {
                     ? "تعذر الحفظ، سنحاول مرة أخرى"
                     : ""}
             </span>
-            <div>
-              <button type="button" className="secondary" onClick={sharePortfolio}>
-                مشاركة البطاقة
+            {saveStatus === "error" && (
+              <button type="button" className="secondary" onClick={() => savePortfolio({ manual: false })}>
+                إعادة المحاولة
               </button>
-              <button type="submit" disabled={saving}>
-                {saving ? "جاري الحفظ..." : "حفظ الآن"}
-              </button>
-            </div>
+            )}
           </div>
 
           <div className="portfolio-growth-panel">

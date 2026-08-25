@@ -6573,6 +6573,107 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "") => ({
   },
 });
 
+const hasResumeValue = (value) =>
+  Array.isArray(value)
+    ? value.length > 0
+    : Boolean(value && value.toString().trim());
+
+const getResumeEntryFingerprint = (entry = {}) =>
+  [entry.title, entry.organization || entry.subtitle, entry.period, entry.url]
+    .map((value) => sanitizePortfolioText(value, 180).toLowerCase())
+    .join("|");
+
+const mergeResumeEntriesFromPortfolio = (resumeEntries = [], portfolioEntries = []) => {
+  const merged = Array.isArray(resumeEntries) ? [...resumeEntries] : [];
+  const existing = new Set(merged.map(getResumeEntryFingerprint));
+
+  (Array.isArray(portfolioEntries) ? portfolioEntries : []).forEach((entry) => {
+    const fingerprint = getResumeEntryFingerprint(entry);
+    if (fingerprint && !existing.has(fingerprint)) {
+      existing.add(fingerprint);
+      merged.push(entry);
+    }
+  });
+
+  return merged;
+};
+
+// A previously created but incomplete ResumeProfile must never hide information
+// that the student already confirmed in their professional portfolio. This is a
+// read-time enrichment only: existing resume facts always win and no master data
+// is overwritten until the student chooses to save their resume.
+const enrichResumeWithPortfolio = (resume = {}, portfolioResume = {}) => {
+  if (!resume) return portfolioResume;
+
+  const resumePersonal = resume.personalInfo || {};
+  const portfolioPersonal = portfolioResume.personalInfo || {};
+  const personalInfo = { ...resumePersonal };
+  Object.entries(portfolioPersonal).forEach(([key, value]) => {
+    if (!hasResumeValue(personalInfo[key]) && hasResumeValue(value)) {
+      personalInfo[key] = value;
+    }
+  });
+
+  const currentExperience =
+    Array.isArray(resume.experiences) && resume.experiences.length
+      ? resume.experiences
+      : resume.experience || [];
+  const portfolioExperience =
+    Array.isArray(portfolioResume.experiences) && portfolioResume.experiences.length
+      ? portfolioResume.experiences
+      : portfolioResume.experience || [];
+  const mergeTextList = (current = [], fallback = []) => {
+    const seen = new Set();
+    return [...(Array.isArray(current) ? current : []), ...(Array.isArray(fallback) ? fallback : [])]
+      .filter(Boolean)
+      .filter((item) => {
+        const key = item.toString().trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  };
+  const mergeLanguages = (current = [], fallback = []) => {
+    const merged = Array.isArray(current) ? [...current] : [];
+    const names = new Set(merged.map((language) => sanitizePortfolioText(language?.name, 80).toLowerCase()));
+    (Array.isArray(fallback) ? fallback : []).forEach((language) => {
+      const name = sanitizePortfolioText(language?.name, 80).toLowerCase();
+      if (name && !names.has(name)) {
+        names.add(name);
+        merged.push(language);
+      }
+    });
+    return merged;
+  };
+  const mergeLinks = (current = [], fallback = []) => {
+    const merged = Array.isArray(current) ? [...current] : [];
+    const urls = new Set(merged.map((link) => sanitizePortfolioUrl(link?.url, 260)));
+    (Array.isArray(fallback) ? fallback : []).forEach((link) => {
+      const url = sanitizePortfolioUrl(link?.url, 260);
+      if (url && !urls.has(url)) {
+        urls.add(url);
+        merged.push(link);
+      }
+    });
+    return merged;
+  };
+
+  return {
+    ...resume,
+    personalInfo,
+    summary: hasResumeValue(resume.summary) ? resume.summary : portfolioResume.summary || "",
+    education: mergeResumeEntriesFromPortfolio(resume.education, portfolioResume.education),
+    experiences: mergeResumeEntriesFromPortfolio(currentExperience, portfolioExperience),
+    experience: mergeResumeEntriesFromPortfolio(currentExperience, portfolioExperience),
+    projects: mergeResumeEntriesFromPortfolio(resume.projects, portfolioResume.projects),
+    certifications: mergeResumeEntriesFromPortfolio(resume.certifications, portfolioResume.certifications),
+    volunteering: mergeResumeEntriesFromPortfolio(resume.volunteering, portfolioResume.volunteering),
+    languages: mergeLanguages(resume.languages, portfolioResume.languages),
+    links: mergeLinks(resume.links, portfolioResume.links),
+    skills: mergeTextList(resume.skills, portfolioResume.skills),
+  };
+};
+
 const serializeResume = (resume = {}, access = {}) => {
   const usageLimit =
     access.isAdmin
@@ -7261,12 +7362,13 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
       })
     );
     const fallback = mapPortfolioToResumePayload(portfolio || {}, contact);
+    const enrichedResume = enrichResumeWithPortfolio(resume, fallback);
 
     res.json({
       exists: Boolean(resume),
       hasExistingResumeData: Boolean(resume || hasTailoredVersion),
-      resume: serializeResume(resume || fallback, req.darbakAccess),
-      portfolioImported: Boolean(!resume && portfolio),
+      resume: serializeResume(enrichedResume, req.darbakAccess),
+      portfolioImported: Boolean(portfolio),
       portfolioReadiness: getPortfolioResumeReadiness(portfolio || {}, contact),
     });
   } catch (err) {

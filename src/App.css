@@ -3294,6 +3294,13 @@ body {
   grid-column: 1 / -1;
 }
 
+.portfolio-builder-grid label.portfolio-publish-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
 .portfolio-builder-grid input,
 .portfolio-builder-grid select,
 .portfolio-builder-grid textarea,
@@ -3356,6 +3363,64 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.portfolio-collapsible-section {
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 20px;
+  background: var(--app-surface);
+  box-shadow: 0 12px 30px var(--app-shadow);
+}
+
+.portfolio-collapsible-section + .portfolio-collapsible-section {
+  margin-top: 10px;
+}
+
+.portfolio-collapsible-section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 0 18px;
+  color: var(--app-text);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 900;
+  list-style: none;
+}
+
+.portfolio-collapsible-section summary::-webkit-details-marker { display: none; }
+
+.portfolio-collapsible-section summary::before {
+  content: "⌄";
+  order: -1;
+  color: var(--app-brand);
+  font-size: 18px;
+  transition: transform 0.2s ease;
+}
+
+.portfolio-collapsible-section[open] summary::before { transform: rotate(180deg); }
+
+.portfolio-collapsible-section summary small {
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.portfolio-collapsible-section summary small.is-complete { color: var(--app-brand); }
+
+.portfolio-collapsible-section .portfolio-builder-panel {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--app-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.portfolio-collapsible-section .portfolio-section-subpanel {
+  border-top: 1px solid var(--app-border);
 }
 
 .portfolio-builder-section-head button,
@@ -3429,6 +3494,10 @@ body {
 .portfolio-save-status.is-saving { color: var(--app-brand); }
 .portfolio-save-status.is-saved { color: var(--app-brand); }
 .portfolio-save-status.is-error { color: #d58a67; }
+
+.portfolio-autosave-bar {
+  box-shadow: none;
+}
 
 .portfolio-growth-panel {
   display: grid;
