@@ -30,9 +30,11 @@ import {
   PREMIUM_STATUS_EVENT,
   getAccessHeaders,
   hasActivePremiumPass,
+  hasCoreAccess,
   isPremiumGateEnabled,
   requestPremiumAccess,
 } from "../utils/premiumAccess";
+import { selectOrganizationResultScope } from "../utils/trainingFinderResults";
 import {
   getSavedItemIds,
   getSavedItemUpdateState,
@@ -529,39 +531,6 @@ const isNationalGuideOrganization = (organization = {}) =>
   [organization.region, organization.city, ...(organization.regions || [])].some(
     (value) => normalizeName(value) === normalizeName("كل المناطق")
   );
-
-const guideOrganizationMatchesLocation = (
-  organization = {},
-  selectedCityScope = [],
-  suggestionRegion = "",
-  cityName = ""
-) => {
-  if (!cityName) return true;
-  if (isNationalGuideOrganization(organization)) return true;
-
-  const allowedLocations = new Set(
-    [
-      cityName,
-      suggestionRegion,
-      getRegionDisplayName(suggestionRegion),
-      ...selectedCityScope,
-    ]
-      .filter(Boolean)
-      .map(normalizeName)
-  );
-  const organizationLocations = [
-    organization.city,
-    organization.region,
-    ...(organization.cities || []),
-    ...(organization.regions || []),
-  ]
-    .filter(Boolean)
-    .map(normalizeName);
-
-  return organizationLocations.some((locationName) =>
-    allowedLocations.has(locationName)
-  );
-};
 
 const getGuideOrganizationLocationText = (organization = {}) => {
   const cities = (organization.cities || []).filter(
@@ -1683,16 +1652,7 @@ export default function TrainingFinderPage() {
     const hasSpecialtyFilter = Boolean(
       selectedSpecialtyLabel || selectedMajorCategories.length > 0
     );
-    const guideOrganizations = guideDirectoryOrganizations
-      .filter((organization) =>
-        guideOrganizationMatchesLocation(
-          organization,
-          selectedCityScope,
-          suggestionRegion,
-          city
-        )
-      )
-      .map((organization) => ({
+    const guideOrganizations = guideDirectoryOrganizations.map((organization) => ({
         ...organization,
         sourceLabel: organization.sourceLabel || darbakGuideMeta.sourceLabel,
       }));
@@ -1761,16 +1721,14 @@ export default function TrainingFinderPage() {
           entityMatchesOrganizationQuery(
             organization,
             normalizedOrganizationQuery
-          ) &&
-          !visibleTargetNames.has(normalizeName(organization.name)) &&
-          (!hasSpecialtyFilter || organization._specialtyScore > 0)
+          ) && !visibleTargetNames.has(normalizeName(organization.name))
       );
-    const cityMatchedOrganizations =
-      city && scoredOrganizations.some((organization) => organization._locationScore > 1)
-        ? scoredOrganizations.filter((organization) => organization._locationScore > 1)
-        : scoredOrganizations;
+    const scopedOrganizations = selectOrganizationResultScope(scoredOrganizations, {
+      hasCity: Boolean(city),
+      hasSpecialty: hasSpecialtyFilter,
+    });
 
-    return cityMatchedOrganizations.sort(
+    return scopedOrganizations.items.sort(
         (first, second) =>
           second._locationScore - first._locationScore ||
           second._specialtyScore - first._specialtyScore ||
@@ -1787,6 +1745,15 @@ export default function TrainingFinderPage() {
     suggestionRegion,
     visibleTargetNames,
   ]);
+  const suggestedOrganizationScope = useMemo(() => {
+    const hasSpecialtyFilter = Boolean(
+      selectedSpecialtyLabel || selectedMajorCategories.length > 0
+    );
+    return selectOrganizationResultScope(suggestedOrganizations, {
+      hasCity: Boolean(city),
+      hasSpecialty: hasSpecialtyFilter,
+    }).scope;
+  }, [city, selectedMajorCategories.length, selectedSpecialtyLabel, suggestedOrganizations]);
   const visibleOpportunities = useMemo(() => {
     const allowedCities =
       selectedCityScope.length > 0
@@ -2021,13 +1988,20 @@ export default function TrainingFinderPage() {
   };
 
   const openSearchInsightSubscription = () => {
-    setShowSearchInsightModal(false);
-    goToSubscribePage("where_to_train_search_insight", {
-      action: "search_insight_apply",
+    const detail = {
+      feature: "where_to_train_results",
+      source: "where_to_train_search_insight",
       itemKey: `where-to-train:${normalizeName(selectedSpecialty)}:${normalizeName(
         city
       )}:${normalizeName(organizationQuery)}`,
-    });
+    };
+
+    if (hasCoreAccess()) {
+      setShowSearchInsightModal(false);
+      return;
+    }
+
+    requestPremiumAccess(detail, () => setShowSearchInsightModal(false));
   };
 
   const fetchOpportunities = async (params = {}) => {
@@ -2078,6 +2052,7 @@ export default function TrainingFinderPage() {
         majorCategory: majorCategories[0] || "",
         majorCategories: majorCategories.join(","),
         city: cityValue,
+        cityMatch: "exact",
         organization: resolvedOrganizationQuery,
       };
       const shouldFetchTrainingTargets = Boolean(
@@ -2299,7 +2274,15 @@ export default function TrainingFinderPage() {
 
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
-    runTrainingTargetSearch(specialtyInput, city, organizationQuery);
+    const matchedSpecialty = findSpecializationOptionByInput(specialtyInput);
+    const params = new URLSearchParams();
+    const nextMajor = matchedSpecialty?.value || specialtyInput.trim();
+    if (nextMajor) params.set("major", nextMajor);
+    if (city) params.set("city", city);
+    if (organizationQuery.trim()) {
+      params.set("organization", organizationQuery.trim());
+    }
+    navigate(`/where-to-train${params.toString() ? `?${params.toString()}` : ""}`);
   };
 
   const openOpportunityRequestModal = () => {
@@ -3852,6 +3835,9 @@ export default function TrainingFinderPage() {
                           lineHeight: 1.75,
                         }}
                       >
+                        {suggestedOrganizationScope
+                          ? `${suggestedOrganizationScope}: `
+                          : ""}
                         جهات مقترحة حسب المدينة والتخصص أو تخصص قريب منه، مع
                         وسيلة التقديم المتاحة لكل جهة.
                       </p>

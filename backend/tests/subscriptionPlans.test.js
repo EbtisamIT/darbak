@@ -46,6 +46,12 @@ assert.ok(hasPlanEntitlement(RESUME_PLAN_KEY, RESUME_ENTITLEMENT, env));
 assert.ok(!hasPlanEntitlement(PLUS_PLAN_KEY, RESUME_ENTITLEMENT, env));
 assert.ok(hasPlanEntitlement("one_time_90", PLUS_ENTITLEMENT, env));
 assert.ok(!hasPlanEntitlement("one_time_90", RESUME_ENTITLEMENT, env));
+for (const planId of [PLUS_PLAN_KEY, "one_time_90", RESUME_PLAN_KEY]) {
+  assert.ok(
+    hasPlanEntitlement(planId, PLUS_ENTITLEMENT, env),
+    `${planId} must retain Darbak core access`
+  );
+}
 assert.deepStrictEqual(getPlanEntitlements("unknown", env), [PLUS_ENTITLEMENT]);
 assert.strictEqual(isResumePlanLaunchEnabled(env), false);
 assert.deepStrictEqual(

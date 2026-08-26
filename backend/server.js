@@ -11574,6 +11574,7 @@ app.get('/api/training-targets', async (req, res) => {
       )
     );
     const city = (req.query.city || "").trim();
+    const cityMatch = (req.query.cityMatch || "").trim();
     const organization = (
       req.query.organization ||
       req.query.company ||
@@ -11601,7 +11602,7 @@ app.get('/api/training-targets', async (req, res) => {
     }
 
     if (city) {
-      const cityValues = getCityFilterValues(city);
+      const cityValues = cityMatch === "exact" ? [city] : getCityFilterValues(city);
       filter.city =
         cityValues.length > 1 ? { $in: cityValues } : cityValues[0] || city;
     }
@@ -11931,6 +11932,7 @@ app.get('/api/opportunities', async (req, res) => {
       )
     );
     const city = (req.query.city || "").trim();
+    const cityMatch = (req.query.cityMatch || "").trim();
     const organization = (
       req.query.organization ||
       req.query.company ||
@@ -11954,7 +11956,7 @@ app.get('/api/opportunities', async (req, res) => {
     }
 
     if (city) {
-      const cityValues = getCityFilterValues(city);
+      const cityValues = cityMatch === "exact" ? [city] : getCityFilterValues(city);
       andFilters.push({
         $or: [
           { city: { $in: cityValues } },

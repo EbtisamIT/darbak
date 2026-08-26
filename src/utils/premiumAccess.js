@@ -71,11 +71,15 @@ export const passHasEntitlement = (pass = {}, entitlement = "") => {
   return entitlements.includes(entitlement);
 };
 
-export const hasResumeAccessPass = () =>
-  passHasEntitlement(getStoredPremiumPass(), "resume_builder");
+export const hasCoreAccess = (pass = getStoredPremiumPass()) =>
+  passHasEntitlement(pass, "darbak_plus");
 
-export const hasDarbakPlusPass = () =>
-  passHasEntitlement(getStoredPremiumPass(), "darbak_plus");
+export const hasResumeAccess = (pass = getStoredPremiumPass()) =>
+  passHasEntitlement(pass, "resume_builder");
+
+export const hasResumeAccessPass = () => hasResumeAccess();
+
+export const hasDarbakPlusPass = () => hasCoreAccess();
 
 export const getStoredAccessIdentity = () => {
   if (typeof window === "undefined") return {};

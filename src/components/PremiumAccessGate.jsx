@@ -13,8 +13,8 @@ import {
   getStoredAccessIdentity,
   getStoredPremiumPass,
   hasActivePremiumPass,
-  hasDarbakPlusPass,
-  hasResumeAccessPass,
+  hasCoreAccess,
+  hasResumeAccess,
   isPremiumGateEnabled,
   saveAccessIdentity,
   savePremiumPass,
@@ -793,9 +793,9 @@ export default function PremiumAccessGate() {
         : null);
       const requiresResumePlan = effectivePlan?.id === "darbak_resume";
       const hasRequestedPlanAccess = requiresResumePlan
-        ? hasResumeAccessPass()
+        ? hasResumeAccess()
         : coreFeature
-          ? hasDarbakPlusPass()
+          ? hasCoreAccess()
           : !effectivePlan ||
             getStoredPremiumPass()?.planId === effectivePlan.id;
 
