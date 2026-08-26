@@ -95,6 +95,34 @@ export const getSubscriptionCapabilities = (pass = getStoredPremiumPass()) => {
   };
 };
 
+export const isCoreSubscriptionFeature = (detail = {}) => {
+  const feature = (detail.feature || "").toString();
+  const itemKey = (detail.itemKey || "").toString();
+  return (
+    feature.includes("experience") ||
+    feature.includes("opportunity") ||
+    feature.includes("where_to_train") ||
+    feature.includes("training_guide") ||
+    itemKey.startsWith("experience:") ||
+    itemKey.startsWith("opportunity:") ||
+    itemKey.startsWith("where-to-train:") ||
+    itemKey.startsWith("where-to-train-opportunities:") ||
+    itemKey.startsWith("guide-organization:")
+  );
+};
+
+export const hasSubscriptionFeatureAccess = (
+  detail = {},
+  pass = getStoredPremiumPass()
+) => {
+  const capabilities = getSubscriptionCapabilities(pass);
+  return detail.defaultPlanId === "darbak_resume"
+    ? capabilities.hasResumeAccess
+    : isCoreSubscriptionFeature(detail)
+      ? capabilities.hasCoreAccess
+      : false;
+};
+
 export const hasCoreAccess = (pass = getStoredPremiumPass()) =>
   getSubscriptionCapabilities(pass).hasCoreAccess;
 

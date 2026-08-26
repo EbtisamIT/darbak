@@ -13,7 +13,8 @@ import {
   getStoredAccessIdentity,
   getStoredPremiumPass,
   hasActivePremiumPass,
-  getSubscriptionCapabilities,
+  hasSubscriptionFeatureAccess,
+  isCoreSubscriptionFeature,
   isPremiumGateEnabled,
   saveAccessIdentity,
   savePremiumPass,
@@ -422,22 +423,6 @@ const isSubscriptionReminderCandidate = (detail = {}, accessStatus = {}) => {
   );
 };
 
-const isCoreDarbakFeature = (detail = {}) => {
-  const feature = (detail.feature || "").toString();
-  const itemKey = (detail.itemKey || "").toString();
-  return (
-    feature.includes("experience") ||
-    feature.includes("opportunity") ||
-    feature.includes("where_to_train") ||
-    feature.includes("training_guide") ||
-    itemKey.startsWith("experience:") ||
-    itemKey.startsWith("opportunity:") ||
-    itemKey.startsWith("where-to-train:") ||
-    itemKey.startsWith("where-to-train-opportunities:") ||
-    itemKey.startsWith("guide-organization:")
-  );
-};
-
 const shouldShowReminderBar = () => {
   const lastDismissedAt = getStoredReminderTimestamp(
     SUBSCRIPTION_REMINDER_BAR_DISMISSED_PREFIX
@@ -786,18 +771,15 @@ export default function PremiumAccessGate() {
         subscriptionPlans,
         detail.defaultPlanId
       );
-      const coreFeature = isCoreDarbakFeature(detail);
+      const coreFeature = isCoreSubscriptionFeature(detail);
       const effectivePlan = requestedPlan || (coreFeature
         ? findSubscriptionPlanById(subscriptionPlans, PLUS_PLAN_ID)
         : null);
-      const capabilities = getSubscriptionCapabilities();
-      const requiresResumePlan = effectivePlan?.id === "darbak_resume";
-      const hasRequestedPlanAccess = requiresResumePlan
-        ? capabilities.hasResumeAccess
-        : coreFeature
-          ? capabilities.hasCoreAccess
-          : !effectivePlan ||
-            getStoredPremiumPass()?.planId === effectivePlan.id;
+      const hasRequestedPlanAccess = !effectivePlan ||
+        hasSubscriptionFeatureAccess(
+          { ...detail, defaultPlanId: effectivePlan.id },
+          getStoredPremiumPass()
+        );
 
       // Read the current pass at click time. The React state is only used for
       // presentation and can briefly lag behind a freshly restored session.
