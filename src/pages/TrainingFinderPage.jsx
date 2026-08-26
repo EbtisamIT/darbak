@@ -34,7 +34,6 @@ import {
   isPremiumGateEnabled,
   requestPremiumAccess,
 } from "../utils/premiumAccess";
-import { selectOrganizationResultScope } from "../utils/trainingFinderResults";
 import {
   getSavedItemIds,
   getSavedItemUpdateState,
@@ -531,6 +530,39 @@ const isNationalGuideOrganization = (organization = {}) =>
   [organization.region, organization.city, ...(organization.regions || [])].some(
     (value) => normalizeName(value) === normalizeName("كل المناطق")
   );
+
+const guideOrganizationMatchesLocation = (
+  organization = {},
+  selectedCityScope = [],
+  suggestionRegion = "",
+  cityName = ""
+) => {
+  if (!cityName) return true;
+  if (isNationalGuideOrganization(organization)) return true;
+
+  const allowedLocations = new Set(
+    [
+      cityName,
+      suggestionRegion,
+      getRegionDisplayName(suggestionRegion),
+      ...selectedCityScope,
+    ]
+      .filter(Boolean)
+      .map(normalizeName)
+  );
+  const organizationLocations = [
+    organization.city,
+    organization.region,
+    ...(organization.cities || []),
+    ...(organization.regions || []),
+  ]
+    .filter(Boolean)
+    .map(normalizeName);
+
+  return organizationLocations.some((locationName) =>
+    allowedLocations.has(locationName)
+  );
+};
 
 const getGuideOrganizationLocationText = (organization = {}) => {
   const cities = (organization.cities || []).filter(
@@ -1652,7 +1684,16 @@ export default function TrainingFinderPage() {
     const hasSpecialtyFilter = Boolean(
       selectedSpecialtyLabel || selectedMajorCategories.length > 0
     );
-    const guideOrganizations = guideDirectoryOrganizations.map((organization) => ({
+    const guideOrganizations = guideDirectoryOrganizations
+      .filter((organization) =>
+        guideOrganizationMatchesLocation(
+          organization,
+          selectedCityScope,
+          suggestionRegion,
+          city
+        )
+      )
+      .map((organization) => ({
         ...organization,
         sourceLabel: organization.sourceLabel || darbakGuideMeta.sourceLabel,
       }));
@@ -1721,14 +1762,16 @@ export default function TrainingFinderPage() {
           entityMatchesOrganizationQuery(
             organization,
             normalizedOrganizationQuery
-          ) && !visibleTargetNames.has(normalizeName(organization.name))
+          ) &&
+          !visibleTargetNames.has(normalizeName(organization.name)) &&
+          (!hasSpecialtyFilter || organization._specialtyScore > 0)
       );
-    const scopedOrganizations = selectOrganizationResultScope(scoredOrganizations, {
-      hasCity: Boolean(city),
-      hasSpecialty: hasSpecialtyFilter,
-    });
+    const cityMatchedOrganizations =
+      city && scoredOrganizations.some((organization) => organization._locationScore > 1)
+        ? scoredOrganizations.filter((organization) => organization._locationScore > 1)
+        : scoredOrganizations;
 
-    return scopedOrganizations.items.sort(
+    return cityMatchedOrganizations.sort(
         (first, second) =>
           second._locationScore - first._locationScore ||
           second._specialtyScore - first._specialtyScore ||
@@ -1745,15 +1788,6 @@ export default function TrainingFinderPage() {
     suggestionRegion,
     visibleTargetNames,
   ]);
-  const suggestedOrganizationScope = useMemo(() => {
-    const hasSpecialtyFilter = Boolean(
-      selectedSpecialtyLabel || selectedMajorCategories.length > 0
-    );
-    return selectOrganizationResultScope(suggestedOrganizations, {
-      hasCity: Boolean(city),
-      hasSpecialty: hasSpecialtyFilter,
-    }).scope;
-  }, [city, selectedMajorCategories.length, selectedSpecialtyLabel, suggestedOrganizations]);
   const visibleOpportunities = useMemo(() => {
     const allowedCities =
       selectedCityScope.length > 0
@@ -2052,7 +2086,6 @@ export default function TrainingFinderPage() {
         majorCategory: majorCategories[0] || "",
         majorCategories: majorCategories.join(","),
         city: cityValue,
-        cityMatch: "exact",
         organization: resolvedOrganizationQuery,
       };
       const shouldFetchTrainingTargets = Boolean(
@@ -2274,15 +2307,7 @@ export default function TrainingFinderPage() {
 
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
-    const matchedSpecialty = findSpecializationOptionByInput(specialtyInput);
-    const params = new URLSearchParams();
-    const nextMajor = matchedSpecialty?.value || specialtyInput.trim();
-    if (nextMajor) params.set("major", nextMajor);
-    if (city) params.set("city", city);
-    if (organizationQuery.trim()) {
-      params.set("organization", organizationQuery.trim());
-    }
-    navigate(`/where-to-train${params.toString() ? `?${params.toString()}` : ""}`);
+    runTrainingTargetSearch(specialtyInput, city, organizationQuery);
   };
 
   const openOpportunityRequestModal = () => {
@@ -3835,9 +3860,6 @@ export default function TrainingFinderPage() {
                           lineHeight: 1.75,
                         }}
                       >
-                        {suggestedOrganizationScope
-                          ? `${suggestedOrganizationScope}: `
-                          : ""}
                         جهات مقترحة حسب المدينة والتخصص أو تخصص قريب منه، مع
                         وسيلة التقديم المتاحة لكل جهة.
                       </p>
