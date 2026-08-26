@@ -16,7 +16,7 @@ import {
   PREMIUM_STATUS_EVENT,
   getAccessHeaders,
   getStoredPremiumPass,
-  passHasEntitlement,
+  getSubscriptionCapabilities,
 } from "../utils/premiumAccess";
 import { getVisitorId, trackEvent, trackEventOncePerSession } from "../utils/analytics";
 import ResumeAgentFlow from "../features/resume/ResumeAgentFlow";
@@ -921,7 +921,7 @@ const MyResumePage = () => {
   };
 
   const localPremiumPass = getStoredPremiumPass();
-  const hasLocalResumeAccess = passHasEntitlement(localPremiumPass, "resume_builder");
+  const hasLocalResumeAccess = getSubscriptionCapabilities(localPremiumPass).hasResumeAccess;
 
   if (!hasLocalResumeAccess) {
     return <ResumeAccessPreview premiumPass={localPremiumPass} onUpgrade={openResumeUpgrade} onExplore={() => navigate("/")} />;

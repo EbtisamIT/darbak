@@ -13,8 +13,7 @@ import {
   getStoredAccessIdentity,
   getStoredPremiumPass,
   hasActivePremiumPass,
-  hasCoreAccess,
-  hasResumeAccess,
+  getSubscriptionCapabilities,
   isPremiumGateEnabled,
   saveAccessIdentity,
   savePremiumPass,
@@ -791,19 +790,18 @@ export default function PremiumAccessGate() {
       const effectivePlan = requestedPlan || (coreFeature
         ? findSubscriptionPlanById(subscriptionPlans, PLUS_PLAN_ID)
         : null);
+      const capabilities = getSubscriptionCapabilities();
       const requiresResumePlan = effectivePlan?.id === "darbak_resume";
       const hasRequestedPlanAccess = requiresResumePlan
-        ? hasResumeAccess()
+        ? capabilities.hasResumeAccess
         : coreFeature
-          ? hasCoreAccess()
+          ? capabilities.hasCoreAccess
           : !effectivePlan ||
             getStoredPremiumPass()?.planId === effectivePlan.id;
 
-      if (
-        isPremiumActive &&
-        !detail.loginOnly &&
-        hasRequestedPlanAccess
-      ) {
+      // Read the current pass at click time. The React state is only used for
+      // presentation and can briefly lag behind a freshly restored session.
+      if (!detail.loginOnly && hasRequestedPlanAccess) {
         if (typeof detail.onGranted === "function") {
           detail.onGranted();
         }

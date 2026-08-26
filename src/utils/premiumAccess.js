@@ -71,11 +71,35 @@ export const passHasEntitlement = (pass = {}, entitlement = "") => {
   return entitlements.includes(entitlement);
 };
 
+// Keep plan knowledge in one place. UI features should ask for a capability,
+// never infer access from the selected checkout plan.
+const PLAN_CAPABILITIES = {
+  darbak_plus: { hasCoreAccess: true, hasResumeAccess: false },
+  one_time_90: { hasCoreAccess: true, hasResumeAccess: false },
+  darbak_resume: { hasCoreAccess: true, hasResumeAccess: true },
+};
+
+export const getSubscriptionCapabilities = (pass = getStoredPremiumPass()) => {
+  if (pass?.isAdmin || pass?.accessType === "admin") {
+    return { hasCoreAccess: true, hasResumeAccess: true };
+  }
+
+  const planCapabilities = PLAN_CAPABILITIES[pass?.planId] || {};
+  return {
+    hasCoreAccess:
+      Boolean(planCapabilities.hasCoreAccess) ||
+      passHasEntitlement(pass, "darbak_plus"),
+    hasResumeAccess:
+      Boolean(planCapabilities.hasResumeAccess) ||
+      passHasEntitlement(pass, "resume_builder"),
+  };
+};
+
 export const hasCoreAccess = (pass = getStoredPremiumPass()) =>
-  passHasEntitlement(pass, "darbak_plus");
+  getSubscriptionCapabilities(pass).hasCoreAccess;
 
 export const hasResumeAccess = (pass = getStoredPremiumPass()) =>
-  passHasEntitlement(pass, "resume_builder");
+  getSubscriptionCapabilities(pass).hasResumeAccess;
 
 export const hasResumeAccessPass = () => hasResumeAccess();
 

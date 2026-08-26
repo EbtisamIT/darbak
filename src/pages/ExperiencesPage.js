@@ -9,7 +9,7 @@ import { trackEvent } from "../utils/analytics";
 import {
   PREMIUM_STATUS_EVENT,
   getAccessHeaders,
-  hasActivePremiumPass,
+  hasCoreAccess,
   requestPremiumAccess,
 } from "../utils/premiumAccess";
 import {
@@ -603,7 +603,7 @@ const ExperiencesPage = () => {
   const [relatedExperiences, setRelatedExperiences] = useState([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [isPremiumActive, setIsPremiumActive] = useState(
-    () => typeof window !== "undefined" && hasActivePremiumPass()
+    () => typeof window !== "undefined" && hasCoreAccess()
   );
   const lastTrackedExperienceSearchRef = useRef("");
   const handledRouteExperienceIdRef = useRef("");
@@ -620,7 +620,7 @@ const ExperiencesPage = () => {
   const isLastExperienceStep = currentStep === steps.length;
 
   useEffect(() => {
-    const refreshPremiumStatus = () => setIsPremiumActive(hasActivePremiumPass());
+    const refreshPremiumStatus = () => setIsPremiumActive(hasCoreAccess());
 
     refreshPremiumStatus();
     window.addEventListener(PREMIUM_STATUS_EVENT, refreshPremiumStatus);

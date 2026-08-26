@@ -29,7 +29,6 @@ import { trackEvent } from "../utils/analytics";
 import {
   PREMIUM_STATUS_EVENT,
   getAccessHeaders,
-  hasActivePremiumPass,
   hasCoreAccess,
   isPremiumGateEnabled,
   requestPremiumAccess,
@@ -1547,7 +1546,7 @@ export default function TrainingFinderPage() {
   const [opportunityRequestMessage, setOpportunityRequestMessage] = useState("");
   const [savedItemIds, setSavedItemIds] = useState(() => getSavedItemIds());
   const [canViewGuideContacts, setCanViewGuideContacts] = useState(
-    () => !isPremiumGateEnabled() || hasActivePremiumPass()
+    () => !isPremiumGateEnabled() || hasCoreAccess()
   );
   const handledRouteOpportunityIdRef = useRef("");
 
@@ -1560,7 +1559,7 @@ export default function TrainingFinderPage() {
 
   useEffect(() => {
     const refreshGuideContactAccess = () =>
-      setCanViewGuideContacts(!isPremiumGateEnabled() || hasActivePremiumPass());
+      setCanViewGuideContacts(!isPremiumGateEnabled() || hasCoreAccess());
 
     refreshGuideContactAccess();
     window.addEventListener(PREMIUM_STATUS_EVENT, refreshGuideContactAccess);
@@ -2573,6 +2572,7 @@ export default function TrainingFinderPage() {
         feature: "opportunity_apply",
         title: opportunity.title || opportunity.organizationName || "",
         source: "where_to_train",
+        defaultPlanId: "darbak_plus",
         gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
         itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
         deferGateOnLimited: true,

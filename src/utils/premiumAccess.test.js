@@ -1,21 +1,16 @@
-import { hasCoreAccess, hasResumeAccess } from "./premiumAccess";
+import { getSubscriptionCapabilities } from "./premiumAccess";
 
-test("one_time_90 keeps core access without resume access", () => {
-  const activePass = {
-    planId: "one_time_90",
-    entitlements: ["darbak_plus"],
-  };
-
-  expect(hasCoreAccess(activePass)).toBe(true);
-  expect(hasResumeAccess(activePass)).toBe(false);
+test.each([
+  ["darbak_plus", { hasCoreAccess: true, hasResumeAccess: false }],
+  ["one_time_90", { hasCoreAccess: true, hasResumeAccess: false }],
+  ["darbak_resume", { hasCoreAccess: true, hasResumeAccess: true }],
+])("%s exposes the expected capabilities", (planId, expected) => {
+  expect(getSubscriptionCapabilities({ planId, entitlements: [] })).toEqual(expected);
 });
 
-test("resume plan retains core and resume access", () => {
-  const activePass = {
-    planId: "darbak_resume",
-    entitlements: ["darbak_plus", "resume_builder"],
-  };
-
-  expect(hasCoreAccess(activePass)).toBe(true);
-  expect(hasResumeAccess(activePass)).toBe(true);
+test("no subscription has no protected capabilities", () => {
+  expect(getSubscriptionCapabilities(null)).toEqual({
+    hasCoreAccess: false,
+    hasResumeAccess: false,
+  });
 });
