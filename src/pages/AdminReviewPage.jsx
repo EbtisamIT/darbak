@@ -482,6 +482,12 @@ const manualSubscriptionPlanOptions = [
     days: "90",
     priceSar: "15",
   },
+  {
+    id: "darbak_resume",
+    label: "دربك + سيرتي ✨",
+    days: "30",
+    priceSar: "34.99",
+  },
 ];
 
 const defaultManualSubscriptionForm = {
