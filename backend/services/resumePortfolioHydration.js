@@ -59,6 +59,28 @@ const mergeEntries = (current = [], fallback = []) => {
   return merged;
 };
 
+const hydrateEducationEntries = (current = [], fallback = []) => {
+  const merged = mergeEntries(current, fallback);
+  const portfolioEducation = (Array.isArray(fallback) ? fallback : [])[0];
+  if (!portfolioEducation) return merged;
+
+  return merged.map((entry) => {
+    const sameEducation =
+      cleanText(entry.title, 140) === cleanText(portfolioEducation.title, 140) &&
+      cleanText(entry.organization || entry.subtitle, 180) ===
+        cleanText(portfolioEducation.organization || portfolioEducation.subtitle, 180);
+    const missingYear = !hasValue(entry.period) && !hasValue(entry.endDate);
+    if (!sameEducation || !missingYear || !hasValue(portfolioEducation.endDate)) return entry;
+
+    return {
+      ...entry,
+      period: portfolioEducation.period,
+      endDate: portfolioEducation.endDate,
+      isCurrent: false,
+    };
+  });
+};
+
 const mergeLanguages = (current = [], fallback = []) => {
   const merged = Array.isArray(current) ? [...current] : [];
   const names = new Set(merged.map((language) => cleanText(language?.name, 80).toLowerCase()));
@@ -162,10 +184,12 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
           title: cleanText(portfolio.degreeLevel || portfolio.major, 140),
           subtitle: cleanText(portfolio.university, 180),
           organization: cleanText(portfolio.university, 180),
-          period: "",
+          period: cleanText(portfolio.graduationYear, 20),
           startDate: "",
-          endDate: "",
-          isCurrent: true,
+          endDate: cleanText(portfolio.graduationYear, 20),
+          isCurrent:
+            !portfolio.graduationYear &&
+            ["student", "expected_graduate"].includes(portfolio.studentStatus),
           location: cleanText(portfolio.city, 90),
           url: "",
           description: educationDescription,
@@ -220,7 +244,7 @@ const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
     ...resume,
     personalInfo,
     summary: hasValue(resume.summary) ? resume.summary : portfolioResume.summary || "",
-    education: mergeEntries(resume.education, portfolioResume.education),
+    education: hydrateEducationEntries(resume.education, portfolioResume.education),
     experiences: mergeEntries(currentExperience, portfolioExperience),
     experience: mergeEntries(currentExperience, portfolioExperience),
     projects: mergeEntries(resume.projects, portfolioResume.projects),

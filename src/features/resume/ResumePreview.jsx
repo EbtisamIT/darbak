@@ -8,6 +8,7 @@ import {
 } from "./resumeDefaults";
 import { estimateResumePages } from "./resumeValidation";
 import { getLocalizedResumeForDisplay } from "./resumeLocalization";
+import { getResumeEducationDisplay } from "./resumeEducationDisplay";
 
 const labels = {
   ar: {
@@ -40,20 +41,26 @@ const getAchievementLines = (entry = {}) => {
   return lines.length ? lines : [entry.description || entry.details].filter(Boolean);
 };
 
-const EntryPreview = ({ entry, language }) => {
+const EntryPreview = ({ entry, language, sectionKey, personal }) => {
+  const education = sectionKey === "education"
+    ? getResumeEducationDisplay(entry, personal, language)
+    : null;
   const date = formatResumeDateRange(entry, language);
-  const subtitle = [entry.organization || entry.subtitle, entry.location]
+  const subtitle = education?.subtitle || [entry.organization || entry.subtitle, entry.location]
     .filter(Boolean)
     .join(" • ");
+  const title = education?.title || entry.title || entry.subtitle;
+  const facts = education?.facts || [];
 
   return (
     <article className="resume-paper-entry">
       <div className="resume-paper-entry-head">
-        <strong>{entry.title || entry.subtitle}</strong>
-        {date && <span>{date}</span>}
+        <strong>{title}</strong>
+        {date && !education && <span>{date}</span>}
       </div>
       {subtitle && <p className="resume-paper-muted">{subtitle}</p>}
-      {getAchievementLines(entry).length > 0 && (
+      {facts.length > 0 && <p className="resume-paper-muted">{facts.join(" | ")}</p>}
+      {!education && getAchievementLines(entry).length > 0 && (
         <ul>
           {getAchievementLines(entry).map((line, index) => (
             <li key={`${entry.id || entry.title}-${index}`}>{line}</li>
@@ -101,7 +108,7 @@ const ResumePreview = ({ resume }) => {
         <section className="resume-paper-section" key={sectionKey}>
           <h3>{titles[sectionKey]}</h3>
           {visibleEntries.map((entry) => (
-            <EntryPreview key={entry.id || entry.title} entry={entry} language={language} />
+            <EntryPreview key={entry.id || entry.title} entry={entry} language={language} sectionKey={sectionKey} personal={personal} />
           ))}
         </section>
       );

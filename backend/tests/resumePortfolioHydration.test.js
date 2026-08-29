@@ -45,6 +45,42 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(result.resume.projects[0].title, "دربك");
   assert.strictEqual(result.resume.projects[0].url, "https://darbak.sa");
   assert.deepStrictEqual(result.resume.skills, ["React", "UI/UX"]);
+  assert.strictEqual(result.resume.education[0].endDate, "2027");
+  assert.strictEqual(result.resume.education[0].isCurrent, false);
+}
+
+// Case G: a legacy education item with no year is completed from Portfolio,
+// without replacing any student-entered education date.
+{
+  const result = hydrateResumeFromPortfolio(
+    {
+      personalInfo: { graduationYear: "", gpa: "", gpaScale: "" },
+      education: [{
+        id: "old-education",
+        title: "بكالوريوس",
+        organization: "جامعة الملك سعود",
+        period: "",
+        endDate: "",
+        isCurrent: true,
+      }],
+    },
+    mapped
+  );
+  assert.strictEqual(result.resume.education[0].endDate, "2027");
+  assert.strictEqual(result.resume.education[0].isCurrent, false);
+  assert.strictEqual(result.resume.personalInfo.gpa, "4.5");
+  assert.strictEqual(result.resume.personalInfo.gpaScale, "5");
+}
+
+// Case H: without a confirmed year, "current" is only used for a confirmed
+// student status.
+{
+  const noYear = mapPortfolioToResumePayload(
+    { ...portfolio, graduationYear: "", studentStatus: "student" },
+    portfolio.email
+  );
+  assert.strictEqual(noYear.education[0].endDate, "");
+  assert.strictEqual(noYear.education[0].isCurrent, true);
 }
 
 // Case B: an old, empty master is backfilled.
