@@ -1,5 +1,10 @@
 const assert = require("assert");
-const { validateResumeClaims, filterConfirmedQuestions, isDeferredTailorQuestion } = require("../agents/darbakResumeAgent");
+const {
+  collectFacts,
+  validateResumeClaims,
+  filterConfirmedQuestions,
+  isDeferredTailorQuestion,
+} = require("../agents/darbakResumeAgent");
 const { assertTranslationIntegrity, mapDraftToResumePayload } = require("../services/resumeAiService");
 
 const baseFacts = {
@@ -93,6 +98,38 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 }
 
 {
+  // Facts already entered in the professional profile must not be asked for
+  // again merely because the ResumeProfile has not been completed yet.
+  const facts = collectFacts({
+    profile: {
+      phone: "0500000000",
+      major: "تقنية المعلومات",
+      university: "جامعة الإمام",
+      degreeLevel: "بكالوريوس",
+      experiences: [{ title: "مساعدة مطورة", organization: "نادي التقنية" }],
+      volunteering: [{ title: "عضوة", organization: "نادي إنجاز" }],
+    },
+    resume: null,
+    opportunity: null,
+    collectedFacts: {},
+  });
+  assert.strictEqual(facts.profile.phone, "0500000000");
+  const filtered = filterConfirmedQuestions(
+    {
+      status: "needs_information",
+      questions: [
+        { section: "education", question: "ما تخصصك وجامعتك؟" },
+        { section: "experiences", question: "اذكر خبرتك." },
+        { section: "volunteering", question: "اذكر نشاطك التطوعي." },
+        { section: "personal", question: "ما وسيلة التواصل المناسبة؟" },
+      ],
+    },
+    facts
+  );
+  assert.deepStrictEqual(filtered.questions.map((item) => item.section), ["personal"]);
+}
+
+{
   const filtered = filterConfirmedQuestions(
     {
       status: "needs_information",
@@ -102,6 +139,75 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
       profile: {},
       resume: { personalInfo: { headline: "خريجة تقنية المعلومات" } },
       sources: [{ sourceId: "resume_basic", text: "خريجة تقنية المعلومات" }],
+    }
+  );
+  assert.deepStrictEqual(filtered.questions, []);
+}
+
+{
+  // Agent wording may change after a refresh. A persisted field key, not the
+  // wording itself, prevents asking the same fact again.
+  const filtered = filterConfirmedQuestions(
+    {
+      status: "needs_information",
+      questions: [
+        {
+          id: "new-wording-after-refresh",
+          fieldKey: "opportunity_description",
+          section: "opportunity",
+          question: "أرسل وصف الفرصة أو متطلباتها.",
+        },
+      ],
+    },
+    {
+      profile: {},
+      resume: {},
+      sources: [],
+      answers: [
+        {
+          fieldKey: "opportunity_description",
+          answer: "وصف محفوظ من الطالب.",
+        },
+      ],
+    }
+  );
+  assert.deepStrictEqual(filtered.questions, []);
+}
+
+{
+  // A Darbak opportunity is already a trusted description source; the agent
+  // must not turn its valid id into a manual-description question.
+  const filtered = filterConfirmedQuestions(
+    {
+      status: "needs_information",
+      questions: [
+        {
+          section: "opportunity",
+          question: "أرسل وصف الفرصة التدريبية أو متطلباتها.",
+        },
+      ],
+    },
+    {
+      profile: {},
+      resume: {},
+      sources: [],
+      opportunity: { _id: "valid-opportunity", title: "تدريب تعاوني" },
+    }
+  );
+  assert.deepStrictEqual(filtered.questions, []);
+}
+
+{
+  const filtered = filterConfirmedQuestions(
+    {
+      status: "needs_information",
+      questions: [{ id: "project-role", section: "projects", question: "ما دورك في المشروع؟" }],
+    },
+    {
+      profile: {},
+      resume: {},
+      sources: [],
+      answers: [{ questionId: "project-role", answer: "صممت واجهات المشروع." }],
     }
   );
   assert.deepStrictEqual(filtered.questions, []);

@@ -86,4 +86,27 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(reopened.resume.skills.length, 2);
 }
 
+// Case F: an invalid legacy numeric phone is repaired from the professional
+// profile without overwriting valid student-entered resume facts.
+{
+  const result = hydrateResumeFromPortfolio(
+    {
+      personalInfo: {
+        fullName: "اسم عدلته بنفسي",
+        phone: 0,
+        graduationYear: "",
+        gpa: "",
+        gpaScale: "",
+      },
+    },
+    mapped
+  );
+  assert.strictEqual(result.resume.personalInfo.fullName, "اسم عدلته بنفسي");
+  assert.strictEqual(result.resume.personalInfo.phone, "0500000000");
+  assert.strictEqual(typeof result.resume.personalInfo.phone, "string");
+  assert.strictEqual(result.resume.personalInfo.graduationYear, "2027");
+  assert.strictEqual(result.resume.personalInfo.gpa, "4.5");
+  assert.strictEqual(result.resume.personalInfo.gpaScale, "5");
+}
+
 console.log("resumePortfolioHydration tests passed");

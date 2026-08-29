@@ -22,6 +22,7 @@ const PENDING_DRAFT_TTL_MS = 48 * 60 * 60 * 1000;
 const questionSchema = z
   .object({
     id: z.string().max(90).default(""),
+    fieldKey: z.string().max(90).default(""),
     section: z.string().max(90).default(""),
     question: z.string().max(320).default(""),
     whyNeeded: z.string().max(260).default(""),
@@ -102,6 +103,36 @@ const safeText = (value = "", maxLength = 2200) =>
     .replace(/\n{4,}/g, "\n\n")
     .trim()
     .slice(0, maxLength);
+
+const getQuestionFieldKey = (question = {}) => {
+  const text = safeString(`${question.section || ""} ${question.question || ""} ${question.whyNeeded || ""}`, 700).toLowerCase();
+  const section = safeString(question.section, 40).toLowerCase();
+  const explicit = safeString(question.fieldKey || question.id, 90);
+  const knownFields = [
+    [/(phone|جوال|هاتف|رقم التواصل)/, "phone"],
+    [/(full.?name|الاسم الكامل|اسمك الكامل)/, "full_name"],
+    [/(headline|المسمى|المسمى المهني)/, "professional_headline"],
+    [/(graduation|التخرج|سنة التخرج)/, "graduation_year"],
+    [/(gpa|المعدل)/, "gpa"],
+    [/(university|الجامعة)/, "university"],
+    [/(degree|الدرجة)/, "degree"],
+    [/(major|التخصص)/, "major"],
+    [/(training.?period|فترة التدريب)/, "training_period"],
+    [/(target.?field|المجال التدريبي|المسمى التدريبي)/, "target_field"],
+    [/(description|وصف الفرصة|متطلبات الفرصة|وصف الوظيفة)/, "opportunity_description"],
+  ];
+  const matched = knownFields.find(([pattern]) => pattern.test(text));
+  if (matched) return matched[1];
+  return explicit || `${section || "general"}_${safeString(question.question, 50).replace(/\s+/g, "_")}`;
+};
+
+const withStableQuestionKeys = (output = {}) => ({
+  ...output,
+  questions: (Array.isArray(output.questions) ? output.questions : []).map((question) => ({
+    ...question,
+    fieldKey: getQuestionFieldKey(question),
+  })),
+});
 
 const normalizeComparable = (value = "") =>
   safeString(value, 1200)
@@ -200,9 +231,15 @@ const mapPortfolioToFacts = (portfolio = null) => {
     university: safeString(portfolio.university, 180),
     city: safeString(portfolio.city, 100),
     degreeLevel: safeString(portfolio.degreeLevel, 100),
+    studentStatus: safeString(portfolio.studentStatus, 40),
+    graduationYear: safeString(portfolio.graduationYear, 20),
+    gpa: safeString(portfolio.gpa, 20),
+    gpaScale: safeString(portfolio.gpaScale, 20),
+    professionalHeadline: safeString(portfolio.professionalHeadline, 140),
     readinessStatus: safeString(portfolio.readinessStatus, 160),
     linkedinUrl: safeString(portfolio.linkedinUrl, 260),
     email: safeString(portfolio.email, 160),
+    phone: safeString(portfolio.phone, 40),
     bio: safeText(portfolio.bio, 900),
     skills: safeArray(portfolio.skills, 40, (skill) => safeString(skill, 80)),
     projects: safeArray(portfolio.projects, 10, (project, index) => ({
@@ -217,6 +254,22 @@ const mapPortfolioToFacts = (portfolio = null) => {
       issuer: safeString(certification.issuer || certification.provider, 160),
       year: safeString(certification.year, 80),
     })),
+    experiences: safeArray(portfolio.experiences, 12, (experience, index) => ({
+      sourceId: sourceId("portfolio_experience", experience._id || experience.title, index),
+      title: safeString(experience.title, 180),
+      organization: safeString(experience.organization, 180),
+      description: safeText(experience.description || experience.details, 900),
+    })),
+    volunteering: safeArray(portfolio.volunteering, 12, (activity, index) => ({
+      sourceId: sourceId("portfolio_volunteering", activity._id || activity.title, index),
+      title: safeString(activity.title, 180),
+      organization: safeString(activity.organization, 180),
+      description: safeText(activity.description || activity.details, 900),
+    })),
+    languages: safeArray(portfolio.languages, 12, (language) => ({
+      name: safeString(language.name, 80),
+      level: safeString(language.level, 80),
+    })),
   };
 
   addSource(sources, {
@@ -229,6 +282,12 @@ const mapPortfolioToFacts = (portfolio = null) => {
       profile.university,
       profile.city,
       profile.degreeLevel,
+      profile.studentStatus,
+      profile.graduationYear,
+      profile.gpa,
+      profile.gpaScale,
+      profile.professionalHeadline,
+      profile.phone,
       profile.bio,
       ...(profile.skills || []),
     ].join(" | "),
@@ -251,6 +310,17 @@ const mapPortfolioToFacts = (portfolio = null) => {
       text: [certification.title, certification.issuer, certification.year].join(" | "),
     })
   );
+
+  ["experiences", "volunteering"].forEach((section) => {
+    profile[section].forEach((entry) =>
+      addSource(sources, {
+        sourceId: entry.sourceId,
+        section,
+        label: entry.title,
+        text: [entry.title, entry.organization, entry.description].join(" | "),
+      })
+    );
+  });
 
   return { profile, sources };
 };
@@ -302,7 +372,7 @@ const mapResumeToFacts = (resume = null) => {
 const mapAnswersToFacts = (answers = []) => {
   const sources = [];
   const cleanAnswers = safeArray(answers, 30, (answer, index) => ({
-    questionId: safeString(answer.questionId || answer.id || `answer_${index + 1}`, 90),
+    questionId: safeString(answer.fieldKey || answer.questionId || answer.id || `answer_${index + 1}`, 90),
     section: safeString(answer.section, 90),
     question: safeString(answer.question, 320),
     answer: safeText(answer.answer || answer.value, MAX_ANSWER_LENGTH),
@@ -405,19 +475,38 @@ const isConfirmedQuestion = (question = {}, facts = {}) => {
     المهارات: "skills",
     المشاريع: "projects",
     التعليم: "education",
+    الخبرات: "experiences",
+    الخبرة: "experiences",
     الشهادات: "certifications",
     الدورات: "certifications",
+    الأنشطة: "volunteering",
+    التطوع: "volunteering",
+    اللغات: "languages",
   };
   const normalizedSection = normalizeComparable(question.section);
   const section = sectionAliases[normalizedSection] || normalizedSection;
+  const answeredQuestionIds = new Set(
+    (facts.answers || [])
+      .map((answer) => normalizeComparable(answer.fieldKey || answer.questionId || answer.id || ""))
+      .filter(Boolean)
+  );
+  const fieldKey = getQuestionFieldKey(question);
+  if (fieldKey && answeredQuestionIds.has(normalizeComparable(fieldKey))) return true;
   const text = normalizeComparable(`${question.question || ""} ${question.whyNeeded || ""}`);
   const profile = facts.profile || {};
   const resume = facts.resume || {};
   const confirmedBySection = {
     skills: (profile.skills || []).length || (resume.skills || []).length,
     projects: (profile.projects || []).length || (resume.projects || []).length,
-    education: (resume.education || []).length,
+    education:
+      (resume.education || []).length ||
+      Boolean(profile.major || profile.university || profile.degreeLevel),
     certifications: (profile.certifications || []).length || (resume.certifications || []).length,
+    experiences:
+      (profile.experiences || []).length ||
+      (resume.experiences || resume.experience || []).length,
+    volunteering: (profile.volunteering || []).length || (resume.volunteering || []).length,
+    languages: (profile.languages || []).length || (resume.languages || []).length,
   };
   if (confirmedBySection[section]) return true;
 
@@ -437,9 +526,18 @@ const isConfirmedQuestion = (question = {}, facts = {}) => {
   return text.length > 2 && containsNormalizedPhrase(normalizeComparable(confirmedText), text);
 };
 
+const isKnownOpportunityContextQuestion = (question = {}, facts = {}) => {
+  if (!facts.opportunity?._id) return false;
+  const text = normalizeComparable(`${question.section || ""} ${question.question || ""} ${question.whyNeeded || ""}`);
+  return ["وصف الفرصه", "متطلبات الفرصه", "وصف الوظيفه", "job description", "opportunity description"]
+    .some((term) => text.includes(normalizeComparable(term)));
+};
+
 const filterConfirmedQuestions = (output = {}, facts = {}) => {
   if (output.status !== "needs_information") return output;
-  const questions = (output.questions || []).filter((question) => !isConfirmedQuestion(question, facts));
+  const questions = (output.questions || []).filter(
+    (question) => !isConfirmedQuestion(question, facts) && !isKnownOpportunityContextQuestion(question, facts)
+  );
   return { ...output, questions };
 };
 
@@ -455,7 +553,12 @@ const hasNoBlockingTailorQuestions = (output = {}, facts = {}) =>
   output.status === "needs_information" &&
   Array.isArray(output.questions) &&
   output.questions.length > 0 &&
-  output.questions.every((question) => isDeferredTailorQuestion(question) || isConfirmedQuestion(question, facts));
+  output.questions.every(
+    (question) =>
+      isDeferredTailorQuestion(question) ||
+      isConfirmedQuestion(question, facts) ||
+      isKnownOpportunityContextQuestion(question, facts)
+  );
 
 const flattenDraftText = (draft = {}) =>
   safeText(
@@ -1180,7 +1283,7 @@ const buildAgentInput = ({ session, answers = [] }) =>
         answer: safeText(answer.answer || answer.value, MAX_ANSWER_LENGTH),
       })),
       instruction:
-        "أكمل نفس جلسة وكيل السيرة. لا تعيد سؤالًا تمت الإجابة عنه. إذا وجدت externalOpportunity فهي وصف الفرصة المعتمد: لا تطلب رابطًا أو معرّفًا من دربك. في tailor_resume أنشئ المسودة من facts المتاحة ولا توقفها لأهلية التدريب أو الجنسية أو المعدل أو فترة التدريب؛ أعدها فقط كملاحظات مراجعة. إذا تكفي المعلومات أنشئ المسودة والتحقق والمسودة المؤقتة.",
+        "أكمل نفس جلسة وكيل السيرة. لا تعيد سؤالًا تمت الإجابة عنه. إذا وجدت externalOpportunity فهي سياق الفرصة المعتمد، سواء كانت فرصة من دربك أو جهة خارجية: لا تطلب من الطالب وصف الفرصة أو رابطًا أو معرّفًا مرة أخرى. في tailor_resume أنشئ المسودة من facts المتاحة ولا توقفها لأهلية التدريب أو الجنسية أو المعدل أو فترة التدريب؛ أعدها فقط كملاحظات مراجعة. إذا تكفي المعلومات أنشئ المسودة والتحقق والمسودة المؤقتة.",
     }),
     MAX_FACT_TEXT_LENGTH
   );
@@ -1225,7 +1328,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     ? session.collectedFacts.answers
     : [];
   const normalizedNewAnswers = safeArray(answers, 3, (answer) => ({
-    questionId: safeString(answer.questionId || answer.id, 90),
+    questionId: safeString(answer.fieldKey || answer.questionId || answer.id, 90),
     section: safeString(answer.section, 90),
     question: safeString(answer.question, 320),
     answer: safeText(answer.answer || answer.value, MAX_ANSWER_LENGTH),
@@ -1266,9 +1369,29 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     );
     output = resumeAgentOutputSchema.parse(result.finalOutput);
   }
-  const filteredOutput = filterConfirmedQuestions(output, facts);
+  let filteredOutput = filterConfirmedQuestions(output, facts);
+  // Filtering an already-confirmed question must not leave the UI on an empty
+  // "needs information" step. Ask the same agent session to continue from its
+  // saved facts and return a draft or genuinely missing fields instead.
+  if (
+    output.status === "needs_information" &&
+    output.questions?.length > 0 &&
+    filteredOutput.questions?.length === 0
+  ) {
+    result = await run(
+      agent,
+      "كل الأسئلة السابقة مؤكدة أصلًا في الملف المهني أو إجابات الطالب. لا تعرضها مرة أخرى؛ أنشئ المسودة من الحقائق المتاحة أو اسأل فقط عن حقل محدد غير موجود فعلًا.",
+      {
+        context,
+        maxTurns: Number(process.env.RESUME_AGENT_MAX_TURNS || DEFAULT_MAX_TURNS),
+        previousResponseId: result.lastResponseId || undefined,
+      }
+    );
+    output = resumeAgentOutputSchema.parse(result.finalOutput);
+    filteredOutput = filterConfirmedQuestions(output, facts);
+  }
   return {
-    output: filteredOutput,
+    output: withStableQuestionKeys(filteredOutput),
     lastResponseId: result.lastResponseId || "",
     usage: summarizeRunUsage(result, startedAt),
   };

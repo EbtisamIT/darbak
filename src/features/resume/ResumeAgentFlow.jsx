@@ -6,7 +6,46 @@ import { getAccessHeaders } from "../../utils/premiumAccess";
 import { getVisitorId, trackEvent } from "../../utils/analytics";
 
 const getQuestionKey = (question = {}, index = 0) =>
-  question.id || question.question || `question-${index + 1}`;
+  question.fieldKey || question.id || question.question || `question-${index + 1}`;
+
+const getAgentSessionStorageKey = ({ purpose, source, language, opportunityId, externalJob }) =>
+  [
+    "darbak-resume-agent-session",
+    purpose,
+    source,
+    language,
+    opportunityId || externalJob?._id || externalJob?.id || externalJob?.organizationName || externalJob?.company || "general",
+  ].join(":");
+
+const getPersistedSessionOutput = (savedSession = {}) => {
+  if (savedSession.pendingDraft?.draft) {
+    return {
+      status: savedSession.purpose === "tailor_resume" ? "tailored_draft_ready" : "draft_ready",
+      pendingDraftId: savedSession.pendingDraftId || "",
+      draft: savedSession.pendingDraft.draft,
+      applicationPack: savedSession.pendingDraft.applicationPack || {},
+      changesSummary: savedSession.pendingDraft.changesSummary || [],
+      questions: [],
+    };
+  }
+  if (Array.isArray(savedSession.pendingQuestions) && savedSession.pendingQuestions.length) {
+    return {
+      status: "needs_information",
+      questions: savedSession.pendingQuestions,
+      pendingDraftId: savedSession.pendingDraftId || "",
+    };
+  }
+  return null;
+};
+
+export const retainAnswersForQuestions = (currentAnswers = {}, nextQuestions = []) =>
+  (Array.isArray(nextQuestions) ? nextQuestions : []).reduce((nextAnswers, question, index) => {
+    const key = getQuestionKey(question, index);
+    if (Object.prototype.hasOwnProperty.call(currentAnswers, key)) {
+      nextAnswers[key] = currentAnswers[key];
+    }
+    return nextAnswers;
+  }, {});
 
 const SECTION_LABELS = {
   summary: "النبذة",
@@ -175,6 +214,10 @@ const ResumeAgentFlow = ({
   const pendingDraftId = output?.pendingDraftId || session?.pendingDraftId || "";
   const draft = output?.draft || session?.pendingDraft?.draft || null;
   const isTailored = purpose === "tailor_resume";
+  const sessionStorageKey = useMemo(
+    () => getAgentSessionStorageKey({ purpose, source, language, opportunityId, externalJob }),
+    [purpose, source, language, opportunityId, externalJob]
+  );
 
   const statusText = useMemo(() => {
     if (loading) return isTailored ? "نجهز تقديمك..." : "جاري تجهيز الوكيل...";
@@ -194,6 +237,32 @@ const ResumeAgentFlow = ({
         setLoading(true);
         setError("");
         setNotice("");
+        const savedSessionId = window.sessionStorage.getItem(sessionStorageKey);
+        if (savedSessionId) {
+          try {
+            const { data } = await axios.get(
+              `${API_BASE_URL}/api/resume-agent/session/${encodeURIComponent(savedSessionId)}`,
+              { headers: getAccessHeaders({ itemKey: `resume-agent:session:${savedSessionId}` }) }
+            );
+            const restoredOutput = getPersistedSessionOutput(data.session);
+            if (restoredOutput) {
+              if (cancelled) return;
+              setSession(data.session);
+              setOutput(restoredOutput);
+              setAnswers(
+                (data.session.answers || []).reduce((nextAnswers, answer) => {
+                  const key = answer.fieldKey || answer.questionId;
+                  if (key && answer.answer) nextAnswers[key] = answer.answer;
+                  return nextAnswers;
+                }, {})
+              );
+              setNotice("استعدنا إجاباتك المحفوظة ونكمل من نفس الخطوة.");
+              return;
+            }
+          } catch {
+            window.sessionStorage.removeItem(sessionStorageKey);
+          }
+        }
         const { data } = await axios.post(
           `${API_BASE_URL}/api/resume-agent/start`,
           {
@@ -212,6 +281,7 @@ const ResumeAgentFlow = ({
         setSession(data.session);
         setOutput(data.output);
         setAnswers({});
+        window.sessionStorage.setItem(sessionStorageKey, data.session.sessionId);
         if (purpose === "tailor_resume") {
           trackEvent("application_pack_started", {
             page: "/my-resume/tailor",
@@ -257,7 +327,7 @@ const ResumeAgentFlow = ({
     return () => {
       cancelled = true;
     };
-  }, [purpose, source, language, opportunityId, externalJob]);
+  }, [purpose, source, language, opportunityId, externalJob, sessionStorageKey]);
 
   const updateAnswer = (question, index, value) => {
     setAnswers((current) => ({
@@ -270,6 +340,7 @@ const ResumeAgentFlow = ({
     if (!session?.sessionId) return;
     const payloadAnswers = questions
       .map((question, index) => ({
+        fieldKey: getQuestionKey(question, index),
         questionId: getQuestionKey(question, index),
         section: question.section || "",
         question: question.question || "",
@@ -299,7 +370,11 @@ const ResumeAgentFlow = ({
       );
       setSession(data.session);
       setOutput(data.output);
-      setAnswers({});
+      window.sessionStorage.setItem(sessionStorageKey, data.session.sessionId);
+      // The server persists answers before the agent continues. Keep a value in
+      // place if it returns the same question so a transient agent response
+      // never makes the student's input appear to vanish.
+      setAnswers((current) => retainAnswersForQuestions(current, data.output?.questions));
       setNotice(isTailored
         ? data.output?.status === "needs_information"
           ? "باقي تفصيل قصير قبل إكمال التقديم."

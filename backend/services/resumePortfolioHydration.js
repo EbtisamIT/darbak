@@ -19,6 +19,14 @@ const hasValue = (value) =>
     ? value.length > 0
     : Boolean(value && value.toString().trim());
 
+const isInvalidResumePersonalValue = (key = "", value = "") => {
+  if (key !== "phone") return false;
+  const digits = cleanText(value, 40).replace(/[^0-9٠-٩]/g, "");
+  // A previous resume flow persisted a numeric zero as a phone value. Treat
+  // it as missing, while preserving real phone numbers as strings.
+  return digits.length < 8;
+};
+
 const uniqueText = (current = [], fallback = []) => {
   const seen = new Set();
   return [...(Array.isArray(current) ? current : []), ...(Array.isArray(fallback) ? fallback : [])]
@@ -194,7 +202,12 @@ const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
   const currentPersonal = resume.personalInfo || {};
   const personalInfo = { ...currentPersonal };
   Object.entries(portfolioResume.personalInfo || {}).forEach(([key, value]) => {
-    if (!hasValue(personalInfo[key]) && hasValue(value)) personalInfo[key] = value;
+    if (
+      (!hasValue(personalInfo[key]) || isInvalidResumePersonalValue(key, personalInfo[key])) &&
+      hasValue(value)
+    ) {
+      personalInfo[key] = value;
+    }
   });
 
   const currentExperience = Array.isArray(resume.experiences) && resume.experiences.length

@@ -7080,10 +7080,41 @@ const sanitizeResumeAgentSource = (value = "") =>
 
 const sanitizeResumeAgentLanguage = (value = "") => (value === "en" ? "en" : "ar");
 
+// Keep the exact Darbak opportunity that started a tailoring session with the
+// session itself. The agent still receives the trusted id, but the snapshot
+// prevents a valid route context from degrading into a manual-description
+// flow if a later tool call cannot resolve the opportunity.
+const buildResumeAgentOpportunitySnapshot = (opportunity = {}) => ({
+  _id: opportunity._id?.toString?.() || "",
+  id: opportunity._id?.toString?.() || "",
+  organizationName: sanitizeResumeText(opportunity.organizationName, 180),
+  title: sanitizeResumeText(opportunity.title, 180),
+  city: sanitizeResumeText(opportunity.city, 100),
+  cities: (Array.isArray(opportunity.cities) ? opportunity.cities : [])
+    .map((city) => sanitizeResumeText(city, 100))
+    .filter(Boolean)
+    .slice(0, 12),
+  description: sanitizeResumeText(opportunity.description || opportunity.note, 8000),
+  note: sanitizeResumeText(opportunity.note, 8000),
+  requirements: sanitizeResumeText(opportunity.requirements, 8000),
+  specialties: (Array.isArray(opportunity.specialties) ? opportunity.specialties : [])
+    .map((specialty) => sanitizeResumeText(specialty, 120))
+    .filter(Boolean)
+    .slice(0, 30),
+  majorCategories: (Array.isArray(opportunity.majorCategories) ? opportunity.majorCategories : [])
+    .map((major) => sanitizeResumeText(major, 120))
+    .filter(Boolean)
+    .slice(0, 12),
+  applicationMethod: sanitizeResumeText(opportunity.applicationMethod, 40),
+  applicationUrl: sanitizeApplicationContact(opportunity.applicationUrl, 260),
+  sourceType: "opportunity",
+  packType: "opportunity_pack",
+});
+
 const sanitizeResumeAgentAnswers = (answers = [], pendingQuestions = []) => {
   const questionMap = new Map(
     (Array.isArray(pendingQuestions) ? pendingQuestions : []).map((question) => [
-      sanitizeAccessItemKey(question.id || question.question || ""),
+      sanitizeAccessItemKey(question.fieldKey || question.id || question.question || ""),
       question,
     ])
   );
@@ -7092,11 +7123,12 @@ const sanitizeResumeAgentAnswers = (answers = [], pendingQuestions = []) => {
     .slice(0, 3)
     .map((answer, index) => {
       const questionId =
-        sanitizeAccessItemKey(answer.questionId || answer.id || `answer-${index + 1}`) ||
+        sanitizeAccessItemKey(answer.fieldKey || answer.questionId || answer.id || `answer-${index + 1}`) ||
         `answer-${index + 1}`;
       const question = questionMap.get(questionId) || {};
       return {
         questionId,
+        fieldKey: questionId,
         section: sanitizePortfolioText(answer.section || question.section || "", 90),
         question: sanitizePortfolioText(answer.question || question.question || "", 320),
         answer: sanitizeResumeText(answer.answer || answer.value || "", 1600),
@@ -7127,6 +7159,14 @@ const serializeResumeAgentSession = (session = {}, pendingDraft = null) => ({
   status: session.status,
   pendingQuestions: session.pendingQuestions || [],
   answeredQuestionIds: session.answeredQuestionIds || [],
+  answers: Array.isArray(session.collectedFacts?.answers)
+    ? session.collectedFacts.answers.map((answer) => ({
+        fieldKey: answer.fieldKey || answer.questionId || "",
+        questionId: answer.questionId || answer.fieldKey || "",
+        section: answer.section || "",
+        answer: answer.answer || "",
+      }))
+    : [],
   pendingDraftId: session.pendingDraftId?.toString?.() || session.pendingDraftId || "",
   baseResumeId: session.baseResumeId?.toString?.() || session.baseResumeId || "",
   opportunityId: session.opportunityId?.toString?.() || session.opportunityId || "",
@@ -7549,6 +7589,17 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
     const source = sanitizeResumeAgentSource(req.body?.source);
     const language = sanitizeResumeAgentLanguage(req.body?.language);
     const opportunityId = sanitizeAccessItemKey(req.body?.opportunityId || "");
+    let opportunitySnapshot = null;
+    if (purpose === "tailor_resume" && opportunityId) {
+      if (!mongoose.Types.ObjectId.isValid(opportunityId)) {
+        return res.status(400).json({ error: "معرف الفرصة غير صحيح.", reason: "invalid_opportunity" });
+      }
+      const opportunity = await Opportunity.findById(opportunityId).lean();
+      if (!opportunity) {
+        return res.status(404).json({ error: "الفرصة غير موجودة.", reason: "opportunity_not_found" });
+      }
+      opportunitySnapshot = buildResumeAgentOpportunitySnapshot(opportunity);
+    }
     const externalJob = req.body?.externalJob && !opportunityId
       ? {
           title: sanitizeResumeText(req.body.externalJob.title, 160),
@@ -7608,7 +7659,12 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
       source,
       language,
       status: "generating",
-      collectedFacts: { answers: [], externalJob },
+      collectedFacts: {
+        answers: [],
+        // A valid Darbak opportunity is never a manual flow. Persist its
+        // snapshot so every agent turn receives the same trusted context.
+        externalJob: opportunitySnapshot || externalJob,
+      },
       answeredQuestionIds: [],
       baseResumeId: currentResume?._id || null,
       opportunityId:
@@ -7727,7 +7783,12 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
     });
   } catch (err) {
     if (session) {
-      session.status = "failed";
+      // Answers are written before the model runs. If generation fails, keep
+      // this question set open so retrying never discards student input or
+      // starts a new journey before their answer is safely saved.
+      session.status = Array.isArray(session.pendingQuestions) && session.pendingQuestions.length
+        ? "collecting_information"
+        : "failed";
       session.usage = mergeResumeAgentUsage(session.usage || {}, {
         failureReason: err.code || err.name || "resume_agent_respond_failed",
       });
