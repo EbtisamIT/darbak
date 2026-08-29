@@ -15,6 +15,7 @@ import {
   stripHtml,
 } from "./resumeDefaults";
 import { getLocalizedResumeForDisplay } from "./resumeLocalization";
+import { getResumeEducationDisplay } from "./resumeEducationDisplay";
 
 // React PDF fetches fonts outside the normal React asset pipeline. Using an
 // absolute URL keeps the font available in local development and production.
@@ -226,24 +227,30 @@ const ResumeSection = ({ title, children, styles }) => {
   );
 };
 
-const EntryList = ({ entries = [], styles, language }) => {
+const EntryList = ({ entries = [], styles, language, sectionKey, personal }) => {
   const visibleEntries = entries.filter(hasEntryContent);
   if (!visibleEntries.length) return null;
 
   return visibleEntries.map((entry) => {
+    const education = sectionKey === "education"
+      ? getResumeEducationDisplay(entry, personal, language)
+      : null;
     const date = formatResumeDateRange(entry, language);
-    const subtitle = [entry.organization || entry.subtitle, entry.location]
+    const subtitle = education?.subtitle || [entry.organization || entry.subtitle, entry.location]
       .filter(Boolean)
       .join(" • ");
+    const title = education?.title || entry.title || entry.subtitle;
+    const facts = education?.facts || [];
 
     return (
       <View key={entry.id || entry.title} style={styles.entry} wrap={false}>
         <View style={styles.entryHead}>
-          <Text style={styles.entryTitle}>{entry.title || entry.subtitle}</Text>
-          {date ? <Text style={styles.entryDate}>{date}</Text> : null}
+          <Text style={styles.entryTitle}>{title}</Text>
+          {date && !education ? <Text style={styles.entryDate}>{date}</Text> : null}
         </View>
         {subtitle ? <Text style={styles.entrySub}>{subtitle}</Text> : null}
-        {getAchievementLines(entry).map((line, index) => (
+        {facts.length ? <Text style={styles.entrySub}>{facts.join(" | ")}</Text> : null}
+        {!education && getAchievementLines(entry).map((line, index) => (
           <View key={`${entry.id || entry.title}-${index}`} style={styles.bullet}>
             <Text style={styles.bulletMark}>•</Text>
             <Text style={styles.bulletText}>{line}</Text>
@@ -285,7 +292,7 @@ const ResumePdfDocument = ({ resume = {} }) => {
       if (!entries?.some(hasEntryContent)) return null;
       return (
         <ResumeSection key={sectionKey} title={titles[sectionKey]} styles={styles}>
-          <EntryList entries={entries} styles={styles} language={language} />
+          <EntryList entries={entries} styles={styles} language={language} sectionKey={sectionKey} personal={personal} />
         </ResumeSection>
       );
     }
