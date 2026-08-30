@@ -161,6 +161,11 @@ const createStyles = (resume = {}) => {
       flexWrap: "wrap",
       gap: 5,
     },
+    languageList: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 3,
+    },
     chip: {
       paddingVertical: 2,
       paddingHorizontal: 6,
@@ -217,6 +222,11 @@ const getAchievementLines = (entry = {}) => {
   return [entry.description || entry.details].filter(Boolean);
 };
 
+const getCertificationDetails = (entry = {}) => {
+  const year = String(entry.startDate || entry.period || entry.endDate || "").match(/\d{4}/)?.[0] || "";
+  return [entry.organization || entry.subtitle, year].filter(Boolean).join(" | ");
+};
+
 const ResumeSection = ({ title, children, styles }) => {
   if (!children) return null;
   return (
@@ -235,10 +245,11 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal }) => 
     const education = sectionKey === "education"
       ? getResumeEducationDisplay(entry, personal, language)
       : null;
-    const date = formatResumeDateRange(entry, language);
-    const subtitle = education?.subtitle || [entry.organization || entry.subtitle, entry.location]
-      .filter(Boolean)
-      .join(" • ");
+    const isCertification = sectionKey === "certifications";
+    const date = isCertification ? "" : formatResumeDateRange(entry, language);
+    const subtitle = education?.subtitle || (isCertification
+      ? getCertificationDetails(entry)
+      : [entry.organization || entry.subtitle, entry.location].filter(Boolean).join(" • "));
     const title = education?.title || entry.title || entry.subtitle;
     const facts = education?.facts || [];
 
@@ -314,12 +325,12 @@ const ResumePdfDocument = ({ resume = {} }) => {
     if (sectionKey === "languages" && resume.languages?.length) {
       return (
         <ResumeSection key={sectionKey} title={titles.languages} styles={styles}>
-          <View style={styles.chips}>
+          <View style={styles.languageList}>
             {resume.languages
               .filter((languageItem) => languageItem.name || languageItem.level)
               .map((languageItem) => (
-                <Text key={languageItem.id} style={styles.chip}>
-                  {[languageItem.name, languageItem.level].filter(Boolean).join(" - ")}
+                <Text key={languageItem.id} style={styles.entrySub}>
+                  {[languageItem.name, languageItem.level].filter(Boolean).join(" — ")}
                 </Text>
               ))}
           </View>

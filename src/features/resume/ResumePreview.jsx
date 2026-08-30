@@ -41,14 +41,20 @@ const getAchievementLines = (entry = {}) => {
   return lines.length ? lines : [entry.description || entry.details].filter(Boolean);
 };
 
+const getCertificationDetails = (entry = {}) => {
+  const year = String(entry.startDate || entry.period || entry.endDate || "").match(/\d{4}/)?.[0] || "";
+  return [entry.organization || entry.subtitle, year].filter(Boolean).join(" | ");
+};
+
 const EntryPreview = ({ entry, language, sectionKey, personal }) => {
   const education = sectionKey === "education"
     ? getResumeEducationDisplay(entry, personal, language)
     : null;
-  const date = formatResumeDateRange(entry, language);
-  const subtitle = education?.subtitle || [entry.organization || entry.subtitle, entry.location]
-    .filter(Boolean)
-    .join(" • ");
+  const isCertification = sectionKey === "certifications";
+  const date = isCertification ? "" : formatResumeDateRange(entry, language);
+  const subtitle = education?.subtitle || (isCertification
+    ? getCertificationDetails(entry)
+    : [entry.organization || entry.subtitle, entry.location].filter(Boolean).join(" • "));
   const title = education?.title || entry.title || entry.subtitle;
   const facts = education?.facts || [];
 
@@ -133,9 +139,9 @@ const ResumePreview = ({ resume }) => {
       return (
         <section className="resume-paper-section" key={sectionKey}>
           <h3>{titles.languages}</h3>
-          <div className="resume-paper-chips">
+          <div className="resume-paper-language-list">
             {languages.map((item) => (
-              <span key={item.id}>{[item.name, item.level].filter(Boolean).join(" - ")}</span>
+              <span key={item.id}>{[item.name, item.level].filter(Boolean).join(" — ")}</span>
             ))}
           </div>
         </section>

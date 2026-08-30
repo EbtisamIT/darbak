@@ -124,9 +124,9 @@ describe("English resume presentation", () => {
       }],
     });
 
-    expect(localized.skills).toEqual(["React", "Web Development", "Node.js"]);
+    expect(localized.skills).toEqual(["React.js", "Web Development", "Node.js"]);
     expect(localized.languages[0]).toMatchObject({ name: "Arabic", level: "Native" });
-    expect(localized.volunteering[0]).toMatchObject({ title: "Programmer", organization: "Injaz Club" });
+    expect(localized.volunteering[0]).toMatchObject({ title: "Programming Volunteer", organization: "Injaz Club" });
   });
 
   it("does not render an untranslated Arabic skill in an English resume", () => {
@@ -138,5 +138,44 @@ describe("English resume presentation", () => {
     expect(localized.skills).toEqual([]);
     expect(getEnglishReviewItems({ ...englishResume, skills: ["مهارة غير معروفة"] })
       .some((item) => item.section === "skills")).toBe(true);
+  });
+
+  it("cleans the English presentation without changing the source facts", () => {
+    const resume = {
+      ...englishResume,
+      summary: "Interested in software development and UI/UX. Founded Darbak, a platform for sharing cooperative training experiences and exploring training environments.",
+      education: [
+        ...englishResume.education,
+        { ...englishResume.education[0], id: "duplicate-education" },
+      ],
+      skills: [
+        "Git HUb",
+        "React",
+        "Time managmaet",
+        "UI/ UX",
+        "React.js • نظام نود.جي إس • تطوير الويب",
+      ],
+      projects: [{
+        id: "darbak-project",
+        title: "دربك",
+        description: "A Saudi platform that compiles students' cooperative training experiences.",
+      }],
+    };
+
+    const localized = getLocalizedResumeForDisplay(resume);
+
+    expect(localized.education).toHaveLength(1);
+    expect(localized.skills).toEqual([
+      "GitHub",
+      "React.js",
+      "Time Management",
+      "UI/UX",
+      "Node.js",
+      "Web Development",
+    ]);
+    expect(localized.summary).toMatch(/^Information Technology Graduate\./);
+    expect(localized.projects[0].achievements).toHaveLength(2);
+    expect(resume.skills).toContain("Git HUb");
+    expect(resume.education).toHaveLength(2);
   });
 });

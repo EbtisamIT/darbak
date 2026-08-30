@@ -46,6 +46,20 @@ const englishSkillLabels = {
   "تحليل البيانات": "Data Analysis",
 };
 
+const englishSkillAliases = {
+  "git hub": "GitHub",
+  github: "GitHub",
+  react: "React.js",
+  "react.js": "React.js",
+  "time managmaet": "Time Management",
+  "time management": "Time Management",
+  "ui/ ux": "UI/UX",
+  "ui/ux": "UI/UX",
+  "data analysis": "Data Analysis",
+  "node.js": "Node.js",
+  "web development": "Web Development",
+};
+
 const englishLanguageLabels = {
   "العربيه": "Arabic",
   "الانجليزيه": "English",
@@ -59,7 +73,7 @@ const englishLanguageLevelLabels = {
 };
 
 const englishActivityLabels = {
-  "مبرمجه": "Programmer",
+  "مبرمجه": "Programming Volunteer",
 };
 
 const englishOrganizationLabels = {
@@ -89,6 +103,94 @@ const localizedSkill = (value = "") => {
   const parts = clean.split(/[•|,،]/).map((part) => part.trim()).filter(Boolean);
   const translated = parts.map((part) => englishSkillLabels[normalizeLookupValue(part)] || (!arabicPattern.test(part) ? part : ""));
   return translated.length && translated.every(Boolean) ? translated.join(" • ") : "";
+};
+
+const normalizeEnglishSkill = (value = "") => {
+  const translated = localizedSkill(value);
+  const clean = translated.toString().trim().replace(/\s*\/\s*/g, "/").replace(/\s+/g, " ");
+  return englishSkillAliases[clean.toLowerCase()] || clean;
+};
+
+const skillDisplayKey = (value = "") =>
+  value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const getCleanEnglishSkills = (skills = []) => {
+  const seen = new Set();
+  return skills
+    .flatMap((skill) => {
+      const value = typeof skill === "string" ? skill : skill?.name || "";
+      return value.split(/[•|,،]/).map((item) => normalizeEnglishSkill(item)).filter(Boolean);
+    })
+    .filter((skill) => {
+      const key = skillDisplayKey(skill);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const entryText = (entry = {}) =>
+  [
+    entry.title,
+    entry.subtitle,
+    entry.organization,
+    entry.period,
+    entry.startDate,
+    entry.endDate,
+    entry.location,
+    entry.description,
+    ...(entry.achievements || []).map((achievement) => achievement.text || achievement.html || ""),
+  ]
+    .join("|")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getDeduplicatedEntries = (entries = [], section = "", personal = {}) => {
+  const seen = new Set();
+  return entries.filter((entry) => {
+    const key = section === "education"
+      ? [
+          entry.title || personal.degree,
+          entry.organization || entry.subtitle || personal.university,
+          entry.period || entry.endDate || personal.graduationYear,
+        ]
+          .join("|")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim()
+      : entryText(entry);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const getEnglishSummary = (summary = "", personal = {}) => {
+  const clean = summary.toString().trim().replace(/\s+/g, " ");
+  if (!clean) return "";
+  const headline = personal.headline || derivedEnglishHeadline(personal, { major: personal.major });
+  if (!headline || clean.toLowerCase().startsWith(headline.toLowerCase())) return clean;
+  return `${headline}. ${clean}`;
+};
+
+const getDarbakProjectPresentation = (entry = {}, summary = "") => {
+  if (entry.title !== "دربك" && entry.title !== "Darbak") return entry;
+  const lines = [
+    entry.description || entry.details,
+    ...(entry.achievements || []).map((achievement) => achievement.text || ""),
+    ...summary.split(/(?<=[.!?])\s+/).filter((line) => /\bdarbak\b/i.test(line)),
+  ].map((line) => line.trim()).filter(Boolean);
+  const uniqueLines = [...new Set(lines.map((line) => line.toLowerCase()))]
+    .map((line) => lines.find((item) => item.toLowerCase() === line))
+    .slice(0, 3);
+  if (!uniqueLines.length) return entry;
+  return {
+    ...entry,
+    description: "",
+    details: "",
+    achievements: uniqueLines.map((text, index) => ({ id: `darbak-display-${index}`, text, html: "" })),
+  };
 };
 
 const localizedLanguage = (value = "") => englishLanguageLabels[normalizeLookupValue(value)] || "";
@@ -214,7 +316,8 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
   const sections = ["education", "experience", "projects", "certifications", "volunteering"];
   const next = { ...resume, personalInfo: personal };
   sections.forEach((section) => {
-    next[section] = (resume[section] || []).map((entry) => {
+    const entries = getDeduplicatedEntries(resume[section] || [], section, personal);
+    next[section] = entries.map((entry) => {
       const displayValues = localized.entries?.[`${section}:${entry.id}`] || {};
       const localizedEntry = { ...entry, ...displayValues };
       ["title", "subtitle", "organization", "location"].forEach((field) => {
@@ -222,14 +325,16 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
           localizedEntry[field] = "";
         }
       });
-      return localizedEntry;
+      return section === "projects"
+        ? getDarbakProjectPresentation(localizedEntry, resume.summary)
+        : localizedEntry;
     });
   });
-  next.skills = (resume.skills || []).map((skill, index) => {
+  next.summary = getEnglishSummary(resume.summary, personal);
+  next.skills = getCleanEnglishSkills((resume.skills || []).map((skill, index) => {
     const source = typeof skill === "string" ? skill : skill?.name || "";
-    const display = localized.skills?.[index];
-    return display || (!arabicPattern.test(source) ? source : "");
-  }).filter(Boolean);
+    return localized.skills?.[index] || (!arabicPattern.test(source) ? source : "");
+  }));
   next.languages = (resume.languages || []).map((language, index) => {
     const display = localized.languages?.[index] || {};
     const name = display.name || (!arabicPattern.test(language?.name || "") ? language?.name || "" : "");

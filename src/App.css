@@ -7461,6 +7461,16 @@ body {
   font-size: 12px;
 }
 
+.resume-paper-language-list {
+  display: grid;
+  gap: 5px;
+}
+
+.resume-paper-language-list span {
+  color: #33403f;
+  font-size: 13px;
+}
+
 .resume-paper-links a {
   color: #167a73;
   text-decoration: none;
