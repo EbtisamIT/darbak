@@ -77,6 +77,17 @@ describe("English resume presentation", () => {
     expect(reviewItems.some((item) => item.field === "university")).toBe(true);
   });
 
+  it("does not let an empty saved display value block a known English university", () => {
+    const resume = {
+      ...englishResume,
+      localizedDisplay: { personalInfo: { university: "" } },
+    };
+
+    expect(getEnglishReviewItems(resume).some((item) => item.field === "university")).toBe(false);
+    expect(getLocalizedResumeForDisplay(resume).personalInfo.university)
+      .toBe("Imam Mohammad Ibn Saud Islamic University");
+  });
+
   it("uses English display values for known skills, activities, and languages", () => {
     const localized = getLocalizedResumeForDisplay({
       ...englishResume,

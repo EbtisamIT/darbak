@@ -104,6 +104,12 @@ const isGenericHeadline = (value = "") =>
     value.toString().trim()
   );
 
+const mergeLocalizedValues = (generated = {}, saved = {}) =>
+  Object.entries(saved || {}).reduce(
+    (merged, [key, value]) => (value === "" || value == null ? merged : { ...merged, [key]: value }),
+    { ...generated },
+  );
+
 const derivedEnglishHeadline = (personal = {}, display = {}) => {
   const major = display.major || localizedMajor(personal.major);
   if (!major) return "";
@@ -117,10 +123,10 @@ export const getEnglishReviewItems = (resume = {}) => {
   const localized = {
     ...buildEnglishLocalizedDisplay(resume),
     ...(resume.localizedDisplay || {}),
-    personalInfo: {
-      ...(buildEnglishLocalizedDisplay(resume).personalInfo || {}),
-      ...(resume.localizedDisplay?.personalInfo || {}),
-    },
+    personalInfo: mergeLocalizedValues(
+      buildEnglishLocalizedDisplay(resume).personalInfo,
+      resume.localizedDisplay?.personalInfo,
+    ),
     entries: {
       ...(buildEnglishLocalizedDisplay(resume).entries || {}),
       ...(resume.localizedDisplay?.entries || {}),
@@ -185,10 +191,7 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
   const localized = {
     ...generated,
     ...(resume.localizedDisplay || {}),
-    personalInfo: {
-      ...(generated.personalInfo || {}),
-      ...(resume.localizedDisplay?.personalInfo || {}),
-    },
+    personalInfo: mergeLocalizedValues(generated.personalInfo, resume.localizedDisplay?.personalInfo),
     entries: {
       ...(generated.entries || {}),
       ...(resume.localizedDisplay?.entries || {}),
