@@ -414,7 +414,8 @@ const MyResumePage = () => {
   );
 
   const saveResume = useCallback(
-    async ({ manual = false } = {}) => {
+    async ({ manual = false, resumeOverride = null } = {}) => {
+      const resumeToSave = resumeOverride || resume;
       const isJourneySave = manual && resumeMode === "dashboard";
       if (!hasLoadedRef.current || (resumeMode !== "editor" && !isJourneySave)) return false;
       if (editingTailoredVersion) {
@@ -444,8 +445,8 @@ const MyResumePage = () => {
         return true;
       }
 
-      const snapshot = getSnapshot(resume);
-      writeLocalDraft(resume);
+      const snapshot = getSnapshot(resumeToSave);
+      writeLocalDraft(resumeToSave);
 
       if (!manual && snapshot === lastSavedSnapshotRef.current) {
         setSaveState("saved");
@@ -456,7 +457,7 @@ const MyResumePage = () => {
         setSaveState("saving");
         setError("");
         const payload = {
-          ...prepareResumeForSave(resume),
+          ...prepareResumeForSave(resumeToSave),
           visitorId: getVisitorId(),
         };
         const { data } = await axios.put(`${API_BASE_URL}/api/resume/me`, payload, {
@@ -731,8 +732,8 @@ const MyResumePage = () => {
     navigate("/my-resume/build?step=missing");
   };
 
-  const finishJourneyBasics = async () => {
-    const saved = await saveResume({ manual: true });
+  const finishJourneyBasics = async (resumeToSave) => {
+    const saved = await saveResume({ manual: true, resumeOverride: resumeToSave });
     if (saved) startAgent({ purpose: "create_resume", source: "professional_profile" });
   };
 

@@ -245,7 +245,7 @@ export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue }) =
         <button type="button" className="is-secondary" onClick={onBack}>
           رجوع
         </button>
-        <button type="button" className="is-primary" onClick={onContinue}>
+        <button type="button" className="is-primary" onClick={() => onContinue(resume)}>
           {missing.length ? "حفظ والمتابعة للمسودة" : "إنشاء المسودة الذكية"}
           {missing.length ? <FiCheck aria-hidden="true" /> : <FiArrowLeft aria-hidden="true" />}
         </button>
