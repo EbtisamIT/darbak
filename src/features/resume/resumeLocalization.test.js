@@ -88,6 +88,14 @@ describe("English resume presentation", () => {
       .toBe("Imam Mohammad Ibn Saud Islamic University");
   });
 
+  it("uses the same English university display in validation and education", () => {
+    expect(getEnglishReviewItems(englishResume).some(
+      (item) => item.section === "education" && item.field === "organization",
+    )).toBe(false);
+    expect(getLocalizedResumeForDisplay(englishResume).education[0].organization)
+      .toBe("Imam Mohammad Ibn Saud Islamic University");
+  });
+
   it("uses English display values for known skills, activities, and languages", () => {
     const localized = getLocalizedResumeForDisplay({
       ...englishResume,

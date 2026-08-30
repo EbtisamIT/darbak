@@ -257,6 +257,7 @@ export const buildEnglishLocalizedDisplay = (resume = {}) => {
       if (section === "volunteering" && localizedActivity(entry.title)) values.title = localizedActivity(entry.title);
       if (entry.title === "دربك") values.title = "Darbak";
       if (entry.organization === "دربك") values.organization = "Darbak";
+      if (localizedUniversity(entry.organization)) values.organization = localizedUniversity(entry.organization);
       if (localizedOrganization(entry.organization)) values.organization = localizedOrganization(entry.organization);
       if (localizedCity(entry.location)) values.location = localizedCity(entry.location);
       if (Object.keys(values).length) localized.entries[`${section}:${entry.id}`] = values;
