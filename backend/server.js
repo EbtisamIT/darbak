@@ -50,6 +50,7 @@ const {
   runDarbakResumeAgent,
 } = require("./agents/darbakResumeAgent");
 const { compareResumeToJob } = require("./services/resumeMatchService");
+const { hasCompleteApplicationPack } = require("./services/applicationPackIntegrity");
 const {
   mapPortfolioToResumePayload: mapPortfolioToResumeHydration,
   hydrateResumeFromPortfolio,
@@ -7960,6 +7961,15 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
           status: "approved",
           approvedAt: new Date(),
         });
+        // The result route is opened immediately after this request. Confirm
+        // the first persisted read has all required content before charging
+        // usage or returning a version that could render as an empty pack.
+        tailoredVersion = await ResumeTailoredVersion.findById(tailoredVersion._id).lean();
+        if (!hasCompleteApplicationPack(tailoredVersion)) {
+          const integrityError = new Error("لم يكتمل حفظ ملف التقديم بعد.");
+          integrityError.status = 503;
+          throw integrityError;
+        }
         const usage = await incrementResumeTailorUsage(req.darbakAccess);
 
         pendingDraft.status = "approved";

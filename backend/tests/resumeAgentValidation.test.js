@@ -6,6 +6,7 @@ const {
   isDeferredTailorQuestion,
 } = require("../agents/darbakResumeAgent");
 const { assertTranslationIntegrity, mapDraftToResumePayload } = require("../services/resumeAiService");
+const { hasCompleteApplicationPack } = require("../services/applicationPackIntegrity");
 
 const baseFacts = {
   sourceIds: new Set(["resume_basic", "resume_project_1", "answer_role"]),
@@ -81,6 +82,33 @@ const validSourceMap = [
 ];
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+
+{
+  const resumePayload = {
+    personalInfo: { fullName: "طالب اختبار" },
+    summary: "نبذة محفوظة للسيرة.",
+  };
+  const completePack = {
+    resume: { status: "ready" },
+    trainingLetter: { status: "ready", body: "خطاب تقديم محفوظ." },
+    email: { status: "ready", subject: "طلب تدريب", body: "رسالة إيميل محفوظة." },
+  };
+  assert.strictEqual(hasCompleteApplicationPack({ resumePayload, applicationPack: completePack }), true);
+  assert.strictEqual(
+    hasCompleteApplicationPack({
+      resumePayload,
+      applicationPack: { ...completePack, email: { status: "ready", subject: "", body: "" } },
+    }),
+    false
+  );
+  assert.strictEqual(
+    hasCompleteApplicationPack({
+      resumePayload,
+      applicationPack: { ...completePack, email: { status: "needs_input", subject: "", body: "" } },
+    }),
+    true
+  );
+}
 
 {
   const filtered = filterConfirmedQuestions(

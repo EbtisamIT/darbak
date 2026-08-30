@@ -41,6 +41,30 @@ import { estimateResumePages } from "../features/resume/resumeValidation";
 import { getEnglishReviewItems } from "../features/resume/resumeLocalization";
 
 const LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
+const APPLICATION_PACK_RESULT_LOAD_ATTEMPTS = 3;
+
+const hasText = (value) => typeof value === "string" && value.trim().length > 0;
+
+const hasCompleteTailoredPack = (version = {}) => {
+  if (version.variantType !== "tailored") return true;
+  const pack = version.applicationPack || {};
+  const resume = version.resumePayload || {};
+  const hasResumeContent = hasText(resume.personalInfo?.fullName) && [
+    resume.summary,
+    ...(Array.isArray(resume.education) ? resume.education : []),
+    ...(Array.isArray(resume.experiences) ? resume.experiences : []),
+    ...(Array.isArray(resume.projects) ? resume.projects : []),
+    ...(Array.isArray(resume.skills) ? resume.skills : []),
+  ].some((item) => typeof item === "string" ? hasText(item) : Boolean(item));
+  const usablePart = (part = {}, keys = []) =>
+    part.status === "needs_input" || part.status === "unavailable" || (
+      part.status === "ready" && keys.every((key) => hasText(part[key]))
+    );
+
+  return pack.resume?.status === "ready" && hasResumeContent &&
+    usablePart(pack.trainingLetter, ["body"]) &&
+    usablePart(pack.email, ["subject", "body"]);
+};
 
 const getSnapshot = (resume) => JSON.stringify(prepareResumeForSave(resume));
 
@@ -767,10 +791,24 @@ const MyResumePage = () => {
     try {
       setLoading(true);
       setError("");
-      const { data } = await axios.get(
-        `${API_BASE_URL}/api/resume-agent/tailored-versions/${versionId}`,
-        { headers: getAccessHeaders({ itemKey: `resume-agent:tailored-version:${versionId}` }) }
-      );
+      let data;
+      for (let attempt = 0; attempt < APPLICATION_PACK_RESULT_LOAD_ATTEMPTS; attempt += 1) {
+        const response = await axios.get(
+          `${API_BASE_URL}/api/resume-agent/tailored-versions/${versionId}`,
+          {
+            headers: getAccessHeaders({ itemKey: `resume-agent:tailored-version:${versionId}` }),
+            params: { resultLoad: `${Date.now()}-${attempt}` },
+          }
+        );
+        data = response.data;
+        if (hasCompleteTailoredPack(data.version)) break;
+        if (attempt < APPLICATION_PACK_RESULT_LOAD_ATTEMPTS - 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 250 * (attempt + 1)));
+        }
+      }
+      if (!hasCompleteTailoredPack(data?.version)) {
+        throw new Error("لم يكتمل حفظ ملف التقديم بعد. حاول فتحه مرة أخرى.");
+      }
       const loadedResume = normalizeResume(data.version?.resumePayload || createEmptyResume());
       setResume({ ...loadedResume, access: resume.access || {} });
       setEditingTailoredVersion(true);
