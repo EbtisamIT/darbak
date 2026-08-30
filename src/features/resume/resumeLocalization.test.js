@@ -96,6 +96,20 @@ describe("English resume presentation", () => {
       .toBe("Imam Mohammad Ibn Saud Islamic University");
   });
 
+  it("does not block PDF validation when education uses the localized profile university", () => {
+    const resume = {
+      ...englishResume,
+      education: [{
+        ...englishResume.education[0],
+        organization: "جامعة الإمام محمد بن سعود الإسلامية — الرياض",
+      }],
+    };
+
+    expect(getEnglishReviewItems(resume).some(
+      (item) => item.section === "education" && item.field === "organization",
+    )).toBe(false);
+  });
+
   it("uses English display values for known skills, activities, and languages", () => {
     const localized = getLocalizedResumeForDisplay({
       ...englishResume,

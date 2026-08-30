@@ -157,7 +157,11 @@ export const getEnglishReviewItems = (resume = {}) => {
     (resume[section] || []).forEach((entry) => {
       const values = localized.entries?.[`${section}:${entry.id}`] || {};
       ["title", "organization"].forEach((field) => {
-        if (arabicPattern.test(entry[field] || "") && !values[field]) {
+        const educationOrganizationUsesLocalizedUniversity =
+          section === "education" &&
+          field === "organization" &&
+          Boolean(localized.personalInfo?.university);
+        if (arabicPattern.test(entry[field] || "") && !values[field] && !educationOrganizationUsesLocalizedUniversity) {
           const sectionLabels = {
             education: "التعليم",
             experience: "الخبرة",
