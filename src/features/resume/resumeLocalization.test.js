@@ -43,6 +43,19 @@ describe("English resume presentation", () => {
     expect(localized.personalInfo.headline).toBe("Information Technology Graduate");
   });
 
+  it("replaces the current Arabic headline form with a confirmed English student headline", () => {
+    const localized = getLocalizedResumeForDisplay({
+      ...englishResume,
+      personalInfo: {
+        ...englishResume.personalInfo,
+        studentStatus: "student",
+        headline: "متخصصة تقنية المعلومات",
+      },
+    });
+
+    expect(localized.personalInfo.headline).toBe("Information Technology Student");
+  });
+
   it("renders structured education without leaking projects or training content", () => {
     const localized = getLocalizedResumeForDisplay(englishResume);
     const education = getResumeEducationDisplay(localized.education[0], localized.personalInfo, "en");

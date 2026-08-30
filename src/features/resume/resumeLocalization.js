@@ -100,7 +100,7 @@ const localizedActivity = (value = "") => englishActivityLabels[normalizeLookupV
 const localizedOrganization = (value = "") => englishOrganizationLabels[normalizeLookupValue(value)] || "";
 
 const isGenericHeadline = (value = "") =>
-  /^(?:متخصص\/?ة?\s+في\s+.+|طالب\/?ة?\s+.+|خريج\/?ة?\s+.+|intern|trainee|co-?op trainee)$/i.test(
+  /^(?:(?:متخصص|طال(?:ب|بة)|خري(?:ج|جة))(?:ة)?(?:\s+في)?\s+.+|intern|trainee|co-?op trainee)$/i.test(
     value.toString().trim()
   );
 
