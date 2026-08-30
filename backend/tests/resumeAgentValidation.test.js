@@ -517,4 +517,35 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
   assert.ok(result.errors.some((error) => error.includes("Power BI")));
 }
 
+{
+  // Presentation spelling may use React.js and a shortened certification
+  // title, but both remain confirmed when they came from the portfolio.
+  const facts = collectFacts({
+    profile: {
+      skills: ["React"],
+      certifications: [
+        { title: "ITIL v4 Foundation", provider: "PeopleCert", year: "2024" },
+      ],
+    },
+    resume: null,
+    opportunity: null,
+    collectedFacts: {},
+  });
+  const draft = clone(validDraft);
+  draft.education = [];
+  draft.professionalSummary = "متخصصة في تقنية المعلومات مهتمة بتطوير واجهات المستخدم.";
+  draft.projects[0].technologies = ["React.js"];
+  draft.skills = [{ name: "React.js", evidenceSourceId: "portfolio_basic" }];
+  draft.certifications = [
+    { sourceId: "portfolio_cert_ITIL_v4_Foundation", name: "ITIL", issuer: "PeopleCert", date: "2024", details: "" },
+  ];
+  const result = validateResumeClaims({
+    draft,
+    facts,
+    sourceMap: validSourceMap,
+    purpose: "tailor_resume",
+  });
+  assert.strictEqual(result.valid, true, result.errors.join("\n"));
+}
+
 console.log("resumeAgentValidation tests passed");

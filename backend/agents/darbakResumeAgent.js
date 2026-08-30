@@ -146,6 +146,7 @@ const normalizeComparable = (value = "") =>
 
 const SKILL_ALIASES = {
   react: ["react", "ريأكت", "رياكت", "ري اكت"],
+  "react js": ["react", "react.js", "react js", "ريأكت", "رياكت", "ري اكت"],
   figma: ["figma", "فيقما", "فيجما"],
   java: ["java", "جافا"],
   javascript: ["javascript", "java script", "js", "جافاسكربت", "جافا سكربت", "جافا سكريبت"],
@@ -174,6 +175,18 @@ const isConfirmedSkill = (skillName = "", facts = {}) => {
   if (confirmed.has(normalized)) return true;
   const aliases = SKILL_ALIASES[normalized] || [skillName];
   return aliases.some((alias) => confirmed.has(normalizeComparable(alias)));
+};
+
+const isConfirmedCertificationValue = (value = "", facts = {}) => {
+  const comparableValue = normalizeComparable(value);
+  if (!comparableValue) return true;
+
+  return (facts?.sources || [])
+    .filter((source) => source.section === "certifications")
+    .some((source) => {
+      const sourceText = normalizeComparable(source.text || "");
+      return sourceText.includes(comparableValue);
+    });
 };
 
 const safeArray = (value = [], maxItems = 12, mapper = (item) => item) =>
@@ -939,7 +952,7 @@ const validateResumeClaims = ({ draft, facts, sourceMap = {}, purpose = "create_
   (parsed.projects || []).forEach((item, index) => {
     checkSourceId(item.sourceId, `المشروع ${index + 1}`);
     (item.technologies || []).forEach((technology) => {
-      if (!isSkillMentionedInFacts(technology, factTextComparable)) {
+      if (!isConfirmedSkill(technology, facts) && !isSkillMentionedInFacts(technology, factTextComparable)) {
         errors.push(`تمت إضافة أداة أو تقنية غير مذكورة: ${technology}`);
       }
     });
@@ -954,7 +967,11 @@ const validateResumeClaims = ({ draft, facts, sourceMap = {}, purpose = "create_
     checkSourceId(item.sourceId, `الشهادة ${index + 1}`);
     [item.name, item.issuer, item.date].filter(Boolean).forEach((value) => {
       const comparable = normalizeComparable(value);
-      if (comparable && !factTextComparable.includes(comparable)) {
+      if (
+        comparable &&
+        !factTextComparable.includes(comparable) &&
+        !isConfirmedCertificationValue(value, facts)
+      ) {
         errors.push(`تمت إضافة شهادة أو جهة شهادة غير موجودة: ${value}`);
       }
     });
