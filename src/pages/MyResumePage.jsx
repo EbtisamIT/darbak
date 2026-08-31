@@ -959,14 +959,9 @@ const MyResumePage = () => {
       setJourneyStep("draft");
       return;
     }
-    const savedJourney = readResumeJourneyProgress();
-    if (["data", "missing", "draft"].includes(savedJourney?.currentStep)) {
-      const route = savedJourney.currentStep === "data"
-        ? "/my-resume/build"
-        : `/my-resume/build?step=${savedJourney.currentStep}`;
-      navigate(route, { replace: true });
-      return;
-    }
+    // `/my-resume` is the stable entry point after subscribing. A saved draft
+    // must not move a student away from onboarding before an explicit CTA.
+    // The build route itself still restores its persisted step on refresh.
     openMaster();
     setResumeMode("dashboard");
     setJourneyView("start");
