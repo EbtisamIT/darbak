@@ -73,7 +73,7 @@ const englishLanguageLevelLabels = {
 };
 
 const englishActivityLabels = {
-  "مبرمجه": "Programming Volunteer",
+  "مبرمجه": "Programmer",
 };
 
 const englishOrganizationLabels = {

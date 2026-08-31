@@ -126,7 +126,7 @@ describe("English resume presentation", () => {
 
     expect(localized.skills).toEqual(["React.js", "Web Development", "Node.js"]);
     expect(localized.languages[0]).toMatchObject({ name: "Arabic", level: "Native" });
-    expect(localized.volunteering[0]).toMatchObject({ title: "Programming Volunteer", organization: "Injaz Club" });
+    expect(localized.volunteering[0]).toMatchObject({ title: "Programmer", organization: "Injaz Club" });
   });
 
   it("does not render an untranslated Arabic skill in an English resume", () => {
