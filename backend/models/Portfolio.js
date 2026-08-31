@@ -118,6 +118,12 @@ const portfolioSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    grammaticalGender: {
+      type: String,
+      enum: ["", "feminine", "masculine"],
+      default: "",
+      trim: true,
+    },
     graduationYear: { type: String, default: "", trim: true },
     gpa: { type: String, default: "", trim: true },
     gpaScale: { type: String, default: "", trim: true },

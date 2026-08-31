@@ -508,6 +508,7 @@ const MyResumePage = () => {
         }
         const reviews = getEnglishReviewItems(normalizedResume);
         if (reviews.length) {
+          console.warn("English PDF blocked by localized field keys:", reviews.map((item) => item.fieldKey || `${item.section}.${item.field}`));
           setMessage(`راجِع ${reviews.length} عناصر قبل تحميل النسخة الإنجليزية. أضف قيمة عرض إنجليزية لكل اسم أو جهة ظاهرة.`);
           return;
         }

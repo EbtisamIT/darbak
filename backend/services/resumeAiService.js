@@ -1,6 +1,7 @@
 const OpenAI = require("openai");
 const { zodTextFormat } = require("openai/helpers/zod");
 const { z } = require("zod");
+const { normalizeResumeSkills } = require("./resumeSkillNormalization");
 
 const DEFAULT_RESUME_MODEL = "gpt-5.6-terra";
 const DEFAULT_LIGHT_MODEL = "gpt-5.6-luna";
@@ -612,31 +613,89 @@ const orderMasterSkills = (masterSkills = [], draftSkills = []) => {
   });
 };
 
+const buildConfirmedHeadline = (personal = {}, language = "ar") => {
+  const major = String(personal.major || "").trim();
+  const status = personal.studentStatus;
+  if (!major) return "";
+  if (language === "en") {
+    if (status === "graduate") return `${major} Graduate`;
+    if (status === "student") return `${major} Student`;
+    return `${major} Specialist`;
+  }
+  const feminine = personal.grammaticalGender === "feminine";
+  const masculine = personal.grammaticalGender === "masculine";
+  if (status === "graduate") return `${feminine ? "خريجة" : masculine ? "خريج" : "خريج/ة"} ${major}`;
+  if (status === "student") return `${feminine ? "طالبة" : masculine ? "طالب" : "طالب/ة"} ${major}`;
+  return `${feminine ? "متخصصة" : masculine ? "متخصص" : "متخصص/ة"} في ${major}`;
+};
+
+const buildFactGroundedSummary = ({ personal = {}, resume = {}, language = "ar" } = {}) => {
+  const major = String(personal.major || "").trim();
+  const degree = String(personal.degree || "").trim();
+  const skills = normalizeResumeSkills(resume.skills || []).slice(0, 3);
+  const project = (resume.projects || []).find((item) => item?.title || item?.name);
+  const experience = (resume.experiences || resume.experience || []).find((item) => item?.title || item?.organization);
+  const projectName = String(project?.title || project?.name || "").trim();
+  const experienceName = String(experience?.title || "").trim();
+
+  if (language === "en") {
+    const identity = personal.studentStatus === "graduate"
+      ? `Graduate in ${major}`
+      : personal.studentStatus === "student"
+        ? `Student of ${major}`
+        : major ? `${major} professional` : "Early-career professional";
+    return [
+      identity,
+      degree ? `with a ${degree} background.` : ".",
+      skills.length ? `Skills include ${skills.join(", ")}.` : "",
+      projectName ? `Project experience includes ${projectName}.` : experienceName ? `Experience includes ${experienceName}.` : "",
+    ].join(" ").replace(/\s+\./g, ".").trim();
+  }
+
+  const identity = major ? `خلفية أكاديمية في ${major}` : "خلفية أكاديمية ومهنية";
+  return [
+    identity,
+    degree ? `ضمن ${degree}.` : ".",
+    skills.length ? `تشمل المهارات ${skills.join("، ")}.` : "",
+    projectName ? `تتضمن الخبرات العملية مشروع ${projectName}.` : experienceName ? `تتضمن الخبرات العملية ${experienceName}.` : "",
+  ].join(" ").replace(/\s+\./g, ".").trim();
+};
+
 const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, language = "ar", options = {}) => {
   const personal = rawInput?.basic || rawInput?.personalInfo || {};
   const educationRaw = rawInput?.education || {};
   const resumeLanguage = language === "en" ? "en" : "ar";
 
+  const personalInfo = {
+    ...(baseResume.personalInfo || {}),
+    fullName: personal.fullName || baseResume.personalInfo?.fullName || "",
+    email: personal.email || baseResume.personalInfo?.email || "",
+    phone: personal.phone || baseResume.personalInfo?.phone || "",
+    city: personal.city || baseResume.personalInfo?.city || "",
+    major: personal.major || baseResume.personalInfo?.major || "",
+    university:
+      personal.university ||
+      educationRaw.university ||
+      baseResume.personalInfo?.university ||
+      "",
+    degree: personal.degree || educationRaw.degree || baseResume.personalInfo?.degree || "",
+    studentStatus: personal.studentStatus || baseResume.personalInfo?.studentStatus || "",
+    grammaticalGender: personal.grammaticalGender || baseResume.personalInfo?.grammaticalGender || "",
+    graduationYear: personal.graduationYear || educationRaw.graduationYear || baseResume.personalInfo?.graduationYear || "",
+    gpa: personal.gpa || educationRaw.gpa || baseResume.personalInfo?.gpa || "",
+    gpaScale: personal.gpaScale || educationRaw.gpaScale || baseResume.personalInfo?.gpaScale || "",
+    linkedinUrl: personal.linkedinUrl || baseResume.personalInfo?.linkedinUrl || "",
+    githubUrl: personal.githubUrl || baseResume.personalInfo?.githubUrl || "",
+    portfolioUrl: personal.portfolioUrl || baseResume.personalInfo?.portfolioUrl || "",
+    personalUrl: personal.personalUrl || baseResume.personalInfo?.personalUrl || "",
+  };
+  personalInfo.headline = buildConfirmedHeadline(personalInfo, resumeLanguage) || draft.targetTitle || personal.targetTitle || baseResume.personalInfo?.headline || "";
+
   const payload = {
     personalInfo: {
-      ...(baseResume.personalInfo || {}),
-      fullName: personal.fullName || baseResume.personalInfo?.fullName || "",
-      email: personal.email || baseResume.personalInfo?.email || "",
-      phone: personal.phone || baseResume.personalInfo?.phone || "",
-      city: personal.city || baseResume.personalInfo?.city || "",
-      major: personal.major || baseResume.personalInfo?.major || "",
-      university:
-        personal.university ||
-        educationRaw.university ||
-        baseResume.personalInfo?.university ||
-        "",
-      linkedinUrl: personal.linkedinUrl || baseResume.personalInfo?.linkedinUrl || "",
-      githubUrl: personal.githubUrl || baseResume.personalInfo?.githubUrl || "",
-      portfolioUrl: personal.portfolioUrl || baseResume.personalInfo?.portfolioUrl || "",
-      personalUrl: personal.personalUrl || baseResume.personalInfo?.personalUrl || "",
-      headline: draft.targetTitle || personal.targetTitle || baseResume.personalInfo?.headline || "",
+      ...personalInfo,
     },
-    summary: draft.professionalSummary || baseResume.summary || "",
+    summary: "",
     education: (draft.education || []).map((item, index) => ({
       id: item.sourceId || `ai-education-${index + 1}`,
       title: item.degree || item.title || "",
@@ -729,7 +788,7 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
     })),
     languages: draft.languages || [],
     links: [],
-    skills: (draft.skills || []).map((skill) => skill.name).filter(Boolean),
+    skills: normalizeResumeSkills((draft.skills || []).map((skill) => skill.name).filter(Boolean)),
     settings: {
       language: resumeLanguage,
       direction: resumeLanguage === "en" ? "ltr" : "rtl",
@@ -738,6 +797,7 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
       accentColor: baseResume.settings?.accentColor || "#42cfc3",
     },
   };
+  payload.summary = buildFactGroundedSummary({ personal: payload.personalInfo, resume: payload, language: resumeLanguage }) || draft.professionalSummary || baseResume.summary || "";
   // A tailored resume is presentation-only: student identity and immutable
   // employment/education facts always come from the master resume.
   if (options.preserveIdentity) {
@@ -751,6 +811,8 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
     payload.skills = orderMasterSkills(baseResume.skills || [], draft.skills);
     payload.languages = baseResume.languages || [];
   }
+  payload.skills = normalizeResumeSkills(payload.skills);
+  payload.summary = buildFactGroundedSummary({ personal: payload.personalInfo, resume: payload, language: resumeLanguage }) || payload.summary;
   return payload;
 };
 
@@ -759,6 +821,8 @@ module.exports = {
   DEFAULT_RESUME_MODEL,
   generateResumeDraft,
   mapDraftToResumePayload,
+  buildConfirmedHeadline,
+  buildFactGroundedSummary,
   resumeDraftSchema,
   rewriteResumeSection,
   tailorResumeToOpportunity,

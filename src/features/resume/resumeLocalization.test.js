@@ -178,4 +178,47 @@ describe("English resume presentation", () => {
     expect(resume.skills).toContain("Git HUb");
     expect(resume.education).toHaveLength(2);
   });
+
+  it("keeps Noura's confirmed graduate identity and University of Jeddah in English", () => {
+    const resume = {
+      personalInfo: {
+        fullName: "Noura Abdullah Alotaibi",
+        englishName: "Noura Abdullah Alotaibi",
+        major: "Business Administration",
+        university: "University of Jeddah",
+        city: "Jeddah",
+        degree: "Bachelor's",
+        studentStatus: "graduate",
+        graduationYear: "2026",
+        gpa: "4.35",
+        gpaScale: "5",
+        headline: "Business Administration Student",
+      },
+      summary: "Graduate in Business Administration with skills in Microsoft PowerPointB and Excel.",
+      education: [{ id: "noura-education", title: "Bachelor's", organization: "University of Jeddah", location: "Jeddah" }],
+      projects: [{ id: "customer-satisfaction", title: "Customer Satisfaction Analysis", description: "Analyzed customer satisfaction feedback." }],
+      skills: ["Microsoft PowerPointB", "React", "React.js"],
+      settings: { language: "en", direction: "ltr" },
+    };
+
+    const localized = getLocalizedResumeForDisplay(resume);
+    const education = getResumeEducationDisplay(localized.education[0], localized.personalInfo, "en");
+
+    expect(localized.personalInfo.headline).toBe("Business Administration Graduate");
+    expect(localized.personalInfo.university).toBe("University of Jeddah");
+    expect(localized.personalInfo.city).toBe("Jeddah");
+    expect(localized.summary).not.toMatch(/Student/);
+    expect(localized.summary).toMatch(/Graduate/);
+    expect(localized.skills).toEqual(["Microsoft PowerPoint", "React.js"]);
+    expect(education.facts).toEqual(["2026", "GPA: 4.35/5"]);
+    expect(localized.projects[0].description).toBe("Analyzed customer satisfaction feedback.");
+  });
+
+  it("uses explicit Arabic grammatical gender without inferring it from a name", () => {
+    const localized = getLocalizedResumeForDisplay({
+      personalInfo: { major: "إدارة أعمال", studentStatus: "graduate", grammaticalGender: "feminine" },
+      settings: { language: "ar", direction: "rtl" },
+    });
+    expect(localized.personalInfo.headline).toBe("خريجة إدارة أعمال");
+  });
 });

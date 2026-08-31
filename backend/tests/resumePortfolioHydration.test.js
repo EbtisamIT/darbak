@@ -44,7 +44,7 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(result.resume.personalInfo.degree, "بكالوريوس");
   assert.strictEqual(result.resume.projects[0].title, "دربك");
   assert.strictEqual(result.resume.projects[0].url, "https://darbak.sa");
-  assert.deepStrictEqual(result.resume.skills, ["React", "UI/UX"]);
+  assert.deepStrictEqual(result.resume.skills, ["React.js", "UI/UX"]);
   assert.strictEqual(result.resume.education[0].endDate, "2027");
   assert.strictEqual(result.resume.education[0].isCurrent, false);
 }
@@ -70,6 +70,42 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(result.resume.education[0].isCurrent, false);
   assert.strictEqual(result.resume.personalInfo.gpa, "4.5");
   assert.strictEqual(result.resume.personalInfo.gpaScale, "5");
+}
+
+// A Portfolio-derived profile repairs stale identity facts from an older draft.
+// This prevents a new account from inheriting another profile's university/city.
+{
+  const result = hydrateResumeFromPortfolio(
+    {
+      workflow: { source: "portfolio" },
+      personalInfo: {
+        fullName: "Noura Abdullah Alotaibi",
+        major: "Business Administration",
+        university: "Imam Mohammad Ibn Saud Islamic University",
+        city: "Riyadh",
+        degree: "Bachelor's",
+        studentStatus: "student",
+      },
+      education: [{ title: "Bachelor's", organization: "Imam Mohammad Ibn Saud Islamic University", period: "2024" }],
+    },
+    mapPortfolioToResumePayload({
+      ...portfolio,
+      fullName: "Noura Abdullah Alotaibi",
+      major: "Business Administration",
+      university: "University of Jeddah",
+      city: "Jeddah",
+      degreeLevel: "Bachelor's",
+      studentStatus: "graduate",
+      graduationYear: "2026",
+      gpa: "4.35",
+      gpaScale: "5",
+    }, "noura@example.com")
+  );
+  assert.strictEqual(result.resume.personalInfo.university, "University of Jeddah");
+  assert.strictEqual(result.resume.personalInfo.city, "Jeddah");
+  assert.strictEqual(result.resume.personalInfo.studentStatus, "graduate");
+  assert.strictEqual(result.resume.education.length, 1);
+  assert.strictEqual(result.resume.education[0].organization, "University of Jeddah");
 }
 
 // Case H: without a confirmed year, "current" is only used for a confirmed

@@ -55,6 +55,7 @@ const {
   mapPortfolioToResumePayload: mapPortfolioToResumeHydration,
   hydrateResumeFromPortfolio,
 } = require("./services/resumePortfolioHydration");
+const { normalizeResumeSkills } = require("./services/resumeSkillNormalization");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1937,6 +1938,9 @@ const sanitizePortfolioPayload = (body = {}, contact = "") => {
     studentStatus: ["student", "graduate", "expected_graduate"].includes(body.studentStatus)
       ? body.studentStatus
       : "",
+    grammaticalGender: ["feminine", "masculine"].includes(body.grammaticalGender)
+      ? body.grammaticalGender
+      : "",
     graduationYear: sanitizePortfolioText(body.graduationYear, 12),
     gpa: sanitizePortfolioText(body.gpa, 20),
     gpaScale: sanitizePortfolioText(body.gpaScale, 20),
@@ -2025,6 +2029,7 @@ const serializePortfolio = (portfolio = {}, accessStatus = {}, req = null) => ({
   dateOfBirth: portfolio.dateOfBirth || "",
   degreeLevel: portfolio.degreeLevel || "",
   studentStatus: portfolio.studentStatus || "",
+  grammaticalGender: portfolio.grammaticalGender || "",
   graduationYear: portfolio.graduationYear || "",
   gpa: portfolio.gpa || "",
   gpaScale: portfolio.gpaScale || "",
@@ -6357,6 +6362,9 @@ const sanitizeResumePayload = (body = {}) => {
       studentStatus: ["student", "graduate", "expected_graduate"].includes(personalInfo.studentStatus)
         ? personalInfo.studentStatus
         : "",
+      grammaticalGender: ["feminine", "masculine"].includes(personalInfo.grammaticalGender)
+        ? personalInfo.grammaticalGender
+        : "",
       graduationYear: sanitizePortfolioText(personalInfo.graduationYear, 20),
       gpa: sanitizePortfolioText(personalInfo.gpa, 20),
       gpaScale: sanitizePortfolioText(personalInfo.gpaScale, 20),
@@ -6378,10 +6386,11 @@ const sanitizeResumePayload = (body = {}) => {
     volunteering: sanitizeResumeEntries(body.volunteering, 8),
     languages: sanitizeResumeLanguages(body.languages),
     links: sanitizeResumeLinks(body.links),
-    skills: (Array.isArray(body.skills) ? body.skills : [])
-      .map((skill) => sanitizePortfolioText(skill, 60))
-      .filter(Boolean)
-      .slice(0, 30),
+    skills: normalizeResumeSkills(
+      (Array.isArray(body.skills) ? body.skills : [])
+        .map((skill) => sanitizePortfolioText(skill, 60))
+        .filter(Boolean),
+    ),
     sectionOrder: sanitizeResumeSectionOrder(body.sectionOrder),
     hiddenSections: (Array.isArray(body.hiddenSections) ? body.hiddenSections : [])
       .filter((section) => RESUME_SECTION_KEYS.includes(section))
@@ -7237,7 +7246,10 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     contact: access.contact,
     accessCodeHash: access.accessCodeHash,
   });
-  const fallbackResume = mapPortfolioToResumePayload(portfolio || {}, access.contact);
+  const fallbackResume = mapPortfolioToResumeHydration(portfolio || {}, access.contact, {
+    frontendUrl: getFrontendUrl(),
+    sectionOrder: RESUME_SECTION_KEYS,
+  });
   const baseResume = currentResume || fallbackResume || {};
   const parsedDraft = tailoredResumeDraftSchema.safeParse(pendingDraft.draft).success
     ? tailoredResumeDraftSchema.parse(pendingDraft.draft)
@@ -8183,19 +8195,45 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
       return res.status(404).json({ error: "النسخة غير موجودة." });
     }
 
+    // Translation versions own presentation only. Read immutable identity facts
+    // from their master to repair stale versions created before Portfolio sync.
+    const masterResume = version.variantType === "translation" && version.baseResumeId
+      ? await ResumeProfile.findOne({
+          _id: version.baseResumeId,
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+        }).lean()
+      : null;
+    const immutablePersonalKeys = [
+      "fullName", "email", "phone", "city", "major", "university", "degree",
+      "studentStatus", "grammaticalGender", "graduationYear", "gpa", "gpaScale",
+      "linkedinUrl", "portfolioUrl", "githubUrl", "personalUrl",
+    ];
+    const synchronizedPersonal = immutablePersonalKeys.reduce(
+      (next, key) => masterResume?.personalInfo?.[key] ? { ...next, [key]: masterResume.personalInfo[key] } : next,
+      { ...(version.resumePayload?.personalInfo || {}) },
+    );
     const existingLocalizedDisplay = version.resumePayload?.localizedDisplay || {};
+    const {
+      headline: _staleHeadline,
+      major: _staleMajor,
+      university: _staleUniversity,
+      city: _staleCity,
+      ...existingLocalizedPersonal
+    } = existingLocalizedDisplay.personalInfo || {};
     const recoveredLocalizedDisplay =
       version.variantType === "translation" && version.language === "en"
-        ? buildEnglishLocalizedDisplay(version.resumePayload || {})
+        ? buildEnglishLocalizedDisplay({ ...(version.resumePayload || {}), personalInfo: synchronizedPersonal })
         : {};
     const versionPayload = {
       ...(version.resumePayload || {}),
+      personalInfo: synchronizedPersonal,
       localizedDisplay: {
         ...recoveredLocalizedDisplay,
         ...existingLocalizedDisplay,
         personalInfo: {
           ...(recoveredLocalizedDisplay.personalInfo || {}),
-          ...(existingLocalizedDisplay.personalInfo || {}),
+          ...existingLocalizedPersonal,
         },
         entries: {
           ...(recoveredLocalizedDisplay.entries || {}),

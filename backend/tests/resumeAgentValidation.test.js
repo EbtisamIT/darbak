@@ -111,6 +111,33 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 }
 
 {
+  const nouraBase = {
+    personalInfo: {
+      fullName: "Noura Abdullah Alotaibi",
+      major: "Business Administration",
+      university: "University of Jeddah",
+      city: "Jeddah",
+      degree: "Bachelor's",
+      studentStatus: "graduate",
+      graduationYear: "2026",
+      gpa: "4.35",
+      gpaScale: "5",
+      grammaticalGender: "feminine",
+    },
+    projects: [{ id: "customer-satisfaction", title: "Customer Satisfaction Analysis", description: "Analyzed customer satisfaction feedback." }],
+    skills: ["Microsoft PowerPointB", "Excel"],
+    settings: { language: "en" },
+  };
+  const mapped = mapDraftToResumePayload({ ...validDraft, professionalSummary: "Business Administration Student with strong skills.", skills: [{ name: "Microsoft PowerPointB", evidenceSourceId: "resume_basic" }] }, nouraBase, { basic: nouraBase.personalInfo }, "en");
+  assert.strictEqual(mapped.personalInfo.headline, "Business Administration Graduate");
+  assert.strictEqual(mapped.personalInfo.university, "University of Jeddah");
+  assert.strictEqual(mapped.personalInfo.city, "Jeddah");
+  assert.ok(!/Student/.test(mapped.summary));
+  assert.ok(/Graduate/.test(mapped.summary));
+  assert.ok(mapped.skills.includes("Microsoft PowerPoint"));
+}
+
+{
   const filtered = filterConfirmedQuestions(
     {
       status: "needs_information",
@@ -310,9 +337,10 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
   );
   assert.strictEqual(tailored.personalInfo.headline, masterResume.personalInfo.headline);
   assert.strictEqual(tailored.personalInfo.major, masterResume.personalInfo.major);
-  assert.deepStrictEqual(tailored.skills, ["Figma", "React", "UI/UX"]);
+  assert.deepStrictEqual(tailored.skills, ["Figma", "React.js", "UI/UX"]);
   assert.deepStrictEqual(tailored.projects.map((item) => item.id), ["project-darbak", "project-other"]);
-  assert.strictEqual(tailored.summary, NITC_TARGET_DRAFT.professionalSummary);
+  assert.ok(tailored.summary.includes("تقنية المعلومات"));
+  assert.ok(!tailored.summary.includes("طالبة"));
 }
 
 {

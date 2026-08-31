@@ -25,6 +25,7 @@ const englishUniversityLabels = {
   "جامعه الملك سعود": "King Saud University",
   "جامعه الاميره نوره بنت عبدالرحمن": "Princess Nourah bint Abdulrahman University",
   "جامعه الملك عبدالعزيز": "King Abdulaziz University",
+  "جامعه جده": "University of Jeddah",
 };
 
 const englishCityLabels = {
@@ -58,6 +59,8 @@ const englishSkillAliases = {
   "data analysis": "Data Analysis",
   "node.js": "Node.js",
   "web development": "Web Development",
+  "microsoft powerpointb": "Microsoft PowerPoint",
+  "microsoft powerpoint": "Microsoft PowerPoint",
 };
 
 const englishLanguageLabels = {
@@ -174,6 +177,29 @@ const getEnglishSummary = (summary = "", personal = {}) => {
   return `${headline}. ${clean}`;
 };
 
+const hasEnglishStatusConflict = (summary = "", studentStatus = "") =>
+  (studentStatus === "graduate" && /\bstudent\b/i.test(summary)) ||
+  (studentStatus === "student" && /\bgraduate\b/i.test(summary));
+
+const buildEnglishFactSummary = (resume = {}, personal = {}) => {
+  const major = String(personal.major || "").trim();
+  const degree = String(personal.degree || "").trim();
+  const skills = getCleanEnglishSkills(resume.skills || []).slice(0, 3);
+  const project = (resume.projects || []).find((entry) => entry?.title || entry?.name);
+  const experience = (resume.experience || resume.experiences || []).find((entry) => entry?.title || entry?.organization);
+  const identity = personal.studentStatus === "graduate"
+    ? `Graduate in ${major}`
+    : personal.studentStatus === "student"
+      ? `Student of ${major}`
+      : `${major} professional`;
+  return [
+    identity,
+    degree ? `with a ${degree} background.` : ".",
+    skills.length ? `Skills include ${skills.join(", ")}.` : "",
+    project?.title ? `Project experience includes ${project.title}.` : experience?.title ? `Experience includes ${experience.title}.` : "",
+  ].join(" ").replace(/\s+\./g, ".").trim();
+};
+
 const getDarbakProjectPresentation = (entry = {}, summary = "") => {
   if (entry.title !== "دربك" && entry.title !== "Darbak") return entry;
   const lines = [
@@ -201,11 +227,6 @@ const localizedActivity = (value = "") => englishActivityLabels[normalizeLookupV
 
 const localizedOrganization = (value = "") => englishOrganizationLabels[normalizeLookupValue(value)] || "";
 
-const isGenericHeadline = (value = "") =>
-  /^(?:(?:متخصص|طال(?:ب|بة)|خري(?:ج|جة))(?:ة)?(?:\s+في)?\s+.+|intern|trainee|co-?op trainee)$/i.test(
-    value.toString().trim()
-  );
-
 const mergeLocalizedValues = (generated = {}, saved = {}) =>
   Object.entries(saved || {}).reduce(
     (merged, [key, value]) => (value === "" || value == null ? merged : { ...merged, [key]: value }),
@@ -213,11 +234,21 @@ const mergeLocalizedValues = (generated = {}, saved = {}) =>
   );
 
 const derivedEnglishHeadline = (personal = {}, display = {}) => {
-  const major = display.major || localizedMajor(personal.major);
+  const major = display.major || localizedMajor(personal.major) || (!arabicPattern.test(personal.major || "") ? String(personal.major || "").trim() : "");
   if (!major) return "";
   if (personal.studentStatus === "student") return `${major} Student`;
   if (personal.studentStatus === "graduate") return `${major} Graduate`;
   return `${major} Specialist`;
+};
+
+const derivedArabicHeadline = (personal = {}) => {
+  const major = String(personal.major || "").trim();
+  if (!major) return "";
+  const feminine = personal.grammaticalGender === "feminine";
+  const masculine = personal.grammaticalGender === "masculine";
+  if (personal.studentStatus === "graduate") return `${feminine ? "خريجة" : masculine ? "خريج" : "خريج/ة"} ${major}`;
+  if (personal.studentStatus === "student") return `${feminine ? "طالبة" : masculine ? "طالب" : "طالب/ة"} ${major}`;
+  return `${feminine ? "متخصصة" : masculine ? "متخصص" : "متخصص/ة"} في ${major}`;
 };
 
 export const getEnglishReviewItems = (resume = {}) => {
@@ -246,15 +277,18 @@ export const getEnglishReviewItems = (resume = {}) => {
   const personal = resume.personalInfo || {};
   const displayedName = localized.personalInfo?.fullName || personal.englishName || personal.fullName;
   if (!displayedName || arabicPattern.test(displayedName) || displayedName.trim().split(/\s+/).length < 2) {
-    items.push({ label: "الاسم الرسمي بالإنجليزية", value: personal.fullName || "غير موجود", section: "personal", field: "fullName" });
+    items.push({ label: "الاسم الرسمي بالإنجليزية", value: personal.fullName || "غير موجود", section: "personal", field: "fullName", fieldKey: "personal.fullName" });
   }
   ["headline", "major", "university", "city"].forEach((field) => {
     const displayValue = localized.personalInfo?.[field];
     if (arabicPattern.test(personal[field] || "") && !displayValue) {
       const labels = { headline: "المسمى", major: "التخصص", university: "الجامعة", city: "المدينة" };
-      items.push({ label: labels[field], value: personal[field], section: "personal", field });
+      items.push({ label: labels[field], value: personal[field], section: "personal", field, fieldKey: `personal.${field}` });
     }
   });
+  if (arabicPattern.test(resume.summary || "")) {
+    items.push({ label: "النبذة المهنية", value: resume.summary, section: "summary", field: "summary", fieldKey: "summary" });
+  }
   ["education", "experience", "projects", "certifications", "volunteering"].forEach((section) => {
     (resume[section] || []).forEach((entry) => {
       const values = localized.entries?.[`${section}:${entry.id}`] || {};
@@ -271,7 +305,17 @@ export const getEnglishReviewItems = (resume = {}) => {
             certifications: "الشهادة",
             volunteering: "النشاط",
           };
-          items.push({ label: field === "title" ? `اسم ${sectionLabels[section]}` : "اسم الجهة", value: entry[field], section, field, entryId: entry.id });
+          items.push({ label: field === "title" ? `اسم ${sectionLabels[section]}` : "اسم الجهة", value: entry[field], section, field, entryId: entry.id, fieldKey: `${section}.${entry.id}.${field}` });
+        }
+      });
+      const description = entry.description || entry.details || "";
+      if (arabicPattern.test(description)) {
+        items.push({ label: "وصف", value: description, section, field: "description", entryId: entry.id, fieldKey: `${section}.${entry.id}.description` });
+      }
+      (entry.achievements || []).forEach((achievement, index) => {
+        const value = achievement?.text || "";
+        if (arabicPattern.test(value)) {
+          items.push({ label: "نقطة", value, section, field: "achievement", entryId: entry.id, index, fieldKey: `${section}.${entry.id}.achievements.${index}` });
         }
       });
     });
@@ -279,20 +323,27 @@ export const getEnglishReviewItems = (resume = {}) => {
   (resume.skills || []).forEach((skill, index) => {
     const value = typeof skill === "string" ? skill : skill?.name || "";
     if (arabicPattern.test(value) && !localized.skills?.[index]) {
-      items.push({ label: "مهارة", value, section: "skills", field: "skill", index });
+      items.push({ label: "مهارة", value, section: "skills", field: "skill", index, fieldKey: `skills.${index}` });
     }
   });
   (resume.languages || []).forEach((language, index) => {
     const value = language?.name || "";
     if (arabicPattern.test(value) && !localized.languages?.[index]?.name) {
-      items.push({ label: "لغة", value, section: "languages", field: "name", index });
+      items.push({ label: "لغة", value, section: "languages", field: "name", index, fieldKey: `languages.${index}.name` });
     }
   });
   return items;
 };
 
 export const getLocalizedResumeForDisplay = (resume = {}) => {
-  if (resume.settings?.language !== "en") return resume;
+  if (resume.settings?.language !== "en") {
+    const personal = resume.personalInfo || {};
+    const headline = derivedArabicHeadline(personal);
+    const isStatusHeadline = /^(?:طالب(?:ة)?|خريج(?:ة)?|متخصص(?:ة)?|طالب\/ة|خريج\/ة|متخصص\/ة)\b/.test(String(personal.headline || "").trim());
+    return headline && (!personal.headline || isStatusHeadline)
+      ? { ...resume, personalInfo: { ...personal, headline } }
+      : resume;
+  }
   const generated = buildEnglishLocalizedDisplay(resume);
   const localized = {
     ...generated,
@@ -313,6 +364,8 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
   };
   const personal = { ...(resume.personalInfo || {}), ...(localized.personalInfo || {}) };
   personal.fullName = localized.personalInfo?.fullName || personal.englishName || personal.fullName;
+  const confirmedHeadline = derivedEnglishHeadline(resume.personalInfo || {}, localized.personalInfo || {});
+  if (confirmedHeadline) personal.headline = confirmedHeadline;
   const sections = ["education", "experience", "projects", "certifications", "volunteering"];
   const next = { ...resume, personalInfo: personal };
   sections.forEach((section) => {
@@ -330,7 +383,9 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
         : localizedEntry;
     });
   });
-  next.summary = getEnglishSummary(resume.summary, personal);
+  next.summary = hasEnglishStatusConflict(resume.summary, resume.personalInfo?.studentStatus)
+    ? buildEnglishFactSummary(resume, personal)
+    : getEnglishSummary(resume.summary, personal);
   next.skills = getCleanEnglishSkills((resume.skills || []).map((skill, index) => {
     const source = typeof skill === "string" ? skill : skill?.name || "";
     return localized.skills?.[index] || (!arabicPattern.test(source) ? source : "");
@@ -355,10 +410,8 @@ export const buildEnglishLocalizedDisplay = (resume = {}) => {
   if (major) localized.personalInfo.major = major;
   if (university) localized.personalInfo.university = university;
   if (city) localized.personalInfo.city = city;
-  if (!personal.headline || isGenericHeadline(personal.headline)) {
-    const headline = derivedEnglishHeadline(personal, localized.personalInfo);
-    if (headline) localized.personalInfo.headline = headline;
-  }
+  const headline = derivedEnglishHeadline(personal, localized.personalInfo);
+  if (headline) localized.personalInfo.headline = headline;
   ["education", "experience", "projects", "certifications", "volunteering"].forEach((section) => {
     (resume[section] || []).forEach((entry) => {
       const values = {};

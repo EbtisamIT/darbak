@@ -150,6 +150,7 @@ const emptyForm = {
   degreeLevel: "",
   degreeOther: "",
   studentStatus: "",
+  grammaticalGender: "",
   graduationYear: "",
   gpa: "",
   gpaScale: "",
@@ -197,6 +198,7 @@ const normalizeForm = (portfolio = {}) => ({
   dateOfBirth: portfolio.dateOfBirth || "",
   degreeLevel: portfolio.degreeLevel || "",
   studentStatus: portfolio.studentStatus || "",
+  grammaticalGender: portfolio.grammaticalGender || "",
   graduationYear: portfolio.graduationYear || "",
   gpa: portfolio.gpa || "",
   gpaScale: portfolio.gpaScale || "",
@@ -688,6 +690,7 @@ export default function PortfolioBuilderPage() {
     dateOfBirth: source.dateOfBirth,
     degreeLevel: source.degreeLevel === "أخرى" ? source.degreeOther : source.degreeLevel,
     studentStatus: source.studentStatus,
+    grammaticalGender: source.grammaticalGender,
     graduationYear: source.graduationYear,
     gpa: source.gpa,
     gpaScale: source.gpaScale,
@@ -1253,6 +1256,7 @@ export default function PortfolioBuilderPage() {
               {stageSetupKeys.has("city") && form.city === "أخرى" && <label>اكتب المدينة<input value={form.cityOther} onChange={(event) => updateField("cityOther", event.target.value)} placeholder="اسم المدينة" /></label>}
               {stageSetupKeys.has("education") && <label>الدرجة أو المرحلة التعليمية<select id={getResumeSetupInputId("education")} value={form.degreeLevel} onChange={(event) => updateField("degreeLevel", event.target.value, { immediate: true })}><option value="">اختر الدرجة</option>{degreeOptions.map((degree) => <option key={degree} value={degree}>{degree}</option>)}</select></label>}
               {stageSetupKeys.has("education") && <label>أو الحالة التعليمية<select value={form.studentStatus} onChange={(event) => updateField("studentStatus", event.target.value, { immediate: true })}><option value="">اختر الحالة</option><option value="student">طالب/ة</option><option value="graduate">خريج/ة</option><option value="expected_graduate">متوقع/ة التخرج</option></select></label>}
+              {stageSetupKeys.has("education") && <label>صياغة السيرة بالعربية<select value={form.grammaticalGender} onChange={(event) => updateField("grammaticalGender", event.target.value, { immediate: true })}><option value="">اختر الصياغة</option><option value="feminine">خريجة / طالبة</option><option value="masculine">خريج / طالب</option></select></label>}
               {stageSetupKeys.has("education") && form.degreeLevel === "أخرى" && <label>اكتب الدرجة<input value={form.degreeOther} onChange={(event) => updateField("degreeOther", event.target.value)} placeholder="مثال: شهادة مهنية" /></label>}
               {stageSetupKeys.has("email") && <label>بريد التواصل<input id={getResumeSetupInputId("email")} type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
               {stageSetupKeys.has("bio") && <label className="is-wide">نبذة مهنية<textarea id={getResumeSetupInputId("bio")} value={form.bio} onChange={(event) => updateField("bio", event.target.value)} placeholder="اكتب سطرين عن اهتمامك المهني وما الذي تستطيع تقديمه." /></label>}
@@ -1465,6 +1469,14 @@ export default function PortfolioBuilderPage() {
                   <option value="student">طالب/ة</option>
                   <option value="graduate">خريج/ة</option>
                   <option value="expected_graduate">متوقع/ة التخرج</option>
+                </select>
+              </label>
+              <label>
+                صياغة السيرة بالعربية
+                <select value={form.grammaticalGender} onChange={(event) => updateField("grammaticalGender", event.target.value, { immediate: true })}>
+                  <option value="">غير محددة</option>
+                  <option value="feminine">خريجة / طالبة</option>
+                  <option value="masculine">خريج / طالب</option>
                 </select>
               </label>
               <label>

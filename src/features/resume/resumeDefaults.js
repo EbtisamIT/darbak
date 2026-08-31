@@ -107,6 +107,7 @@ export const createEmptyResume = () => ({
     university: "",
     degree: "",
     studentStatus: "",
+    grammaticalGender: "",
     graduationYear: "",
     gpa: "",
     gpaScale: "",

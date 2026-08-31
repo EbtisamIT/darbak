@@ -5,6 +5,8 @@ const cleanText = (value = "", maxLength = 900) =>
     .replace(/\s+/g, " ")
     .slice(0, maxLength);
 
+const { normalizeResumeSkills } = require("./resumeSkillNormalization");
+
 const escapeHtml = (value = "") =>
   value
     .toString()
@@ -110,14 +112,16 @@ const mergeLinks = (current = [], fallback = []) => {
 const buildPortfolioHeadline = (portfolio = {}) => {
   const major = cleanText(portfolio.major, 120);
   const statusLabels = {
-    student: "طالب/ة",
-    graduate: "خريج/ة",
-    expected_graduate: "متوقع/ة التخرج",
+    student: { feminine: "طالبة", masculine: "طالب", neutral: "طالب/ة" },
+    graduate: { feminine: "خريجة", masculine: "خريج", neutral: "خريج/ة" },
+    expected_graduate: { feminine: "متوقعة التخرج", masculine: "متوقع التخرج", neutral: "متوقع/ة التخرج" },
   };
   const stage = cleanText(portfolio.degreeLevel, 120);
   if (!major) return "";
   if (portfolio.professionalHeadline?.trim()) return cleanText(portfolio.professionalHeadline, 140);
-  if (statusLabels[portfolio.studentStatus]) return `${statusLabels[portfolio.studentStatus]} ${major}`;
+  if (statusLabels[portfolio.studentStatus]) {
+    return `${statusLabels[portfolio.studentStatus][portfolio.grammaticalGender] || statusLabels[portfolio.studentStatus].neutral} ${major}`;
+  }
   const confirmedStage = stage.match(/(?:طالبة|طالب|خريجة|خريج)/)?.[0];
   return confirmedStage ? `${confirmedStage} ${major}` : `متخصص/ة في ${major}`;
 };
@@ -165,6 +169,7 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
       university: cleanText(portfolio.university, 160),
       degree: cleanText(portfolio.degreeLevel, 80),
       studentStatus: cleanText(portfolio.studentStatus, 40),
+      grammaticalGender: cleanText(portfolio.grammaticalGender, 20),
       graduationYear: cleanText(portfolio.graduationYear, 20),
       gpa: cleanText(portfolio.gpa, 20),
       gpaScale: cleanText(portfolio.gpaScale, 20),
@@ -213,7 +218,7 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
       portfolio.personalWebsite ? { id: "website", label: "الموقع الشخصي", url: cleanText(portfolio.personalWebsite, 260) } : null,
       portfolioUrl ? { id: "portfolio", label: "ملفي المهني", url: portfolioUrl } : null,
     ].filter(Boolean),
-    skills: (Array.isArray(portfolio.skills) ? portfolio.skills : []).map((skill) => cleanText(skill, 60)).filter(Boolean),
+    skills: normalizeResumeSkills((Array.isArray(portfolio.skills) ? portfolio.skills : []).map((skill) => cleanText(skill, 60))),
     sectionOrder,
     hiddenSections: [],
     settings: { language: "ar", direction: "rtl", density: "comfortable", fontSize: "medium", template: "clean", accentColor: "#42cfc3" },
@@ -225,9 +230,13 @@ const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
 
   const currentPersonal = resume.personalInfo || {};
   const personalInfo = { ...currentPersonal };
+  // A profile created from Portfolio has one authoritative source for core
+  // identity facts. This repairs stale or cross-account values saved by an old
+  // resume draft without touching scratch/manual resume profiles.
+  const portfolioOwnsIdentity = resume.workflow?.source === "portfolio";
   Object.entries(portfolioResume.personalInfo || {}).forEach(([key, value]) => {
     if (
-      (!hasValue(personalInfo[key]) || isInvalidResumePersonalValue(key, personalInfo[key])) &&
+      (portfolioOwnsIdentity || !hasValue(personalInfo[key]) || isInvalidResumePersonalValue(key, personalInfo[key])) &&
       hasValue(value)
     ) {
       personalInfo[key] = value;
@@ -244,7 +253,9 @@ const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
     ...resume,
     personalInfo,
     summary: hasValue(resume.summary) ? resume.summary : portfolioResume.summary || "",
-    education: hydrateEducationEntries(resume.education, portfolioResume.education),
+    education: portfolioOwnsIdentity && Array.isArray(portfolioResume.education) && portfolioResume.education.length
+      ? portfolioResume.education
+      : hydrateEducationEntries(resume.education, portfolioResume.education),
     experiences: mergeEntries(currentExperience, portfolioExperience),
     experience: mergeEntries(currentExperience, portfolioExperience),
     projects: mergeEntries(resume.projects, portfolioResume.projects),
@@ -252,7 +263,7 @@ const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
     volunteering: mergeEntries(resume.volunteering, portfolioResume.volunteering),
     languages: mergeLanguages(resume.languages, portfolioResume.languages),
     links: mergeLinks(resume.links, portfolioResume.links),
-    skills: uniqueText(resume.skills, portfolioResume.skills),
+    skills: normalizeResumeSkills(uniqueText(resume.skills, portfolioResume.skills)),
   };
   const patch = {};
   ["personalInfo", "summary", "education", "experiences", "experience", "projects", "certifications", "volunteering", "languages", "links", "skills"].forEach((key) => {
