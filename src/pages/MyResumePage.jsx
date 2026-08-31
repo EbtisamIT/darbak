@@ -39,9 +39,15 @@ import {
 } from "../features/resume/resumeDefaults";
 import { estimateResumePages } from "../features/resume/resumeValidation";
 import { getEnglishReviewItems } from "../features/resume/resumeLocalization";
+import {
+  clearResumeJourneyProgress,
+  readResumeJourneyProgress,
+  writeResumeJourneyProgress,
+} from "../features/resume/resumeJourneyPersistence";
 
 const LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
 const APPLICATION_PACK_RESULT_LOAD_ATTEMPTS = 3;
+const JOURNEY_AUTOSAVE_DELAY = 900;
 
 const hasText = (value) => typeof value === "string" && value.trim().length > 0;
 
@@ -277,12 +283,14 @@ const MyResumePage = () => {
   const [loadingTailoredVersions, setLoadingTailoredVersions] = useState(false);
   const [applicationPack, setApplicationPack] = useState(null);
   const [journeyStep, setJourneyStep] = useState("data");
+  const [journeyCompletedSteps, setJourneyCompletedSteps] = useState([]);
   const [journeyView, setJourneyView] = useState("start");
   const [journeySource, setJourneySource] = useState("portfolio");
   const [portfolioReadiness, setPortfolioReadiness] = useState(null);
 
   const hasLoadedRef = useRef(false);
   const saveTimerRef = useRef(null);
+  const journeySaveTimerRef = useRef(null);
   const lastSavedSnapshotRef = useRef("");
   const lastRouteRef = useRef("");
 
@@ -414,7 +422,7 @@ const MyResumePage = () => {
   );
 
   const saveResume = useCallback(
-    async ({ manual = false, resumeOverride = null } = {}) => {
+    async ({ manual = false, resumeOverride = null, silent = false } = {}) => {
       const resumeToSave = resumeOverride || resume;
       const isJourneySave = manual && resumeMode === "dashboard";
       if (!hasLoadedRef.current || (resumeMode !== "editor" && !isJourneySave)) return false;
@@ -430,7 +438,7 @@ const MyResumePage = () => {
             const savedResume = normalizeResume({ ...data.resume, access: resume.access });
             setResume(savedResume);
             setSaveState("saved");
-            if (manual) setMessage(data.message || "تم حفظ النسخة الإنجليزية.");
+            if (manual && !silent) setMessage(data.message || "تم حفظ النسخة الإنجليزية.");
             return true;
           } catch (err) {
             setSaveState("error");
@@ -439,7 +447,7 @@ const MyResumePage = () => {
           }
         }
         setSaveState("saved");
-        if (manual) {
+        if (manual && !silent) {
           setMessage("هذه نسخة مخصصة محفوظة مستقلة. عدّل السيرة الأساسية إذا كنت تريد حفظ تغييرات عامة.");
         }
         return true;
@@ -469,7 +477,7 @@ const MyResumePage = () => {
         setResumeExists(true);
         setHasExistingResumeData(true);
         setSaveState("saved");
-        setMessage(manual ? data.message || "تم حفظ سيرتك." : "");
+        setMessage(manual && !silent ? data.message || "تم حفظ سيرتك." : "");
         return true;
       } catch (err) {
         setSaveState("error");
@@ -479,6 +487,19 @@ const MyResumePage = () => {
     },
     [editingTailoredVersion, editingVersionId, editingVersionType, resume, resumeMode]
   );
+
+  const setPersistedJourneyProgress = useCallback((progress) => {
+    const saved = writeResumeJourneyProgress(progress);
+    setJourneyStep(saved.currentStep);
+    setJourneyCompletedSteps(saved.completedSteps);
+    setJourneySource(saved.source);
+    return saved;
+  }, []);
+
+  const saveJourneyDraft = useCallback(async (resumeOverride = resume) => {
+    writeLocalDraft(resumeOverride);
+    return saveResume({ manual: true, resumeOverride, silent: true });
+  }, [resume, saveResume]);
 
   const handleDownloadPdf = useCallback(async () => {
     try {
@@ -679,13 +700,38 @@ const MyResumePage = () => {
     return () => window.clearTimeout(saveTimerRef.current);
   }, [editingTailoredVersion, editingVersionType, resume, resumeMode, saveResume]);
 
+  useEffect(() => {
+    const isJourneyStep = resumeMode === "dashboard" && ["personal", "missing"].includes(journeyView);
+    if (!hasLoadedRef.current || !isJourneyStep) return undefined;
+
+    writeLocalDraft(resume);
+    writeResumeJourneyProgress({
+      currentStep: journeyView === "missing" ? "missing" : "data",
+      completedSteps: journeyCompletedSteps,
+      source: journeySource,
+    });
+
+    if (getSnapshot(resume) === lastSavedSnapshotRef.current) {
+      setSaveState("saved");
+      return undefined;
+    }
+
+    setSaveState("saving");
+    window.clearTimeout(journeySaveTimerRef.current);
+    journeySaveTimerRef.current = window.setTimeout(() => {
+      saveJourneyDraft(resume);
+    }, JOURNEY_AUTOSAVE_DELAY);
+
+    return () => window.clearTimeout(journeySaveTimerRef.current);
+  }, [journeyCompletedSteps, journeySource, journeyView, resume, resumeMode, saveJourneyDraft]);
+
   const handleUsePortfolio = () => {
     loadResume({ preferLocalDraft: false });
     trackEvent("resume_use_portfolio_clicked", { page: "/my-resume" });
   };
 
   const startJourneyFromPortfolio = () => {
-    setJourneySource("portfolio");
+    setPersistedJourneyProgress({ currentStep: "data", completedSteps: [], source: "portfolio" });
     handleUsePortfolio();
     navigate("/my-resume/build");
   };
@@ -704,7 +750,7 @@ const MyResumePage = () => {
   };
 
   const startJourneyFromScratch = () => {
-    setJourneySource("scratch");
+    setPersistedJourneyProgress({ currentStep: "data", completedSteps: [], source: "scratch" });
     setResume((current) =>
       normalizeResume({
         ...createEmptyResume(),
@@ -728,13 +774,37 @@ const MyResumePage = () => {
     trackEvent("resume_continue_saved_clicked", { page: "/my-resume" });
   };
 
-  const continueJourneyToMissing = () => {
+  const continueJourneyToMissing = async () => {
+    const saved = await saveJourneyDraft();
+    if (!saved) return;
+    setPersistedJourneyProgress({
+      currentStep: "missing",
+      completedSteps: ["data"],
+      source: journeySource,
+    });
     navigate("/my-resume/build?step=missing");
   };
 
   const finishJourneyBasics = async (resumeToSave) => {
-    const saved = await saveResume({ manual: true, resumeOverride: resumeToSave });
-    if (saved) startAgent({ purpose: "create_resume", source: "professional_profile" });
+    const saved = await saveJourneyDraft(resumeToSave);
+    if (!saved) return;
+    setPersistedJourneyProgress({
+      currentStep: "draft",
+      completedSteps: ["data", "missing"],
+      source: journeySource,
+    });
+    startAgent({ purpose: "create_resume", source: "professional_profile" });
+  };
+
+  const returnToJourneyData = async () => {
+    const saved = await saveJourneyDraft();
+    if (!saved) return;
+    setPersistedJourneyProgress({
+      currentStep: "data",
+      completedSteps: journeyCompletedSteps,
+      source: journeySource,
+    });
+    navigate("/my-resume/build");
   };
 
   const handleCustomizeLater = () => {
@@ -857,7 +927,16 @@ const MyResumePage = () => {
     }
     if (routeView === "build") {
       openMaster();
-      const step = searchParams.get("step");
+      const savedJourney = readResumeJourneyProgress();
+      const requestedStep = searchParams.get("step");
+      const canOpenMissing = savedJourney?.completedSteps?.includes("data");
+      const step = requestedStep === "missing" && !canOpenMissing
+        ? ""
+        : requestedStep || savedJourney?.currentStep || "";
+      if (savedJourney) {
+        setJourneySource(savedJourney.source);
+        setJourneyCompletedSteps(savedJourney.completedSteps);
+      }
       if (step === "draft") {
         setAgentConfig({
           purpose: "create_resume",
@@ -880,11 +959,19 @@ const MyResumePage = () => {
       setJourneyStep("draft");
       return;
     }
+    const savedJourney = readResumeJourneyProgress();
+    if (["data", "missing", "draft"].includes(savedJourney?.currentStep)) {
+      const route = savedJourney.currentStep === "data"
+        ? "/my-resume/build"
+        : `/my-resume/build?step=${savedJourney.currentStep}`;
+      navigate(route, { replace: true });
+      return;
+    }
     openMaster();
     setResumeMode("dashboard");
     setJourneyView("start");
     setJourneyStep("data");
-  }, [loadResume, loadTailoredVersion, location.pathname, location.search, routeVersionId, routeView, searchParams]);
+  }, [loadResume, loadTailoredVersion, location.pathname, location.search, navigate, routeVersionId, routeView, searchParams]);
 
   const completeApplicationPackDetails = async ({ trainingStart, trainingEnd, targetField }) => {
     if (!editingVersionId) return;
@@ -927,6 +1014,7 @@ const MyResumePage = () => {
       loadTailoredVersions();
     }
     setSaveState("saved");
+    clearResumeJourneyProgress();
     const remainingTailors = Math.max(
       0,
       Number(data.usage?.aiResumeUsageLimit || 0) - Number(data.usage?.aiResumeUsageCount || 0)
@@ -945,7 +1033,12 @@ const MyResumePage = () => {
 
   const cancelAgent = () => {
     setAgentConfig(null);
-    navigate("/my-resume/build");
+    setPersistedJourneyProgress({
+      currentStep: "missing",
+      completedSteps: ["data"],
+      source: journeySource,
+    });
+    navigate("/my-resume/build?step=missing");
   };
 
   const returnToMasterResume = async () => {
@@ -1062,11 +1155,17 @@ const MyResumePage = () => {
 
       {!(resumeMode === "dashboard" && journeyView === "start") && !isTailoredApplicationFlow && <ResumeJourneyStepper
         currentStep={journeyStep}
+        completedSteps={journeyCompletedSteps}
         onStepChange={(step) => {
-          if (step === "data") {
-            navigate("/my-resume/build");
+          if (step === "data" && journeyStep !== "data") {
+            returnToJourneyData();
           }
-          if (step === "missing") {
+          if (step === "missing" && journeyStep === "draft") {
+            setPersistedJourneyProgress({
+              currentStep: "missing",
+              completedSteps: ["data"],
+              source: journeySource,
+            });
             navigate("/my-resume/build?step=missing");
           }
         }}
@@ -1105,6 +1204,7 @@ const MyResumePage = () => {
           source={journeySource}
           onChange={(nextResume) => setResume(normalizeResume(nextResume))}
           onBack={() => {
+            clearResumeJourneyProgress();
             navigate("/my-resume");
           }}
           onContinue={continueJourneyToMissing}
@@ -1115,10 +1215,9 @@ const MyResumePage = () => {
         <ResumeJourneyMissing
           resume={resume}
           onChange={(nextResume) => setResume(normalizeResume(nextResume))}
-          onBack={() => {
-            navigate("/my-resume/build");
-          }}
+          onBack={returnToJourneyData}
           onContinue={finishJourneyBasics}
+          onAutosave={saveJourneyDraft}
         />
       )}
 

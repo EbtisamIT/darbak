@@ -6,7 +6,7 @@ jest.mock("./ResumeBuilder", () => ({
   PersonalInfoEditor: () => null,
 }));
 
-import { ResumeJourneyMissing } from "./ResumeJourney";
+import { ResumeJourneyMissing, ResumeJourneyStepper } from "./ResumeJourney";
 
 const emptyResume = {
   personalInfo: {
@@ -15,7 +15,7 @@ const emptyResume = {
   },
 };
 
-const MissingJourneyHarness = ({ onContinue }) => {
+const MissingJourneyHarness = ({ onContinue, onAutosave = () => {} }) => {
   const [resume, setResume] = useState(emptyResume);
   return (
     <ResumeJourneyMissing
@@ -23,7 +23,23 @@ const MissingJourneyHarness = ({ onContinue }) => {
       onChange={setResume}
       onBack={() => {}}
       onContinue={onContinue}
+      onAutosave={onAutosave}
     />
+  );
+};
+
+const BackJourneyHarness = () => {
+  const [resume, setResume] = useState(emptyResume);
+  const [showMissing, setShowMissing] = useState(true);
+  return showMissing ? (
+    <ResumeJourneyMissing
+      resume={resume}
+      onChange={setResume}
+      onBack={() => setShowMissing(false)}
+      onContinue={() => {}}
+    />
+  ) : (
+    <button type="button" onClick={() => setShowMissing(true)}>العودة للناقص</button>
   );
 };
 
@@ -54,5 +70,38 @@ describe("ResumeJourneyMissing", () => {
       phone: "0500000000",
       headline: "متخصصة تقنية معلومات",
     });
+  });
+
+  it("autosaves on blur without advancing the step", () => {
+    const onContinue = jest.fn();
+    const onAutosave = jest.fn();
+    render(<MissingJourneyHarness onContinue={onContinue} onAutosave={onAutosave} />);
+
+    fireEvent.change(screen.getByLabelText("رقم التواصل"), { target: { value: "0" } });
+    fireEvent.blur(screen.getByLabelText("رقم التواصل"));
+
+    expect(onAutosave).toHaveBeenCalledTimes(1);
+    expect(onContinue).not.toHaveBeenCalled();
+    expect(screen.getByText("المرحلة الثانية من خمس")).toBeInTheDocument();
+  });
+
+  it("keeps typed values when the student goes back and reopens the step", () => {
+    render(<BackJourneyHarness />);
+
+    fireEvent.change(screen.getByLabelText("رقم التواصل"), { target: { value: "0500000000" } });
+    fireEvent.click(screen.getByRole("button", { name: "رجوع" }));
+    fireEvent.click(screen.getByRole("button", { name: "العودة للناقص" }));
+
+    expect(screen.getByText("رقم التواصل ✓")).toBeInTheDocument();
+  });
+
+  it("allows only completed steps to be selected", () => {
+    const onStepChange = jest.fn();
+    render(<ResumeJourneyStepper currentStep="missing" completedSteps={["data"]} onStepChange={onStepChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "بياناتك" }));
+    expect(onStepChange).toHaveBeenCalledWith("data");
+    expect(screen.getByRole("button", { name: "3 مسودتك الذكية" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "5 جاهزة للتقديم" })).toBeDisabled();
   });
 });

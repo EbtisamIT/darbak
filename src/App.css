@@ -6711,6 +6711,7 @@ body {
   padding: 4px 2px 0;
 }
 .resume-journey-missing .resume-journey-section-head h2 { margin-top: 6px; }
+.resume-journey-progress-copy { color: var(--app-muted); display: block; font-weight: 800; margin-top: 10px; }
 .resume-journey-missing-card label { display: grid; gap: 8px; color: var(--app-text); font-weight: 900; }
 .resume-journey-missing-card label span { font-size: 14px; }
 .resume-journey-missing-card input {
@@ -6724,6 +6725,22 @@ body {
   direction: rtl;
 }
 .resume-journey-missing-card input:focus { outline: 3px solid var(--app-brand-soft); border-color: var(--app-brand); }
+.resume-journey-missing-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.resume-journey-missing-chips button {
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 7px 11px;
+}
+.resume-journey-missing-chips button:hover,
+.resume-journey-missing-chips button:focus-visible { border-color: var(--app-brand); color: var(--app-brand); }
+.resume-journey-missing-chips .is-complete { color: var(--app-brand); font-size: 13px; font-weight: 800; padding: 7px 4px; }
+.resume-journey-validation-error { color: var(--app-danger, #d66565); font-weight: 800; margin: 12px 0 0; }
 .resume-journey-complete-note { display: flex; align-items: flex-start; gap: 12px; }
 .resume-journey-complete-note svg { flex: 0 0 auto; color: var(--app-brand); font-size: 23px; }
 .resume-journey-complete-note strong { color: var(--app-text); }

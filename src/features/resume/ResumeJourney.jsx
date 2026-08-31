@@ -18,17 +18,18 @@ export const RESUME_JOURNEY_STEPS = [
 const getStepIndex = (stepId) =>
   Math.max(0, RESUME_JOURNEY_STEPS.findIndex((step) => step.id === stepId));
 
-export const ResumeJourneyStepper = ({ currentStep = "data", onStepChange }) => {
+export const ResumeJourneyStepper = ({ currentStep = "data", completedSteps = [], onStepChange }) => {
   const currentIndex = getStepIndex(currentStep);
+  const completed = new Set(completedSteps);
 
   return (
     <nav className="resume-journey-stepper" aria-label="مراحل إنشاء السيرة">
       <div className="resume-journey-stepper-track" aria-hidden="true" />
       <div className="resume-journey-stepper-list">
         {RESUME_JOURNEY_STEPS.map((step, index) => {
-          const complete = index < currentIndex;
+          const complete = completed.has(step.id);
           const current = index === currentIndex;
-          const available = index <= currentIndex;
+          const available = complete || current;
           return (
             <button
               type="button"
@@ -201,13 +202,23 @@ export const getMissingJourneyFields = (resume = {}) => {
   ].filter(([field]) => !personal[field]);
 };
 
-export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue }) => {
+const JOURNEY_MISSING_FIELDS = [
+  ["phone", "رقم التواصل", "05xxxxxxxx"],
+  ["headline", "المسمى المهني", "مثال: متخصص/ة في نظم المعلومات"],
+];
+
+export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue, onAutosave }) => {
   const personal = resume.personalInfo || {};
   // Keep this step's fields stable while the student types. Recomputing from
   // `resume` would remove an input after its first character and makes the
   // journey look as if it advanced without the explicit continue action.
   const [missing] = React.useState(() => getMissingJourneyFields(resume));
   const [validationError, setValidationError] = React.useState("");
+  const completedCount = JOURNEY_MISSING_FIELDS.filter(([field]) => String(personal[field] || "").trim()).length;
+  const remainingCount = JOURNEY_MISSING_FIELDS.length - completedCount;
+  const completedFields = JOURNEY_MISSING_FIELDS.filter(([field]) =>
+    String(personal[field] || "").trim() && !missing.some(([missingField]) => missingField === field)
+  );
 
   const updatePersonal = (field, value) =>
     onChange({
@@ -225,6 +236,10 @@ export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue }) =
     onContinue(resume);
   };
 
+  const focusMissingField = (field) => {
+    document.getElementById(`resume-missing-${field}`)?.focus();
+  };
+
   return (
     <section className="resume-journey-screen resume-journey-missing">
       <header className="resume-journey-section-head">
@@ -235,7 +250,23 @@ export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue }) =
             ? "نحتاج هذه المعلومات فقط حتى يكون رأس السيرة واضحًا وجاهزًا للتواصل."
             : "كل ما نحتاجه في هذه المرحلة موجود بالفعل في بياناتك."}
         </p>
+        <small className="resume-journey-progress-copy">
+          {completedCount} من {JOURNEY_MISSING_FIELDS.length} مكتملة · {remainingCount ? `باقي ${remainingCount === 1 ? "معلومة واحدة" : `${remainingCount} معلومات`}` : "معلوماتك الأساسية مكتملة"}
+        </small>
       </header>
+
+      {(missing.length > 0 || completedFields.length > 0) && (
+        <div className="resume-journey-missing-chips" aria-label="المعلومات الأساسية">
+          {missing.map(([field, label]) => (
+            <button type="button" key={field} onClick={() => focusMissingField(field)}>
+              {label}
+            </button>
+          ))}
+          {completedFields.map(([, label]) => (
+            <span className="is-complete" key={label}>{label} ✓</span>
+          ))}
+        </div>
+      )}
 
       <div className="resume-journey-missing-card">
         {missing.length ? (
@@ -243,11 +274,13 @@ export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue }) =
             <label key={field}>
               <span>{label}</span>
               <input
+                id={`resume-missing-${field}`}
                 value={personal[field] || ""}
                 onChange={(event) => {
                   setValidationError("");
                   updatePersonal(field, event.target.value);
                 }}
+                onBlur={() => onAutosave?.()}
                 placeholder={placeholder}
               />
             </label>
