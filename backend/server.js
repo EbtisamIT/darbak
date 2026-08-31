@@ -7503,6 +7503,34 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
   }
 });
 
+// Completing the first resume onboarding is a deliberate student action.
+// Keep that state in the existing master-resume workflow for later visits.
+app.post('/api/resume/me/onboarding/complete', requireResumeAccess, async (req, res) => {
+  try {
+    const { contact, accessCodeHash, user } = req.darbakAccess;
+    const resume = await ResumeProfile.findOneAndUpdate(
+      { contact, accessCodeHash },
+      {
+        $set: {
+          "workflow.source": "portfolio",
+          "workflow.lastStep": "data",
+          "workflow.isSetupComplete": true,
+        },
+        $setOnInsert: { contact, accessCodeHash, userId: user?._id },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+    ).lean();
+
+    res.json({
+      resume: serializeResume(resume, req.darbakAccess),
+      message: "تم حفظ بيانات السيرة.",
+    });
+  } catch (err) {
+    console.error("❌ Resume onboarding completion error:", err);
+    res.status(500).json({ error: "تعذر حفظ بيانات السيرة. حاول مرة أخرى." });
+  }
+});
+
 app.post('/api/resume/match', requireResumeAccess, async (req, res) => {
   try {
     const { contact, accessCodeHash } = req.darbakAccess;

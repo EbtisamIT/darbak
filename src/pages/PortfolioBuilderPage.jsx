@@ -484,7 +484,7 @@ export default function PortfolioBuilderPage() {
   const skillsStatus = sectionStatus(skillItems.length ? 0 : 1);
   const resumeSetupFields = getResumeSetupFields(form, contact);
   const resumeSetupMissing = resumeSetupFields.filter(([, , complete]) => !complete);
-  const stageSetupFields = stageResumeSetupFields || resumeSetupMissing;
+  const stageSetupFields = stageResumeSetupFields || resumeSetupFields;
   const stageSetupKeys = new Set(stageSetupFields.map(([key]) => key));
   const currentSetupFieldsByKey = new Map(resumeSetupFields.map(([key, label, complete]) => [key, { label, complete }]));
   const stageCompletedCount = getResumeSetupProgress(stageSetupFields, resumeSetupFields);
@@ -537,7 +537,7 @@ export default function PortfolioBuilderPage() {
       setForm(normalizedPortfolio);
       if (resumeSetupMode) {
         setStageResumeSetupFields(
-          getResumeSetupFields(normalizedPortfolio, nextContact).filter(([, , complete]) => !complete)
+          getResumeSetupFields(normalizedPortfolio, nextContact)
         );
       }
       setPublicUrl(data.publicUrl || "");
@@ -782,8 +782,18 @@ export default function PortfolioBuilderPage() {
         metadata: { publicActive: Boolean(data.portfolio?.publicActive) },
       });
       if (manual && resumeSetupMode) {
-        setMessage("اكتمل ملفك المهني. ننتقل الآن إلى سيرتك...");
-        window.setTimeout(() => navigate("/my-resume/build"), 450);
+        await axios.post(
+          `${API_BASE_URL}/api/resume/me/onboarding/complete`,
+          {},
+          {
+            headers: {
+              "x-darbak-contact": contact,
+              "x-darbak-access-code": accessCode,
+            },
+          }
+        );
+        setMessage("تم حفظ بياناتك. نبدأ الآن بناء سيرتك...");
+        navigate("/my-resume/build");
       }
     } catch (err) {
       setSaveStatus("error");
@@ -1167,8 +1177,8 @@ export default function PortfolioBuilderPage() {
       <main className="portfolio-builder-page portfolio-resume-setup" dir="rtl">
         <section className="portfolio-resume-setup-hero">
           <span>ملفك المهني · سيرتي بدربك</span>
-          <h1>نكمل معلوماتك الأساسية فقط</h1>
-          <p>هذه المعلومات هي مصدر سيرتك وتقديماتك في دربك؛ لن تحتاج لإدخالها مرة ثانية.</p>
+          <h1>نجهّز أساس سيرتك ✨</h1>
+          <p>أخذنا المعلومات الموجودة في ملفك المهني. راجعها وكمل الناقص، وبعدها دربك يبني لك السيرة.</p>
           <div className="portfolio-resume-setup-progress">
             <strong>تم تعبئة {stageCompletedCount} من {stageSetupFields.length}</strong>
             <div><i style={{ width: `${stageSetupFields.length ? Math.round((stageCompletedCount / stageSetupFields.length) * 100) : 100}%` }} /></div>
@@ -1190,16 +1200,33 @@ export default function PortfolioBuilderPage() {
         <form className="portfolio-resume-setup-form" onSubmit={(event) => { event.preventDefault(); savePortfolio({ manual: true }); }} onBlur={flushAutosave}>
           <section className="portfolio-builder-panel">
             <div className="portfolio-builder-section-head">
-              <div><h2>الموجود والناقص</h2><p>LinkedIn والشهادات اختيارية ولا تؤخر سيرتك.</p></div>
-              <span className="portfolio-resume-setup-status">{stageSetupFields.length ? `تم تعبئة ${stageCompletedCount} من ${stageSetupFields.length}` : "مكتمل ✓"}</span>
+              <div><h2>راجع بياناتك الأساسية</h2><p>المعلومات الاختيارية مثل LinkedIn والشهادات لا تؤخر سيرتك.</p></div>
+              <span className="portfolio-resume-setup-status">{resumeSetupMissing.length ? `باقي ${resumeSetupMissing.length}` : "معلوماتك جاهزة ✓"}</span>
             </div>
-            <div className="portfolio-resume-setup-checklist">
-              {stageSetupFields.map(([key, label]) => {
-                const complete = currentSetupFieldsByKey.get(key)?.complete;
-                return <span key={key} className={complete ? "is-complete" : ""}>{complete ? "✓" : "○"} {label}</span>;
-              })}
+            <div className="portfolio-resume-setup-groups">
+              {[
+                ["معلوماتك الأساسية", ["fullName", "major", "city", "university", "email"]],
+                ["لتحسين سيرتك", ["education", "evidence", "skills"]],
+              ].map(([title, keys]) => (
+                <div key={title} className="portfolio-resume-setup-group">
+                  <strong>{title}</strong>
+                  <div className="portfolio-resume-setup-checklist">
+                    {stageSetupFields.filter(([key]) => keys.includes(key)).map(([key, label]) => {
+                      const complete = currentSetupFieldsByKey.get(key)?.complete;
+                      return <span key={key} className={complete ? "is-complete" : ""}>{complete ? "✓" : "ناقص"} {label}</span>;
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
+
+          {!resumeSetupMissing.length && (
+            <section className="portfolio-builder-panel portfolio-resume-setup-ready">
+              <strong>معلوماتك جاهزة ✓</strong>
+              <p>راجعها، وإذا كل شيء صحيح ابدأ بناء سيرتك.</p>
+            </section>
+          )}
 
           <section className="portfolio-builder-panel">
             <div className="portfolio-builder-grid">
@@ -1220,7 +1247,7 @@ export default function PortfolioBuilderPage() {
             </div>
           </section>
           {message && <p className="portfolio-resume-setup-message">{message}</p>}
-          <div className="portfolio-builder-savebar"><span className={`portfolio-save-status is-${saveStatus}`}>{saveStatus === "saving" ? "جاري الحفظ..." : saveStatus === "saved" ? "تم الحفظ ✓" : saveStatus === "error" ? "تعذر الحفظ، سنحاول مرة أخرى" : ""}</span><div><button type="submit" disabled={saving || !isAuthenticated}>{saving ? "جاري الحفظ..." : "حفظ ومتابعة إلى سيرتي ←"}</button></div></div>
+          <div className="portfolio-builder-savebar"><span className={`portfolio-save-status is-${saveStatus}`}>{saveStatus === "saving" ? "جاري الحفظ..." : saveStatus === "saved" ? "تم الحفظ ✓" : saveStatus === "error" ? "تعذر الحفظ، سنحاول مرة أخرى" : ""}</span><div><button type="submit" disabled={saving || !isAuthenticated}>{saving ? "جاري الحفظ..." : "حفظ وابدأ بناء سيرتي ←"}</button></div></div>
         </form>
       </main>
     );

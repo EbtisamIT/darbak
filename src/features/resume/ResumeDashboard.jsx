@@ -24,6 +24,7 @@ const ResumeDashboard = ({
   versions = [],
   loadingVersions = false,
   onOpenEditor,
+  onEditProfile,
   onStartFromPortfolio,
   onStartFromScratch,
   onCustomize,
@@ -109,6 +110,9 @@ const ResumeDashboard = ({
           </div>
           <button type="button" onClick={onOpenEditor}>
             فتح السيرة <FiArrowLeft aria-hidden="true" />
+          </button>
+          <button type="button" className="is-text" onClick={onEditProfile}>
+            تعديل بيانات السيرة
           </button>
           <button type="button" className="is-secondary" onClick={onCustomize}>
             <FiZap aria-hidden="true" /> تخصيص لفرصة

@@ -5683,6 +5683,11 @@ body {
 .resume-portfolio-checklist, .portfolio-resume-setup-checklist { display: flex; flex-wrap: wrap; gap: 9px; }
 .resume-portfolio-checklist span, .portfolio-resume-setup-checklist span { padding: 8px 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; color: #aebdbc; font-size: 14px; }
 .resume-portfolio-checklist .is-complete, .portfolio-resume-setup-checklist .is-complete { color: #76ded2; border-color: rgba(112, 218, 204, .28); background: rgba(70, 190, 176, .08); }
+.portfolio-resume-setup-groups { display: grid; gap: 16px; }
+.portfolio-resume-setup-group { display: grid; gap: 9px; }
+.portfolio-resume-setup-group > strong { color: #edf6f5; font-size: 14px; }
+.portfolio-resume-setup-ready strong { color: #76ded2; }
+.portfolio-resume-setup-ready p { margin: 6px 0 0; color: #aebdbc; }
 .resume-portfolio-note { font-size: 14px; }
 .resume-portfolio-prerequisite > button, .portfolio-resume-setup-form button[type="submit"] { min-height: 48px; margin-top: 24px; border: 0; border-radius: 12px; padding: 0 20px; background: #73d9ce; color: #0c1719; font: inherit; font-weight: 800; cursor: pointer; }
 

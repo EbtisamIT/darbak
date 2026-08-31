@@ -65,4 +65,17 @@ describe("resume setup missing-field stage", () => {
       "evidence",
     ]);
   });
+
+  it("keeps all onboarding inputs visible while draft values are autosaved", () => {
+    const onboardingFields = getResumeSetupFields({ email: "qa@example.com" }, "");
+    const autosavedDraft = getResumeSetupFields({
+      email: "qa@example.com",
+      fullName: "سارة أحمد",
+      major: "تقنية المعلومات",
+    }, "");
+
+    expect(onboardingFields).toHaveLength(9);
+    expect(onboardingFields.map(([key]) => key)).toEqual(autosavedDraft.map(([key]) => key));
+    expect(getResumeSetupProgress(onboardingFields, autosavedDraft)).toBe(3);
+  });
 });

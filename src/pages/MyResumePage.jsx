@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { pdf } from "@react-pdf/renderer";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FiDownload,
   FiEye,
@@ -44,6 +44,7 @@ import {
   readResumeJourneyProgress,
   writeResumeJourneyProgress,
 } from "../features/resume/resumeJourneyPersistence";
+import { shouldShowResumeOnboarding } from "../features/resume/resumeOnboarding";
 
 const LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
 const APPLICATION_PACK_RESULT_LOAD_ATTEMPTS = 3;
@@ -224,37 +225,6 @@ const ResumeAccessPreview = ({ premiumPass, onUpgrade, onExplore }) => {
   );
 };
 
-const PortfolioPrerequisite = ({ readiness, onCompleteProfile }) => {
-  const required = readiness?.required || [];
-  const completedCount = Number(readiness?.completedCount || 0);
-  const totalCount = Number(readiness?.totalCount || required.length || 1);
-  const percentage = Math.round((completedCount / totalCount) * 100);
-  const missing = required.filter((field) => !field.complete);
-
-  return (
-    <main className="resume-page resume-page-v2" dir="rtl">
-      <section className="resume-portfolio-prerequisite">
-        <span className="resume-access-badge">ملفك المهني هو أساس سيرتك ✨</span>
-        <h1>قبل ما نبني سيرتك ✨</h1>
-        <p>خلّنا نكمل ملفك المهني أولًا، عشان نستخدم معلوماتك في سيرتك وتقديماتك بدون ما تعيد كتابتها كل مرة.</p>
-        <div className="resume-portfolio-progress" aria-label={`اكتمال الملف المهني ${percentage}%`}>
-          <div className="resume-portfolio-progress-head"><strong>اكتمال المعلومات الأساسية</strong><span>{completedCount} من {totalCount}</span></div>
-          <div><i style={{ width: `${percentage}%` }} /></div>
-        </div>
-        <div className="resume-portfolio-checklist">
-          {required.map((field) => (
-            <span className={field.complete ? "is-complete" : ""} key={field.key}>
-              {field.complete ? "✓" : "○"} {field.label}
-            </span>
-          ))}
-        </div>
-        {missing.length > 0 && <p className="resume-portfolio-note">سنطلب منك الناقص فقط، أما LinkedIn والشهادات فاختيارية.</p>}
-        <button type="button" onClick={onCompleteProfile}>كمّل ملفي المهني ←</button>
-      </section>
-    </main>
-  );
-};
-
 const MyResumePage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -268,7 +238,7 @@ const MyResumePage = () => {
   const [message, setMessage] = useState("");
   const [lastServerResume, setLastServerResume] = useState(null);
   const [resumeExists, setResumeExists] = useState(false);
-  const [hasExistingResumeData, setHasExistingResumeData] = useState(false);
+  const [resumeWorkflow, setResumeWorkflow] = useState({});
   const [resumeMode, setResumeMode] = useState("dashboard");
   const [agentConfig, setAgentConfig] = useState(null);
   const [editingTailoredVersion, setEditingTailoredVersion] = useState(false);
@@ -286,7 +256,6 @@ const MyResumePage = () => {
   const [journeyCompletedSteps, setJourneyCompletedSteps] = useState([]);
   const [journeyView, setJourneyView] = useState("start");
   const [journeySource, setJourneySource] = useState("portfolio");
-  const [portfolioReadiness, setPortfolioReadiness] = useState(null);
 
   const hasLoadedRef = useRef(false);
   const saveTimerRef = useRef(null);
@@ -377,8 +346,7 @@ const MyResumePage = () => {
 
         setResume(nextResume);
         setResumeExists(Boolean(data.exists));
-        setHasExistingResumeData(Boolean(data.hasExistingResumeData || data.exists));
-        setPortfolioReadiness(data.portfolioReadiness || null);
+        setResumeWorkflow(data.resume?.workflow || {});
         setLastServerResume(serverResume);
         lastSavedSnapshotRef.current = getSnapshot(serverResume);
         hasLoadedRef.current = true;
@@ -475,7 +443,6 @@ const MyResumePage = () => {
         lastSavedSnapshotRef.current = getSnapshot(savedResume);
         setLastServerResume(savedResume);
         setResumeExists(true);
-        setHasExistingResumeData(true);
         setSaveState("saved");
         setMessage(manual && !silent ? data.message || "تم حفظ سيرتك." : "");
         return true;
@@ -1001,7 +968,6 @@ const MyResumePage = () => {
     if (data.resume) {
       setLastServerResume(savedResume);
       setResumeExists(true);
-      setHasExistingResumeData(true);
       setEditingTailoredVersion(false);
       lastSavedSnapshotRef.current = getSnapshot(savedResume);
     } else {
@@ -1066,13 +1032,10 @@ const MyResumePage = () => {
     return <ResumeAccessPreview premiumPass={localPremiumPass} onUpgrade={openResumeUpgrade} onExplore={() => navigate("/")} />;
   }
 
-  if (!hasExistingResumeData && portfolioReadiness && !portfolioReadiness.complete) {
-    return (
-      <PortfolioPrerequisite
-        readiness={portfolioReadiness}
-        onCompleteProfile={() => navigate("/portfolio?from=resume")}
-      />
-    );
+  // Profile hydration may fill the form, but it must never skip the first
+  // onboarding. Only the explicit Portfolio CTA completes this workflow.
+  if (shouldShowResumeOnboarding(resumeWorkflow) && routeView !== "version") {
+    return <Navigate to="/portfolio?from=resume" replace />;
   }
 
   return (
@@ -1187,6 +1150,7 @@ const MyResumePage = () => {
           onStartFromPortfolio={startJourneyFromPortfolio}
           onStartFromScratch={startJourneyFromScratch}
           onOpenEditor={() => navigate("/my-resume/edit")}
+          onEditProfile={() => navigate("/portfolio")}
           onCustomize={handleCustomizeLater}
           onCreateEnglish={handleTranslateToEnglish}
           onOpenVersion={openTailoredVersion}
