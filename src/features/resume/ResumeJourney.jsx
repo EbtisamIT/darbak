@@ -193,18 +193,37 @@ export const ResumeJourneyPersonal = ({
   );
 };
 
-export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue }) => {
+export const getMissingJourneyFields = (resume = {}) => {
   const personal = resume.personalInfo || {};
-  const missing = [
+  return [
     ["phone", "رقم التواصل", "05xxxxxxxx"],
     ["headline", "المسمى المهني", "مثال: متخصص/ة في نظم المعلومات"],
   ].filter(([field]) => !personal[field]);
+};
+
+export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue }) => {
+  const personal = resume.personalInfo || {};
+  // Keep this step's fields stable while the student types. Recomputing from
+  // `resume` would remove an input after its first character and makes the
+  // journey look as if it advanced without the explicit continue action.
+  const [missing] = React.useState(() => getMissingJourneyFields(resume));
+  const [validationError, setValidationError] = React.useState("");
 
   const updatePersonal = (field, value) =>
     onChange({
       ...resume,
       personalInfo: { ...personal, [field]: value },
     });
+
+  const continueToDraft = () => {
+    const incomplete = missing.filter(([field]) => !String(personal[field] || "").trim());
+    if (incomplete.length) {
+      setValidationError(`أكمل ${incomplete.map(([, label]) => label).join(" و")} قبل المتابعة.`);
+      return;
+    }
+    setValidationError("");
+    onContinue(resume);
+  };
 
   return (
     <section className="resume-journey-screen resume-journey-missing">
@@ -225,7 +244,10 @@ export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue }) =
               <span>{label}</span>
               <input
                 value={personal[field] || ""}
-                onChange={(event) => updatePersonal(field, event.target.value)}
+                onChange={(event) => {
+                  setValidationError("");
+                  updatePersonal(field, event.target.value);
+                }}
                 placeholder={placeholder}
               />
             </label>
@@ -239,13 +261,14 @@ export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue }) =
             </div>
           </div>
         )}
+        {validationError && <p className="resume-journey-validation-error">{validationError}</p>}
       </div>
 
       <footer className="resume-journey-actions">
         <button type="button" className="is-secondary" onClick={onBack}>
           رجوع
         </button>
-        <button type="button" className="is-primary" onClick={() => onContinue(resume)}>
+        <button type="button" className="is-primary" onClick={continueToDraft}>
           {missing.length ? "حفظ والمتابعة للمسودة" : "إنشاء المسودة الذكية"}
           {missing.length ? <FiCheck aria-hidden="true" /> : <FiArrowLeft aria-hidden="true" />}
         </button>
