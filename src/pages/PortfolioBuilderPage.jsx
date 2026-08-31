@@ -10,6 +10,10 @@ import {
   saveAccessIdentity,
 } from "../utils/premiumAccess";
 import { getVisitorId, trackEvent } from "../utils/analytics";
+import {
+  getResumeSetupFields,
+  getResumeSetupProgress,
+} from "../utils/resumeSetupStage";
 import logo from "./logo.png";
 
 const PORTFOLIO_BADGE_LINKEDIN_MESSAGE =
@@ -419,6 +423,7 @@ export default function PortfolioBuilderPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState("idle");
+  const [stageResumeSetupFields, setStageResumeSetupFields] = useState(null);
   const formRef = useRef(emptyForm);
   const autosaveTimerRef = useRef(null);
   const retryTimerRef = useRef(null);
@@ -477,27 +482,12 @@ export default function PortfolioBuilderPage() {
   );
   const experienceStatus = sectionStatus(activeProjects.length || activeExperiences.length ? 0 : 1);
   const skillsStatus = sectionStatus(skillItems.length ? 0 : 1);
-  const resumeSetupFields = [
-    ["fullName", "الاسم", Boolean(form.fullName.trim())],
-    ["major", "التخصص", Boolean(majorValue.trim())],
-    ["city", "المدينة", Boolean(cityValue.trim())],
-    ["university", "الجامعة", Boolean(universityValue.trim())],
-    [
-      "education",
-      "الدرجة أو الحالة التعليمية",
-      Boolean(degreeValue.trim() || form.studentStatus),
-    ],
-    ["email", "وسيلة التواصل", Boolean(form.email.trim() || isValidEmail(contact))],
-    ["bio", "نبذة مهنية", Boolean(form.bio.trim())],
-    ["skills", "مهارة واحدة على الأقل", Boolean(skillItems.length)],
-    [
-      "evidence",
-      "مشروع أو خبرة واحدة على الأقل",
-      Boolean(activeProjects.length || activeExperiences.length),
-    ],
-  ];
+  const resumeSetupFields = getResumeSetupFields(form, contact);
   const resumeSetupMissing = resumeSetupFields.filter(([, , complete]) => !complete);
-  const resumeSetupCompleted = resumeSetupFields.length - resumeSetupMissing.length;
+  const stageSetupFields = stageResumeSetupFields || resumeSetupMissing;
+  const stageSetupKeys = new Set(stageSetupFields.map(([key]) => key));
+  const currentSetupFieldsByKey = new Map(resumeSetupFields.map(([key, label, complete]) => [key, { label, complete }]));
+  const stageCompletedCount = getResumeSetupProgress(stageSetupFields, resumeSetupFields);
   const portfolioShareUrl = getPortfolioShareUrl(publicUrl, form.slug);
   const referralCode = useMemo(
     () => getReferralCode(contact, form.slug),
@@ -543,7 +533,13 @@ export default function PortfolioBuilderPage() {
         },
       });
       hasLoadedPortfolioRef.current = false;
-      setForm(normalizeForm(data.portfolio));
+      const normalizedPortfolio = normalizeForm(data.portfolio);
+      setForm(normalizedPortfolio);
+      if (resumeSetupMode) {
+        setStageResumeSetupFields(
+          getResumeSetupFields(normalizedPortfolio, nextContact).filter(([, , complete]) => !complete)
+        );
+      }
       setPublicUrl(data.publicUrl || "");
       setSavedCvLabel(data.portfolio?.cvAssetId ? "تم حفظ ملف PDF" : "");
       const storedAvatar =
@@ -1174,8 +1170,8 @@ export default function PortfolioBuilderPage() {
           <h1>نكمل معلوماتك الأساسية فقط</h1>
           <p>هذه المعلومات هي مصدر سيرتك وتقديماتك في دربك؛ لن تحتاج لإدخالها مرة ثانية.</p>
           <div className="portfolio-resume-setup-progress">
-            <strong>{resumeSetupCompleted} من {resumeSetupFields.length} مكتملة</strong>
-            <div><i style={{ width: `${Math.round((resumeSetupCompleted / resumeSetupFields.length) * 100)}%` }} /></div>
+            <strong>تم تعبئة {stageCompletedCount} من {stageSetupFields.length}</strong>
+            <div><i style={{ width: `${stageSetupFields.length ? Math.round((stageCompletedCount / stageSetupFields.length) * 100) : 100}%` }} /></div>
           </div>
         </section>
 
@@ -1195,29 +1191,32 @@ export default function PortfolioBuilderPage() {
           <section className="portfolio-builder-panel">
             <div className="portfolio-builder-section-head">
               <div><h2>الموجود والناقص</h2><p>LinkedIn والشهادات اختيارية ولا تؤخر سيرتك.</p></div>
-              <span className="portfolio-resume-setup-status">{resumeSetupMissing.length ? `باقي ${resumeSetupMissing.length}` : "مكتمل ✓"}</span>
+              <span className="portfolio-resume-setup-status">{stageSetupFields.length ? `تم تعبئة ${stageCompletedCount} من ${stageSetupFields.length}` : "مكتمل ✓"}</span>
             </div>
             <div className="portfolio-resume-setup-checklist">
-              {resumeSetupFields.map(([key, label, complete]) => <span key={key} className={complete ? "is-complete" : ""}>{complete ? "✓" : "○"} {label}</span>)}
+              {stageSetupFields.map(([key, label]) => {
+                const complete = currentSetupFieldsByKey.get(key)?.complete;
+                return <span key={key} className={complete ? "is-complete" : ""}>{complete ? "✓" : "○"} {label}</span>;
+              })}
             </div>
           </section>
 
           <section className="portfolio-builder-panel">
             <div className="portfolio-builder-grid">
-              {!form.fullName.trim() && <label>الاسم<input value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} placeholder="سارة أحمد" /></label>}
-              {!majorValue.trim() && <label>التخصص<select value={form.major} onChange={(event) => updateField("major", event.target.value, { immediate: true })}><option value="">اختر التخصص</option>{specializationOptions.map((specialization) => <option key={specialization.value} value={specialization.value}>{specialization.label}</option>)}<option value="أخرى">أخرى</option></select></label>}
-              {form.major === "أخرى" && <label>اكتب التخصص<input value={form.majorOther} onChange={(event) => updateField("majorOther", event.target.value)} placeholder="اسم التخصص" /></label>}
-              {!universityValue.trim() && <label>الجامعة<select value={form.university} onChange={(event) => updateField("university", event.target.value, { immediate: true })}><option value="">اختر الجامعة</option>{saudiUniversities.map((university) => <option key={university} value={university}>{university}</option>)}</select></label>}
-              {form.university === "أخرى" && <label>اكتب الجامعة<input value={form.universityOther} onChange={(event) => updateField("universityOther", event.target.value)} placeholder="اسم الجامعة" /></label>}
-              {!cityValue.trim() && <label>المدينة<select value={form.city} onChange={(event) => updateField("city", event.target.value, { immediate: true })}><option value="">اختر المدينة</option>{portfolioCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></label>}
-              {form.city === "أخرى" && <label>اكتب المدينة<input value={form.cityOther} onChange={(event) => updateField("cityOther", event.target.value)} placeholder="اسم المدينة" /></label>}
-              {!degreeValue.trim() && !form.studentStatus && <label>الدرجة أو المرحلة التعليمية<select value={form.degreeLevel} onChange={(event) => updateField("degreeLevel", event.target.value, { immediate: true })}><option value="">اختر الدرجة</option>{degreeOptions.map((degree) => <option key={degree} value={degree}>{degree}</option>)}</select></label>}
-              {!degreeValue.trim() && !form.studentStatus && <label>أو الحالة التعليمية<select value={form.studentStatus} onChange={(event) => updateField("studentStatus", event.target.value, { immediate: true })}><option value="">اختر الحالة</option><option value="student">طالب/ة</option><option value="graduate">خريج/ة</option><option value="expected_graduate">متوقع/ة التخرج</option></select></label>}
-              {form.degreeLevel === "أخرى" && <label>اكتب الدرجة<input value={form.degreeOther} onChange={(event) => updateField("degreeOther", event.target.value)} placeholder="مثال: شهادة مهنية" /></label>}
-              {!form.email.trim() && !isValidEmail(contact) && <label>بريد التواصل<input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
-              {!form.bio.trim() && <label className="is-wide">نبذة مهنية<textarea value={form.bio} onChange={(event) => updateField("bio", event.target.value)} placeholder="اكتب سطرين عن اهتمامك المهني وما الذي تستطيع تقديمه." /></label>}
-              {!skillItems.length && <label className="is-wide">مهارة واحدة على الأقل<input value={form.skills} onChange={(event) => updateField("skills", event.target.value)} placeholder="مثال: Excel، React، تحليل بيانات" /></label>}
-              {!activeProjects.length && !activeExperiences.length && <label className="is-wide">مشروع أو خبرة واحدة<input value={form.projects[0]?.title || ""} onChange={(event) => updateListItem("projects", 0, "title", event.target.value)} placeholder="اسم مشروع عملت عليه" /></label>}
+              {stageSetupKeys.has("fullName") && <label>الاسم<input value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} placeholder="سارة أحمد" /></label>}
+              {stageSetupKeys.has("major") && <label>التخصص<select value={form.major} onChange={(event) => updateField("major", event.target.value, { immediate: true })}><option value="">اختر التخصص</option>{specializationOptions.map((specialization) => <option key={specialization.value} value={specialization.value}>{specialization.label}</option>)}<option value="أخرى">أخرى</option></select></label>}
+              {stageSetupKeys.has("major") && form.major === "أخرى" && <label>اكتب التخصص<input value={form.majorOther} onChange={(event) => updateField("majorOther", event.target.value)} placeholder="اسم التخصص" /></label>}
+              {stageSetupKeys.has("university") && <label>الجامعة<select value={form.university} onChange={(event) => updateField("university", event.target.value, { immediate: true })}><option value="">اختر الجامعة</option>{saudiUniversities.map((university) => <option key={university} value={university}>{university}</option>)}</select></label>}
+              {stageSetupKeys.has("university") && form.university === "أخرى" && <label>اكتب الجامعة<input value={form.universityOther} onChange={(event) => updateField("universityOther", event.target.value)} placeholder="اسم الجامعة" /></label>}
+              {stageSetupKeys.has("city") && <label>المدينة<select value={form.city} onChange={(event) => updateField("city", event.target.value, { immediate: true })}><option value="">اختر المدينة</option>{portfolioCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></label>}
+              {stageSetupKeys.has("city") && form.city === "أخرى" && <label>اكتب المدينة<input value={form.cityOther} onChange={(event) => updateField("cityOther", event.target.value)} placeholder="اسم المدينة" /></label>}
+              {stageSetupKeys.has("education") && <label>الدرجة أو المرحلة التعليمية<select value={form.degreeLevel} onChange={(event) => updateField("degreeLevel", event.target.value, { immediate: true })}><option value="">اختر الدرجة</option>{degreeOptions.map((degree) => <option key={degree} value={degree}>{degree}</option>)}</select></label>}
+              {stageSetupKeys.has("education") && <label>أو الحالة التعليمية<select value={form.studentStatus} onChange={(event) => updateField("studentStatus", event.target.value, { immediate: true })}><option value="">اختر الحالة</option><option value="student">طالب/ة</option><option value="graduate">خريج/ة</option><option value="expected_graduate">متوقع/ة التخرج</option></select></label>}
+              {stageSetupKeys.has("education") && form.degreeLevel === "أخرى" && <label>اكتب الدرجة<input value={form.degreeOther} onChange={(event) => updateField("degreeOther", event.target.value)} placeholder="مثال: شهادة مهنية" /></label>}
+              {stageSetupKeys.has("email") && <label>بريد التواصل<input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
+              {stageSetupKeys.has("bio") && <label className="is-wide">نبذة مهنية<textarea value={form.bio} onChange={(event) => updateField("bio", event.target.value)} placeholder="اكتب سطرين عن اهتمامك المهني وما الذي تستطيع تقديمه." /></label>}
+              {stageSetupKeys.has("skills") && <label className="is-wide">مهارة واحدة على الأقل<input value={form.skills} onChange={(event) => updateField("skills", event.target.value)} placeholder="مثال: Excel، React، تحليل بيانات" /></label>}
+              {stageSetupKeys.has("evidence") && <label className="is-wide">مشروع أو خبرة واحدة<input value={form.projects[0]?.title || ""} onChange={(event) => updateListItem("projects", 0, "title", event.target.value)} placeholder="اسم مشروع عملت عليه" /></label>}
             </div>
           </section>
           {message && <p className="portfolio-resume-setup-message">{message}</p>}
