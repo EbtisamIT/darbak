@@ -11,9 +11,10 @@ import {
 } from "../utils/premiumAccess";
 import { getVisitorId, trackEvent } from "../utils/analytics";
 import {
-  getResumeSetupFields,
-  getResumeSetupProgress,
+  getResumeSetupCompleteness,
+  getResumeSetupInputId,
 } from "../utils/resumeSetupStage";
+import { ResumeJourneyStepper } from "../features/resume/ResumeJourney";
 import logo from "./logo.png";
 
 const PORTFOLIO_BADGE_LINKEDIN_MESSAGE =
@@ -423,7 +424,6 @@ export default function PortfolioBuilderPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState("idle");
-  const [stageResumeSetupFields, setStageResumeSetupFields] = useState(null);
   const formRef = useRef(emptyForm);
   const autosaveTimerRef = useRef(null);
   const retryTimerRef = useRef(null);
@@ -482,12 +482,13 @@ export default function PortfolioBuilderPage() {
   );
   const experienceStatus = sectionStatus(activeProjects.length || activeExperiences.length ? 0 : 1);
   const skillsStatus = sectionStatus(skillItems.length ? 0 : 1);
-  const resumeSetupFields = getResumeSetupFields(form, contact);
+  const resumeSetup = getResumeSetupCompleteness(form, contact);
+  const resumeSetupFields = resumeSetup.fields;
   const resumeSetupMissing = resumeSetupFields.filter(([, , complete]) => !complete);
-  const stageSetupFields = stageResumeSetupFields || resumeSetupFields;
+  const stageSetupFields = resumeSetupFields;
   const stageSetupKeys = new Set(stageSetupFields.map(([key]) => key));
   const currentSetupFieldsByKey = new Map(resumeSetupFields.map(([key, label, complete]) => [key, { label, complete }]));
-  const stageCompletedCount = getResumeSetupProgress(stageSetupFields, resumeSetupFields);
+  const stageCompletedCount = resumeSetup.completedCount;
   const portfolioShareUrl = getPortfolioShareUrl(publicUrl, form.slug);
   const referralCode = useMemo(
     () => getReferralCode(contact, form.slug),
@@ -535,11 +536,6 @@ export default function PortfolioBuilderPage() {
       hasLoadedPortfolioRef.current = false;
       const normalizedPortfolio = normalizeForm(data.portfolio);
       setForm(normalizedPortfolio);
-      if (resumeSetupMode) {
-        setStageResumeSetupFields(
-          getResumeSetupFields(normalizedPortfolio, nextContact)
-        );
-      }
       setPublicUrl(data.publicUrl || "");
       setSavedCvLabel(data.portfolio?.cvAssetId ? "تم حفظ ملف PDF" : "");
       const storedAvatar =
@@ -854,6 +850,17 @@ export default function PortfolioBuilderPage() {
     window.clearTimeout(autosaveTimerRef.current);
     setSaveStatus("saving");
     savePortfolioRef.current?.({ manual: false });
+  };
+
+  const focusResumeSetupField = (key) => {
+    const field = document.getElementById(getResumeSetupInputId(key));
+    field?.scrollIntoView({ behavior: "smooth", block: "center" });
+    field?.focus();
+  };
+
+  const returnFromResumeSetup = () => {
+    flushAutosave();
+    navigate(-1);
   };
 
   const openLinkedInShare = () => {
@@ -1180,9 +1187,11 @@ export default function PortfolioBuilderPage() {
           <h1>نجهّز أساس سيرتك ✨</h1>
           <p>أخذنا المعلومات الموجودة في ملفك المهني. راجعها وكمل الناقص، وبعدها دربك يبني لك السيرة.</p>
           <div className="portfolio-resume-setup-progress">
-            <strong>تم تعبئة {stageCompletedCount} من {stageSetupFields.length}</strong>
+            <strong>{resumeSetup.missingCount ? `${stageCompletedCount} من ${resumeSetup.totalCount} جاهزة · باقي ${resumeSetup.missingCount === 1 ? "معلومة واحدة" : `${resumeSetup.missingCount} معلومات`}` : `${resumeSetup.totalCount} من ${resumeSetup.totalCount} جاهزة ✓`}</strong>
             <div><i style={{ width: `${stageSetupFields.length ? Math.round((stageCompletedCount / stageSetupFields.length) * 100) : 100}%` }} /></div>
           </div>
+          <ResumeJourneyStepper currentStep="data" completedSteps={[]} />
+          <button type="button" className="portfolio-resume-setup-back" onClick={returnFromResumeSetup}>رجوع</button>
         </section>
 
         {!isAuthenticated && (
@@ -1213,7 +1222,12 @@ export default function PortfolioBuilderPage() {
                   <div className="portfolio-resume-setup-checklist">
                     {stageSetupFields.filter(([key]) => keys.includes(key)).map(([key, label]) => {
                       const complete = currentSetupFieldsByKey.get(key)?.complete;
-                      return <span key={key} className={complete ? "is-complete" : ""}>{complete ? "✓" : "ناقص"} {label}</span>;
+                      const value = resumeSetup.values[key];
+                      return (
+                        <button type="button" key={key} className={complete ? "is-complete" : ""} onClick={() => focusResumeSetupField(key)}>
+                          {complete ? `✓ ${label}${value ? ` — ${value.slice(0, 34)}` : ""}` : `${label} — ناقصة`}
+                        </button>
+                      );
                     })}
                   </div>
                 </div>
@@ -1230,24 +1244,24 @@ export default function PortfolioBuilderPage() {
 
           <section className="portfolio-builder-panel">
             <div className="portfolio-builder-grid">
-              {stageSetupKeys.has("fullName") && <label>الاسم<input value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} placeholder="سارة أحمد" /></label>}
-              {stageSetupKeys.has("major") && <label>التخصص<select value={form.major} onChange={(event) => updateField("major", event.target.value, { immediate: true })}><option value="">اختر التخصص</option>{specializationOptions.map((specialization) => <option key={specialization.value} value={specialization.value}>{specialization.label}</option>)}<option value="أخرى">أخرى</option></select></label>}
+              {stageSetupKeys.has("fullName") && <label>الاسم<input id={getResumeSetupInputId("fullName")} value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} placeholder="سارة أحمد" /></label>}
+              {stageSetupKeys.has("major") && <label>التخصص<select id={getResumeSetupInputId("major")} value={form.major} onChange={(event) => updateField("major", event.target.value, { immediate: true })}><option value="">اختر التخصص</option>{specializationOptions.map((specialization) => <option key={specialization.value} value={specialization.value}>{specialization.label}</option>)}<option value="أخرى">أخرى</option></select></label>}
               {stageSetupKeys.has("major") && form.major === "أخرى" && <label>اكتب التخصص<input value={form.majorOther} onChange={(event) => updateField("majorOther", event.target.value)} placeholder="اسم التخصص" /></label>}
-              {stageSetupKeys.has("university") && <label>الجامعة<select value={form.university} onChange={(event) => updateField("university", event.target.value, { immediate: true })}><option value="">اختر الجامعة</option>{saudiUniversities.map((university) => <option key={university} value={university}>{university}</option>)}</select></label>}
+              {stageSetupKeys.has("university") && <label>الجامعة<select id={getResumeSetupInputId("university")} value={form.university} onChange={(event) => updateField("university", event.target.value, { immediate: true })}><option value="">اختر الجامعة</option>{saudiUniversities.map((university) => <option key={university} value={university}>{university}</option>)}</select></label>}
               {stageSetupKeys.has("university") && form.university === "أخرى" && <label>اكتب الجامعة<input value={form.universityOther} onChange={(event) => updateField("universityOther", event.target.value)} placeholder="اسم الجامعة" /></label>}
-              {stageSetupKeys.has("city") && <label>المدينة<select value={form.city} onChange={(event) => updateField("city", event.target.value, { immediate: true })}><option value="">اختر المدينة</option>{portfolioCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></label>}
+              {stageSetupKeys.has("city") && <label>المدينة<select id={getResumeSetupInputId("city")} value={form.city} onChange={(event) => updateField("city", event.target.value, { immediate: true })}><option value="">اختر المدينة</option>{portfolioCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></label>}
               {stageSetupKeys.has("city") && form.city === "أخرى" && <label>اكتب المدينة<input value={form.cityOther} onChange={(event) => updateField("cityOther", event.target.value)} placeholder="اسم المدينة" /></label>}
-              {stageSetupKeys.has("education") && <label>الدرجة أو المرحلة التعليمية<select value={form.degreeLevel} onChange={(event) => updateField("degreeLevel", event.target.value, { immediate: true })}><option value="">اختر الدرجة</option>{degreeOptions.map((degree) => <option key={degree} value={degree}>{degree}</option>)}</select></label>}
+              {stageSetupKeys.has("education") && <label>الدرجة أو المرحلة التعليمية<select id={getResumeSetupInputId("education")} value={form.degreeLevel} onChange={(event) => updateField("degreeLevel", event.target.value, { immediate: true })}><option value="">اختر الدرجة</option>{degreeOptions.map((degree) => <option key={degree} value={degree}>{degree}</option>)}</select></label>}
               {stageSetupKeys.has("education") && <label>أو الحالة التعليمية<select value={form.studentStatus} onChange={(event) => updateField("studentStatus", event.target.value, { immediate: true })}><option value="">اختر الحالة</option><option value="student">طالب/ة</option><option value="graduate">خريج/ة</option><option value="expected_graduate">متوقع/ة التخرج</option></select></label>}
               {stageSetupKeys.has("education") && form.degreeLevel === "أخرى" && <label>اكتب الدرجة<input value={form.degreeOther} onChange={(event) => updateField("degreeOther", event.target.value)} placeholder="مثال: شهادة مهنية" /></label>}
-              {stageSetupKeys.has("email") && <label>بريد التواصل<input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
-              {stageSetupKeys.has("bio") && <label className="is-wide">نبذة مهنية<textarea value={form.bio} onChange={(event) => updateField("bio", event.target.value)} placeholder="اكتب سطرين عن اهتمامك المهني وما الذي تستطيع تقديمه." /></label>}
-              {stageSetupKeys.has("skills") && <label className="is-wide">مهارة واحدة على الأقل<input value={form.skills} onChange={(event) => updateField("skills", event.target.value)} placeholder="مثال: Excel، React، تحليل بيانات" /></label>}
-              {stageSetupKeys.has("evidence") && <label className="is-wide">مشروع أو خبرة واحدة<input value={form.projects[0]?.title || ""} onChange={(event) => updateListItem("projects", 0, "title", event.target.value)} placeholder="اسم مشروع عملت عليه" /></label>}
+              {stageSetupKeys.has("email") && <label>بريد التواصل<input id={getResumeSetupInputId("email")} type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
+              {stageSetupKeys.has("bio") && <label className="is-wide">نبذة مهنية<textarea id={getResumeSetupInputId("bio")} value={form.bio} onChange={(event) => updateField("bio", event.target.value)} placeholder="اكتب سطرين عن اهتمامك المهني وما الذي تستطيع تقديمه." /></label>}
+              {stageSetupKeys.has("skills") && <label className="is-wide">مهارة واحدة على الأقل<input id={getResumeSetupInputId("skills")} value={form.skills} onChange={(event) => updateField("skills", event.target.value)} placeholder="مثال: Excel، React، تحليل بيانات" /></label>}
+              {stageSetupKeys.has("evidence") && <label className="is-wide">مشروع أو خبرة واحدة<input id={getResumeSetupInputId("evidence")} value={form.projects[0]?.title || ""} onChange={(event) => updateListItem("projects", 0, "title", event.target.value)} placeholder="اسم مشروع عملت عليه" /></label>}
             </div>
           </section>
           {message && <p className="portfolio-resume-setup-message">{message}</p>}
-          <div className="portfolio-builder-savebar"><span className={`portfolio-save-status is-${saveStatus}`}>{saveStatus === "saving" ? "جاري الحفظ..." : saveStatus === "saved" ? "تم الحفظ ✓" : saveStatus === "error" ? "تعذر الحفظ، سنحاول مرة أخرى" : ""}</span><div><button type="submit" disabled={saving || !isAuthenticated}>{saving ? "جاري الحفظ..." : "حفظ وابدأ بناء سيرتي ←"}</button></div></div>
+          <div className="portfolio-builder-savebar"><span className={`portfolio-save-status is-${saveStatus}`}>{saveStatus === "saving" ? "جاري الحفظ..." : saveStatus === "saved" ? "تم الحفظ ✓" : saveStatus === "error" ? "تعذر الحفظ، سنحاول مرة أخرى" : ""}</span><div><button type="submit" disabled={saving || !isAuthenticated}>{saving ? "جاري الحفظ..." : resumeSetup.missingCount ? "احفظ وأكمل الناقص ←" : "معلوماتي صحيحة — ابدأ بناء سيرتي ←"}</button></div></div>
         </form>
       </main>
     );
