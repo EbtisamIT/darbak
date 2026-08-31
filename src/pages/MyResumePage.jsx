@@ -113,10 +113,17 @@ const hasResumeDraftContent = (resume = {}) => {
 
 const mergeLocalResumeDraft = (serverResume = {}, localResume = {}) => {
   const mergedPersonalInfo = { ...(serverResume.personalInfo || {}) };
+  const verifiedPersonal = serverResume.verifiedResumeFacts?.personalInfo || {};
   Object.entries(localResume.personalInfo || {}).forEach(([key, value]) => {
-    if (value && value.toString().trim()) mergedPersonalInfo[key] = value;
+    // Local storage is a draft safety net, never a second source of student
+    // facts. A verified Portfolio value must win after reload.
+    if (!verifiedPersonal[key] && value && value.toString().trim()) mergedPersonalInfo[key] = value;
   });
+  const verifiedFacts = serverResume.verifiedResumeFacts || {};
   const preferLocalSection = (section) =>
+    (verifiedFacts[section] || []).length
+      ? serverResume[section] || verifiedFacts[section]
+      :
     (localResume[section] || []).some((item) => Object.values(item || {}).some(Boolean))
       ? localResume[section]
       : serverResume[section] || [];
@@ -135,7 +142,7 @@ const mergeLocalResumeDraft = (serverResume = {}, localResume = {}) => {
     languages: preferLocalSection("languages"),
     links: preferLocalSection("links"),
     skills: (localResume.skills || []).some(Boolean)
-      ? localResume.skills
+      ? (verifiedFacts.skills?.length ? serverResume.skills || verifiedFacts.skills : localResume.skills)
       : serverResume.skills || [],
     access: serverResume.access,
   });

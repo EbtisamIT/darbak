@@ -1,4 +1,5 @@
 import {
+  applyVerifiedResumeFacts,
   getEnglishReviewItems,
   getLocalizedResumeForDisplay,
 } from "./resumeLocalization";
@@ -220,5 +221,42 @@ describe("English resume presentation", () => {
       settings: { language: "ar", direction: "rtl" },
     });
     expect(localized.personalInfo.headline).toBe("خريجة إدارة أعمال");
+  });
+
+  it("uses the verified Noura facts before preview localization", () => {
+    const resume = {
+      personalInfo: {
+        university: "Imam Mohammad Ibn Saud Islamic University",
+        city: "Riyadh",
+        studentStatus: "student",
+      },
+      summary: "Graduate in Business Administration with Excel skills.",
+      projects: [{ id: "customer", title: "Customer Satisfaction Analysis", description: "" }],
+      settings: { language: "en", direction: "ltr" },
+      verifiedResumeFacts: {
+        personalInfo: {
+          fullName: "Noura Abdullah Alotaibi",
+          englishName: "Noura Abdullah Alotaibi",
+          major: "Business Administration",
+          university: "University of Jeddah",
+          city: "Jeddah",
+          degree: "Bachelor's",
+          studentStatus: "graduate",
+          graduationYear: "2026",
+          gpa: "4.35",
+          gpaScale: "5",
+        },
+        education: [{ id: "education", title: "Bachelor's", organization: "University of Jeddah", location: "Jeddah" }],
+        projects: [{ id: "customer", title: "Customer Satisfaction Analysis", description: "Analyzed customer satisfaction feedback." }],
+        experiences: [], certifications: [], volunteering: [], skills: ["Microsoft PowerPoint"], languages: [], links: [],
+      },
+    };
+    const verified = applyVerifiedResumeFacts(resume);
+    const localized = getLocalizedResumeForDisplay(resume);
+    expect(verified.personalInfo.university).toBe("University of Jeddah");
+    expect(localized.personalInfo.headline).toBe("Business Administration Graduate");
+    expect(localized.personalInfo.city).toBe("Jeddah");
+    expect(localized.projects[0].description).toBe("Analyzed customer satisfaction feedback.");
+    expect(localized.summary).not.toMatch(/[\u0600-\u06FF]/);
   });
 });

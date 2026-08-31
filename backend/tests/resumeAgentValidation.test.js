@@ -5,7 +5,7 @@ const {
   filterConfirmedQuestions,
   isDeferredTailorQuestion,
 } = require("../agents/darbakResumeAgent");
-const { assertTranslationIntegrity, mapDraftToResumePayload } = require("../services/resumeAiService");
+const { assertEnglishSummaryIntegrity, assertTranslationIntegrity, mapDraftToResumePayload } = require("../services/resumeAiService");
 const { hasCompleteApplicationPack } = require("../services/applicationPackIntegrity");
 
 const baseFacts = {
@@ -135,6 +135,17 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
   assert.ok(!/Student/.test(mapped.summary));
   assert.ok(/Graduate/.test(mapped.summary));
   assert.ok(mapped.skills.includes("Microsoft PowerPoint"));
+}
+
+{
+  assert.doesNotThrow(() => assertEnglishSummaryIntegrity({
+    personalInfo: { studentStatus: "graduate" },
+    summary: "Graduate in Business Administration with Excel skills.",
+  }));
+  assert.throws(() => assertEnglishSummaryIntegrity({
+    personalInfo: { studentStatus: "graduate" },
+    summary: "طالبة في Business Administration.",
+  }), /اتساق نبذة النسخة الإنجليزية/);
 }
 
 {

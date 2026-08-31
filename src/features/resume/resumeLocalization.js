@@ -251,7 +251,49 @@ const derivedArabicHeadline = (personal = {}) => {
   return `${feminine ? "متخصصة" : masculine ? "متخصص" : "متخصص/ة"} في ${major}`;
 };
 
+// The API attaches this read-only snapshot after resolving Portfolio facts.
+// Preview and PDF both enter through this module, so a stale editor/local draft
+// cannot replace university, status, education, or project source content.
+export const applyVerifiedResumeFacts = (resume = {}) => {
+  const facts = resume.verifiedResumeFacts;
+  if (!facts) return resume;
+  const language = resume.settings?.language === "en" ? "en" : "ar";
+  const personalInfo = { ...(resume.personalInfo || {}), ...(facts.personalInfo || {}) };
+  const composeEntries = (section) => {
+    const verified = facts[section] || [];
+    if (!verified.length) return resume[section] || [];
+    const current = new Map((resume[section] || []).map((entry) => [entry?.id, entry]));
+    return verified.map((fact) => {
+      const presentation = current.get(fact.id) || {};
+      const description = language === "en"
+        ? presentation.description || presentation.details || fact.description
+        : fact.description;
+      return {
+        ...fact,
+        description,
+        details: description,
+        achievements: presentation.achievements?.length ? presentation.achievements : fact.achievements,
+      };
+    });
+  };
+  const experiences = composeEntries("experiences");
+  return {
+    ...resume,
+    personalInfo,
+    education: composeEntries("education"),
+    experiences,
+    experience: experiences,
+    projects: composeEntries("projects"),
+    certifications: composeEntries("certifications"),
+    volunteering: composeEntries("volunteering"),
+    skills: facts.skills?.length ? facts.skills : resume.skills || [],
+    languages: facts.languages?.length ? facts.languages : resume.languages || [],
+    links: facts.links?.length ? facts.links : resume.links || [],
+  };
+};
+
 export const getEnglishReviewItems = (resume = {}) => {
+  resume = applyVerifiedResumeFacts(resume);
   if (resume.settings?.language !== "en") return [];
   const localized = {
     ...buildEnglishLocalizedDisplay(resume),
@@ -336,6 +378,7 @@ export const getEnglishReviewItems = (resume = {}) => {
 };
 
 export const getLocalizedResumeForDisplay = (resume = {}) => {
+  resume = applyVerifiedResumeFacts(resume);
   if (resume.settings?.language !== "en") {
     const personal = resume.personalInfo || {};
     const headline = derivedArabicHeadline(personal);

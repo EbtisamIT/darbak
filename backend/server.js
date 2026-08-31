@@ -53,6 +53,7 @@ const { compareResumeToJob } = require("./services/resumeMatchService");
 const { hasCompleteApplicationPack } = require("./services/applicationPackIntegrity");
 const {
   mapPortfolioToResumePayload: mapPortfolioToResumeHydration,
+  composeCanonicalResume,
   hydrateResumeFromPortfolio,
 } = require("./services/resumePortfolioHydration");
 const { normalizeResumeSkills } = require("./services/resumeSkillNormalization");
@@ -6717,6 +6718,7 @@ const serializeResume = (resume = {}, access = {}) => {
   return {
     _id: resume._id?.toString?.() || "",
     personalInfo: resume.personalInfo || {},
+    verifiedResumeFacts: resume.verifiedResumeFacts || null,
     summary: resume.summary || "",
     education: resume.education || [],
     experiences: resume.experiences || resume.experience || [],
@@ -7250,7 +7252,11 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     frontendUrl: getFrontendUrl(),
     sectionOrder: RESUME_SECTION_KEYS,
   });
-  const baseResume = currentResume || fallbackResume || {};
+  const baseResume = composeCanonicalResume(currentResume || fallbackResume || {}, portfolio || {}, access.contact, {
+    frontendUrl: getFrontendUrl(),
+    sectionOrder: RESUME_SECTION_KEYS,
+    language,
+  });
   const parsedDraft = tailoredResumeDraftSchema.safeParse(pendingDraft.draft).success
     ? tailoredResumeDraftSchema.parse(pendingDraft.draft)
     : resumeDraftSchema.parse(pendingDraft.draft);
@@ -7262,11 +7268,15 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     { preserveIdentity: pendingDraft.draftType === "tailored_resume" }
   );
 
-  return sanitizeResumePayload({
+  return sanitizeResumePayload(composeCanonicalResume({
     ...mappedPayload,
     sectionOrder: baseResume.sectionOrder || RESUME_SECTION_KEYS,
     hiddenSections: baseResume.hiddenSections || [],
-  });
+  }, portfolio || {}, access.contact, {
+    frontendUrl: getFrontendUrl(),
+    sectionOrder: RESUME_SECTION_KEYS,
+    language,
+  }));
 };
 
 const buildApplicationEmail = ({ resume = {}, job = {}, trainingPeriod = "", targetField = "" }) => {
@@ -7458,7 +7468,10 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
       }
     }
 
-    const enrichedResume = resume || hydration.resume;
+    const enrichedResume = composeCanonicalResume(resume || hydration.resume, portfolio || {}, contact, {
+      frontendUrl: getFrontendUrl(),
+      sectionOrder: RESUME_SECTION_KEYS,
+    });
 
     res.json({
       exists: Boolean(resume),
@@ -7476,7 +7489,11 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
 app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
   try {
     const { contact, accessCodeHash, user } = req.darbakAccess;
-    const payload = sanitizeResumePayload(req.body);
+    const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
+    const payload = sanitizeResumePayload(composeCanonicalResume(sanitizeResumePayload(req.body), portfolio || {}, contact, {
+      frontendUrl: getFrontendUrl(),
+      sectionOrder: RESUME_SECTION_KEYS,
+    }));
     // A master resume is never converted by a translation action. English lives
     // exclusively in ResumeTailoredVersion with variantType: translation.
     payload.settings = { ...payload.settings, language: "ar", direction: "rtl" };
@@ -8195,24 +8212,23 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
       return res.status(404).json({ error: "النسخة غير موجودة." });
     }
 
-    // Translation versions own presentation only. Read immutable identity facts
-    // from their master to repair stale versions created before Portfolio sync.
-    const masterResume = version.variantType === "translation" && version.baseResumeId
-      ? await ResumeProfile.findOne({
-          _id: version.baseResumeId,
-          contact: req.darbakAccess.contact,
-          accessCodeHash: req.darbakAccess.accessCodeHash,
-        }).lean()
-      : null;
-    const immutablePersonalKeys = [
-      "fullName", "email", "phone", "city", "major", "university", "degree",
-      "studentStatus", "grammaticalGender", "graduationYear", "gpa", "gpaScale",
-      "linkedinUrl", "portfolioUrl", "githubUrl", "personalUrl",
-    ];
-    const synchronizedPersonal = immutablePersonalKeys.reduce(
-      (next, key) => masterResume?.personalInfo?.[key] ? { ...next, [key]: masterResume.personalInfo[key] } : next,
-      { ...(version.resumePayload?.personalInfo || {}) },
+    const portfolio = await getPortfolioForAccess({
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+    });
+    // Versions own presentation only. Recompose immutable facts from Portfolio
+    // for both translations and tailored versions before anything reaches UI.
+    const composedVersionPayload = composeCanonicalResume(
+      version.resumePayload || {},
+      portfolio || {},
+      req.darbakAccess.contact,
+      {
+        frontendUrl: getFrontendUrl(),
+        sectionOrder: RESUME_SECTION_KEYS,
+        language: version.language || version.resumePayload?.settings?.language || "ar",
+      },
     );
+    const synchronizedPersonal = composedVersionPayload.personalInfo || {};
     const existingLocalizedDisplay = version.resumePayload?.localizedDisplay || {};
     const {
       headline: _staleHeadline,
@@ -8223,10 +8239,10 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
     } = existingLocalizedDisplay.personalInfo || {};
     const recoveredLocalizedDisplay =
       version.variantType === "translation" && version.language === "en"
-        ? buildEnglishLocalizedDisplay({ ...(version.resumePayload || {}), personalInfo: synchronizedPersonal })
+        ? buildEnglishLocalizedDisplay({ ...composedVersionPayload, personalInfo: synchronizedPersonal })
         : {};
     const versionPayload = {
-      ...(version.resumePayload || {}),
+      ...composedVersionPayload,
       personalInfo: synchronizedPersonal,
       localizedDisplay: {
         ...recoveredLocalizedDisplay,
@@ -8289,7 +8305,15 @@ app.put('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
       variantType: "translation",
     });
     if (!version) return res.status(404).json({ error: "النسخة الإنجليزية غير موجودة." });
-    const payload = sanitizeResumePayload(req.body);
+    const portfolio = await getPortfolioForAccess({
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+    });
+    const payload = sanitizeResumePayload(composeCanonicalResume(sanitizeResumePayload(req.body), portfolio || {}, req.darbakAccess.contact, {
+      frontendUrl: getFrontendUrl(),
+      sectionOrder: RESUME_SECTION_KEYS,
+      language: "en",
+    }));
     if (payload.settings?.language !== "en") {
       return res.status(400).json({ error: "يجب أن تبقى هذه النسخة باللغة الإنجليزية." });
     }
@@ -8587,13 +8611,22 @@ app.post('/api/resume/ai/tailor', requireResumeAccess, async (req, res) => {
     }
 
     const language = req.body.language === "en" ? "en" : "ar";
-    const baseResume = await getResumeForAccess({
+    const storedResume = await getResumeForAccess({
       contact: req.darbakAccess.contact,
       accessCodeHash: req.darbakAccess.accessCodeHash,
     });
-    if (!baseResume) {
+    if (!storedResume) {
       return res.status(400).json({ error: "احفظ السيرة الأساسية أولًا قبل إنشاء النسخة الإنجليزية." });
     }
+    const portfolio = await getPortfolioForAccess({
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+    });
+    const baseResume = composeCanonicalResume(storedResume, portfolio || {}, req.darbakAccess.contact, {
+      frontendUrl: getFrontendUrl(),
+      sectionOrder: RESUME_SECTION_KEYS,
+      language: "ar",
+    });
 
     const result = await tailorResumeToOpportunity({
       resume: sanitizeResumeLooseTree(baseResume || {}),
@@ -8677,13 +8710,22 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       });
     }
 
-    const baseResume = await getResumeForAccess({
+    const storedResume = await getResumeForAccess({
       contact: req.darbakAccess.contact,
       accessCodeHash: req.darbakAccess.accessCodeHash,
     });
-    if (!baseResume) {
+    if (!storedResume) {
       return res.status(400).json({ error: "احفظ السيرة الأساسية أولًا قبل إنشاء النسخة الإنجليزية." });
     }
+    const portfolio = await getPortfolioForAccess({
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+    });
+    const baseResume = composeCanonicalResume(storedResume, portfolio || {}, req.darbakAccess.contact, {
+      frontendUrl: getFrontendUrl(),
+      sectionOrder: RESUME_SECTION_KEYS,
+      language: "ar",
+    });
 
     // Translate a complete, normalized copy of the master resume. The resulting
     // payload intentionally has the exact shape consumed by the builder and preview.
@@ -8693,14 +8735,18 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       resume: basePayload,
       userKey: req.darbakAccess.user?._id?.toString?.() || req.darbakAccess.contact,
     });
-    const translatedPayload = sanitizeResumePayload({
+    const translatedPayload = sanitizeResumePayload(composeCanonicalResume({
       ...result.data,
       settings: {
         ...(result.data.settings || {}),
         language: "en",
         direction: "ltr",
       },
-    });
+    }, portfolio || {}, req.darbakAccess.contact, {
+      frontendUrl: getFrontendUrl(),
+      sectionOrder: RESUME_SECTION_KEYS,
+      language: "en",
+    }));
     const localizedDisplay = buildEnglishLocalizedDisplay(translatedPayload);
     translatedPayload.localizedDisplay = localizedDisplay;
     const version = await ResumeTailoredVersion.findOneAndUpdate(

@@ -451,6 +451,18 @@ const assertTranslationIntegrity = (source, translated) => {
   }
 };
 
+const assertEnglishSummaryIntegrity = (resume = {}) => {
+  const summary = String(resume.summary || "").trim();
+  const status = resume.personalInfo?.studentStatus || "";
+  if (/[؀-ۿ]/.test(summary) ||
+    (status === "graduate" && /\bstudent\b/i.test(summary)) ||
+    (status === "student" && /\bgraduate\b/i.test(summary))) {
+    const error = new Error("تعذر التحقق من اتساق نبذة النسخة الإنجليزية.");
+    error.code = "RESUME_TRANSLATION_SUMMARY_INVALID";
+    throw error;
+  }
+};
+
 const escapeResumeHtml = (text = "") =>
   text
     .toString()
@@ -551,6 +563,7 @@ You translate only the provided resume text snippets into formal, practical, err
     throw error;
   }
   assertTranslationIntegrity(resume, merged.resume);
+  assertEnglishSummaryIntegrity(merged.resume);
 
   return { ...result, data: merged.resume, translatedCount: merged.appliedCount };
 };
@@ -828,5 +841,6 @@ module.exports = {
   tailorResumeToOpportunity,
   translateResumeToEnglish,
   assertTranslationIntegrity,
+  assertEnglishSummaryIntegrity,
   tailoredResumeDraftSchema,
 };

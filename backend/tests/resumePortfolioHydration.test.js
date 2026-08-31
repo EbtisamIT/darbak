@@ -1,6 +1,8 @@
 const assert = require("assert");
 const {
   mapPortfolioToResumePayload,
+  buildVerifiedResumeFacts,
+  composeCanonicalResume,
   hydrateResumeFromPortfolio,
 } = require("../services/resumePortfolioHydration");
 
@@ -47,6 +49,43 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.deepStrictEqual(result.resume.skills, ["React.js", "UI/UX"]);
   assert.strictEqual(result.resume.education[0].endDate, "2027");
   assert.strictEqual(result.resume.education[0].isCurrent, false);
+}
+
+// Noura acceptance: verified Portfolio facts always win over a stale local or
+// legacy ResumeProfile, while the summary remains presentation.
+{
+  const nouraPortfolio = {
+    ...portfolio,
+    _id: "noura-portfolio",
+    fullName: "Noura Abdullah Alotaibi",
+    major: "Business Administration",
+    university: "University of Jeddah",
+    city: "Jeddah",
+    degreeLevel: "Bachelor's",
+    studentStatus: "graduate",
+    graduationYear: "2026",
+    gpa: "4.35",
+    gpaScale: "5",
+    projects: [{ title: "Customer Satisfaction Analysis", description: "Analyzed customer satisfaction feedback." }],
+  };
+  const verified = buildVerifiedResumeFacts(nouraPortfolio, "noura@example.com");
+  const composed = composeCanonicalResume({
+    personalInfo: {
+      university: "Imam Mohammad Ibn Saud Islamic University",
+      city: "Riyadh",
+      studentStatus: "student",
+      major: "Business Administration",
+    },
+    summary: "Presentation text stays editable.",
+    projects: [{ id: verified.projects[0].id, title: "Customer Satisfaction Analysis", description: "" }],
+    settings: { language: "ar" },
+  }, nouraPortfolio, "noura@example.com");
+  assert.strictEqual(composed.personalInfo.university, "University of Jeddah");
+  assert.strictEqual(composed.personalInfo.city, "Jeddah");
+  assert.strictEqual(composed.personalInfo.studentStatus, "graduate");
+  assert.strictEqual(composed.personalInfo.headline, "خريج/ة Business Administration");
+  assert.strictEqual(composed.summary, "Presentation text stays editable.");
+  assert.strictEqual(composed.projects[0].description, "Analyzed customer satisfaction feedback.");
 }
 
 // Case G: a legacy education item with no year is completed from Portfolio,

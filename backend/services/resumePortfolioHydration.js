@@ -7,6 +7,28 @@ const cleanText = (value = "", maxLength = 900) =>
 
 const { normalizeResumeSkills } = require("./resumeSkillNormalization");
 
+// These values are student facts, not resume presentation. Portfolio owns them
+// whenever it has a verified value; ResumeProfile only keeps a materialized
+// copy for compatibility with the existing resume APIs.
+const PROTECTED_PERSONAL_FACT_KEYS = [
+  "fullName",
+  "email",
+  "phone",
+  "city",
+  "major",
+  "university",
+  "degree",
+  "studentStatus",
+  "grammaticalGender",
+  "graduationYear",
+  "gpa",
+  "gpaScale",
+  "linkedinUrl",
+  "githubUrl",
+  "personalUrl",
+  "portfolioUrl",
+];
+
 const escapeHtml = (value = "") =>
   value
     .toString()
@@ -118,7 +140,6 @@ const buildPortfolioHeadline = (portfolio = {}) => {
   };
   const stage = cleanText(portfolio.degreeLevel, 120);
   if (!major) return "";
-  if (portfolio.professionalHeadline?.trim()) return cleanText(portfolio.professionalHeadline, 140);
   if (statusLabels[portfolio.studentStatus]) {
     return `${statusLabels[portfolio.studentStatus][portfolio.grammaticalGender] || statusLabels[portfolio.studentStatus].neutral} ${major}`;
   }
@@ -225,6 +246,90 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
   };
 };
 
+const buildVerifiedResumeFacts = (portfolio = {}, contact = "", options = {}) => {
+  const payload = mapPortfolioToResumePayload(portfolio, contact, options);
+  return {
+    personalInfo: payload.personalInfo,
+    education: payload.education,
+    experiences: payload.experiences,
+    projects: payload.projects,
+    certifications: payload.certifications,
+    volunteering: payload.volunteering,
+    languages: payload.languages,
+    links: payload.links,
+    skills: payload.skills,
+  };
+};
+
+const orderVerifiedEntries = (verifiedEntries = [], presentationEntries = []) => {
+  const order = new Map(
+    (Array.isArray(presentationEntries) ? presentationEntries : [])
+      .map((entry, index) => [entry?.id, index])
+      .filter(([id]) => Boolean(id))
+  );
+  return [...verifiedEntries].sort(
+    (left, right) => (order.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+  );
+};
+
+const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", options = {}) => {
+  const verifiedResumeFacts = buildVerifiedResumeFacts(portfolio, contact, options);
+  // Existing users without a Portfolio keep their existing resume intact. Once
+  // the Portfolio has a fact, that verified fact wins over stale resume copies.
+  const hasVerifiedPortfolio = Boolean(portfolio?._id);
+  if (!hasVerifiedPortfolio) return { ...resume, verifiedResumeFacts: null };
+
+  const language = options.language || resume.settings?.language || "ar";
+  const personalInfo = { ...(resume.personalInfo || {}) };
+  PROTECTED_PERSONAL_FACT_KEYS.forEach((key) => {
+    const value = verifiedResumeFacts.personalInfo?.[key];
+    if (hasValue(value)) personalInfo[key] = value;
+  });
+  // The headline is always derived from verified facts. English display is
+  // localized on the client from these same facts.
+  personalInfo.headline = buildPortfolioHeadline(portfolio);
+
+  const composeEntries = (section) => {
+    const verified = verifiedResumeFacts[section] || [];
+    if (!verified.length) return resume[section] || [];
+    const presentation = Array.isArray(resume[section]) ? resume[section] : [];
+    const byId = new Map(presentation.map((entry) => [entry?.id, entry]));
+    return orderVerifiedEntries(verified, presentation).map((factEntry) => {
+      const display = byId.get(factEntry.id) || {};
+      // Translation/tailoring may own wording and bullets, but never the
+      // identity of the entry. For Arabic master resumes retain the verified
+      // Portfolio description so an AI omission cannot erase it.
+      const translatedDescription = language === "en"
+        ? (display.description || display.details || factEntry.description)
+        : factEntry.description;
+      return {
+        ...factEntry,
+        description: translatedDescription,
+        details: translatedDescription,
+        achievements: Array.isArray(display.achievements) && display.achievements.length
+          ? display.achievements
+          : factEntry.achievements,
+      };
+    });
+  };
+
+  const experiences = composeEntries("experiences");
+  return {
+    ...resume,
+    personalInfo,
+    education: composeEntries("education"),
+    experiences,
+    experience: experiences,
+    projects: composeEntries("projects"),
+    certifications: composeEntries("certifications"),
+    volunteering: composeEntries("volunteering"),
+    languages: verifiedResumeFacts.languages?.length ? verifiedResumeFacts.languages : resume.languages || [],
+    links: verifiedResumeFacts.links?.length ? verifiedResumeFacts.links : resume.links || [],
+    skills: verifiedResumeFacts.skills?.length ? verifiedResumeFacts.skills : resume.skills || [],
+    verifiedResumeFacts,
+  };
+};
+
 const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
   if (!resume) return { resume: portfolioResume, patch: portfolioResume, changed: true };
 
@@ -272,4 +377,10 @@ const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
   return { resume: hydrated, patch, changed: Object.keys(patch).length > 0 };
 };
 
-module.exports = { mapPortfolioToResumePayload, hydrateResumeFromPortfolio };
+module.exports = {
+  PROTECTED_PERSONAL_FACT_KEYS,
+  mapPortfolioToResumePayload,
+  buildVerifiedResumeFacts,
+  composeCanonicalResume,
+  hydrateResumeFromPortfolio,
+};
