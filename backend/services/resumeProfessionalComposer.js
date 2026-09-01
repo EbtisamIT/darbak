@@ -10,12 +10,26 @@ const isEnglish = (language) => language === "en";
 
 const QUALITY_RULE_SECTIONS = {
   summary_missing: ["summary"],
-  professional_context_copied_as_summary: ["summary"],
-  generic_summary: ["summary"],
   english_language_mixing: ["summary", "experiences", "projects"],
   unsupported_skill: ["skills"],
   experience_identity_conflict: ["experiences"],
 };
+
+const HARD_QUALITY_RULES = new Set([
+  "summary_missing",
+  "english_language_mixing",
+  "unsupported_skill",
+  "experience_identity_conflict",
+]);
+
+const AUTO_FIXED_QUALITY_RULES = new Set([
+  "headline_conflict",
+]);
+
+const SOFT_QUALITY_RULES = new Set([
+  "professional_context_copied_as_summary",
+  "generic_summary",
+]);
 
 const getQualityFailureSections = (errors = []) => {
   const sections = new Set();
@@ -124,7 +138,7 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
 };
 
 const runProfessionalQualityGate = ({ draft = {}, verifiedFacts = {}, language = "ar" } = {}) => {
-  const errors = [];
+  const detectedRules = [];
   const safeDraft = draft && typeof draft === "object" ? draft : {};
   const safeFacts = verifiedFacts && typeof verifiedFacts === "object" ? verifiedFacts : {};
   const summary = safeText(safeDraft.professionalSummary, 900);
@@ -136,31 +150,38 @@ const runProfessionalQualityGate = ({ draft = {}, verifiedFacts = {}, language =
   const verifiedProjects = objectList(safeFacts.projects);
   const verifiedExperiences = objectList(safeFacts.experiences);
   const verifiedSkills = normalizeResumeSkills(list(safeFacts.skills));
-  if (!summary) errors.push("summary_missing");
-  if (professionalContext && summary.toLocaleLowerCase() === professionalContext.toLocaleLowerCase()) errors.push("professional_context_copied_as_summary");
-  if (GENERIC_SUMMARY.test(summary)) errors.push("generic_summary");
-  if (safeText(safeDraft.targetTitle, 180) !== expectedHeadline) errors.push("headline_conflict");
-  if (isEnglish(language) && [summary, safeDraft.targetTitle, ...experiences.flatMap((entry) => list(entry.bullets)), ...projects.flatMap((entry) => list(entry.bullets))].some((text) => ARABIC_CHARACTERS.test(text || ""))) errors.push("english_language_mixing");
+  if (!summary) detectedRules.push("summary_missing");
+  if (professionalContext && summary.toLocaleLowerCase() === professionalContext.toLocaleLowerCase()) detectedRules.push("professional_context_copied_as_summary");
+  if (GENERIC_SUMMARY.test(summary)) detectedRules.push("generic_summary");
+  if (safeText(safeDraft.targetTitle, 180) !== expectedHeadline) detectedRules.push("headline_conflict");
+  if (isEnglish(language) && [summary, safeDraft.targetTitle, ...experiences.flatMap((entry) => list(entry.bullets)), ...projects.flatMap((entry) => list(entry.bullets))].some((text) => ARABIC_CHARACTERS.test(text || ""))) detectedRules.push("english_language_mixing");
   const verifiedSkillSet = new Set(verifiedSkills.map((skill) => skill.toLowerCase()));
   skills.forEach((skill) => {
-    if (!verifiedSkillSet.has(safeText(skill.name, 80).toLowerCase())) errors.push("unsupported_skill");
+    if (!verifiedSkillSet.has(safeText(skill.name, 80).toLowerCase())) detectedRules.push("unsupported_skill");
   });
   verifiedProjects.forEach((project) => {
-    if (safeText(project.description) && !projects.some((item) => safeText(item.name).toLowerCase() === safeText(project.title).toLowerCase() && list(item.bullets).length)) errors.push(`project_missing_bullet:${project.id}`);
+    if (safeText(project.description) && !projects.some((item) => safeText(item.name).toLowerCase() === safeText(project.title).toLowerCase() && list(item.bullets).length)) detectedRules.push(`project_missing_bullet:${project.id}`);
   });
   const verifiedExperienceIds = new Set(verifiedExperiences.map((entry) => entry.id));
   experiences.forEach((entry) => {
-    if (entry.sourceId && !verifiedExperienceIds.has(entry.sourceId)) errors.push("experience_identity_conflict");
+    if (entry.sourceId && !verifiedExperienceIds.has(entry.sourceId)) detectedRules.push("experience_identity_conflict");
   });
+  const hardErrors = detectedRules.filter((rule) =>
+    HARD_QUALITY_RULES.has(rule) || rule.startsWith("project_missing_bullet:")
+  );
+  const autoFixes = detectedRules.filter((rule) => AUTO_FIXED_QUALITY_RULES.has(rule));
+  const warnings = detectedRules.filter((rule) => SOFT_QUALITY_RULES.has(rule));
   return {
-    unsupportedClaims: errors.filter((error) => /unsupported|identity/.test(error)),
-    genericSummary: errors.includes("generic_summary"),
-    statusConflict: errors.includes("headline_conflict"),
-    languageMixing: errors.includes("english_language_mixing"),
-    emptyImportantSections: errors.filter((error) => /missing|project_missing/.test(error)),
-    needsRepair: errors.length > 0,
-    errors,
-    failedSections: getQualityFailureSections(errors),
+    unsupportedClaims: hardErrors.filter((error) => /unsupported|identity/.test(error)),
+    genericSummary: warnings.includes("generic_summary"),
+    statusConflict: false,
+    languageMixing: hardErrors.includes("english_language_mixing"),
+    emptyImportantSections: hardErrors.filter((error) => /missing|project_missing/.test(error)),
+    needsRepair: hardErrors.length > 0,
+    errors: hardErrors,
+    warnings,
+    autoFixes,
+    failedSections: getQualityFailureSections(hardErrors),
   };
 };
 

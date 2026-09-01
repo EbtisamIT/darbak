@@ -3,6 +3,7 @@ const {
   resumeAgentOutputSchema,
   buildGenerationCacheKey,
   getReusableDraftOutput,
+  markAgentOutputCacheRejected,
   buildAgentStageError,
   getRepairSectionForQuality,
   mergeQualityRepair,
@@ -66,6 +67,9 @@ const key = buildGenerationCacheKey({ session, verifiedResumeFacts, collectedFac
 session.collectedFacts.agentOutputCache = { key, output: parsed.data };
 assert.strictEqual(getReusableDraftOutput(session, key)?.status, "draft_ready", "a valid model output is reusable after a later composer failure");
 assert.strictEqual(getReusableDraftOutput(session, `${key}-changed`), null, "changed facts or answers invalidate the cache");
+assert.strictEqual(markAgentOutputCacheRejected(session, key), true, "a rejected draft cache is marked unusable");
+assert.strictEqual(getReusableDraftOutput(session, key), null, "a rejected draft is never reused on retry");
+session.collectedFacts.agentOutputCache = { key, output: parsed.data };
 
 const malformed = resumeAgentOutputSchema.safeParse({ status: "draft_ready", draft: { bad: true } });
 assert.strictEqual(malformed.success, false, "malformed model output is rejected without a corrupt draft");
@@ -137,13 +141,14 @@ assert.strictEqual(
   "a repaired draft replaces the reusable cache so refresh does not call the model again"
 );
 const summaryOnlyQuality = {
-  needsRepair: true,
-  errors: ["generic_summary"],
+  needsRepair: false,
+  errors: [],
+  warnings: ["generic_summary"],
 };
 assert.strictEqual(
   getRepairSectionForQuality({ quality: summaryOnlyQuality, draft, language: "en" }),
-  "summary",
-  "a summary-only quality failure requests only a summary repair"
+  "",
+  "a generic summary is a warning and does not trigger an extra AI repair"
 );
 assert.strictEqual(
   mergeQualityRepair({

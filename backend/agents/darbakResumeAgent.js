@@ -1538,10 +1538,25 @@ const buildGenerationCacheKey = ({ session = {}, verifiedResumeFacts = {}, colle
 
 const getReusableDraftOutput = (session = {}, cacheKey = "") => {
   const cached = session.collectedFacts?.agentOutputCache;
-  if (!cached || cached.key !== cacheKey) return null;
+  if (!cached || cached.key !== cacheKey || cached.rejected) return null;
   const parsed = resumeAgentOutputSchema.safeParse(cached.output);
   if (!parsed.success || !["draft_ready", "tailored_draft_ready"].includes(parsed.data.status)) return null;
   return parsed.data;
+};
+
+const markAgentOutputCacheRejected = (session = {}, cacheKey = "") => {
+  const cached = session.collectedFacts?.agentOutputCache;
+  if (!cached || cached.key !== cacheKey) return false;
+  session.collectedFacts = {
+    ...(session.collectedFacts || {}),
+    agentOutputCache: {
+      ...cached,
+      rejected: true,
+      rejectedAt: new Date().toISOString(),
+    },
+  };
+  if (typeof session.markModified === "function") session.markModified("collectedFacts");
+  return true;
 };
 
 const buildAgentStageError = (stage, error, trace = {}) => {
@@ -1882,6 +1897,16 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       validationStatus: validationResult,
     };
     if (!validationResult.valid || quality.needsRepair) {
+      // The raw model response was cached before deterministic validation. A
+      // rejected draft must never be reused on retry, otherwise the student is
+      // trapped in the same quality-gate failure without a new generation.
+      if (quality.needsRepair && markAgentOutputCacheRejected(session, generationCacheKey)) {
+        try {
+          await session.save();
+        } catch (error) {
+          throw buildAgentStageError("cache_invalidation", error, trace);
+        }
+      }
       filteredOutput = {
         ...filteredOutput,
         status: "cannot_continue",
@@ -1943,6 +1968,7 @@ module.exports = {
   buildGenerationCacheKey,
   getAccessQuery,
   getReusableDraftOutput,
+  markAgentOutputCacheRejected,
   buildAgentStageError,
   getRepairSectionForQuality,
   mergeQualityRepair,

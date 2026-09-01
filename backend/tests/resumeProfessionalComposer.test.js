@@ -75,7 +75,23 @@ const copiedContext = runProfessionalQualityGate({
   verifiedFacts: facts,
   language: "ar",
 });
-assert.strictEqual(copiedContext.needsRepair, true);
+assert.strictEqual(copiedContext.needsRepair, false, "a weak copied context is a warning, not a blocked resume");
+assert.deepStrictEqual(copiedContext.warnings, ["professional_context_copied_as_summary"]);
+
+const headlineConflict = runProfessionalQualityGate({
+  draft: { ...composed, targetTitle: "Intern" },
+  verifiedFacts: facts,
+  language: "en",
+});
+assert.strictEqual(headlineConflict.needsRepair, false, "headline conflicts are corrected by the deterministic composer");
+assert.deepStrictEqual(headlineConflict.autoFixes, ["headline_conflict"]);
+
+const unsupportedSkill = runProfessionalQualityGate({
+  draft: { ...composed, skills: [...composed.skills, { name: "Invented Skill" }] },
+  verifiedFacts: facts,
+  language: "en",
+});
+assert.strictEqual(unsupportedSkill.needsRepair, true, "an unsupported skill remains a safe hard failure");
 
 const resilientQuality = runProfessionalQualityGate({
   draft: { ...composed, projects: [...composed.projects, null], experiences: [...composed.experiences, null], skills: [...composed.skills, null] },
