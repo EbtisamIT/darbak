@@ -603,6 +603,45 @@ const filterConfirmedQuestions = (output = {}, facts = {}) => {
   return { ...output, questions };
 };
 
+const getFallbackMissingQuestion = (facts = {}) => {
+  const answers = new Set(
+    (facts.answers || [])
+      .map((answer) => normalizeComparable(answer.fieldKey || answer.questionId || answer.id || ""))
+      .filter(Boolean)
+  );
+  const projects = [...(facts.profile?.projects || []), ...(facts.resume?.projects || [])];
+  const projectWithoutDescription = projects.find((project) =>
+    !safeText(project.description || project.details || project.summary, 1600)
+  );
+
+  if (projectWithoutDescription && !answers.has("project_description")) {
+    return {
+      id: "project_description",
+      fieldKey: "project_description",
+      section: "projects",
+      question: `اكتب وصفًا مختصرًا لمشروع ${safeString(projectWithoutDescription.title || projectWithoutDescription.name, 120) || "هذا"}.`,
+      whyNeeded: "نستخدمه لتحويل المشروع إلى نقاط مهنية دقيقة دون افتراض معلومات.",
+      inputType: "textarea",
+      options: [],
+    };
+  }
+
+  return null;
+};
+
+const ensureActionableNeedsInformation = (output = {}, facts = {}) => {
+  if (output.status !== "needs_information" || (output.questions || []).length) return output;
+  const fallbackQuestion = getFallbackMissingQuestion(facts);
+  if (fallbackQuestion) return { ...output, questions: [fallbackQuestion] };
+
+  return {
+    ...output,
+    status: "cannot_continue",
+    message: "نحتاج تحديد المعلومة الناقصة بدقة قبل متابعة بناء السيرة.",
+    warnings: [...(output.warnings || []), "AGENT_NEEDS_INFORMATION_WITHOUT_FIELD_KEY"].slice(0, 20),
+  };
+};
+
 const isDeferredTailorQuestion = (question = {}) => {
   const text = normalizeComparable(`${question.section || ""} ${question.question || ""} ${question.whyNeeded || ""}`);
   return [
@@ -1473,7 +1512,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
 
   let output = resumeAgentOutputSchema.parse(result.finalOutput);
   const facts = await loadFactsForContext(context);
-  let filteredOutput = filterConfirmedQuestions(output, facts);
+  let filteredOutput = ensureActionableNeedsInformation(filterConfirmedQuestions(output, facts), facts);
   if (["draft_ready", "tailored_draft_ready"].includes(filteredOutput.status) && filteredOutput.draft) {
     const composedDraft = composeProfessionalDraft({
       draft: filteredOutput.draft,
@@ -1529,6 +1568,7 @@ module.exports = {
   resumeAgentOutputSchema,
   collectFacts,
   filterConfirmedQuestions,
+  ensureActionableNeedsInformation,
   isDeferredTailorQuestion,
   runDarbakResumeAgent,
   validateResumeClaims,

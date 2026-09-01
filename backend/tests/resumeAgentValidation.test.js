@@ -3,6 +3,7 @@ const {
   collectFacts,
   validateResumeClaims,
   filterConfirmedQuestions,
+  ensureActionableNeedsInformation,
   isDeferredTailorQuestion,
 } = require("../agents/darbakResumeAgent");
 const { assertEnglishSummaryIntegrity, assertTranslationIntegrity, mapDraftToResumePayload } = require("../services/resumeAiService");
@@ -208,6 +209,36 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
     }
   );
   assert.deepStrictEqual(filtered.questions, []);
+}
+
+{
+  // A needs-information response must always leave the student with an
+  // answerable field. A project can exist while its description is genuinely
+  // absent, so section-level deduplication must not leave an empty question UI.
+  const actionable = ensureActionableNeedsInformation(
+    {
+      status: "needs_information",
+      message: "أحتاج وصفًا مختصرًا للمشروع.",
+      questions: [],
+    },
+    {
+      profile: { projects: [{ title: "بوابة الطلاب", description: "" }] },
+      resume: {},
+      sources: [],
+      answers: [],
+    }
+  );
+  assert.strictEqual(actionable.status, "needs_information");
+  assert.strictEqual(actionable.questions.length, 1);
+  assert.strictEqual(actionable.questions[0].fieldKey, "project_description");
+}
+
+{
+  const blocked = ensureActionableNeedsInformation(
+    { status: "needs_information", questions: [] },
+    { profile: {}, resume: {}, sources: [], answers: [] }
+  );
+  assert.strictEqual(blocked.status, "cannot_continue");
 }
 
 {
