@@ -497,6 +497,88 @@ const mapOpportunityToFacts = (opportunity = null) => {
   };
 };
 
+// A mismatch between a student's major and an opportunity's explicitly listed
+// majors is an eligibility signal for the student to review. It is not a
+// resume-integrity error: tailoring may still safely emphasize verified,
+// transferable evidence.
+const MAJOR_FAMILIES = {
+  computing: [
+    "computer science",
+    "علوم الحاسب",
+    "علوم الحاسوب",
+    "تقنية المعلومات",
+    "information technology",
+    "نظم المعلومات",
+    "information systems",
+    "هندسة البرمجيات",
+    "software engineering",
+    "الحاسب والتقنية",
+    "computing",
+  ],
+  business: [
+    "business administration",
+    "ادارة الاعمال",
+    "إدارة الأعمال",
+    "accounting",
+    "المحاسبة",
+    "finance",
+    "التمويل",
+    "marketing",
+    "التسويق",
+    "human resources",
+    "الموارد البشرية",
+    "المالية والادارية",
+    "المالية والإدارية",
+  ],
+};
+
+const getMajorFamilies = (major = "") => {
+  const comparable = normalizeComparable(major);
+  if (!comparable) return [];
+  return Object.entries(MAJOR_FAMILIES)
+    .filter(([, values]) => values.some((value) => {
+      const normalizedValue = normalizeComparable(value);
+      return comparable.includes(normalizedValue) || normalizedValue.includes(comparable);
+    }))
+    .map(([family]) => family);
+};
+
+const opportunityMajorRequirementsArePreferredOnly = (opportunity = {}) => {
+  const text = normalizeComparable([opportunity.requirements, opportunity.description].filter(Boolean).join(" "));
+  if (!text) return false;
+  const preferred = /يفضل|مفضل|preferred/.test(text);
+  const required = /يشترط|مطلوب|التخصصات المطلوبه|required|must/.test(text);
+  return preferred && !required;
+};
+
+const getTailoringEligibilityWarnings = (facts = {}) => {
+  const opportunity = facts.opportunity || {};
+  const candidateMajor = safeString(facts.profile?.major || facts.resume?.personalInfo?.major, 160);
+  const listedMajors = Array.from(new Set([
+    ...(opportunity.majorCategories || []),
+    ...(opportunity.specialties || []),
+  ].map((major) => safeString(major, 160)).filter(Boolean)));
+
+  if (!candidateMajor || !listedMajors.length || opportunityMajorRequirementsArePreferredOnly(opportunity)) return [];
+
+  const candidateComparable = normalizeComparable(candidateMajor);
+  const candidateFamilies = getMajorFamilies(candidateMajor);
+  const matchesListedMajor = listedMajors.some((listedMajor) => {
+    const listedComparable = normalizeComparable(listedMajor);
+    if (!listedComparable) return false;
+    if (candidateComparable.includes(listedComparable) || listedComparable.includes(candidateComparable)) return true;
+    const listedFamilies = getMajorFamilies(listedMajor);
+    return listedFamilies.some((family) => candidateFamilies.includes(family));
+  });
+
+  return matchesListedMajor
+    ? []
+    : [{
+        code: "specialization_mismatch",
+        message: "هذه الفرصة تحدد تخصصات لا تشمل تخصصك الحالي. نقدر نجهز تقديمك بالاعتماد على مهاراتك وخبراتك الحقيقية، لكن تحقق من شروط الأهلية قبل الإرسال.",
+      }];
+};
+
 const extractNumbers = (text = "") =>
   new Set(
     (safeText(text, MAX_FACT_TEXT_LENGTH).match(/[\d٠-٩]+(?:[.,][\d٠-٩]+)?%?/g) || []).map(
@@ -1407,7 +1489,7 @@ professionalContext، إن وُجد، هو كلام الطالب العادي ع
 * أنشئ نسخة جديدة عند تخصيص السيرة لفرصة، ولا تستبدل السيرة الأساسية.
 * عند التخصيص، متطلبات الإعلان هي سياق للمطابقة وليست حقائق عن الطالب: لا تنقل الجنسية أو المعدل أو حالة التخرج أو استحقاق التدريب إلى السيرة.
 * لا تستخدم مسمى الفرصة أو تخصصها لتغيير headline الطالب أو تخصصه أو أدواره أو جهاته أو تواريخه. أبقِ هذه القيم من الملف المهني والسيرة فقط.
-* استخدم متطلبات الفرصة فقط لترتيب الحقائق المثبتة، وإبراز المشاريع والمهارات المرتبطة، وتحسين النبذة والنقاط. إذا كان التخصص مختلفًا، اذكره كفجوة في التوافق ولا تعالجه بتغيير هوية الطالب.
+* استخدم متطلبات الفرصة فقط لترتيب الحقائق المثبتة، وإبراز المشاريع والمهارات المرتبطة، وتحسين النبذة والنقاط. إذا كان التخصص مختلفًا، لا تغيّر هوية الطالب ولا تحوّل ذلك إلى سبب لإيقاف المسودة أو إلى claim عن أهليته؛ الخادم يعرض تنبيه الأهلية عند وجود شرط تخصص صريح.
 * تنطبق قاعدة الحقائق أيضًا على النبذة المهنية: لا تصف الطالب بأنه طالب/خريج أو مؤهل للتدريب، ولا تذكر معدله أو جنسيته أو حالة تخرجه إلا إذا ظهرت تلك الحقيقة صراحة في بياناته أو إجابة موثقة منه.
 * عند task=tailor_resume افصل العمل إلى ثلاث طبقات: (أ) السيرة المخصصة تُنشأ مباشرة من facts الطالب؛ (ب) الجنسية، المعدل، أهلية التدريب، والجهة التعليمية المعتمدة تُسجل فقط ضمن missingInformation كـ«متطلب يحتاج منك التأكد» ولا تُسأل عنها ولا توقف المسودة؛ (ج) فترة التدريب وتاريخ البداية وتفاصيل الإيميل أو الخطاب ليست ضمن السيرة، فلا تسأل عنها في هذا المسار.
 * في task=tailor_resume لا تعد status=needs_information بسبب شرط في الإعلان أو تفصيل تقديم. اسأل فقط عن Fact طالب ضروري لادعاء تريد كتابته داخل السيرة ولا يوجد له دليل، وإلا أنشئ المسودة من البيانات المتاحة.
@@ -1830,6 +1912,9 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
   try {
     facts = await loadFactsForContext(context);
     filteredOutput = ensureActionableNeedsInformation(filterConfirmedQuestions(output, facts), facts);
+    if (session.purpose === "tailor_resume") {
+      filteredOutput.eligibilityWarnings = getTailoringEligibilityWarnings(facts);
+    }
   } catch (error) {
     throw buildAgentStageError("facts_loading", error, trace);
   }
@@ -2068,4 +2153,5 @@ module.exports = {
   createAgentInstructions,
   runDarbakResumeAgent,
   validateResumeClaims,
+  getTailoringEligibilityWarnings,
 };

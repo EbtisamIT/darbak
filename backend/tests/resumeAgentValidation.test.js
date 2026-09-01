@@ -5,6 +5,7 @@ const {
   filterConfirmedQuestions,
   ensureActionableNeedsInformation,
   isDeferredTailorQuestion,
+  getTailoringEligibilityWarnings,
 } = require("../agents/darbakResumeAgent");
 const {
   assertEnglishSummaryIntegrity,
@@ -451,6 +452,75 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
   assert.deepStrictEqual(tailored.projects.map((item) => item.id), ["project-darbak", "project-other"]);
   assert.ok(tailored.summary.includes("تقنية المعلومات"));
   assert.ok(!tailored.summary.includes("طالبة"));
+}
+
+{
+  // An explicit major requirement is an eligibility warning, not a resume
+  // integrity failure. A CS student can still prepare an honest application.
+  const warnings = getTailoringEligibilityWarnings({
+    profile: { major: "Computer Science" },
+    opportunity: {
+      majorCategories: ["Business Administration", "Accounting"],
+      requirements: "التخصصات المطلوبة: إدارة الأعمال أو المحاسبة.",
+    },
+  });
+  assert.deepStrictEqual(warnings.map((warning) => warning.code), ["specialization_mismatch"]);
+  const result = validateResumeClaims({
+    draft: validDraft,
+    facts: { ...baseFacts, profile: { major: "Computer Science", studentStatus: "student" } },
+    sourceMap: validSourceMap,
+    purpose: "tailor_resume",
+  });
+  assert.strictEqual(result.valid, true, result.errors.join("\n"));
+}
+
+{
+  // A generic administrative context does not assert a required major and
+  // must therefore continue without a specialization warning.
+  const warnings = getTailoringEligibilityWarnings({
+    profile: { major: "Computer Science" },
+    opportunity: {
+      description: "فرصة تدريب في الأعمال الإدارية ودعم العمليات.",
+      requirements: "يفضل وجود اهتمام بالتنسيق الإداري.",
+    },
+  });
+  assert.deepStrictEqual(warnings, []);
+}
+
+{
+  // Opportunity requirements never make an unverified skill eligible for the
+  // student's tailored resume.
+  const draft = clone(validDraft);
+  draft.skills.push({ name: "Microsoft Excel", evidenceSourceId: "resume_project_1" });
+  const result = validateResumeClaims({
+    draft,
+    facts: {
+      ...baseFacts,
+      profile: { major: "Computer Science" },
+      opportunityText: "تتطلب الفرصة Microsoft Excel.",
+    },
+    sourceMap: validSourceMap,
+    purpose: "tailor_resume",
+  });
+  assert.strictEqual(result.valid, false);
+  assert.ok(result.errors.some((error) => error.includes("Microsoft Excel")));
+}
+
+{
+  // A transferable verified project remains valid even when the required
+  // major belongs to a different field.
+  const warnings = getTailoringEligibilityWarnings({
+    profile: { major: "Computer Science" },
+    opportunity: { specialties: ["Business Administration"] },
+  });
+  assert.strictEqual(warnings[0].code, "specialization_mismatch");
+  const result = validateResumeClaims({
+    draft: validDraft,
+    facts: { ...baseFacts, profile: { major: "Computer Science", studentStatus: "student" } },
+    sourceMap: validSourceMap,
+    purpose: "tailor_resume",
+  });
+  assert.strictEqual(result.valid, true, result.errors.join("\n"));
 }
 
 {

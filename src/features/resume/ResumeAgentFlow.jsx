@@ -605,6 +605,15 @@ const ResumeAgentFlow = ({
             </div>}
 
             <div className="resume-agent-insights">
+              {isTailored && output.eligibilityWarnings?.length > 0 && (
+                <div className="resume-agent-eligibility-warning" role="status">
+                  <strong>راجعي شروط الأهلية قبل الإرسال</strong>
+                  {output.eligibilityWarnings.map((warning, index) => (
+                    <p key={`eligibility-warning-${warning.code || index}`}>{warning.message}</p>
+                  ))}
+                  <small>يمكنك متابعة التخصيص أو العودة للفرصة.</small>
+                </div>
+              )}
               {output.changesSummary?.length > 0 && (
                 <div>
                   <strong>ما الذي رتبه الوكيل؟</strong>
