@@ -7367,7 +7367,10 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     baseResume,
     { basic: baseResume.personalInfo || {} },
     sanitizeResumeAgentLanguage(language || baseResume.settings?.language),
-    { preserveIdentity: pendingDraft.draftType === "tailored_resume" }
+    {
+      preserveIdentity: pendingDraft.draftType === "tailored_resume",
+      tailoringRelevance: pendingDraft.validationResult?.tailoringRelevance || "medium",
+    }
   );
 
   return sanitizeResumePayload(composeCanonicalResume({

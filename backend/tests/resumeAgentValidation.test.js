@@ -6,6 +6,7 @@ const {
   ensureActionableNeedsInformation,
   isDeferredTailorQuestion,
   getTailoringEligibilityWarnings,
+  getTailoringRelevanceStrength,
 } = require("../agents/darbakResumeAgent");
 const {
   assertEnglishSummaryIntegrity,
@@ -450,8 +451,7 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
   assert.strictEqual(tailored.personalInfo.major, masterResume.personalInfo.major);
   assert.deepStrictEqual(tailored.skills, ["Figma", "React.js", "UI/UX"]);
   assert.deepStrictEqual(tailored.projects.map((item) => item.id), ["project-darbak", "project-other"]);
-  assert.ok(tailored.summary.includes("تقنية المعلومات"));
-  assert.ok(!tailored.summary.includes("طالبة"));
+  assert.strictEqual(tailored.summary, NITC_TARGET_DRAFT.professionalSummary);
 }
 
 {
@@ -521,6 +521,86 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
     purpose: "tailor_resume",
   });
   assert.strictEqual(result.valid, true, result.errors.join("\n"));
+}
+
+{
+  // A low-relevance specialization mismatch keeps the approved master as the
+  // quality floor. Tailoring can still reorder verified content, but it must
+  // not replace it with the legacy generic administrative summary.
+  const masterResume = {
+    personalInfo: { fullName: "سارة", major: "علوم الحاسب", headline: "طالبة علوم حاسب" },
+    summary: "طالبة علوم حاسب لديها خبرة تطبيقية في تطوير تطبيقات الويب من خلال مشاريع موثقة.",
+    education: [{ id: "edu-1", title: "بكالوريوس", organization: "جامعة الملك سعود" }],
+    experiences: [{ id: "experience-1", title: "مطورة واجهات", organization: "فريق طلابي", achievements: [{ id: "a-1", text: "طورت واجهات لنظام متابعة الطلبات." }] }],
+    projects: [{ id: "project-1", title: "نظام متابعة التدريب", achievements: [{ id: "p-1", text: "بنيت واجهة لمتابعة طلبات التدريب." }] }],
+    skills: ["React.js", "JavaScript", "Git"],
+    settings: { language: "ar", direction: "rtl" },
+  };
+  const mismatchFacts = {
+    profile: { major: "Computer Science", skills: ["React.js", "JavaScript", "Git"] },
+    resume: { skills: ["React.js", "JavaScript", "Git"], projects: [{ title: "نظام متابعة التدريب" }] },
+    opportunity: { majorCategories: ["Business Administration"], requirements: "التخصصات المطلوبة: إدارة الأعمال." },
+    opportunityText: "فرصة إدارية تتطلب تخصص إدارة الأعمال وتنظيم العمليات.",
+  };
+  assert.strictEqual(getTailoringRelevanceStrength(mismatchFacts), "low");
+  const tailored = mapDraftToResumePayload({
+    targetTitle: "",
+    professionalSummary: "خلفية أكاديمية في علوم الحاسب. تشمل المهارات React.js. تتضمن الخبرات العملية مشروعًا تقنيًا.",
+    education: [],
+    experiences: [],
+    projects: [],
+    skills: [],
+    certifications: [],
+    volunteering: [],
+    languages: [],
+    missingInformation: [],
+    warnings: [],
+    missingRequirements: [],
+  }, masterResume, { basic: masterResume.personalInfo }, "ar", {
+    preserveIdentity: true,
+    tailoringRelevance: "low",
+  });
+  assert.strictEqual(tailored.summary, masterResume.summary);
+  assert.ok(tailored.summary.includes("تطوير تطبيقات الويب"));
+  assert.ok(!tailored.summary.includes("خلفية أكاديمية"));
+  assert.deepStrictEqual(tailored.skills, masterResume.skills);
+  assert.strictEqual(tailored.experiences[0].achievements[0].text, "طورت واجهات لنظام متابعة الطلبات.");
+  assert.ok(!tailored.skills.includes("Microsoft Excel"));
+}
+
+{
+  // A software opportunity with two verified skill matches can use a focused
+  // professional tailored summary while retaining the candidate's identity.
+  const softwareFacts = {
+    profile: { major: "Computer Science", skills: ["React.js", "JavaScript", "Git"] },
+    resume: { skills: ["React.js", "JavaScript", "Git"] },
+    opportunityText: "برنامج تطوير برمجيات باستخدام React.js و JavaScript.",
+  };
+  assert.strictEqual(getTailoringRelevanceStrength(softwareFacts), "high");
+  const masterResume = {
+    personalInfo: { fullName: "سارة", major: "علوم الحاسب", headline: "طالبة علوم حاسب" },
+    summary: "ملخص السيرة الأساسية.",
+    education: [], experiences: [], projects: [], skills: ["React.js", "JavaScript"], settings: { language: "ar", direction: "rtl" },
+  };
+  const tailored = mapDraftToResumePayload({
+    targetTitle: "",
+    professionalSummary: "طالبة علوم حاسب تركز على تطوير واجهات الويب من خلال مشاريع موثقة.",
+    education: [],
+    experiences: [],
+    projects: [],
+    skills: [],
+    certifications: [],
+    volunteering: [],
+    languages: [],
+    missingInformation: [],
+    warnings: [],
+    missingRequirements: [],
+  }, masterResume, { basic: masterResume.personalInfo }, "ar", {
+    preserveIdentity: true,
+    tailoringRelevance: "high",
+  });
+  assert.strictEqual(tailored.summary, "طالبة علوم حاسب تركز على تطوير واجهات الويب من خلال مشاريع موثقة.");
+  assert.strictEqual(tailored.personalInfo.major, "علوم الحاسب");
 }
 
 {

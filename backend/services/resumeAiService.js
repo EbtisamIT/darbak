@@ -696,7 +696,20 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
   const personal = rawInput?.basic || rawInput?.personalInfo || {};
   const educationRaw = rawInput?.education || {};
   const resumeLanguage = language === "en" ? "en" : "ar";
-  const approvedPresentationSummary = options.preserveIdentity ? "" : draft.professionalSummary;
+  const isLegacyTailoredSummary = (value = "") =>
+    /خلفية أكاديمية(?: في| ضمن)|تشمل المهارات|تتضمن الخبرات العملية/u.test(String(value || ""));
+  const masterSummary = String(baseResume.summary || "").trim();
+  const draftSummary = String(draft.professionalSummary || "").trim();
+  const tailoringRelevance = options.tailoringRelevance || "medium";
+  const approvedPresentationSummary = options.preserveIdentity
+    ? (
+      tailoringRelevance === "low" && masterSummary && !isLegacyTailoredSummary(masterSummary)
+        ? masterSummary
+        : draftSummary && !isLegacyTailoredSummary(draftSummary)
+          ? draftSummary
+          : masterSummary || draftSummary
+    )
+    : draftSummary;
 
   const personalInfo = {
     ...(baseResume.personalInfo || {}),
@@ -832,7 +845,10 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
   // An approved agent draft owns presentation wording. Facts remain
   // deterministic above, but never overwrite the reviewed summary with the
   // older fact-derived fallback during mapping or a later save.
-  payload.summary = approvedPresentationSummary || buildFactGroundedSummary({ personal: payload.personalInfo, resume: payload, language: resumeLanguage }) || baseResume.summary || "";
+  const fallbackSummary = options.preserveIdentity
+    ? masterSummary || buildFactGroundedSummary({ personal: payload.personalInfo, resume: payload, language: resumeLanguage })
+    : buildFactGroundedSummary({ personal: payload.personalInfo, resume: payload, language: resumeLanguage }) || masterSummary;
+  payload.summary = approvedPresentationSummary || fallbackSummary || "";
   // A tailored resume is presentation-only: student identity and immutable
   // employment/education facts always come from the master resume.
   if (options.preserveIdentity) {
@@ -847,7 +863,7 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
     payload.languages = baseResume.languages || [];
   }
   payload.skills = normalizeResumeSkills(payload.skills);
-  payload.summary = approvedPresentationSummary || buildFactGroundedSummary({ personal: payload.personalInfo, resume: payload, language: resumeLanguage }) || payload.summary;
+  payload.summary = approvedPresentationSummary || payload.summary || fallbackSummary || "";
   return payload;
 };
 

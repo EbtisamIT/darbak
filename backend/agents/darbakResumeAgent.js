@@ -579,6 +579,43 @@ const getTailoringEligibilityWarnings = (facts = {}) => {
       }];
 };
 
+// Tailoring may reorder and frame verified evidence, but it should not replace
+// a strong master presentation when the opportunity has little in common with
+// the student's confirmed background. This intentionally uses only student
+// facts, never requirements from the opportunity as candidate evidence.
+const getTailoringRelevanceStrength = (facts = {}) => {
+  const opportunityText = normalizeComparable(facts.opportunityText || "");
+  if (!opportunityText) return "medium";
+
+  const candidateSkills = [
+    ...(Array.isArray(facts.profile?.skills) ? facts.profile.skills : []),
+    ...(Array.isArray(facts.resume?.skills) ? facts.resume.skills : []),
+  ]
+    .map((skill) => normalizeComparable(typeof skill === "string" ? skill : skill?.name || skill?.title || ""))
+    .filter((skill) => skill.length >= 3);
+  const candidateEvidence = normalizeComparable(JSON.stringify({
+    profile: facts.profile || {},
+    resume: facts.resume || {},
+    answers: facts.answers || [],
+  }));
+  const skillMatches = candidateSkills.filter((skill) => opportunityText.includes(skill));
+  const transferableTerms = [
+    "analysis", "تحليل", "reports", "reporting", "تقارير", "organize", "organized", "تنظيم",
+    "coordination", "coordinate", "تنسيق", "follow up", "متابعة", "systems", "system", "نظام",
+    "data", "بيانات", "excel", "power bi", "project management", "ادارة المشاريع", "إدارة المشاريع",
+  ];
+  const transferableMatches = transferableTerms.filter((term) => {
+    const normalizedTerm = normalizeComparable(term);
+    return normalizedTerm.length >= 3 && opportunityText.includes(normalizedTerm) && candidateEvidence.includes(normalizedTerm);
+  });
+  const evidenceScore = new Set([...skillMatches, ...transferableMatches]).size;
+  if (evidenceScore >= 2) return "high";
+  if (evidenceScore === 1) return "medium";
+  return getTailoringEligibilityWarnings(facts).some((warning) => warning.code === "specialization_mismatch")
+    ? "low"
+    : "medium";
+};
+
 const extractNumbers = (text = "") =>
   new Set(
     (safeText(text, MAX_FACT_TEXT_LENGTH).match(/[\d٠-٩]+(?:[.,][\d٠-٩]+)?%?/g) || []).map(
@@ -1909,11 +1946,13 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
 
   let facts;
   let filteredOutput;
+  let tailoringRelevance = "";
   try {
     facts = await loadFactsForContext(context);
     filteredOutput = ensureActionableNeedsInformation(filterConfirmedQuestions(output, facts), facts);
     if (session.purpose === "tailor_resume") {
       filteredOutput.eligibilityWarnings = getTailoringEligibilityWarnings(facts);
+      tailoringRelevance = getTailoringRelevanceStrength(facts);
     }
   } catch (error) {
     throw buildAgentStageError("facts_loading", error, trace);
@@ -2058,8 +2097,12 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       ...filteredOutput,
       draft: composedDraft,
       quality,
-      validationStatus: validationResult,
+      validationStatus: {
+        ...validationResult,
+        ...(tailoringRelevance ? { tailoringRelevance } : {}),
+      },
     };
+    if (tailoringRelevance) validationResult.tailoringRelevance = tailoringRelevance;
     if (!validationResult.valid) {
       trace.qualityFailureRules = Array.from(new Set([
         ...trace.qualityFailureRules,
@@ -2154,4 +2197,5 @@ module.exports = {
   runDarbakResumeAgent,
   validateResumeClaims,
   getTailoringEligibilityWarnings,
+  getTailoringRelevanceStrength,
 };
