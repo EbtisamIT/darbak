@@ -117,17 +117,23 @@ const preserveProjectDescription = (project = {}, verifiedProject = {}) => {
 
 const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "ar" } = {}) => {
   const personalInfo = verifiedFacts.personalInfo || {};
-  const experiences = list(draft.experiences).map((entry) => {
-    const fact = matchFact(entry, list(verifiedFacts.experiences));
-    return fact ? {
+  // Experience identity belongs to the student's verified facts. The agent
+  // may improve bullets, but it may not omit or replace a fact the student
+  // entered in their professional profile.
+  const experiences = list(verifiedFacts.experiences).map((fact) => {
+    const entry = list(draft.experiences).find((candidate) => matchFact(candidate, [fact])) || {};
+    const sourceBullets = list(entry.bullets).map((bullet) => safeText(bullet, 300)).filter(Boolean);
+    const fallbackBullet = safeText(fact.description, 300);
+    return {
       ...entry,
       sourceId: fact.id,
       title: fact.title,
       organization: fact.organization,
       dates: fact.period,
       location: fact.location,
-    } : null;
-  }).filter(Boolean);
+      bullets: sourceBullets.length ? sourceBullets : (fallbackBullet ? [fallbackBullet] : []),
+    };
+  });
   const projects = list(draft.projects).map((entry) => {
     const fact = matchFact(entry, list(verifiedFacts.projects)) || {};
     const allowedTechnologies = new Set(normalizeResumeSkills(list(verifiedFacts.skills)).map((skill) => skill.toLowerCase()));
