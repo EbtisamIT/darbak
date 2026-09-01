@@ -8621,6 +8621,16 @@ body {
   font-size: 13px;
 }
 
+.resume-dashboard-master-card button.is-review {
+  border: 1px solid rgba(242, 200, 121, 0.5);
+  background: rgba(242, 200, 121, 0.1);
+  color: #f2c879;
+}
+
+.resume-dashboard-master-card button.is-review:hover {
+  background: rgba(242, 200, 121, 0.16);
+}
+
 .resume-dashboard-list-head {
   margin-top: 14px;
 }
