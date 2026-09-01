@@ -49,6 +49,18 @@ const composed = composeProfessionalDraft({
 
 assert.strictEqual(composed.targetTitle, "Information Technology Graduate");
 assert.strictEqual(composed.experiences[0].organization, "Example Co");
+assert.strictEqual(
+  composeProfessionalDraft({
+    language: "en",
+    verifiedFacts: facts,
+    draft: {
+      ...composed,
+      experiences: [{ sourceId: "unknown-experience", title: "Unverified role", organization: "Unknown Co", dates: "", location: "", bullets: [] }],
+    },
+  }).experiences.length,
+  0,
+  "an experience that cannot be tied to verified facts is omitted instead of blocking the draft"
+);
 assert.deepStrictEqual(composed.projects[0].bullets, ["Built a portal to organize student requests."]);
 assert.deepStrictEqual(composed.skills.map((skill) => skill.name), ["React.js", "GitHub"]);
 assert.strictEqual(composed.education[0].organization, "University of Jeddah");

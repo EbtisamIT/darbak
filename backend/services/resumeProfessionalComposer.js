@@ -126,8 +126,8 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
       organization: fact.organization,
       dates: fact.period,
       location: fact.location,
-    } : entry;
-  });
+    } : null;
+  }).filter(Boolean);
   const projects = list(draft.projects).map((entry) => {
     const fact = matchFact(entry, list(verifiedFacts.projects)) || {};
     const allowedTechnologies = new Set(normalizeResumeSkills(list(verifiedFacts.skills)).map((skill) => skill.toLowerCase()));
