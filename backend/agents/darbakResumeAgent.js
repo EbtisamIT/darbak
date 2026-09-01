@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const mongoose = require("mongoose");
 const { Agent, run, tool, setSensitiveDataLoggingEnabled } = require("@openai/agents");
 const { z } = require("zod");
@@ -24,6 +25,7 @@ const DEFAULT_MAX_TURNS = 6;
 const MAX_ANSWER_LENGTH = 1600;
 const MAX_FACT_TEXT_LENGTH = 22000;
 const PENDING_DRAFT_TTL_MS = 48 * 60 * 60 * 1000;
+const RESUME_AGENT_MAX_OUTPUT_TOKENS = 6000;
 
 const questionSchema = z
   .object({
@@ -97,8 +99,10 @@ const sourceMapEntrySchema = z
 
 const sourceMapSchema = z.array(sourceMapEntrySchema).max(120).default([]);
 const applicationPackSchema = z.object({
-  trainingLetter: z.object({ body: z.string().max(2200).default(""), status: z.enum(["ready", "needs_input", "unavailable"]).default("ready") }).strict(),
-  email: z.object({ subject: z.string().max(220).default(""), body: z.string().max(1600).default(""), status: z.enum(["ready", "needs_input", "unavailable"]).default("ready") }).strict(),
+  // A base-resume run has no application pack. Keep the same structured
+  // contract while accepting the empty object the model correctly returns.
+  trainingLetter: z.object({ body: z.string().max(2200).default(""), status: z.enum(["ready", "needs_input", "unavailable"]).default("ready") }).strict().default({ body: "", status: "ready" }),
+  email: z.object({ subject: z.string().max(220).default(""), body: z.string().max(1600).default(""), status: z.enum(["ready", "needs_input", "unavailable"]).default("ready") }).strict().default({ subject: "", body: "", status: "ready" }),
   missingApplicationFields: z.array(z.object({ key: z.string().max(80), label: z.string().max(160), appliesTo: z.enum(["trainingLetter", "email"]) }).strict()).max(6).default([]),
 }).strict().default({ trainingLetter: { body: "", status: "ready" }, email: { subject: "", body: "", status: "ready" }, missingApplicationFields: [] });
 
@@ -1365,6 +1369,12 @@ const createDarbakResumeAgent = () =>
   new Agent({
     name: "Darbak Resume Agent",
     model: process.env.OPENAI_RESUME_AGENT_MODEL || DEFAULT_RESUME_AGENT_MODEL,
+    // Full structured drafts are materially larger than a missing-information
+    // response. Give the model a bounded, explicit output budget so a valid
+    // draft is not cut off after the student answers the final question.
+    modelSettings: {
+      maxTokens: RESUME_AGENT_MAX_OUTPUT_TOKENS,
+    },
     instructions: createAgentInstructions(),
     tools: [],
     outputType: resumeAgentOutputSchema,
@@ -1418,6 +1428,59 @@ const summarizeRunUsage = (result = {}, startedAt = Date.now()) => {
     toolsUsed: Array.from(new Set(toolsUsed)),
     durationMs: Date.now() - startedAt,
   };
+};
+
+const buildGenerationCacheKey = ({ session = {}, verifiedResumeFacts = {}, collectedFacts = {} } = {}) => {
+  const answersByField = new Map();
+  safeArray(collectedFacts.answers, 40, (answer) => ({
+    fieldKey: safeString(answer.fieldKey || answer.questionId || answer.id, 90),
+    answer: safeText(answer.answer || answer.value, MAX_ANSWER_LENGTH),
+  })).forEach((answer) => {
+    if (answer.fieldKey) answersByField.set(answer.fieldKey, answer.answer);
+  });
+  const payload = JSON.stringify({
+    purpose: session.purpose,
+    language: session.language,
+    verifiedResumeFacts,
+    answers: Array.from(answersByField.entries()).sort(([a], [b]) => a.localeCompare(b)),
+  });
+  return crypto.createHash("sha256").update(payload).digest("hex");
+};
+
+const getReusableDraftOutput = (session = {}, cacheKey = "") => {
+  const cached = session.collectedFacts?.agentOutputCache;
+  if (!cached || cached.key !== cacheKey) return null;
+  const parsed = resumeAgentOutputSchema.safeParse(cached.output);
+  if (!parsed.success || !["draft_ready", "tailored_draft_ready"].includes(parsed.data.status)) return null;
+  return parsed.data;
+};
+
+const buildAgentStageError = (stage, error, trace = {}) => {
+  const wrapped = error instanceof Error ? error : new Error("Resume agent failed");
+  const isStructuredOutputError =
+    wrapped.name === "ZodError" ||
+    wrapped.name === "ModelBehaviorError" ||
+    /structured output|json schema|output.*parse|parse.*output/i.test(wrapped.message || "");
+  if (!wrapped.code && !wrapped.status) {
+    wrapped.code = isStructuredOutputError
+      ? "INVALID_AGENT_RESPONSE"
+      : wrapped.name === "APIConnectionError"
+        ? "AGENT_UNAVAILABLE"
+        : "GENERATION_FAILED";
+  }
+  wrapped.resumeAgentTrace = {
+    stage,
+    modelCallStarted: Boolean(trace.modelCallStarted),
+    modelCallSucceeded: Boolean(trace.modelCallSucceeded),
+    structuredOutputValid: Boolean(trace.structuredOutputValid),
+    composerCompleted: Boolean(trace.composerCompleted),
+    qualityGateCompleted: Boolean(trace.qualityGateCompleted),
+    saveCompleted: Boolean(trace.saveCompleted),
+    reusedModelOutput: Boolean(trace.reusedModelOutput),
+    turns: Number(trace.turns || 0),
+    toolCalls: Number(trace.toolCalls || 0),
+  };
+  return wrapped;
 };
 
 const buildDeterministicSourceMap = (draft = {}, facts = {}) => {
@@ -1507,32 +1570,104 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     buildVerifiedResumeFacts(profile || {}, access?.contact || ""),
     collectedFacts.answers
   );
-  let result = await run(agent, buildAgentInput({ session, answers, verifiedResumeFacts }), {
-    context,
-    maxTurns: 1,
+  const generationCacheKey = buildGenerationCacheKey({
+    session,
+    verifiedResumeFacts,
+    collectedFacts,
   });
+  const trace = {
+    modelCallStarted: false,
+    modelCallSucceeded: false,
+    structuredOutputValid: false,
+    composerCompleted: false,
+    qualityGateCompleted: false,
+    saveCompleted: false,
+    reusedModelOutput: false,
+    turns: 0,
+    toolCalls: 0,
+  };
+  let result = null;
+  let output = getReusableDraftOutput(session, generationCacheKey);
 
-  let output = resumeAgentOutputSchema.parse(result.finalOutput);
-  const facts = await loadFactsForContext(context);
-  let filteredOutput = ensureActionableNeedsInformation(filterConfirmedQuestions(output, facts), facts);
+  if (output) {
+    trace.modelCallSucceeded = true;
+    trace.structuredOutputValid = true;
+    trace.reusedModelOutput = true;
+  } else {
+    try {
+      trace.modelCallStarted = true;
+      result = await run(agent, buildAgentInput({ session, answers, verifiedResumeFacts }), {
+        context,
+        maxTurns: 1,
+      });
+      trace.modelCallSucceeded = true;
+      trace.turns = summarizeRunUsage(result, startedAt).turns;
+      trace.toolCalls = summarizeRunUsage(result, startedAt).toolCalls;
+    } catch (error) {
+      throw buildAgentStageError("terra_call", error, trace);
+    }
+
+    try {
+      output = resumeAgentOutputSchema.parse(result.finalOutput);
+      trace.structuredOutputValid = true;
+    } catch (error) {
+      throw buildAgentStageError("structured_output", error, trace);
+    }
+
+    if (["draft_ready", "tailored_draft_ready"].includes(output.status) && output.draft) {
+      try {
+        session.collectedFacts = {
+          ...(session.collectedFacts || {}),
+          agentOutputCache: {
+            key: generationCacheKey,
+            output,
+            createdAt: new Date().toISOString(),
+          },
+        };
+        if (typeof session.markModified === "function") session.markModified("collectedFacts");
+        await session.save();
+      } catch (error) {
+        throw buildAgentStageError("cache_save", error, trace);
+      }
+    }
+  }
+
+  let facts;
+  let filteredOutput;
+  try {
+    facts = await loadFactsForContext(context);
+    filteredOutput = ensureActionableNeedsInformation(filterConfirmedQuestions(output, facts), facts);
+  } catch (error) {
+    throw buildAgentStageError("facts_loading", error, trace);
+  }
   if (["draft_ready", "tailored_draft_ready"].includes(filteredOutput.status) && filteredOutput.draft) {
-    const composedDraft = composeProfessionalDraft({
-      draft: filteredOutput.draft,
-      verifiedFacts: verifiedResumeFacts,
-      language: session.language,
-    });
-    const sourceMap = buildDeterministicSourceMap(composedDraft, facts);
-    const validationResult = validateResumeClaims({
-      draft: composedDraft,
-      facts,
-      sourceMap,
-      purpose: session.purpose,
-    });
-    const quality = runProfessionalQualityGate({
-      draft: composedDraft,
-      verifiedFacts,
-      language: session.language,
-    });
+    let composedDraft;
+    let sourceMap;
+    let validationResult;
+    let quality;
+    try {
+      composedDraft = composeProfessionalDraft({
+        draft: filteredOutput.draft,
+        verifiedFacts: verifiedResumeFacts,
+        language: session.language,
+      });
+      sourceMap = buildDeterministicSourceMap(composedDraft, facts);
+      validationResult = validateResumeClaims({
+        draft: composedDraft,
+        facts,
+        sourceMap,
+        purpose: session.purpose,
+      });
+      trace.composerCompleted = true;
+      quality = runProfessionalQualityGate({
+        draft: composedDraft,
+        verifiedFacts,
+        language: session.language,
+      });
+      trace.qualityGateCompleted = true;
+    } catch (error) {
+      throw buildAgentStageError("composer_or_quality_gate", error, trace);
+    }
     filteredOutput = {
       ...filteredOutput,
       draft: composedDraft,
@@ -1548,20 +1683,37 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
         pendingDraftId: "",
       };
     } else {
-      filteredOutput.pendingDraftId = await persistProfessionalDraft({
-        context,
-        draft: composedDraft,
-        sourceMap,
-        validationResult,
-        changesSummary: filteredOutput.changesSummary,
-        applicationPack: filteredOutput.applicationPack,
-      });
+      try {
+        filteredOutput.pendingDraftId = await persistProfessionalDraft({
+          context,
+          draft: composedDraft,
+          sourceMap,
+          validationResult,
+          changesSummary: filteredOutput.changesSummary,
+          applicationPack: filteredOutput.applicationPack,
+        });
+        trace.saveCompleted = true;
+      } catch (error) {
+        throw buildAgentStageError("draft_persistence", error, trace);
+      }
     }
   }
   return {
     output: withStableQuestionKeys(filteredOutput),
-    lastResponseId: result.lastResponseId || "",
-    usage: summarizeRunUsage(result, startedAt),
+    lastResponseId: result?.lastResponseId || session.lastResponseId || "",
+    usage: result
+      ? summarizeRunUsage(result, startedAt)
+      : {
+          model: session.usage?.model || "",
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          durationMs: Date.now() - startedAt,
+          toolsUsed: [],
+          turns: 0,
+          toolCalls: 0,
+          reusedModelOutput: true,
+        },
   };
 };
 
@@ -1572,6 +1724,9 @@ module.exports = {
   filterConfirmedQuestions,
   ensureActionableNeedsInformation,
   isDeferredTailorQuestion,
+  buildGenerationCacheKey,
+  getReusableDraftOutput,
+  buildAgentStageError,
   runDarbakResumeAgent,
   validateResumeClaims,
 };
