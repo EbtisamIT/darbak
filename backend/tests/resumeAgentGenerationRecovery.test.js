@@ -126,6 +126,16 @@ assert.strictEqual(
   false,
   "a project-only repair clears the failed quality rule without regenerating other sections"
 );
+const repairedOutput = resumeAgentOutputSchema.parse({ ...validOutput, draft: repairedProjectDraft });
+const repairedSession = {
+  ...session,
+  collectedFacts: { ...session.collectedFacts, agentOutputCache: { key, output: repairedOutput } },
+};
+assert.strictEqual(
+  getReusableDraftOutput(repairedSession, key)?.draft.projects[0].bullets.length,
+  1,
+  "a repaired draft replaces the reusable cache so refresh does not call the model again"
+);
 const summaryOnlyQuality = {
   needsRepair: true,
   errors: ["generic_summary"],

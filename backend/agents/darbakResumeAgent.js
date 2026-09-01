@@ -1842,6 +1842,20 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
           validationResult = repairedValidation;
           quality = repairedQuality;
           trace.repairSucceeded = true;
+          // Replace the reusable structured draft only after the repaired
+          // section passes both deterministic gates. A refresh can now reuse
+          // this approved content without another Terra call.
+          output = { ...output, draft: composedDraft };
+          session.collectedFacts = {
+            ...(session.collectedFacts || {}),
+            agentOutputCache: {
+              key: generationCacheKey,
+              output,
+              createdAt: new Date().toISOString(),
+            },
+          };
+          if (typeof session.markModified === "function") session.markModified("collectedFacts");
+          await session.save();
         } else {
           validationResult = repairedValidation;
           quality = repairedQuality;
