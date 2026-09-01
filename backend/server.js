@@ -6981,7 +6981,7 @@ const getResumeAiErrorResponse = (err = {}) => {
     const failureStage = err.resumeAgentTrace?.stage || "generation";
     const message = failureStage === "draft_persistence" || failureStage === "cache_save"
       ? "جهزنا محتوى السيرة لكن تعذر حفظه مؤقتًا. حاول مرة أخرى دون فقد إجابتك."
-      : failureStage === "composer_or_quality_gate"
+      : ["professional_composer", "source_mapping", "claims_validation", "professional_quality_gate"].includes(failureStage)
         ? "تعذر التحقق من المسودة هذه المرة. يمكنك المحاولة مرة أخرى دون فقد إجابتك."
         : "تعذر إكمال إنشاء المسودة الآن. يمكنك المحاولة مرة أخرى دون فقد إجابتك.";
     return {

@@ -1651,7 +1651,15 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
         verifiedFacts: verifiedResumeFacts,
         language: session.language,
       });
+    } catch (error) {
+      throw buildAgentStageError("professional_composer", error, trace);
+    }
+    try {
       sourceMap = buildDeterministicSourceMap(composedDraft, facts);
+    } catch (error) {
+      throw buildAgentStageError("source_mapping", error, trace);
+    }
+    try {
       validationResult = validateResumeClaims({
         draft: composedDraft,
         facts,
@@ -1659,6 +1667,10 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
         purpose: session.purpose,
       });
       trace.composerCompleted = true;
+    } catch (error) {
+      throw buildAgentStageError("claims_validation", error, trace);
+    }
+    try {
       quality = runProfessionalQualityGate({
         draft: composedDraft,
         verifiedFacts,
@@ -1666,7 +1678,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       });
       trace.qualityGateCompleted = true;
     } catch (error) {
-      throw buildAgentStageError("composer_or_quality_gate", error, trace);
+      throw buildAgentStageError("professional_quality_gate", error, trace);
     }
     filteredOutput = {
       ...filteredOutput,

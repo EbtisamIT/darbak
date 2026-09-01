@@ -84,4 +84,12 @@ assert.deepStrictEqual(structuredError.resumeAgentTrace, {
   toolCalls: 0,
 });
 
+const composerError = buildAgentStageError("professional_composer", new Error("composer failed"), {
+  modelCallStarted: true,
+  modelCallSucceeded: true,
+  structuredOutputValid: true,
+});
+assert.strictEqual(composerError.resumeAgentTrace.stage, "professional_composer", "a post-model composer failure keeps the exact safe stage");
+assert.strictEqual(composerError.resumeAgentTrace.modelCallSucceeded, true, "a retry can reuse the saved structured output after composer failure");
+
 console.log("resumeAgentGenerationRecovery tests passed");
