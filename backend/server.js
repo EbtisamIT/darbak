@@ -40,6 +40,7 @@ const {
 const {
   generateResumeDraft,
   mapDraftToResumePayload,
+  approvedDraftNeedsRematerialization,
   resumeDraftSchema,
   rewriteResumeSection,
   tailorResumeToOpportunity,
@@ -8016,10 +8017,29 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
         const approvedResume = await ResumeProfile.findOne({
           contact: req.darbakAccess.contact,
           accessCodeHash: req.darbakAccess.accessCodeHash,
-        }).lean();
+        });
         if (approvedResume) {
+          // A legacy approval could persist the verified Portfolio fallback
+          // instead of the reviewed Agent draft. Retrying the explicit
+          // approval must materialize that same approved presentation rather
+          // than reopening the older master resume.
+          if (approvedDraftNeedsRematerialization(pendingDraft.draft, approvedResume.toObject())) {
+            const payload = await mapPendingDraftToResumePayload(
+              pendingDraft,
+              req.darbakAccess,
+              req.body?.language || pendingDraft.draft?.settings?.language || "ar"
+            );
+            Object.assign(approvedResume, {
+              ...payload,
+              aiDraft: pendingDraft.draft,
+              rawDraftInput: pendingDraft.sourceMap || {},
+              aiDraftStatus: "approved",
+              aiDraftApprovedAt: pendingDraft.approvedAt || new Date(),
+            });
+            await approvedResume.save();
+          }
           return res.json({
-            resume: serializeResume(approvedResume, req.darbakAccess),
+            resume: serializeResume(approvedResume.toObject(), req.darbakAccess),
             message: "المسودة معتمدة بالفعل، وفتحناها في المحرر.",
           });
         }

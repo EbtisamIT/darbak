@@ -833,11 +833,51 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
   return payload;
 };
 
+const comparablePresentationText = (value = "") =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase();
+
+const entryPresentationBullets = (entry = {}) =>
+  (Array.isArray(entry?.achievements) ? entry.achievements : [])
+    .map((achievement) => comparablePresentationText(achievement?.text || achievement?.html))
+    .filter(Boolean);
+
+const draftPresentationBullets = (entry = {}) =>
+  (Array.isArray(entry?.bullets) ? entry.bullets : [])
+    .map((bullet) => comparablePresentationText(bullet))
+    .filter(Boolean);
+
+const approvedDraftNeedsRematerialization = (draft = {}, resume = {}) => {
+  const expectedSummary = comparablePresentationText(draft?.professionalSummary);
+  if (expectedSummary && expectedSummary !== comparablePresentationText(resume?.summary)) return true;
+
+  const resumeSections = {
+    experiences: Array.isArray(resume?.experiences) ? resume.experiences : resume?.experience || [],
+    projects: Array.isArray(resume?.projects) ? resume.projects : [],
+  };
+
+  return ["experiences", "projects"].some((section) =>
+    (Array.isArray(draft?.[section]) ? draft[section] : []).some((draftEntry) => {
+      const expectedBullets = draftPresentationBullets(draftEntry);
+      if (!expectedBullets.length) return false;
+      const sourceId = String(draftEntry?.sourceId || "").trim();
+      const matchingEntry = resumeSections[section].find((entry) =>
+        sourceId && String(entry?.id || "").trim() === sourceId
+      );
+      const persistedBullets = entryPresentationBullets(matchingEntry);
+      return expectedBullets.some((bullet) => !persistedBullets.includes(bullet));
+    })
+  );
+};
+
 module.exports = {
   DEFAULT_LIGHT_MODEL,
   DEFAULT_RESUME_MODEL,
   generateResumeDraft,
   mapDraftToResumePayload,
+  approvedDraftNeedsRematerialization,
   buildConfirmedHeadline,
   buildFactGroundedSummary,
   resumeDraftSchema,

@@ -197,6 +197,33 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(reopened.resume.skills.length, 2);
 }
 
+// An approved Agent draft owns presentation wording after it is persisted.
+// Portfolio keeps entry identity and facts, while the canonical resume keeps
+// the reviewed summary and rewritten bullets for editor and PDF rendering.
+{
+  const verified = buildVerifiedResumeFacts({ ...portfolio, _id: "approved-draft-portfolio" }, portfolio.email);
+  const master = {
+    personalInfo: verified.personalInfo,
+    summary: "Reviewed Agent summary marker.",
+    experiences: [{
+      id: verified.experiences[0].id,
+      title: verified.experiences[0].title,
+      achievements: [{ id: "approved-exp-bullet", text: "Reviewed experience bullet marker." }],
+    }],
+    projects: [{
+      id: verified.projects[0].id,
+      title: verified.projects[0].title,
+      achievements: [{ id: "approved-project-bullet", text: "Reviewed project bullet marker." }],
+    }],
+    settings: { language: "ar" },
+  };
+  const reopened = composeCanonicalResume(master, { ...portfolio, _id: "approved-draft-portfolio" }, portfolio.email);
+  assert.strictEqual(reopened.summary, "Reviewed Agent summary marker.");
+  assert.deepStrictEqual(reopened.experiences[0].achievements.map((item) => item.text), ["Reviewed experience bullet marker."]);
+  assert.deepStrictEqual(reopened.projects[0].achievements.map((item) => item.text), ["Reviewed project bullet marker."]);
+  assert.strictEqual(reopened.projects[0].description, "منصة لرحلة التدريب");
+}
+
 // Case F: an invalid legacy numeric phone is repaired from the professional
 // profile without overwriting valid student-entered resume facts.
 {

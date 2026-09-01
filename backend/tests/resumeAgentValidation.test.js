@@ -6,7 +6,12 @@ const {
   ensureActionableNeedsInformation,
   isDeferredTailorQuestion,
 } = require("../agents/darbakResumeAgent");
-const { assertEnglishSummaryIntegrity, assertTranslationIntegrity, mapDraftToResumePayload } = require("../services/resumeAiService");
+const {
+  assertEnglishSummaryIntegrity,
+  assertTranslationIntegrity,
+  mapDraftToResumePayload,
+  approvedDraftNeedsRematerialization,
+} = require("../services/resumeAiService");
 const { hasCompleteApplicationPack } = require("../services/applicationPackIntegrity");
 
 const baseFacts = {
@@ -151,6 +156,34 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
   assert.deepStrictEqual(mapped.experiences[0].achievements.map((item) => item.text), ["Approved internship bullet marker."]);
   assert.deepStrictEqual(mapped.projects[0].achievements.map((item) => item.text), ["Approved project bullet marker."]);
   assert.ok(mapped.skills.includes("Microsoft PowerPoint"));
+}
+
+{
+  const approvedDraft = {
+    professionalSummary: "Approved professional summary marker.",
+    experiences: [{ sourceId: "experience-1", bullets: ["Approved experience bullet marker."] }],
+    projects: [{ sourceId: "project-1", bullets: ["Approved project bullet marker."] }],
+  };
+  const staleResume = {
+    summary: "A fact-derived fallback summary.",
+    experiences: [{ id: "experience-1", achievements: [{ text: "Original fact description." }] }],
+    projects: [{ id: "project-1", achievements: [{ text: "Original project description." }] }],
+  };
+  assert.strictEqual(
+    approvedDraftNeedsRematerialization(approvedDraft, staleResume),
+    true,
+    "an explicit re-approval repairs a master payload that lost reviewed draft presentation"
+  );
+  const persistedApprovedResume = {
+    summary: approvedDraft.professionalSummary,
+    experiences: [{ id: "experience-1", achievements: [{ text: "Approved experience bullet marker." }] }],
+    projects: [{ id: "project-1", achievements: [{ text: "Approved project bullet marker." }] }],
+  };
+  assert.strictEqual(
+    approvedDraftNeedsRematerialization(approvedDraft, persistedApprovedResume),
+    false,
+    "a replay never rewrites an already-materialized approved draft"
+  );
 }
 
 {
