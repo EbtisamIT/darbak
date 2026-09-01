@@ -51,6 +51,7 @@ const {
 } = require("./agents/darbakResumeAgent");
 const { compareResumeToJob } = require("./services/resumeMatchService");
 const { hasCompleteApplicationPack } = require("./services/applicationPackIntegrity");
+const { ensureReviewableAgentOutput } = require("./services/resumeAgentDraftGuard");
 const {
   mapPortfolioToResumePayload: mapPortfolioToResumeHydration,
   composeCanonicalResume,
@@ -7217,7 +7218,17 @@ const getPendingResumeDraftForAccess = async (pendingDraftId = "", access = {}) 
 };
 
 const applyResumeAgentOutputToSession = async (session, agentResult) => {
-  const output = agentResult.output || {};
+  const rawOutput = agentResult.output || {};
+  const pendingDraft = ["draft_ready", "tailored_draft_ready"].includes(rawOutput.status)
+    ? await ResumePendingDraft.findOne({
+        agentSessionId: session.sessionId,
+        contact: session.contact,
+        accessCodeHash: session.accessCodeHash,
+        status: "pending_review",
+      }).sort({ updatedAt: -1 }).lean()
+    : null;
+  const output = ensureReviewableAgentOutput(rawOutput, pendingDraft);
+  agentResult.output = output;
   const nextStatus =
     output.status === "needs_information"
       ? "collecting_information"
