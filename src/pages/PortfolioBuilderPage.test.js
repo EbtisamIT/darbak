@@ -9,18 +9,17 @@ describe("resume setup missing-field stage", () => {
   const missingStage = (form) =>
     getResumeSetupFields(form, "").filter(([, , complete]) => !complete);
 
-  it("keeps the initial eight fields stable while draft values change", () => {
+  it("keeps the initial missing fields stable while draft values change", () => {
     const initialForm = { email: "qa@example.com", projects: [], experiences: [] };
     const stageFields = missingStage(initialForm);
 
-    expect(stageFields).toHaveLength(8);
+    expect(stageFields).toHaveLength(7);
     expect(stageFields.map(([key]) => key)).toEqual([
       "fullName",
       "major",
       "city",
       "university",
       "education",
-      "bio",
       "skills",
       "evidence",
     ]);
@@ -32,14 +31,13 @@ describe("resume setup missing-field stage", () => {
     };
     const currentFields = getResumeSetupFields(typedDraft, "");
 
-    expect(stageFields).toHaveLength(8);
+    expect(stageFields).toHaveLength(7);
     expect(stageFields.map(([key]) => key)).toEqual([
       "fullName",
       "major",
       "city",
       "university",
       "education",
-      "bio",
       "skills",
       "evidence",
     ]);
@@ -62,7 +60,6 @@ describe("resume setup missing-field stage", () => {
       "city",
       "university",
       "education",
-      "bio",
       "skills",
       "evidence",
     ]);
@@ -76,7 +73,7 @@ describe("resume setup missing-field stage", () => {
       major: "تقنية المعلومات",
     }, "");
 
-    expect(onboardingFields).toHaveLength(9);
+    expect(onboardingFields).toHaveLength(8);
     expect(onboardingFields.map(([key]) => key)).toEqual(autosavedDraft.map(([key]) => key));
     expect(getResumeSetupProgress(onboardingFields, autosavedDraft)).toBe(3);
   });
@@ -95,7 +92,7 @@ describe("resume setup missing-field stage", () => {
       degreeLevel: "",
     }, "sara@example.com");
 
-    expect(staleAccount.completedCount).toBe(8);
+    expect(staleAccount.completedCount).toBe(7);
     expect(staleAccount.missingCount).toBe(1);
     expect(staleAccount.fields.find(([key]) => key === "education")[2]).toBe(false);
   });

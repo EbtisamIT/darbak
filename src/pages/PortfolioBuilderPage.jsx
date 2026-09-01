@@ -1281,7 +1281,16 @@ export default function PortfolioBuilderPage() {
               {stageSetupKeys.has("education") && <label>صياغة السيرة بالعربية<select value={form.grammaticalGender} onChange={(event) => updateField("grammaticalGender", event.target.value, { immediate: true })}><option value="">اختر الصياغة</option><option value="feminine">خريجة / طالبة</option><option value="masculine">خريج / طالب</option></select></label>}
               {stageSetupKeys.has("education") && form.degreeLevel === "أخرى" && <label>اكتب الدرجة<input value={form.degreeOther} onChange={(event) => updateField("degreeOther", event.target.value)} placeholder="مثال: شهادة مهنية" /></label>}
               {stageSetupKeys.has("email") && <label>بريد التواصل<input id={getResumeSetupInputId("email")} type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
-              {stageSetupKeys.has("bio") && <label className="is-wide">نبذة مهنية<textarea id={getResumeSetupInputId("bio")} value={form.bio} onChange={(event) => updateField("bio", event.target.value)} placeholder="اكتب سطرين عن اهتمامك المهني وما الذي تستطيع تقديمه." /></label>}
+              <label className="is-wide">
+                وش المجال أو نوع الفرص اللي مهتم فيها؟ ووش أكثر شيء عندك تحب نبرزه في سيرتك؟
+                <small>مو لازم تصيغها باحتراف، دربك بيكتب النبذة عنك.</small>
+                <textarea
+                  id={getResumeSetupInputId("bio")}
+                  value={form.bio}
+                  onChange={(event) => updateField("bio", event.target.value)}
+                  placeholder="مثال: مهتمة بتحليل البيانات، وأحب أبرز مشروعي في Power BI وخبرتي في إعداد التقارير."
+                />
+              </label>
               {stageSetupKeys.has("skills") && (
                 <div className="portfolio-resume-setup-skills is-wide">
                   <label htmlFor={getResumeSetupInputId("skills")}>مهارة واحدة على الأقل</label>

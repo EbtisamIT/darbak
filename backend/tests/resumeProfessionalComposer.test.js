@@ -21,6 +21,7 @@ const facts = {
   volunteering: [],
   languages: [{ name: "Arabic", level: "Native" }, { name: "English", level: "Advanced" }],
   skills: ["react js", "Git HUb", "UI/ UX", "Time managmaet"],
+  professionalContext: "أحب إبراز مشروعي في بوابة الطلاب.",
 };
 
 assert.strictEqual(buildDeterministicHeadline(facts.personalInfo, "en"), "Information Technology Graduate");
@@ -65,6 +66,14 @@ assert.strictEqual(mixed.languageMixing, true);
 const compact = compactVerifiedResumeFacts(facts, [{ fieldKey: "project_scope", answer: "Added request tracking." }]);
 assert.strictEqual(compact.personalInfo.major, "Information Technology");
 assert.strictEqual(compact.confirmedAnswers.length, 1);
+assert.strictEqual(compact.professionalContext, "أحب إبراز مشروعي في بوابة الطلاب.");
 assert.ok(!Object.prototype.hasOwnProperty.call(compact, "workflow"));
+
+const copiedContext = runProfessionalQualityGate({
+  draft: { ...composed, professionalSummary: facts.professionalContext },
+  verifiedFacts: facts,
+  language: "ar",
+});
+assert.strictEqual(copiedContext.needsRepair, true);
 
 console.log("resumeProfessionalComposer tests passed");

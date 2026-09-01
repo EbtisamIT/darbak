@@ -39,7 +39,6 @@ export const getResumeSetupFields = (source = {}, fallbackEmail = "") => {
     ["university", "الجامعة", Boolean(valueFor(source, "university", fallbackEmail))],
     ["education", "الدرجة أو الحالة التعليمية", Boolean(valueFor(source, "education", fallbackEmail))],
     ["email", "وسيلة التواصل", Boolean(valueFor(source, "email", fallbackEmail))],
-    ["bio", "نبذة مهنية", Boolean(valueFor(source, "bio", fallbackEmail))],
     ["skills", "مهارة واحدة على الأقل", Boolean(valueFor(source, "skills", fallbackEmail))],
     ["evidence", "مشروع أو خبرة واحدة على الأقل", Boolean(valueFor(source, "evidence", fallbackEmail))],
   ];

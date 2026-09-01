@@ -1316,6 +1316,8 @@ const createAgentInstructions = () => `أنت Professional Resume Writer في م
 
 اكتب summary من 2–4 جمل: الهوية المهنية، أقوى evidence عملي، 2–3 capabilities مثبتة، واتجاه مهني واقعي. لا تستخدم ضمير المتكلم أو enthusiasm عام أو قوائم مهارات مكررة أو claims غير مثبتة.
 
+professionalContext، إن وُجد، هو كلام الطالب العادي عن المجال الذي يهتم به أو ما يريد إبرازه. استخدمه فقط لفهم positioning وcandidate assessment؛ لا تنسخه حرفيًا كنص summary.
+
 اكتب experience bullets بأفعال مهنية واضحة، 2–5 فقط، ومن المهام المثبتة. اكتب project bullets من وصف المشروع والحقائق فقط. إذا كان وصف المشروع غير كافٍ، اجعل needsMoreInformation ضمن missingInformation ولا تخترع bullet. لا تضف metrics أو achievements أو tools أو roles أو employment status غير موجودة.
 
 في الإنجليزية اكتب business English طبيعيًا ولا تستخدم أحرفًا عربية في headline أو summary أو bullets. في العربية استخدم عربية مهنية طبيعية مع إبقاء أسماء الأدوات الرسمية مثل React.js وMicrosoft Excel.

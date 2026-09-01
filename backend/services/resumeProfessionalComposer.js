@@ -31,6 +31,7 @@ const compactVerifiedResumeFacts = (facts = {}, answers = []) => ({
   volunteering: list(facts.volunteering).map((entry) => ({ id: entry.id, title: entry.title, organization: entry.organization, period: entry.period, description: entry.description })),
   languages: list(facts.languages).map((entry) => ({ name: entry.name, level: entry.level })),
   skills: normalizeResumeSkills(list(facts.skills)),
+  professionalContext: safeText(facts.professionalContext, 900),
   confirmedAnswers: list(answers).map((answer) => ({ fieldKey: answer.fieldKey || answer.questionId, answer: safeText(answer.answer, 600) })),
 });
 
@@ -103,8 +104,10 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
 const runProfessionalQualityGate = ({ draft = {}, verifiedFacts = {}, language = "ar" } = {}) => {
   const errors = [];
   const summary = safeText(draft.professionalSummary, 900);
+  const professionalContext = safeText(verifiedFacts.professionalContext, 900);
   const expectedHeadline = buildDeterministicHeadline(verifiedFacts.personalInfo || {}, language);
   if (!summary) errors.push("summary_missing");
+  if (professionalContext && summary.toLocaleLowerCase() === professionalContext.toLocaleLowerCase()) errors.push("professional_context_copied_as_summary");
   if (GENERIC_SUMMARY.test(summary)) errors.push("generic_summary");
   if (safeText(draft.targetTitle, 180) !== expectedHeadline) errors.push("headline_conflict");
   if (isEnglish(language) && [summary, draft.targetTitle, ...list(draft.experiences).flatMap((entry) => entry.bullets || []), ...list(draft.projects).flatMap((entry) => entry.bullets || [])].some((text) => ARABIC_CHARACTERS.test(text || ""))) errors.push("english_language_mixing");

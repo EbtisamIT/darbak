@@ -258,6 +258,7 @@ const buildVerifiedResumeFacts = (portfolio = {}, contact = "", options = {}) =>
     languages: payload.languages,
     links: payload.links,
     skills: payload.skills,
+    professionalContext: cleanText(portfolio.bio, 900),
   };
 };
 
