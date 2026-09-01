@@ -1211,6 +1211,8 @@ const createPendingResumeDraftTool = tool({
     const pending = await ResumePendingDraft.findOneAndUpdate(
       {
         agentSessionId: context.sessionId,
+        contact: context.access?.contact,
+        accessCodeHash: context.access?.accessCodeHash,
         draftType: "base_resume",
         status: "pending_review",
       },
@@ -1272,6 +1274,8 @@ const createPendingTailoredVersionTool = tool({
     const pending = await ResumePendingDraft.findOneAndUpdate(
       {
         agentSessionId: context.sessionId,
+        contact: context.access?.contact,
+        accessCodeHash: context.access?.accessCodeHash,
         draftType: "tailored_resume",
         status: "pending_review",
       },
@@ -1520,6 +1524,10 @@ const buildGenerationCacheKey = ({ session = {}, verifiedResumeFacts = {}, colle
     if (answer.fieldKey) answersByField.set(answer.fieldKey, answer.answer);
   });
   const payload = JSON.stringify({
+    // The output cache lives on the session document, but retaining an owner
+    // component also prevents a cache key from ever being reusable across
+    // accounts if its storage implementation changes later.
+    owner: session.userId?.toString?.() || session.contact || "",
     purpose: session.purpose,
     language: session.language,
     verifiedResumeFacts,
@@ -1590,6 +1598,8 @@ const persistProfessionalDraft = async ({ context = {}, draft = {}, sourceMap = 
   const pending = await ResumePendingDraft.findOneAndUpdate(
     {
       agentSessionId: context.sessionId,
+      contact: context.access?.contact,
+      accessCodeHash: context.access?.accessCodeHash,
       draftType: isTailored ? "tailored_resume" : "base_resume",
       status: "pending_review",
     },
@@ -1931,6 +1941,7 @@ module.exports = {
   ensureActionableNeedsInformation,
   isDeferredTailorQuestion,
   buildGenerationCacheKey,
+  getAccessQuery,
   getReusableDraftOutput,
   buildAgentStageError,
   getRepairSectionForQuality,

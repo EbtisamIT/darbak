@@ -6,8 +6,12 @@ import {
 } from "./resumeJourneyPersistence";
 
 describe("resume journey persistence", () => {
+  const accountA = "account-a";
+  const accountB = "account-b";
+
   beforeEach(() => {
-    clearResumeJourneyProgress();
+    clearResumeJourneyProgress(accountA);
+    clearResumeJourneyProgress(accountB);
   });
 
   it("restores the latest reachable step and completed steps after refresh", () => {
@@ -15,9 +19,9 @@ describe("resume journey persistence", () => {
       currentStep: "missing",
       completedSteps: ["data"],
       source: "portfolio",
-    });
+    }, accountA);
 
-    expect(readResumeJourneyProgress()).toMatchObject({
+    expect(readResumeJourneyProgress(accountA)).toMatchObject({
       currentStep: "missing",
       completedSteps: ["data"],
       source: "portfolio",
@@ -28,9 +32,19 @@ describe("resume journey persistence", () => {
     const progress = writeResumeJourneyProgress({
       currentStep: "missing",
       completedSteps: ["data", "missing", "ready"],
-    });
+    }, accountA);
 
     expect(progress.completedSteps).toEqual(["data"]);
+  });
+
+  it("never restores a journey from another account scope", () => {
+    writeResumeJourneyProgress({
+      currentStep: "missing",
+      completedSteps: ["data"],
+      source: "portfolio",
+    }, accountA);
+
+    expect(readResumeJourneyProgress(accountB)).toBeNull();
   });
 
   it("keeps an explicitly completed step reachable when browser storage is unavailable", () => {

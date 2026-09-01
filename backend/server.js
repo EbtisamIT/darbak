@@ -7484,8 +7484,8 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
     // ResumeProfile is always the Arabic master. Older translation flows could
     // leave its presentation language as English; repair that metadata here.
     if (resume?.settings?.language === "en") {
-      resume = await ResumeProfile.findByIdAndUpdate(
-        resume._id,
+      resume = await ResumeProfile.findOneAndUpdate(
+        { _id: resume._id, contact, accessCodeHash },
         { $set: { "settings.language": "ar", "settings.direction": "rtl" } },
         { new: true }
       ).lean();
@@ -7509,8 +7509,8 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
     // devices, and the editor all receive the same durable resume payload.
     if (hydration.changed && portfolio?._id) {
       if (resume?._id) {
-        resume = await ResumeProfile.findByIdAndUpdate(
-          resume._id,
+        resume = await ResumeProfile.findOneAndUpdate(
+          { _id: resume._id, contact, accessCodeHash },
           { $set: hydration.patch },
           { new: true, runValidators: true }
         ).lean();
@@ -8014,7 +8014,11 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
         const opportunity = pendingDraft.opportunityId
           ? await Opportunity.findById(pendingDraft.opportunityId).lean()
           : null;
-        const session = await ResumeAgentSession.findOne({ sessionId: pendingDraft.agentSessionId }).lean();
+        const session = await ResumeAgentSession.findOne({
+          sessionId: pendingDraft.agentSessionId,
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+        }).lean();
         const externalJob = session?.collectedFacts?.externalJob || null;
         const jobSnapshot = opportunity
           ? {
@@ -8086,7 +8090,11 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
         // The result route is opened immediately after this request. Confirm
         // the first persisted read has all required content before charging
         // usage or returning a version that could render as an empty pack.
-        tailoredVersion = await ResumeTailoredVersion.findById(tailoredVersion._id).lean();
+        tailoredVersion = await ResumeTailoredVersion.findOne({
+          _id: tailoredVersion._id,
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+        }).lean();
         if (!hasCompleteApplicationPack(tailoredVersion)) {
           const integrityError = new Error("لم يكتمل حفظ ملف التقديم بعد.");
           integrityError.status = 503;
@@ -8099,7 +8107,11 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
         await pendingDraft.save();
 
         await ResumeAgentSession.findOneAndUpdate(
-          { sessionId: pendingDraft.agentSessionId },
+          {
+            sessionId: pendingDraft.agentSessionId,
+            contact: req.darbakAccess.contact,
+            accessCodeHash: req.darbakAccess.accessCodeHash,
+          },
           { $set: { status: "completed", expiresAt: getResumeAgentExpiry() } }
         );
 
@@ -8120,9 +8132,14 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
         });
       } catch (err) {
         if (tailoredVersion?._id) {
-          await ResumeTailoredVersion.findByIdAndUpdate(tailoredVersion._id, {
-            $set: { status: "deleted" },
-          }).catch(() => null);
+          await ResumeTailoredVersion.findOneAndUpdate(
+            {
+              _id: tailoredVersion._id,
+              contact: req.darbakAccess.contact,
+              accessCodeHash: req.darbakAccess.accessCodeHash,
+            },
+            { $set: { status: "deleted" } }
+          ).catch(() => null);
         }
         throw err;
       }
@@ -8156,7 +8173,11 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
     await pendingDraft.save();
 
     await ResumeAgentSession.findOneAndUpdate(
-      { sessionId: pendingDraft.agentSessionId },
+      {
+        sessionId: pendingDraft.agentSessionId,
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      },
       { $set: { status: "completed", expiresAt: getResumeAgentExpiry() } }
     );
 
@@ -8203,7 +8224,11 @@ app.post('/api/resume-agent/reject/:pendingDraftId', requireResumeAccess, async 
     await pendingDraft.save();
 
     await ResumeAgentSession.findOneAndUpdate(
-      { sessionId: pendingDraft.agentSessionId },
+      {
+        sessionId: pendingDraft.agentSessionId,
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      },
       { $set: { status: "completed", expiresAt: getResumeAgentExpiry() } }
     );
 

@@ -15,6 +15,7 @@ import {
   PREMIUM_ACCESS_EVENT,
   PREMIUM_STATUS_EVENT,
   getAccessHeaders,
+  getStoredAccessIdentity,
   getStoredPremiumPass,
   getSubscriptionCapabilities,
 } from "../utils/premiumAccess";
@@ -46,8 +47,9 @@ import {
   writeResumeJourneyProgress,
 } from "../features/resume/resumeJourneyPersistence";
 import { shouldShowResumeOnboarding } from "../features/resume/resumeOnboarding";
+import { getResumeStorageScope } from "../features/resume/resumeStorageScope";
 
-const LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
+const LEGACY_LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
 const APPLICATION_PACK_RESULT_LOAD_ATTEMPTS = 3;
 const JOURNEY_AUTOSAVE_DELAY = 900;
 
@@ -75,79 +77,6 @@ const hasCompleteTailoredPack = (version = {}) => {
 };
 
 const getSnapshot = (resume) => JSON.stringify(prepareResumeForSave(resume));
-
-const readLocalDraft = () => {
-  try {
-    const raw = localStorage.getItem(LOCAL_DRAFT_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-};
-
-const writeLocalDraft = (resume) => {
-  try {
-    localStorage.setItem(
-      LOCAL_DRAFT_KEY,
-      JSON.stringify({
-        kind: "master",
-        savedAt: new Date().toISOString(),
-        resume: prepareResumeForSave(resume),
-      })
-    );
-  } catch {
-    // Local draft is a safety net only; failing here should not block editing.
-  }
-};
-
-const hasResumeDraftContent = (resume = {}) => {
-  const personal = resume.personalInfo || {};
-  return Boolean(
-    Object.values(personal).some((value) => value && value.toString().trim()) ||
-      resume.summary?.trim() ||
-      (resume.skills || []).some(Boolean) ||
-      ["education", "experience", "experiences", "projects", "certifications", "volunteering", "languages", "links"].some(
-        (section) => (resume[section] || []).some((item) => Object.values(item || {}).some(Boolean))
-      )
-  );
-};
-
-const mergeLocalResumeDraft = (serverResume = {}, localResume = {}) => {
-  const mergedPersonalInfo = { ...(serverResume.personalInfo || {}) };
-  const verifiedPersonal = serverResume.verifiedResumeFacts?.personalInfo || {};
-  Object.entries(localResume.personalInfo || {}).forEach(([key, value]) => {
-    // Local storage is a draft safety net, never a second source of student
-    // facts. A verified Portfolio value must win after reload.
-    if (!verifiedPersonal[key] && value && value.toString().trim()) mergedPersonalInfo[key] = value;
-  });
-  const verifiedFacts = serverResume.verifiedResumeFacts || {};
-  const preferLocalSection = (section) =>
-    (verifiedFacts[section] || []).length
-      ? serverResume[section] || verifiedFacts[section]
-      :
-    (localResume[section] || []).some((item) => Object.values(item || {}).some(Boolean))
-      ? localResume[section]
-      : serverResume[section] || [];
-
-  return normalizeResume({
-    ...serverResume,
-    ...localResume,
-    personalInfo: mergedPersonalInfo,
-    summary: localResume.summary?.trim() || serverResume.summary || "",
-    education: preferLocalSection("education"),
-    experience: preferLocalSection("experience"),
-    experiences: preferLocalSection("experiences"),
-    projects: preferLocalSection("projects"),
-    certifications: preferLocalSection("certifications"),
-    volunteering: preferLocalSection("volunteering"),
-    languages: preferLocalSection("languages"),
-    links: preferLocalSection("links"),
-    skills: (localResume.skills || []).some(Boolean)
-      ? (verifiedFacts.skills?.length ? serverResume.skills || verifiedFacts.skills : localResume.skills)
-      : serverResume.skills || [],
-    access: serverResume.access,
-  });
-};
 
 const ResumeAccessPreview = ({ premiumPass, onUpgrade, onExplore }) => {
   const [resumePlan, setResumePlan] = useState(null);
@@ -264,12 +193,26 @@ const MyResumePage = () => {
   const [journeyCompletedSteps, setJourneyCompletedSteps] = useState([]);
   const [journeyView, setJourneyView] = useState("start");
   const [journeySource, setJourneySource] = useState("portfolio");
+  const [resumeStorageScope, setResumeStorageScope] = useState(() =>
+    getResumeStorageScope(getStoredAccessIdentity())
+  );
 
   const hasLoadedRef = useRef(false);
   const saveTimerRef = useRef(null);
   const journeySaveTimerRef = useRef(null);
   const lastSavedSnapshotRef = useRef("");
   const lastRouteRef = useRef("");
+
+  useEffect(() => {
+    // Previous releases stored the whole master resume under one global key.
+    // Remove that legacy cache once; server persistence is the only source for
+    // resume facts and content going forward.
+    try {
+      window.localStorage.removeItem(LEGACY_LOCAL_DRAFT_KEY);
+    } catch {
+      // Storage can be unavailable without affecting the resume flow.
+    }
+  }, []);
 
   const estimatedPages = useMemo(() => estimateResumePages(resume), [resume]);
   const routeOpportunityId =
@@ -327,7 +270,7 @@ const MyResumePage = () => {
   }, []);
 
   const loadResume = useCallback(
-    async ({ preferLocalDraft = true } = {}) => {
+    async () => {
       try {
         setLoading(true);
         setError("");
@@ -338,20 +281,7 @@ const MyResumePage = () => {
         });
 
         const serverResume = normalizeResume(data.resume || createEmptyResume());
-        const localDraft = preferLocalDraft ? readLocalDraft() : null;
-        const localResume = localDraft?.kind === "master" && localDraft?.resume
-          ? normalizeResume(localDraft.resume)
-          : null;
-        const shouldUseLocal =
-          localResume &&
-          hasResumeDraftContent(localResume) &&
-          localDraft?.savedAt &&
-          (!data.resume?.updatedAt ||
-            new Date(localDraft.savedAt).getTime() > new Date(data.resume.updatedAt).getTime());
-
-        const nextResume = shouldUseLocal
-          ? mergeLocalResumeDraft(serverResume, localResume)
-          : serverResume;
+        const nextResume = serverResume;
 
         setResume(nextResume);
         setResumeExists(Boolean(data.exists));
@@ -361,10 +291,8 @@ const MyResumePage = () => {
         hasLoadedRef.current = true;
         setSaveState("saved");
 
-        if (data.portfolioImported && !shouldUseLocal) {
+        if (data.portfolioImported) {
           setMessage("نقدر نستخدم بيانات ملفك المهني كبداية لمسودة السيرة.");
-        } else if (shouldUseLocal) {
-          setMessage("استعدنا نسخة محفوظة محليًا حتى لا تضيع تعديلاتك.");
         }
       } catch (err) {
         const canKeepWorking = hasLoadedRef.current;
@@ -431,8 +359,6 @@ const MyResumePage = () => {
       }
 
       const snapshot = getSnapshot(resumeToSave);
-      writeLocalDraft(resumeToSave);
-
       if (!manual && snapshot === lastSavedSnapshotRef.current) {
         setSaveState("saved");
         return;
@@ -457,7 +383,7 @@ const MyResumePage = () => {
         return true;
       } catch (err) {
         setSaveState("error");
-        setError(err.response?.data?.error || "تعذر حفظ السيرة. احتفظنا بنسخة مؤقتة في هذا الجهاز.");
+        setError(err.response?.data?.error || "تعذر حفظ السيرة. لم تُحفظ التغييرات بعد.");
         return false;
       }
     },
@@ -465,15 +391,14 @@ const MyResumePage = () => {
   );
 
   const setPersistedJourneyProgress = useCallback((progress) => {
-    const saved = writeResumeJourneyProgress(progress);
+    const saved = writeResumeJourneyProgress(progress, resumeStorageScope);
     setJourneyStep(saved.currentStep);
     setJourneyCompletedSteps(saved.completedSteps);
     setJourneySource(saved.source);
     return saved;
-  }, []);
+  }, [resumeStorageScope]);
 
   const saveJourneyDraft = useCallback(async (resumeOverride = resume) => {
-    writeLocalDraft(resumeOverride);
     return saveResume({ manual: true, resumeOverride, silent: true });
   }, [resume, saveResume]);
 
@@ -640,7 +565,19 @@ const MyResumePage = () => {
 
   useEffect(() => {
     const refreshAfterAccessChange = () => {
-      loadResume({ preferLocalDraft: true });
+      const nextScope = getResumeStorageScope(getStoredAccessIdentity());
+      setResumeStorageScope(nextScope);
+      setResume(normalizeResume(createEmptyResume()));
+      setLastServerResume(null);
+      setTailoredVersions([]);
+      setAgentConfig(null);
+      setApplicationPack(null);
+      setEditingTailoredVersion(false);
+      setEditingVersionId("");
+      setEditingVersionType("");
+      hasLoadedRef.current = false;
+      loadResume();
+      loadTailoredVersions();
     };
 
     window.addEventListener(PREMIUM_STATUS_EVENT, refreshAfterAccessChange);
@@ -650,7 +587,7 @@ const MyResumePage = () => {
       window.removeEventListener(PREMIUM_STATUS_EVENT, refreshAfterAccessChange);
       window.removeEventListener("storage", refreshAfterAccessChange);
     };
-  }, [loadResume]);
+  }, [loadResume, loadTailoredVersions]);
 
   useEffect(() => {
     if (
@@ -662,7 +599,6 @@ const MyResumePage = () => {
     const snapshot = getSnapshot(resume);
     // A translated version is an independent ResumeTailoredVersion. It must never
     // become the generic local draft that is later merged over the master profile.
-    if (!editingTailoredVersion) writeLocalDraft(resume);
     if (snapshot === lastSavedSnapshotRef.current) {
       setSaveState("saved");
       return undefined;
@@ -681,12 +617,11 @@ const MyResumePage = () => {
     const isJourneyStep = resumeMode === "dashboard" && ["personal", "missing"].includes(journeyView);
     if (!hasLoadedRef.current || !isJourneyStep) return undefined;
 
-    writeLocalDraft(resume);
     writeResumeJourneyProgress({
       currentStep: journeyView === "missing" ? "missing" : "data",
       completedSteps: journeyCompletedSteps,
       source: journeySource,
-    });
+    }, resumeStorageScope);
 
     if (getSnapshot(resume) === lastSavedSnapshotRef.current) {
       setSaveState("saved");
@@ -700,10 +635,10 @@ const MyResumePage = () => {
     }, JOURNEY_AUTOSAVE_DELAY);
 
     return () => window.clearTimeout(journeySaveTimerRef.current);
-  }, [journeyCompletedSteps, journeySource, journeyView, resume, resumeMode, saveJourneyDraft]);
+  }, [journeyCompletedSteps, journeySource, journeyView, resume, resumeMode, resumeStorageScope, saveJourneyDraft]);
 
   const handleUsePortfolio = () => {
-    loadResume({ preferLocalDraft: false });
+    loadResume();
     trackEvent("resume_use_portfolio_clicked", { page: "/my-resume" });
   };
 
@@ -746,7 +681,7 @@ const MyResumePage = () => {
       setResume(normalizeResume(lastServerResume));
       setMessage("رجعنا آخر نسخة محفوظة في حسابك.");
     } else {
-      loadResume({ preferLocalDraft: true });
+      loadResume();
     }
     trackEvent("resume_continue_saved_clicked", { page: "/my-resume" });
   };
@@ -897,7 +832,7 @@ const MyResumePage = () => {
       setEditingVersionId("");
       setEditingVersionType("");
       setApplicationPack(null);
-      loadResume({ preferLocalDraft: false });
+      loadResume();
     };
 
     if (routeView === "version") {
@@ -914,7 +849,7 @@ const MyResumePage = () => {
     if (routeView === "build") {
       openMaster();
       const savedJourney = getReachableJourneyProgress(
-        readResumeJourneyProgress(),
+        readResumeJourneyProgress(resumeStorageScope),
         routeJourneyProgress,
       );
       const requestedStep = searchParams.get("step");
@@ -959,7 +894,7 @@ const MyResumePage = () => {
     setResumeMode("dashboard");
     setJourneyView("start");
     setJourneyStep("data");
-  }, [loadResume, loadTailoredVersion, location.pathname, location.search, navigate, routeJourneyProgress, routeVersionId, routeView, searchParams]);
+  }, [loadResume, loadTailoredVersion, location.pathname, location.search, navigate, resumeStorageScope, routeJourneyProgress, routeVersionId, routeView, searchParams]);
 
   const completeApplicationPackDetails = async ({ trainingStart, trainingEnd, targetField }) => {
     if (!editingVersionId) return;
@@ -1001,7 +936,7 @@ const MyResumePage = () => {
       loadTailoredVersions();
     }
     setSaveState("saved");
-    clearResumeJourneyProgress();
+    clearResumeJourneyProgress(resumeStorageScope);
     const remainingTailors = Math.max(
       0,
       Number(data.usage?.aiResumeUsageLimit || 0) - Number(data.usage?.aiResumeUsageCount || 0)
@@ -1189,7 +1124,7 @@ const MyResumePage = () => {
           source={journeySource}
           onChange={(nextResume) => setResume(normalizeResume(nextResume))}
           onBack={() => {
-            clearResumeJourneyProgress();
+            clearResumeJourneyProgress(resumeStorageScope);
             navigate("/my-resume");
           }}
           onContinue={continueJourneyToMissing}
@@ -1231,6 +1166,7 @@ const MyResumePage = () => {
           language={agentConfig.language}
           opportunityId={agentConfig.opportunityId}
           externalJob={agentConfig.externalJob}
+          storageScope={resumeStorageScope}
           onApproved={handleAgentApproved}
           onCancel={cancelAgent}
         />
@@ -1276,7 +1212,7 @@ const MyResumePage = () => {
                   <h2>المحرر</h2>
                   <p>رتّب الأقسام، أضف الإنجازات، وأخفِ أي قسم لا تحتاجه.</p>
                 </div>
-                <button type="button" onClick={() => loadResume({ preferLocalDraft: false })}>
+                <button type="button" onClick={() => loadResume()}>
                   <FiRefreshCw aria-hidden="true" />
                   تحديث
                 </button>

@@ -19,28 +19,37 @@ const normalizeProgress = (progress = {}) => {
   };
 };
 
-export const readResumeJourneyProgress = () => {
+const getJourneyStorageKey = (storageScope = "") =>
+  storageScope ? `${RESUME_JOURNEY_STORAGE_KEY}:${storageScope}` : "";
+
+export const readResumeJourneyProgress = (storageScope = "") => {
+  const storageKey = getJourneyStorageKey(storageScope);
+  if (!storageKey) return null;
   try {
-    const raw = window.localStorage.getItem(RESUME_JOURNEY_STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     return raw ? normalizeProgress(JSON.parse(raw)) : null;
   } catch {
     return null;
   }
 };
 
-export const writeResumeJourneyProgress = (progress) => {
+export const writeResumeJourneyProgress = (progress, storageScope = "") => {
   const normalized = normalizeProgress(progress);
+  const storageKey = getJourneyStorageKey(storageScope);
+  if (!storageKey) return normalized;
   try {
-    window.localStorage.setItem(RESUME_JOURNEY_STORAGE_KEY, JSON.stringify(normalized));
+    window.localStorage.setItem(storageKey, JSON.stringify(normalized));
   } catch {
     // The backend draft remains the source of recovery if browser storage is unavailable.
   }
   return normalized;
 };
 
-export const clearResumeJourneyProgress = () => {
+export const clearResumeJourneyProgress = (storageScope = "") => {
+  const storageKey = getJourneyStorageKey(storageScope);
+  if (!storageKey) return;
   try {
-    window.localStorage.removeItem(RESUME_JOURNEY_STORAGE_KEY);
+    window.localStorage.removeItem(storageKey);
   } catch {
     // Nothing else is required when browser storage is unavailable.
   }

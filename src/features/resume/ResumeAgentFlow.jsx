@@ -4,18 +4,22 @@ import { FiArrowRight, FiCheckCircle, FiCpu, FiEdit3, FiRefreshCw, FiX } from "r
 import API_BASE_URL from "../../config/api";
 import { getAccessHeaders } from "../../utils/premiumAccess";
 import { getVisitorId, trackEvent } from "../../utils/analytics";
+import { getScopedResumeStorageKey } from "./resumeStorageScope";
 
 const getQuestionKey = (question = {}, index = 0) =>
   question.fieldKey || question.id || question.question || `question-${index + 1}`;
 
-const getAgentSessionStorageKey = ({ purpose, source, language, opportunityId, externalJob }) =>
-  [
+export const getAgentSessionStorageKey = ({ purpose, source, language, opportunityId, externalJob, storageScope }) =>
+  getScopedResumeStorageKey(
+    [
     "darbak-resume-agent-session",
     purpose,
     source,
     language,
     opportunityId || externalJob?._id || externalJob?.id || externalJob?.organizationName || externalJob?.company || "general",
-  ].join(":");
+    ].join(":"),
+    storageScope,
+  );
 
 const getPersistedSessionOutput = (savedSession = {}) => {
   if (savedSession.pendingDraft?.draft) {
@@ -199,6 +203,7 @@ const ResumeAgentFlow = ({
   language = "ar",
   opportunityId = "",
   externalJob = null,
+  storageScope = "",
   onApproved,
   onCancel,
 }) => {
@@ -215,8 +220,8 @@ const ResumeAgentFlow = ({
   const draft = output?.draft || session?.pendingDraft?.draft || null;
   const isTailored = purpose === "tailor_resume";
   const sessionStorageKey = useMemo(
-    () => getAgentSessionStorageKey({ purpose, source, language, opportunityId, externalJob }),
-    [purpose, source, language, opportunityId, externalJob]
+    () => getAgentSessionStorageKey({ purpose, source, language, opportunityId, externalJob, storageScope }),
+    [purpose, source, language, opportunityId, externalJob, storageScope]
   );
 
   const statusText = useMemo(() => {
@@ -237,7 +242,9 @@ const ResumeAgentFlow = ({
         setLoading(true);
         setError("");
         setNotice("");
-        const savedSessionId = window.sessionStorage.getItem(sessionStorageKey);
+        const savedSessionId = sessionStorageKey
+          ? window.sessionStorage.getItem(sessionStorageKey)
+          : "";
         if (savedSessionId) {
           try {
             const { data } = await axios.get(
@@ -260,7 +267,7 @@ const ResumeAgentFlow = ({
               return;
             }
           } catch {
-            window.sessionStorage.removeItem(sessionStorageKey);
+            if (sessionStorageKey) window.sessionStorage.removeItem(sessionStorageKey);
           }
         }
         const { data } = await axios.post(
@@ -281,7 +288,7 @@ const ResumeAgentFlow = ({
         setSession(data.session);
         setOutput(data.output);
         setAnswers({});
-        window.sessionStorage.setItem(sessionStorageKey, data.session.sessionId);
+        if (sessionStorageKey) window.sessionStorage.setItem(sessionStorageKey, data.session.sessionId);
         if (purpose === "tailor_resume") {
           trackEvent("application_pack_started", {
             page: "/my-resume/tailor",
@@ -370,7 +377,7 @@ const ResumeAgentFlow = ({
       );
       setSession(data.session);
       setOutput(data.output);
-      window.sessionStorage.setItem(sessionStorageKey, data.session.sessionId);
+      if (sessionStorageKey) window.sessionStorage.setItem(sessionStorageKey, data.session.sessionId);
       // The server persists answers before the agent continues. Keep a value in
       // place if it returns the same question so a transient agent response
       // never makes the student's input appear to vanish.

@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node tests/subscriptionPlans.test.js && node tests/resumeAgentValidation.test.js && node tests/resumePortfolioHydration.test.js && node tests/resumeAgentDraftGuard.test.js && node tests/resumeProfessionalComposer.test.js",
+    "test": "node tests/subscriptionPlans.test.js && node tests/resumeAgentValidation.test.js && node tests/resumePortfolioHydration.test.js && node tests/resumeAgentDraftGuard.test.js && node tests/resumeProfessionalComposer.test.js && node tests/resumeDataIsolation.test.js",
     "start": "node server.js"
   },
   "dependencies": {
