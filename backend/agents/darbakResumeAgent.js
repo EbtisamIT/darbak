@@ -15,6 +15,7 @@ const {
   compactVerifiedResumeFacts,
   composeProfessionalDraft,
   runProfessionalQualityGate,
+  getQualityFailureSections,
 } = require("../services/resumeProfessionalComposer");
 const { buildVerifiedResumeFacts } = require("../services/resumePortfolioHydration");
 
@@ -139,6 +140,19 @@ const resumeAgentOutputSchema = z
       warnings: [],
     }),
     pendingDraftId: z.string().max(80).default(""),
+  })
+  .strict();
+
+// Repairs deliberately return only one failed presentation section. The
+// canonical facts, identity, education and every unrelated section remain
+// server-owned from the first structured draft.
+const resumeQualityRepairSchema = z
+  .object({
+    sectionKey: z.enum(["summary", "experiences", "projects", "skills"]),
+    professionalSummary: resumeDraftSchema.shape.professionalSummary.optional(),
+    experiences: resumeDraftSchema.shape.experiences.optional(),
+    projects: resumeDraftSchema.shape.projects.optional(),
+    skills: resumeDraftSchema.shape.skills.optional(),
   })
   .strict();
 
@@ -1380,6 +1394,21 @@ const createDarbakResumeAgent = () =>
     outputType: resumeAgentOutputSchema,
   });
 
+const createDarbakResumeRepairAgent = () =>
+  new Agent({
+    name: "Darbak Resume Quality Repair Agent",
+    model: process.env.OPENAI_RESUME_AGENT_MODEL || DEFAULT_RESUME_AGENT_MODEL,
+    modelSettings: { maxTokens: 1800 },
+    instructions: `أنت تصلح قسمًا واحدًا فقط من مسودة سيرة ذاتية بعد فحص آلي محدد.
+استخدم الحقائق المتحققة المعطاة فقط، ولا تغير الاسم أو التعليم أو المسمى أو أي قسم لا يطلب منك إصلاحه.
+أعد sectionKey نفسه تمامًا وأعد محتوى القسم المطلوب فقط. لا تضف حقائق أو مهارات أو أرقامًا.
+إذا كان سبب الفشل متعلقًا باللغة الإنجليزية، اجعل النص المطلوب فقط إنجليزيًا طبيعيًا بلا أحرف عربية.
+إذا كان القسم projects، لا تحذف وصف مشروع متحققًا منه واكتب bullet واحدًا على الأقل عندما يكون الوصف موجودًا.
+إذا كان القسم skills، استخدم فقط المهارات المتحققة.` ,
+    tools: [],
+    outputType: resumeQualityRepairSchema,
+  });
+
 const buildAgentInput = ({ session, answers = [], verifiedResumeFacts = {} }) =>
   safeText(
     JSON.stringify({
@@ -1402,6 +1431,58 @@ const buildAgentInput = ({ session, answers = [], verifiedResumeFacts = {} }) =>
     }),
     MAX_FACT_TEXT_LENGTH
   );
+
+const selectRepairFacts = (verifiedResumeFacts = {}, sectionKey = "") => {
+  const base = {
+    personalInfo: verifiedResumeFacts.personalInfo || {},
+    confirmedAnswers: verifiedResumeFacts.confirmedAnswers || [],
+  };
+  if (sectionKey === "summary") {
+    return {
+      ...base,
+      professionalContext: verifiedResumeFacts.professionalContext || "",
+      experiences: verifiedResumeFacts.experiences || [],
+      projects: verifiedResumeFacts.projects || [],
+      skills: verifiedResumeFacts.skills || [],
+      certifications: verifiedResumeFacts.certifications || [],
+      volunteering: verifiedResumeFacts.volunteering || [],
+    };
+  }
+  return { ...base, [sectionKey]: verifiedResumeFacts[sectionKey] || [] };
+};
+
+const getRepairSectionForQuality = ({ quality = {}, draft = {}, language = "ar" } = {}) => {
+  const errors = Array.isArray(quality.errors) ? quality.errors : [];
+  const sections = getQualityFailureSections(errors);
+  if (errors.includes("english_language_mixing")) {
+    if (/[\u0600-\u06FF]/u.test(safeString(draft.professionalSummary, 900))) return "summary";
+    if ((draft.experiences || []).some((entry) => (entry.bullets || []).some((bullet) => /[\u0600-\u06FF]/u.test(safeString(bullet, 300))))) return "experiences";
+    if ((draft.projects || []).some((entry) => (entry.bullets || []).some((bullet) => /[\u0600-\u06FF]/u.test(safeString(bullet, 300))))) return "projects";
+  }
+  return sections.find((section) => ["summary", "experiences", "projects", "skills"].includes(section)) || "";
+};
+
+const buildQualityRepairInput = ({ sectionKey, draft, verifiedResumeFacts, quality, language }) =>
+  safeText(JSON.stringify({
+    task: "repair_resume_section",
+    language,
+    sectionKey,
+    failureRules: Array.isArray(quality.errors) ? quality.errors : [],
+    verifiedResumeFacts: selectRepairFacts(verifiedResumeFacts, sectionKey),
+    failedSection: sectionKey === "summary"
+      ? { professionalSummary: draft.professionalSummary || "" }
+      : { [sectionKey]: draft[sectionKey] || [] },
+  }), MAX_FACT_TEXT_LENGTH);
+
+const mergeQualityRepair = ({ draft = {}, repair = {}, expectedSection = "" } = {}) => {
+  if (!expectedSection || repair.sectionKey !== expectedSection) {
+    throw Object.assign(new Error("Repair returned an unexpected section"), { code: "INVALID_AGENT_RESPONSE" });
+  }
+  if (expectedSection === "summary") {
+    return { ...draft, professionalSummary: safeText(repair.professionalSummary, 900) };
+  }
+  return { ...draft, [expectedSection]: Array.isArray(repair[expectedSection]) ? repair[expectedSection] : [] };
+};
 
 const summarizeRunUsage = (result = {}, startedAt = Date.now()) => {
   const rawResponses = Array.isArray(result.rawResponses) ? result.rawResponses : [];
@@ -1477,6 +1558,12 @@ const buildAgentStageError = (stage, error, trace = {}) => {
     qualityGateCompleted: Boolean(trace.qualityGateCompleted),
     saveCompleted: Boolean(trace.saveCompleted),
     reusedModelOutput: Boolean(trace.reusedModelOutput),
+    initialGenerationSucceeded: Boolean(trace.initialGenerationSucceeded),
+    repairAttempted: Boolean(trace.repairAttempted),
+    repairSucceeded: Boolean(trace.repairSucceeded),
+    aiCalls: Number(trace.aiCalls || 0),
+    qualityFailureRules: Array.isArray(trace.qualityFailureRules) ? trace.qualityFailureRules.slice(0, 12) : [],
+    failedSections: Array.isArray(trace.failedSections) ? trace.failedSections.slice(0, 4) : [],
     turns: Number(trace.turns || 0),
     toolCalls: Number(trace.toolCalls || 0),
   };
@@ -1585,6 +1672,12 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     reusedModelOutput: false,
     turns: 0,
     toolCalls: 0,
+    initialGenerationSucceeded: false,
+    repairAttempted: false,
+    repairSucceeded: false,
+    aiCalls: 0,
+    qualityFailureRules: [],
+    failedSections: [],
   };
   let result = null;
   let output = getReusableDraftOutput(session, generationCacheKey);
@@ -1593,9 +1686,11 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     trace.modelCallSucceeded = true;
     trace.structuredOutputValid = true;
     trace.reusedModelOutput = true;
+    trace.initialGenerationSucceeded = true;
   } else {
     try {
       trace.modelCallStarted = true;
+      trace.aiCalls += 1;
       result = await run(agent, buildAgentInput({ session, answers, verifiedResumeFacts }), {
         context,
         maxTurns: 1,
@@ -1610,6 +1705,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     try {
       output = resumeAgentOutputSchema.parse(result.finalOutput);
       trace.structuredOutputValid = true;
+      trace.initialGenerationSucceeded = true;
     } catch (error) {
       throw buildAgentStageError("structured_output", error, trace);
     }
@@ -1678,7 +1774,82 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       });
       trace.qualityGateCompleted = true;
     } catch (error) {
+      // Keep the already-valid structured draft cached, but never turn a
+      // validator runtime fault into a successful resume or a second full
+      // generation. Its non-PII reason is retained for production diagnosis.
+      trace.qualityFailureRules = ["quality_gate_runtime_error"];
+      trace.failedSections = [];
       throw buildAgentStageError("professional_quality_gate", error, trace);
+    }
+    trace.qualityFailureRules = Array.isArray(quality.errors) ? quality.errors.slice(0, 12) : [];
+    trace.failedSections = getQualityFailureSections(trace.qualityFailureRules);
+
+    const repairSection = getRepairSectionForQuality({
+      quality,
+      draft: composedDraft,
+      language: session.language,
+    });
+    if (validationResult.valid && quality.needsRepair && repairSection) {
+      trace.repairAttempted = true;
+      let repairOutput;
+      try {
+        trace.aiCalls += 1;
+        const repairResult = await run(
+          createDarbakResumeRepairAgent(),
+          buildQualityRepairInput({
+            sectionKey: repairSection,
+            draft: composedDraft,
+            verifiedResumeFacts,
+            quality,
+            language: session.language,
+          }),
+          { context, maxTurns: 1 }
+        );
+        repairOutput = resumeQualityRepairSchema.parse(repairResult.finalOutput);
+      } catch (error) {
+        trace.qualityFailureRules = [...trace.qualityFailureRules, "quality_repair_failed"].slice(0, 12);
+        trace.failedSections = [repairSection];
+        repairOutput = null;
+      }
+
+      if (repairOutput) try {
+        const repairedDraft = composeProfessionalDraft({
+          draft: mergeQualityRepair({
+            draft: composedDraft,
+            repair: repairOutput,
+            expectedSection: repairSection,
+          }),
+          verifiedFacts,
+          language: session.language,
+        });
+        const repairedSourceMap = buildDeterministicSourceMap(repairedDraft, facts);
+        const repairedValidation = validateResumeClaims({
+          draft: repairedDraft,
+          facts,
+          sourceMap: repairedSourceMap,
+          purpose: session.purpose,
+        });
+        const repairedQuality = runProfessionalQualityGate({
+          draft: repairedDraft,
+          verifiedFacts,
+          language: session.language,
+        });
+        trace.qualityFailureRules = Array.isArray(repairedQuality.errors) ? repairedQuality.errors.slice(0, 12) : [];
+        trace.failedSections = getQualityFailureSections(trace.qualityFailureRules);
+        if (repairedValidation.valid && !repairedQuality.needsRepair) {
+          composedDraft = repairedDraft;
+          sourceMap = repairedSourceMap;
+          validationResult = repairedValidation;
+          quality = repairedQuality;
+          trace.repairSucceeded = true;
+        } else {
+          validationResult = repairedValidation;
+          quality = repairedQuality;
+        }
+      } catch (error) {
+        trace.qualityFailureRules = [...trace.qualityFailureRules, "quality_repair_validation_failed"].slice(0, 12);
+        trace.failedSections = [repairSection];
+      }
     }
     filteredOutput = {
       ...filteredOutput,
@@ -1690,8 +1861,8 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       filteredOutput = {
         ...filteredOutput,
         status: "cannot_continue",
-        message: "نحتاج مراجعة جزء محدد في المسودة قبل حفظها.",
-        warnings: [...(filteredOutput.warnings || []), ...validationResult.errors, ...quality.errors].slice(0, 20),
+        message: "تعذر التحقق من جودة المسودة هذه المرة. يمكنك المحاولة مرة أخرى دون فقد إجابتك.",
+        warnings: ["quality_validation_failed", ...(filteredOutput.warnings || []), ...validationResult.errors, ...quality.errors].slice(0, 20),
         pendingDraftId: "",
       };
     } else {
@@ -1710,22 +1881,31 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       }
     }
   }
+  const usage = result
+    ? summarizeRunUsage(result, startedAt)
+    : {
+        model: session.usage?.model || "",
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        durationMs: Date.now() - startedAt,
+        toolsUsed: [],
+        turns: 0,
+        toolCalls: 0,
+        reusedModelOutput: true,
+      };
   return {
     output: withStableQuestionKeys(filteredOutput),
     lastResponseId: result?.lastResponseId || session.lastResponseId || "",
-    usage: result
-      ? summarizeRunUsage(result, startedAt)
-      : {
-          model: session.usage?.model || "",
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-          durationMs: Date.now() - startedAt,
-          toolsUsed: [],
-          turns: 0,
-          toolCalls: 0,
-          reusedModelOutput: true,
-        },
+    usage: {
+      ...usage,
+      aiCalls: trace.aiCalls,
+      initialGenerationSucceeded: trace.initialGenerationSucceeded,
+      repairAttempted: trace.repairAttempted,
+      repairSucceeded: trace.repairSucceeded,
+      qualityFailureRules: trace.qualityFailureRules,
+      failedSections: trace.failedSections,
+    },
   };
 };
 
@@ -1739,6 +1919,9 @@ module.exports = {
   buildGenerationCacheKey,
   getReusableDraftOutput,
   buildAgentStageError,
+  getRepairSectionForQuality,
+  mergeQualityRepair,
+  buildQualityRepairInput,
   runDarbakResumeAgent,
   validateResumeClaims,
 };

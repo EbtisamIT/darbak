@@ -8,6 +8,27 @@ const list = (value) => (Array.isArray(value) ? value : []);
 const objectList = (value) => list(value).filter((entry) => entry && typeof entry === "object");
 const isEnglish = (language) => language === "en";
 
+const QUALITY_RULE_SECTIONS = {
+  summary_missing: ["summary"],
+  professional_context_copied_as_summary: ["summary"],
+  generic_summary: ["summary"],
+  english_language_mixing: ["summary", "experiences", "projects"],
+  unsupported_skill: ["skills"],
+  experience_identity_conflict: ["experiences"],
+};
+
+const getQualityFailureSections = (errors = []) => {
+  const sections = new Set();
+  (Array.isArray(errors) ? errors : []).forEach((error) => {
+    if (String(error || "").startsWith("project_missing_bullet:")) {
+      sections.add("projects");
+      return;
+    }
+    (QUALITY_RULE_SECTIONS[error] || []).forEach((section) => sections.add(section));
+  });
+  return Array.from(sections);
+};
+
 const buildDeterministicHeadline = (personalInfo = {}, language = "ar") => {
   const major = safeText(personalInfo.major, 160);
   const status = safeText(personalInfo.studentStatus, 40);
@@ -139,6 +160,7 @@ const runProfessionalQualityGate = ({ draft = {}, verifiedFacts = {}, language =
     emptyImportantSections: errors.filter((error) => /missing|project_missing/.test(error)),
     needsRepair: errors.length > 0,
     errors,
+    failedSections: getQualityFailureSections(errors),
   };
 };
 
@@ -147,4 +169,5 @@ module.exports = {
   compactVerifiedResumeFacts,
   composeProfessionalDraft,
   runProfessionalQualityGate,
+  getQualityFailureSections,
 };

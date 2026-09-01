@@ -4,6 +4,7 @@ const {
   compactVerifiedResumeFacts,
   composeProfessionalDraft,
   runProfessionalQualityGate,
+  getQualityFailureSections,
 } = require("../services/resumeProfessionalComposer");
 
 const facts = {
@@ -82,5 +83,12 @@ const resilientQuality = runProfessionalQualityGate({
   language: "en",
 });
 assert.strictEqual(resilientQuality.needsRepair, false, "optional malformed list entries cannot crash the quality gate");
+
+const missingProjectBullet = runProfessionalQualityGate({
+  draft: { ...composed, projects: [{ ...composed.projects[0], bullets: [] }] },
+  verifiedFacts: facts,
+  language: "en",
+});
+assert.deepStrictEqual(getQualityFailureSections(missingProjectBullet.errors), ["projects"]);
 
 console.log("resumeProfessionalComposer tests passed");

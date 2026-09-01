@@ -7203,6 +7203,16 @@ const mergeResumeAgentUsage = (current = {}, next = {}) => ({
   toolsUsed: Array.from(
     new Set([...(current.toolsUsed || []), ...(next.toolsUsed || [])].filter(Boolean))
   ),
+  aiCalls: Number(current.aiCalls || 0) + Number(next.aiCalls || 0),
+  initialGenerationSucceeded: Boolean(next.initialGenerationSucceeded || current.initialGenerationSucceeded),
+  repairAttempted: Boolean(next.repairAttempted || current.repairAttempted),
+  repairSucceeded: Boolean(next.repairSucceeded || current.repairSucceeded),
+  qualityFailureRules: Array.isArray(next.qualityFailureRules)
+    ? next.qualityFailureRules.slice(0, 12)
+    : current.qualityFailureRules || [],
+  failedSections: Array.isArray(next.failedSections)
+    ? next.failedSections.slice(0, 4)
+    : current.failedSections || [],
   failureReason: next.failureReason || current.failureReason || "",
 });
 
