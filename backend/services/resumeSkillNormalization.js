@@ -3,6 +3,7 @@ const SKILL_ALIASES = {
   github: "GitHub",
   react: "React.js",
   "react.js": "React.js",
+  "react js": "React.js",
   "ui/ ux": "UI/UX",
   "ui / ux": "UI/UX",
   "ui/ux": "UI/UX",

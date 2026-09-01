@@ -10,6 +10,12 @@ const {
   resumeDraftSchema,
   tailoredResumeDraftSchema,
 } = require("../services/resumeAiService");
+const {
+  compactVerifiedResumeFacts,
+  composeProfessionalDraft,
+  runProfessionalQualityGate,
+} = require("../services/resumeProfessionalComposer");
+const { buildVerifiedResumeFacts } = require("../services/resumePortfolioHydration");
 
 setSensitiveDataLoggingEnabled(false);
 
@@ -29,6 +35,7 @@ const questionSchema = z
     inputType: z
       .enum(["text", "textarea", "date", "url", "select", "number"])
       .default("textarea"),
+    options: z.array(z.string().max(120)).max(8).default([]),
   })
   .strict();
 
@@ -39,6 +46,46 @@ const validationResultSchema = z
     warnings: z.array(z.string().max(320)).max(30).default([]),
   })
   .strict();
+
+const candidateAssessmentSchema = z
+  .object({
+    candidateLevel: z.enum(["student", "graduate", "early_career"]).default("student"),
+    professionalIdentity: z.string().max(240).default(""),
+    strongestEvidence: z.array(z.string().max(180)).max(5).default([]),
+    relevantThemes: z.array(z.string().max(120)).max(5).default([]),
+    weakOrMissingAreas: z.array(z.string().max(160)).max(5).default([]),
+    positioning: z.string().max(360).default(""),
+    avoidClaims: z.array(z.string().max(160)).max(8).default([]),
+  })
+  .strict()
+  .default({
+    candidateLevel: "student",
+    professionalIdentity: "",
+    strongestEvidence: [],
+    relevantThemes: [],
+    weakOrMissingAreas: [],
+    positioning: "",
+    avoidClaims: [],
+  });
+
+const qualitySchema = z
+  .object({
+    unsupportedClaims: z.array(z.string().max(160)).max(20).default([]),
+    genericSummary: z.boolean().default(false),
+    statusConflict: z.boolean().default(false),
+    languageMixing: z.boolean().default(false),
+    emptyImportantSections: z.array(z.string().max(160)).max(12).default([]),
+    needsRepair: z.boolean().default(false),
+  })
+  .strict()
+  .default({
+    unsupportedClaims: [],
+    genericSummary: false,
+    statusConflict: false,
+    languageMixing: false,
+    emptyImportantSections: [],
+    needsRepair: false,
+  });
 
 const sourceMapEntrySchema = z
   .object({
@@ -66,6 +113,8 @@ const resumeAgentOutputSchema = z
     message: z.string().max(1200).default(""),
     questions: z.array(questionSchema).max(3).default([]),
     draft: tailoredResumeDraftSchema.nullable().default(null),
+    candidateAssessment: candidateAssessmentSchema,
+    quality: qualitySchema,
     applicationPack: applicationPackSchema,
     missingInformation: z
       .array(
@@ -1218,9 +1267,19 @@ const loadFactsForContext = async (context = {}) => {
   });
 };
 
-const createAgentInstructions = () => `أنت وكيل السيرة الذاتية في منصة دربك، متخصص في طلاب الجامعات والخريجين الجدد والمتقدمين للتدريب التعاوني داخل السعودية.
+const createAgentInstructions = () => `أنت Professional Resume Writer في منصة دربك، متخصص في السير الذاتية ATS للطلاب والخريجين والمبتدئين داخل السعودية.
 
-مهمتك إدارة رحلة إنشاء السيرة من البداية إلى النهاية.
+مهمتك إدارة رحلة إنشاء السيرة من البداية إلى النهاية. أنت كاتب مهني لا formatter ولا مترجم حرفي: قيّم evidence المتاح داخليًا، حدّد positioning صادقًا، ثم اكتب محتوى واضحًا ومهنيًا.
+
+قبل كتابة draft أنشئ candidateAssessment داخليًا ومختصرًا: مستوى المرشح، أقوى evidence، themes المرتبطة، الجوانب الناقصة، positioning، وما يجب تجنب ادعائه. لا تعرض reasoning طويلًا للمستخدم.
+
+الحقائق المحمية داخل verifiedResumeFacts هي المصدر الوحيد للاسم والتواصل والمدينة والجامعة والتخصص والدرجة وحالة الطالب وسنة التخرج والمعدل والتواريخ والشهادات. لا تغيّرها ولا تكتبها بحرية. headline يأتي حتميًا من major + studentStatus + grammaticalGender؛ أعده كما ورد في الحقائق ولا تبتكر Intern أو Trainee.
+
+اكتب summary من 2–4 جمل: الهوية المهنية، أقوى evidence عملي، 2–3 capabilities مثبتة، واتجاه مهني واقعي. لا تستخدم ضمير المتكلم أو enthusiasm عام أو قوائم مهارات مكررة أو claims غير مثبتة.
+
+اكتب experience bullets بأفعال مهنية واضحة، 2–5 فقط، ومن المهام المثبتة. اكتب project bullets من وصف المشروع والحقائق فقط. إذا كان وصف المشروع غير كافٍ، اجعل needsMoreInformation ضمن missingInformation ولا تخترع bullet. لا تضف metrics أو achievements أو tools أو roles أو employment status غير موجودة.
+
+في الإنجليزية اكتب business English طبيعيًا ولا تستخدم أحرفًا عربية في headline أو summary أو bullets. في العربية استخدم عربية مهنية طبيعية مع إبقاء أسماء الأدوات الرسمية مثل React.js وMicrosoft Excel.
 
 لا تطلب من الطالب كتابة محتوى مهني جاهز. اسمح له بالكتابة بأسلوبه العادي، ثم حول كلامه إلى صياغة مناسبة للسيرة.
 
@@ -1235,6 +1294,7 @@ const createAgentInstructions = () => `أنت وكيل السيرة الذاتي
 * إذا كانت المعلومة ناقصة، اسأل عنها بدل تخمينها.
 * اسأل سؤالًا إلى ثلاثة أسئلة قصيرة في كل مرة.
 * لا تعيد سؤالًا سبق أن أجاب عنه الطالب.
+* اجعل السؤال structured: اختر inputType المناسب (number للمعدل أو السنة، date للتاريخ، url للرابط، وselect فقط إذا كانت الخيارات واضحة وأعد options). لا تطلب فقرة طويلة عندما تكفي إجابة قصيرة.
 * لا تطيل المحادثة إذا كانت المعلومات كافية.
 * اكتب بلغة السيرة التي اختارها الطالب.
 * اجعل النبذة بين سطرين وأربعة.
@@ -1256,14 +1316,7 @@ const createAgentInstructions = () => `أنت وكيل السيرة الذاتي
 * في task=tailor_resume لا تعد status=needs_information بسبب شرط في الإعلان أو تفصيل تقديم. اسأل فقط عن Fact طالب ضروري لادعاء تريد كتابته داخل السيرة ولا يوجد له دليل، وإلا أنشئ المسودة من البيانات المتاحة.
 * عند task=tailor_resume أنشئ مع المسودة Application Pack واحدًا في نفس السياق: خطاب تدريب قصير ورسالة إيميل. لا تضف claim في الخطاب أو الإيميل غير موجود في facts الطالب أو المسودة. إذا كانت تعليمات التقديم تطلب فترة التدريب أو تاريخًا غير متوفر، أنشئ السيرة والخطاب، واجعل email.status=needs_input وأضف missingApplicationFields مناسبًا؛ لا تسأل عنه ولا توقف المسودة.
 
-استخدم الأدوات بهذا الترتيب تقريبًا:
-1. اقرأ الملف المهني والسيرة الحالية.
-2. إذا كان الطلب تخصيصًا، اقرأ الفرصة المحددة فقط.
-3. إن كانت المعلومات ناقصة، أعد status=needs_information مع أسئلة قصيرة.
-4. إذا كانت كافية، أنشئ draft مع sourceMap لكل نقطة.
-5. شغّل validate_resume_claims.
-6. إذا valid=true أنشئ pending draft بالأداة المناسبة وأعد pendingDraftId حتى لو كانت هناك warnings عن ربط المصادر.
-7. إذا validation فشل بسبب مهارة أو رقم أو جهة غير مذكورة، اسأل الطالب سؤالًا قصيرًا بدل إيقاف الرحلة.
+البيانات المتحققة والسياق الموثوق يمران لك مباشرة ضمن input. لا تطلب أو تبحث عن مصادر إضافية. إذا كانت كافية أعد draft structured، وإذا لم تكن كافية أعد needs_information فقط مع fieldKey واضح. الخادم هو الذي يتحقق ويحفظ المسودة بعد ردك.
 
 لا تستخدم أي مصدر خارجي ولا تفترض معلومات عن الطالب أو الشركات.`;
 
@@ -1272,18 +1325,11 @@ const createDarbakResumeAgent = () =>
     name: "Darbak Resume Agent",
     model: process.env.OPENAI_RESUME_AGENT_MODEL || DEFAULT_RESUME_AGENT_MODEL,
     instructions: createAgentInstructions(),
-    tools: [
-      loadStudentProfileTool,
-      loadCurrentResumeTool,
-      loadOpportunityTool,
-      validateResumeClaimsTool,
-      createPendingResumeDraftTool,
-      createPendingTailoredVersionTool,
-    ],
+    tools: [],
     outputType: resumeAgentOutputSchema,
   });
 
-const buildAgentInput = ({ session, answers = [] }) =>
+const buildAgentInput = ({ session, answers = [], verifiedResumeFacts = {} }) =>
   safeText(
     JSON.stringify({
       task: session.purpose,
@@ -1291,6 +1337,7 @@ const buildAgentInput = ({ session, answers = [] }) =>
       language: session.language,
       sessionId: session.sessionId,
       answeredQuestionIds: session.answeredQuestionIds || [],
+      verifiedResumeFacts,
       collectedAnswers: session.collectedFacts?.answers || [],
       externalOpportunity: session.collectedFacts?.externalJob || null,
       newAnswers: safeArray(answers, 3, (answer) => ({
@@ -1300,7 +1347,7 @@ const buildAgentInput = ({ session, answers = [] }) =>
         answer: safeText(answer.answer || answer.value, MAX_ANSWER_LENGTH),
       })),
       instruction:
-        "أكمل نفس جلسة وكيل السيرة. لا تعيد سؤالًا تمت الإجابة عنه. إذا وجدت externalOpportunity فهي سياق الفرصة المعتمد، سواء كانت فرصة من دربك أو جهة خارجية: لا تطلب من الطالب وصف الفرصة أو رابطًا أو معرّفًا مرة أخرى. في tailor_resume أنشئ المسودة من facts المتاحة ولا توقفها لأهلية التدريب أو الجنسية أو المعدل أو فترة التدريب؛ أعدها فقط كملاحظات مراجعة. إذا تكفي المعلومات أنشئ المسودة والتحقق والمسودة المؤقتة.",
+        "اكتب من verifiedResumeFacts والإجابات المؤكدة فقط. لا تعيد سؤالًا تمت الإجابة عنه. إذا وجدت externalOpportunity فهي سياق الفرصة المعتمد ولا تطلب وصفها أو رابطًا مرة أخرى. في tailor_resume لا توقف المسودة لأهلية التدريب أو الجنسية أو المعدل أو فترة التدريب؛ ضعها كملاحظات مراجعة فقط.",
     }),
     MAX_FACT_TEXT_LENGTH
   );
@@ -1330,6 +1377,54 @@ const summarizeRunUsage = (result = {}, startedAt = Date.now()) => {
     toolsUsed: Array.from(new Set(toolsUsed)),
     durationMs: Date.now() - startedAt,
   };
+};
+
+const buildDeterministicSourceMap = (draft = {}, facts = {}) => {
+  const mapSection = (section) => safeArray(draft[section], 12, (entry, index) =>
+    safeArray(entry.bullets, 5, (bullet, bulletIndex) => ({
+      path: `${section}.${index}.bullets.${bulletIndex}`,
+      sourceId: getSourceForClaimText(bullet, facts) || entry.sourceId || getFirstVerifiedSourceId(facts),
+      sourceText: safeText(bullet, 500),
+    }))
+  ).flat();
+  return [
+    ...mapSection("experiences"),
+    ...mapSection("projects"),
+    ...mapSection("volunteering"),
+  ].filter((entry) => entry.sourceId);
+};
+
+const persistProfessionalDraft = async ({ context = {}, draft = {}, sourceMap = [], validationResult = {}, changesSummary = [], applicationPack = {} }) => {
+  const isTailored = context.purpose === "tailor_resume";
+  const pending = await ResumePendingDraft.findOneAndUpdate(
+    {
+      agentSessionId: context.sessionId,
+      draftType: isTailored ? "tailored_resume" : "base_resume",
+      status: "pending_review",
+    },
+    {
+      $set: {
+        userId: context.access?.user?._id,
+        contact: context.access?.contact,
+        accessCodeHash: context.access?.accessCodeHash,
+        draftType: isTailored ? "tailored_resume" : "base_resume",
+        status: "pending_review",
+        draft,
+        sourceMap,
+        validationResult,
+        agentSessionId: context.sessionId,
+        baseResumeId: context.baseResumeId || null,
+        opportunityId: context.opportunityId || null,
+        companyName: context.collectedFacts?.externalJob?.organizationName || "",
+        roleTitle: context.collectedFacts?.externalJob?.title || "",
+        changesSummary: safeArray(changesSummary, 12, (item) => safeString(item, 320)),
+        applicationPack,
+        expiresAt: new Date(Date.now() + PENDING_DRAFT_TTL_MS),
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).lean();
+  return pending._id.toString();
 };
 
 const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
@@ -1366,46 +1461,61 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     answeredQuestionIds: session.answeredQuestionIds || [],
   };
 
-  let result = await run(agent, buildAgentInput({ session, answers }), {
+  const profile = await Portfolio.findOne(getAccessQuery(context)).lean();
+  const verifiedResumeFacts = compactVerifiedResumeFacts(
+    buildVerifiedResumeFacts(profile || {}, access?.contact || ""),
+    collectedFacts.answers
+  );
+  let result = await run(agent, buildAgentInput({ session, answers, verifiedResumeFacts }), {
     context,
-    maxTurns: Number(process.env.RESUME_AGENT_MAX_TURNS || DEFAULT_MAX_TURNS),
-    previousResponseId: session.lastResponseId || undefined,
+    maxTurns: 1,
   });
 
   let output = resumeAgentOutputSchema.parse(result.finalOutput);
   const facts = await loadFactsForContext(context);
-  if (session.purpose === "tailor_resume" && hasNoBlockingTailorQuestions(output, facts)) {
-    result = await run(
-      agent,
-      "أسئلة أهلية التدريب أو تفاصيل خطاب التقديم غير مانعة لمسار تخصيص السيرة. لا تسأل عنها الآن. أنشئ مسودة مخصصة من facts الطالب المتاحة فقط، وضع الشروط غير المؤكدة ضمن missingInformation للمراجعة.",
-      {
-        context,
-        maxTurns: Number(process.env.RESUME_AGENT_MAX_TURNS || DEFAULT_MAX_TURNS),
-        previousResponseId: result.lastResponseId || undefined,
-      }
-    );
-    output = resumeAgentOutputSchema.parse(result.finalOutput);
-  }
   let filteredOutput = filterConfirmedQuestions(output, facts);
-  // Filtering an already-confirmed question must not leave the UI on an empty
-  // "needs information" step. Ask the same agent session to continue from its
-  // saved facts and return a draft or genuinely missing fields instead.
-  if (
-    output.status === "needs_information" &&
-    output.questions?.length > 0 &&
-    filteredOutput.questions?.length === 0
-  ) {
-    result = await run(
-      agent,
-      "كل الأسئلة السابقة مؤكدة أصلًا في الملف المهني أو إجابات الطالب. لا تعرضها مرة أخرى؛ أنشئ المسودة من الحقائق المتاحة أو اسأل فقط عن حقل محدد غير موجود فعلًا.",
-      {
+  if (["draft_ready", "tailored_draft_ready"].includes(filteredOutput.status) && filteredOutput.draft) {
+    const composedDraft = composeProfessionalDraft({
+      draft: filteredOutput.draft,
+      verifiedFacts: verifiedResumeFacts,
+      language: session.language,
+    });
+    const sourceMap = buildDeterministicSourceMap(composedDraft, facts);
+    const validationResult = validateResumeClaims({
+      draft: composedDraft,
+      facts,
+      sourceMap,
+      purpose: session.purpose,
+    });
+    const quality = runProfessionalQualityGate({
+      draft: composedDraft,
+      verifiedFacts,
+      language: session.language,
+    });
+    filteredOutput = {
+      ...filteredOutput,
+      draft: composedDraft,
+      quality,
+      validationStatus: validationResult,
+    };
+    if (!validationResult.valid || quality.needsRepair) {
+      filteredOutput = {
+        ...filteredOutput,
+        status: "cannot_continue",
+        message: "نحتاج مراجعة جزء محدد في المسودة قبل حفظها.",
+        warnings: [...(filteredOutput.warnings || []), ...validationResult.errors, ...quality.errors].slice(0, 20),
+        pendingDraftId: "",
+      };
+    } else {
+      filteredOutput.pendingDraftId = await persistProfessionalDraft({
         context,
-        maxTurns: Number(process.env.RESUME_AGENT_MAX_TURNS || DEFAULT_MAX_TURNS),
-        previousResponseId: result.lastResponseId || undefined,
-      }
-    );
-    output = resumeAgentOutputSchema.parse(result.finalOutput);
-    filteredOutput = filterConfirmedQuestions(output, facts);
+        draft: composedDraft,
+        sourceMap,
+        validationResult,
+        changesSummary: filteredOutput.changesSummary,
+        applicationPack: filteredOutput.applicationPack,
+      });
+    }
   }
   return {
     output: withStableQuestionKeys(filteredOutput),
