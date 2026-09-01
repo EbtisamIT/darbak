@@ -41,6 +41,7 @@ import { estimateResumePages } from "../features/resume/resumeValidation";
 import { getEnglishReviewItems } from "../features/resume/resumeLocalization";
 import {
   clearResumeJourneyProgress,
+  getReachableJourneyProgress,
   readResumeJourneyProgress,
   writeResumeJourneyProgress,
 } from "../features/resume/resumeJourneyPersistence";
@@ -277,6 +278,7 @@ const MyResumePage = () => {
     searchParams.get("jobId") ||
     "";
   const routeTailorContext = location.state?.tailorContext || null;
+  const routeJourneyProgress = location.state?.resumeJourney || null;
   const routeVersionId = location.pathname.match(/^\/my-resume\/versions\/([^/]+)$/)?.[1] || "";
   const routeView = routeVersionId
     ? "version"
@@ -752,12 +754,13 @@ const MyResumePage = () => {
   const continueJourneyToMissing = async () => {
     const saved = await saveJourneyDraft();
     if (!saved) return;
-    setPersistedJourneyProgress({
+    const progress = setPersistedJourneyProgress({
       currentStep: "missing",
       completedSteps: ["data"],
       source: journeySource,
     });
-    navigate("/my-resume/build?step=missing");
+    setJourneyView("missing");
+    navigate("/my-resume/build?step=missing", { state: { resumeJourney: progress } });
   };
 
   const finishJourneyBasics = async (resumeToSave) => {
@@ -779,7 +782,11 @@ const MyResumePage = () => {
       completedSteps: journeyCompletedSteps,
       source: journeySource,
     });
-    navigate("/my-resume/build");
+    navigate("/my-resume/build", { state: { resumeJourney: {
+      currentStep: "data",
+      completedSteps: journeyCompletedSteps,
+      source: journeySource,
+    } } });
   };
 
   const handleCustomizeLater = () => {
@@ -828,7 +835,11 @@ const MyResumePage = () => {
     });
     setResumeMode("agent");
     setJourneyStep("draft");
-    navigate("/my-resume/build?step=draft");
+    navigate("/my-resume/build?step=draft", { state: { resumeJourney: {
+      currentStep: "draft",
+      completedSteps: ["data", "missing"],
+      source: journeySource,
+    } } });
     trackEvent("resume_agent_started", { page: "/my-resume", metadata: { purpose, source } });
   };
 
@@ -902,12 +913,19 @@ const MyResumePage = () => {
     }
     if (routeView === "build") {
       openMaster();
-      const savedJourney = readResumeJourneyProgress();
+      const savedJourney = getReachableJourneyProgress(
+        readResumeJourneyProgress(),
+        routeJourneyProgress,
+      );
       const requestedStep = searchParams.get("step");
       const canOpenMissing = savedJourney?.completedSteps?.includes("data");
+      const canOpenDraft = savedJourney?.completedSteps?.includes("data") &&
+        savedJourney?.completedSteps?.includes("missing");
       const step = requestedStep === "missing" && !canOpenMissing
         ? ""
-        : requestedStep || savedJourney?.currentStep || "";
+        : requestedStep === "draft" && !canOpenDraft
+          ? ""
+          : requestedStep || savedJourney?.currentStep || "";
       if (savedJourney) {
         setJourneySource(savedJourney.source);
         setJourneyCompletedSteps(savedJourney.completedSteps);
@@ -941,7 +959,7 @@ const MyResumePage = () => {
     setResumeMode("dashboard");
     setJourneyView("start");
     setJourneyStep("data");
-  }, [loadResume, loadTailoredVersion, location.pathname, location.search, navigate, routeVersionId, routeView, searchParams]);
+  }, [loadResume, loadTailoredVersion, location.pathname, location.search, navigate, routeJourneyProgress, routeVersionId, routeView, searchParams]);
 
   const completeApplicationPackDetails = async ({ trainingStart, trainingEnd, targetField }) => {
     if (!editingVersionId) return;

@@ -45,3 +45,18 @@ export const clearResumeJourneyProgress = () => {
     // Nothing else is required when browser storage is unavailable.
   }
 };
+
+// Navigation state is a short-lived confirmation that the student used the
+// explicit CTA in this browser session. It prevents a storage-restricted
+// browser from bouncing back to step one while localStorage is unavailable.
+export const getReachableJourneyProgress = (savedProgress, navigationProgress) => {
+  const navigation = navigationProgress && typeof navigationProgress === "object"
+    ? normalizeProgress(navigationProgress)
+    : null;
+  const saved = savedProgress && typeof savedProgress === "object"
+    ? normalizeProgress(savedProgress)
+    : null;
+
+  if (navigation?.completedSteps?.length || navigation?.currentStep === "data") return navigation;
+  return saved;
+};

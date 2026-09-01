@@ -1,5 +1,6 @@
 import {
   clearResumeJourneyProgress,
+  getReachableJourneyProgress,
   readResumeJourneyProgress,
   writeResumeJourneyProgress,
 } from "./resumeJourneyPersistence";
@@ -30,5 +31,24 @@ describe("resume journey persistence", () => {
     });
 
     expect(progress.completedSteps).toEqual(["data"]);
+  });
+
+  it("keeps an explicitly completed step reachable when browser storage is unavailable", () => {
+    expect(getReachableJourneyProgress(null, {
+      currentStep: "missing",
+      completedSteps: ["data"],
+      source: "portfolio",
+    })).toMatchObject({
+      currentStep: "missing",
+      completedSteps: ["data"],
+    });
+  });
+
+  it("does not make a future draft step reachable without its completed steps", () => {
+    expect(getReachableJourneyProgress(null, {
+      currentStep: "draft",
+      completedSteps: [],
+      source: "portfolio",
+    })).toBeNull();
   });
 });
