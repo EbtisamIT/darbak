@@ -76,4 +76,11 @@ const copiedContext = runProfessionalQualityGate({
 });
 assert.strictEqual(copiedContext.needsRepair, true);
 
+const resilientQuality = runProfessionalQualityGate({
+  draft: { ...composed, projects: [...composed.projects, null], experiences: [...composed.experiences, null], skills: [...composed.skills, null] },
+  verifiedFacts: { ...facts, projects: [...facts.projects, null], experiences: [...facts.experiences, null] },
+  language: "en",
+});
+assert.strictEqual(resilientQuality.needsRepair, false, "optional malformed list entries cannot crash the quality gate");
+
 console.log("resumeProfessionalComposer tests passed");

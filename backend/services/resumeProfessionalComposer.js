@@ -5,6 +5,7 @@ const GENERIC_SUMMARY = /\b(hardworking|passionate|motivated|seeking an opportun
 
 const safeText = (value = "", max = 900) => (value || "").toString().replace(/\s+/g, " ").trim().slice(0, max);
 const list = (value) => (Array.isArray(value) ? value : []);
+const objectList = (value) => list(value).filter((entry) => entry && typeof entry === "object");
 const isEnglish = (language) => language === "en";
 
 const buildDeterministicHeadline = (personalInfo = {}, language = "ar") => {
@@ -103,23 +104,31 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
 
 const runProfessionalQualityGate = ({ draft = {}, verifiedFacts = {}, language = "ar" } = {}) => {
   const errors = [];
-  const summary = safeText(draft.professionalSummary, 900);
-  const professionalContext = safeText(verifiedFacts.professionalContext, 900);
-  const expectedHeadline = buildDeterministicHeadline(verifiedFacts.personalInfo || {}, language);
+  const safeDraft = draft && typeof draft === "object" ? draft : {};
+  const safeFacts = verifiedFacts && typeof verifiedFacts === "object" ? verifiedFacts : {};
+  const summary = safeText(safeDraft.professionalSummary, 900);
+  const professionalContext = safeText(safeFacts.professionalContext, 900);
+  const expectedHeadline = buildDeterministicHeadline(safeFacts.personalInfo || {}, language);
+  const experiences = objectList(safeDraft.experiences);
+  const projects = objectList(safeDraft.projects);
+  const skills = objectList(safeDraft.skills);
+  const verifiedProjects = objectList(safeFacts.projects);
+  const verifiedExperiences = objectList(safeFacts.experiences);
+  const verifiedSkills = normalizeResumeSkills(list(safeFacts.skills));
   if (!summary) errors.push("summary_missing");
   if (professionalContext && summary.toLocaleLowerCase() === professionalContext.toLocaleLowerCase()) errors.push("professional_context_copied_as_summary");
   if (GENERIC_SUMMARY.test(summary)) errors.push("generic_summary");
-  if (safeText(draft.targetTitle, 180) !== expectedHeadline) errors.push("headline_conflict");
-  if (isEnglish(language) && [summary, draft.targetTitle, ...list(draft.experiences).flatMap((entry) => entry.bullets || []), ...list(draft.projects).flatMap((entry) => entry.bullets || [])].some((text) => ARABIC_CHARACTERS.test(text || ""))) errors.push("english_language_mixing");
-  const verifiedSkills = new Set(normalizeResumeSkills(list(verifiedFacts.skills)).map((skill) => skill.toLowerCase()));
-  list(draft.skills).forEach((skill) => {
-    if (!verifiedSkills.has(safeText(skill.name || skill, 80).toLowerCase())) errors.push("unsupported_skill");
+  if (safeText(safeDraft.targetTitle, 180) !== expectedHeadline) errors.push("headline_conflict");
+  if (isEnglish(language) && [summary, safeDraft.targetTitle, ...experiences.flatMap((entry) => list(entry.bullets)), ...projects.flatMap((entry) => list(entry.bullets))].some((text) => ARABIC_CHARACTERS.test(text || ""))) errors.push("english_language_mixing");
+  const verifiedSkillSet = new Set(verifiedSkills.map((skill) => skill.toLowerCase()));
+  skills.forEach((skill) => {
+    if (!verifiedSkillSet.has(safeText(skill.name, 80).toLowerCase())) errors.push("unsupported_skill");
   });
-  list(verifiedFacts.projects).forEach((project) => {
-    if (safeText(project.description) && !list(draft.projects).some((item) => safeText(item.name).toLowerCase() === safeText(project.title).toLowerCase() && list(item.bullets).length)) errors.push(`project_missing_bullet:${project.id}`);
+  verifiedProjects.forEach((project) => {
+    if (safeText(project.description) && !projects.some((item) => safeText(item.name).toLowerCase() === safeText(project.title).toLowerCase() && list(item.bullets).length)) errors.push(`project_missing_bullet:${project.id}`);
   });
-  const verifiedExperienceIds = new Set(list(verifiedFacts.experiences).map((entry) => entry.id));
-  list(draft.experiences).forEach((entry) => {
+  const verifiedExperienceIds = new Set(verifiedExperiences.map((entry) => entry.id));
+  experiences.forEach((entry) => {
     if (entry.sourceId && !verifiedExperienceIds.has(entry.sourceId)) errors.push("experience_identity_conflict");
   });
   return {
