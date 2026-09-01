@@ -11,6 +11,7 @@ const {
   assertTranslationIntegrity,
   mapDraftToResumePayload,
   approvedDraftNeedsRematerialization,
+  resumeDraftSchema,
 } = require("../services/resumeAiService");
 const { hasCompleteApplicationPack } = require("../services/applicationPackIntegrity");
 
@@ -88,6 +89,25 @@ const validSourceMap = [
 ];
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+
+const { missingRequirements: _missingRequirements, ...baseEditorialDraft } = validDraft;
+const editorialDraft = resumeDraftSchema.parse({
+  ...baseEditorialDraft,
+  editorialCheck: {
+    concise: true,
+    noRepeatedIdeas: true,
+    naturalArabic: true,
+    evidenceBased: true,
+    noUnnecessaryToolListing: true,
+  },
+});
+assert.deepStrictEqual(editorialDraft.editorialCheck, {
+  concise: true,
+  noRepeatedIdeas: true,
+  naturalArabic: true,
+  evidenceBased: true,
+  noUnnecessaryToolListing: true,
+}, "the structured draft retains the Arabic editorial review without a second model call");
 
 {
   const resumePayload = {

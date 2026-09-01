@@ -89,10 +89,28 @@ const questionSchema = z
   })
   .strict();
 
+const editorialCheckSchema = z
+  .object({
+    concise: z.boolean().default(false),
+    noRepeatedIdeas: z.boolean().default(false),
+    naturalArabic: z.boolean().default(false),
+    evidenceBased: z.boolean().default(false),
+    noUnnecessaryToolListing: z.boolean().default(false),
+  })
+  .strict()
+  .default({
+    concise: false,
+    noRepeatedIdeas: false,
+    naturalArabic: false,
+    evidenceBased: false,
+    noUnnecessaryToolListing: false,
+  });
+
 const resumeDraftSchema = z
   .object({
     targetTitle: shortString(160),
     professionalSummary: shortString(900),
+    editorialCheck: editorialCheckSchema,
     education: z.array(educationSchema).max(6).default([]),
     experiences: z.array(experienceSchema).max(8).default([]),
     projects: z.array(projectSchema).max(8).default([]),
