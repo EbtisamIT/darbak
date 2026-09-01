@@ -6957,6 +6957,36 @@ const incrementResumeTailorUsage = async (access = {}) => {
 };
 
 const getResumeAiErrorResponse = (err = {}) => {
+  if (err.code === "AGENT_UNAVAILABLE") {
+    return {
+      status: 503,
+      body: {
+        error: "خدمة كاتب السيرة غير متاحة مؤقتًا. حاول بعد دقيقة.",
+        reason: "agent_unavailable",
+      },
+    };
+  }
+
+  if (err.code === "INVALID_AGENT_RESPONSE") {
+    return {
+      status: 502,
+      body: {
+        error: "تعذر اعتماد رد كاتب السيرة هذه المرة. حاول مرة أخرى.",
+        reason: "invalid_agent_response",
+      },
+    };
+  }
+
+  if (err.code === "GENERATION_FAILED") {
+    return {
+      status: 500,
+      body: {
+        error: "تعذر إكمال إنشاء المسودة الآن. يمكنك المحاولة مرة أخرى دون فقد إجابتك.",
+        reason: "generation_failed",
+      },
+    };
+  }
+
   if (err.code === "OPENAI_KEY_MISSING") {
     return {
       status: 503,
@@ -7782,6 +7812,7 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
       name: err.name,
       message: (err.message || "").toString().slice(0, 900),
       cause: (err.cause?.message || "").toString().slice(0, 500),
+      trace: err.resumeAgentTrace || null,
     });
     const response = getResumeAiErrorResponse(err);
     return res.status(response.status).json(response.body);
@@ -7869,6 +7900,7 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
       name: err.name,
       message: (err.message || "").toString().slice(0, 900),
       cause: (err.cause?.message || "").toString().slice(0, 500),
+      trace: err.resumeAgentTrace || null,
     });
     const response = getResumeAiErrorResponse(err);
     return res.status(response.status).json(response.body);
