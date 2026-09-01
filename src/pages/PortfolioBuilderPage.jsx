@@ -460,6 +460,10 @@ export default function PortfolioBuilderPage() {
   const saveInFlightRef = useRef(false);
   const queuedSaveRef = useRef(false);
   const revisionRef = useRef(0);
+  const pendingEmptyCollectionItemsRef = useRef({
+    projects: new Set(),
+    certifications: new Set(),
+  });
 
   const contact = identity.contact || identity.email || authForm.contact.trim();
   const accessCode = identity.accessCode || authForm.accessCode.trim();
@@ -590,6 +594,10 @@ export default function PortfolioBuilderPage() {
   };
 
   const updateListItem = (listName, index, field, value, { immediate = false } = {}) => {
+    const itemId = formRef.current[listName]?.[index]?.id;
+    if (itemId && pendingEmptyCollectionItemsRef.current[listName]?.has(itemId)) {
+      pendingEmptyCollectionItemsRef.current[listName].delete(itemId);
+    }
     revisionRef.current += 1;
     dirtyRef.current = true;
     immediateSaveRef.current = immediate;
@@ -624,9 +632,9 @@ export default function PortfolioBuilderPage() {
   };
 
   const addListItem = (listName, emptyItem, maxItems = 6) => {
+    // Keep a newer UI revision so an in-flight autosave cannot overwrite a
+    // newly added empty row before the student has a chance to fill it in.
     revisionRef.current += 1;
-    dirtyRef.current = true;
-    immediateSaveRef.current = true;
     setForm((current) => {
       if (current[listName].length >= maxItems) return current;
       const nextItem =
@@ -635,11 +643,18 @@ export default function PortfolioBuilderPage() {
           : listName === "certifications"
             ? createEmptyCertification()
             : { ...emptyItem };
+      if (pendingEmptyCollectionItemsRef.current[listName] && nextItem.id) {
+        pendingEmptyCollectionItemsRef.current[listName].add(nextItem.id);
+      }
       return { ...current, [listName]: [...current[listName], nextItem] };
     });
   };
 
   const removeListItem = (listName, index, emptyItem) => {
+    const removedItemId = formRef.current[listName]?.[index]?.id;
+    if (removedItemId && pendingEmptyCollectionItemsRef.current[listName]) {
+      pendingEmptyCollectionItemsRef.current[listName].delete(removedItemId);
+    }
     revisionRef.current += 1;
     dirtyRef.current = true;
     immediateSaveRef.current = true;
@@ -826,7 +841,20 @@ export default function PortfolioBuilderPage() {
       const hasNewerChanges = revisionRef.current !== snapshotRevision;
       if (!hasNewerChanges) {
         hasLoadedPortfolioRef.current = false;
-        setForm(normalizeForm(data.portfolio));
+        const normalizedPortfolio = normalizeForm(data.portfolio);
+        ["projects", "certifications"].forEach((listName) => {
+          const pendingIds = pendingEmptyCollectionItemsRef.current[listName];
+          const pendingItems = source[listName].filter((item) => pendingIds?.has(item.id));
+          if (!pendingItems.length) return;
+
+          const persistedItems = normalizedPortfolio[listName].filter((item) =>
+            listName === "projects"
+              ? item.title || item.description || item.technologies || item.url
+              : item.title || item.provider || item.year || item.credentialUrl
+          );
+          normalizedPortfolio[listName] = [...persistedItems, ...pendingItems];
+        });
+        setForm(normalizedPortfolio);
       }
       setPublicUrl(data.publicUrl || "");
       setAvatarFile(null);
