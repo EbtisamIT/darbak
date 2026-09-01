@@ -426,6 +426,7 @@ export default function PortfolioBuilderPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState("idle");
+  const [resumeSetupSkillDraft, setResumeSetupSkillDraft] = useState("");
   const formRef = useRef(emptyForm);
   const autosaveTimerRef = useRef(null);
   const retryTimerRef = useRef(null);
@@ -576,6 +577,27 @@ export default function PortfolioBuilderPage() {
       ),
     }));
     setMessage("");
+  };
+
+  const addResumeSetupSkill = () => {
+    const nextSkill = resumeSetupSkillDraft.trim();
+    if (!nextSkill) return;
+
+    if (skillItems.some((skill) => skill.toLocaleLowerCase() === nextSkill.toLocaleLowerCase())) {
+      setResumeSetupSkillDraft("");
+      return;
+    }
+
+    updateField("skills", [...skillItems, nextSkill].join("، "), { immediate: true });
+    setResumeSetupSkillDraft("");
+  };
+
+  const removeResumeSetupSkill = (skillToRemove) => {
+    updateField(
+      "skills",
+      skillItems.filter((skill) => skill !== skillToRemove).join("، "),
+      { immediate: true }
+    );
   };
 
   const addListItem = (listName, emptyItem, maxItems = 6) => {
@@ -1260,7 +1282,36 @@ export default function PortfolioBuilderPage() {
               {stageSetupKeys.has("education") && form.degreeLevel === "أخرى" && <label>اكتب الدرجة<input value={form.degreeOther} onChange={(event) => updateField("degreeOther", event.target.value)} placeholder="مثال: شهادة مهنية" /></label>}
               {stageSetupKeys.has("email") && <label>بريد التواصل<input id={getResumeSetupInputId("email")} type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
               {stageSetupKeys.has("bio") && <label className="is-wide">نبذة مهنية<textarea id={getResumeSetupInputId("bio")} value={form.bio} onChange={(event) => updateField("bio", event.target.value)} placeholder="اكتب سطرين عن اهتمامك المهني وما الذي تستطيع تقديمه." /></label>}
-              {stageSetupKeys.has("skills") && <label className="is-wide">مهارة واحدة على الأقل<input id={getResumeSetupInputId("skills")} value={form.skills} onChange={(event) => updateField("skills", event.target.value)} placeholder="مثال: Excel، React، تحليل بيانات" /></label>}
+              {stageSetupKeys.has("skills") && (
+                <div className="portfolio-resume-setup-skills is-wide">
+                  <label htmlFor={getResumeSetupInputId("skills")}>مهارة واحدة على الأقل</label>
+                  <p>أضف كل مهارة لوحدها، مثل Excel أو React أو تحليل البيانات.</p>
+                  <div className="portfolio-resume-setup-skill-entry">
+                    <input
+                      id={getResumeSetupInputId("skills")}
+                      value={resumeSetupSkillDraft}
+                      onChange={(event) => setResumeSetupSkillDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addResumeSetupSkill();
+                        }
+                      }}
+                      placeholder="اكتب مهارة"
+                    />
+                    <button type="button" onClick={addResumeSetupSkill}>إضافة مهارة</button>
+                  </div>
+                  {skillItems.length > 0 && (
+                    <div className="portfolio-resume-setup-skill-chips" aria-label="المهارات المضافة">
+                      {skillItems.map((skill) => (
+                        <button type="button" key={skill} onClick={() => removeResumeSetupSkill(skill)} title={`حذف ${skill}`}>
+                          {skill} <span aria-hidden="true">×</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {stageSetupKeys.has("evidence") && <label className="is-wide">مشروع أو خبرة واحدة<input id={getResumeSetupInputId("evidence")} value={form.projects[0]?.title || ""} onChange={(event) => updateListItem("projects", 0, "title", event.target.value)} placeholder="اسم مشروع عملت عليه" /></label>}
             </div>
           </section>

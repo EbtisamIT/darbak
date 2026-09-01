@@ -5707,6 +5707,17 @@ body {
 .portfolio-resume-setup-status { color: #73d9ce; font-weight: 800; white-space: nowrap; }
 .portfolio-resume-setup-message { margin: 0; color: #f2c879; }
 .portfolio-resume-setup .portfolio-builder-savebar { margin-top: 0; }
+.portfolio-resume-setup-skills { display: grid; gap: 8px; grid-column: 1 / -1; }
+.portfolio-resume-setup-skills > label { color: var(--app-text-soft); font-size: 12px; font-weight: 900; }
+.portfolio-resume-setup-skills > p { margin: 0; color: var(--app-muted); font-size: 12px; line-height: 1.6; }
+.portfolio-resume-setup-skill-entry { display: flex; gap: 8px; }
+.portfolio-resume-setup-skill-entry input { flex: 1; min-width: 0; }
+.portfolio-resume-setup-skill-entry button,
+.portfolio-resume-setup-skill-chips button { border: 1px solid var(--app-brand-border); border-radius: 12px; background: rgba(74, 204, 189, .1); color: var(--app-brand); font: inherit; font-weight: 800; cursor: pointer; }
+.portfolio-resume-setup-skill-entry button { padding: 0 14px; white-space: nowrap; }
+.portfolio-resume-setup-skill-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.portfolio-resume-setup-skill-chips button { padding: 7px 10px; }
+.portfolio-resume-setup-skill-chips button span { margin-inline-start: 5px; color: var(--app-text-soft); }
 
 @media (max-width: 640px) {
   .resume-portfolio-prerequisite { width: min(100% - 24px, 720px); margin: 24px auto; padding: 22px 18px; }
@@ -5716,6 +5727,8 @@ body {
   .portfolio-resume-setup .portfolio-builder-section-head { align-items: flex-start; }
   .portfolio-resume-setup-status { font-size: 13px; }
   .portfolio-resume-setup .portfolio-auth-row { grid-template-columns: 1fr; }
+  .portfolio-resume-setup-skill-entry { align-items: stretch; }
+  .portfolio-resume-setup-skill-entry button { padding-inline: 11px; font-size: 12px; }
 }
 
 @media (max-width: 860px) {
