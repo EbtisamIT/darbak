@@ -1832,7 +1832,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     try {
       quality = runProfessionalQualityGate({
         draft: composedDraft,
-        verifiedFacts,
+        verifiedFacts: verifiedResumeFacts,
         language: session.language,
       });
       trace.qualityGateCompleted = true;
@@ -1889,7 +1889,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
             repair: repairOutput,
             expectedSection: repairSection,
           }),
-          verifiedFacts,
+          verifiedFacts: verifiedResumeFacts,
           language: session.language,
         });
         const repairedSourceMap = buildDeterministicSourceMap(repairedDraft, facts);
@@ -1901,7 +1901,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
         });
         const repairedQuality = runProfessionalQualityGate({
           draft: repairedDraft,
-          verifiedFacts,
+          verifiedFacts: verifiedResumeFacts,
           language: session.language,
         });
         trace.qualityFailureRules = Array.isArray(repairedQuality.errors) ? repairedQuality.errors.slice(0, 12) : [];
