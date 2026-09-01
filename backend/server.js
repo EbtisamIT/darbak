@@ -6979,11 +6979,16 @@ const getResumeAiErrorResponse = (err = {}) => {
 
   if (err.code === "GENERATION_FAILED") {
     const failureStage = err.resumeAgentTrace?.stage || "generation";
-    const message = failureStage === "draft_persistence" || failureStage === "cache_save"
-      ? "جهزنا محتوى السيرة لكن تعذر حفظه مؤقتًا. حاول مرة أخرى دون فقد إجابتك."
-      : ["professional_composer", "source_mapping", "claims_validation", "professional_quality_gate"].includes(failureStage)
-        ? "تعذر التحقق من المسودة هذه المرة. يمكنك المحاولة مرة أخرى دون فقد إجابتك."
-        : "تعذر إكمال إنشاء المسودة الآن. يمكنك المحاولة مرة أخرى دون فقد إجابتك.";
+    const messageByStage = {
+      cache_save: "جهزنا محتوى السيرة لكن تعذر حفظه مؤقتًا. حاول مرة أخرى دون فقد إجابتك.",
+      draft_persistence: "جهزنا محتوى السيرة لكن تعذر حفظه مؤقتًا. حاول مرة أخرى دون فقد إجابتك.",
+      professional_composer: "تعذر تنسيق محتوى المسودة هذه المرة. يمكنك المحاولة مرة أخرى دون فقد إجابتك.",
+      source_mapping: "تعذر ربط المسودة بمعلوماتك هذه المرة. يمكنك المحاولة مرة أخرى دون فقد إجابتك.",
+      claims_validation: "تعذر مراجعة توافق معلومات المسودة هذه المرة. يمكنك المحاولة مرة أخرى دون فقد إجابتك.",
+      professional_quality_gate: "تعذر التحقق من جودة المسودة هذه المرة. يمكنك المحاولة مرة أخرى دون فقد إجابتك.",
+    };
+    const message = messageByStage[failureStage]
+      || "تعذر إكمال إنشاء المسودة الآن. يمكنك المحاولة مرة أخرى دون فقد إجابتك.";
     return {
       status: 500,
       body: {
