@@ -914,6 +914,29 @@ const getSensitiveSummaryClaims = (summary = "") => {
     .filter(Boolean);
 };
 
+const hasVerifiedSummaryStatus = (claim = "", facts = {}, factTextComparable = "") => {
+  const normalizedClaim = normalizeComparable(claim);
+  const statuses = [
+    facts?.profile?.studentStatus,
+    facts?.resume?.personalInfo?.studentStatus,
+    facts?.resume?.studentStatus,
+  ].map(normalizeComparable);
+
+  if (["طالب", "طالبه"].includes(normalizedClaim)) {
+    return statuses.includes("student") || statuses.includes("طالب") || statuses.includes("طالبه") ||
+      containsNormalizedPhrase(factTextComparable, claim);
+  }
+  if (["خريج", "خريجه"].includes(normalizedClaim)) {
+    return statuses.includes("graduate") || statuses.includes("خريج") || statuses.includes("خريجه") ||
+      containsNormalizedPhrase(factTextComparable, claim);
+  }
+  if (normalizedClaim === "متوقع التخرج") {
+    return statuses.includes("expected_graduate") || statuses.includes("متوقع التخرج") ||
+      containsNormalizedPhrase(factTextComparable, claim);
+  }
+  return containsNormalizedPhrase(factTextComparable, claim);
+};
+
 const repairDraftEvidenceSources = ({ draft, sourceMap = [], facts = {} } = {}) => {
   const repairedDraft = normalizeDraftTone(draft || {});
   const repairedSourceMap = Array.isArray(sourceMap)
@@ -1004,7 +1027,7 @@ const validateResumeClaims = ({ draft, facts, sourceMap = {}, purpose = "create_
 
   if (purpose === "tailor_resume") {
     getSensitiveSummaryClaims(parsed.professionalSummary).forEach((claim) => {
-      if (!containsNormalizedPhrase(factTextComparable, claim)) {
+      if (!hasVerifiedSummaryStatus(claim, facts, factTextComparable)) {
         errors.push(`لا يمكن إضافة معلومة حالة أو أهلية داخل النبذة دون دليل من بيانات الطالب: ${claim}`);
       }
     });

@@ -498,6 +498,23 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
 }
 
 {
+  const studentFacts = {
+    ...baseFacts,
+    profile: { studentStatus: "student" },
+    factText: baseFacts.factText,
+  };
+  const draft = clone(validDraft);
+  draft.professionalSummary = "طالب نظم معلومات طوّر مشروعًا جامعيًا لتنظيم طلبات التدريب.";
+  const result = validateResumeClaims({
+    draft,
+    facts: studentFacts,
+    sourceMap: validSourceMap,
+    purpose: "tailor_resume",
+  });
+  assert.strictEqual(result.valid, true, "the verified system student status supports Arabic طالب without a literal Arabic duplicate in factText");
+}
+
+{
   const draft = clone(validDraft);
   draft.projects[0].bullets[0] = "رفع كفاءة متابعة الطلبات بنسبة 40%.";
   const result = validateResumeClaims({
