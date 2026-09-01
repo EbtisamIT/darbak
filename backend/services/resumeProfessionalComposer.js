@@ -93,10 +93,10 @@ const matchFact = (entry = {}, facts = []) => {
   }) || facts.find((fact) => title && comparable(fact.title || fact.name) === title);
 };
 
-const containsOnlyVerifiedArabicProperNouns = (text = "", verifiedFacts = {}) => {
+const containsOnlyVerifiedArabicProperNouns = (text = "", facts = {}) => {
   const arabicPhrases = String(text || "").match(/[\u0600-\u06FF][\u0600-\u06FF\s-]*/gu) || [];
   if (!arabicPhrases.length) return true;
-  const verifiedText = comparable(JSON.stringify(verifiedFacts || {}));
+  const verifiedText = comparable(JSON.stringify(facts || {}));
   return arabicPhrases.every((phrase) => {
     const normalized = comparable(phrase);
     return normalized && verifiedText.includes(normalized);
