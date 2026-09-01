@@ -6978,11 +6978,18 @@ const getResumeAiErrorResponse = (err = {}) => {
   }
 
   if (err.code === "GENERATION_FAILED") {
+    const failureStage = err.resumeAgentTrace?.stage || "generation";
+    const message = failureStage === "draft_persistence" || failureStage === "cache_save"
+      ? "جهزنا محتوى السيرة لكن تعذر حفظه مؤقتًا. حاول مرة أخرى دون فقد إجابتك."
+      : failureStage === "composer_or_quality_gate"
+        ? "تعذر التحقق من المسودة هذه المرة. يمكنك المحاولة مرة أخرى دون فقد إجابتك."
+        : "تعذر إكمال إنشاء المسودة الآن. يمكنك المحاولة مرة أخرى دون فقد إجابتك.";
     return {
       status: 500,
       body: {
-        error: "تعذر إكمال إنشاء المسودة الآن. يمكنك المحاولة مرة أخرى دون فقد إجابتك.",
+        error: message,
         reason: "generation_failed",
+        failureStage,
       },
     };
   }
