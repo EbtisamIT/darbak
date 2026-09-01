@@ -1559,6 +1559,12 @@ const markAgentOutputCacheRejected = (session = {}, cacheKey = "") => {
   return true;
 };
 
+// A cached structured response is safe to reuse only after both deterministic
+// gates pass. Claim-validation failures are just as final as quality failures;
+// keeping either response cached traps the student in the same retry loop.
+const shouldRejectCachedDraft = ({ validationResult = {}, quality = {} } = {}) =>
+  validationResult?.valid === false || Boolean(quality?.needsRepair);
+
 const buildAgentStageError = (stage, error, trace = {}) => {
   const wrapped = error instanceof Error ? error : new Error("Resume agent failed");
   const isStructuredOutputError =
@@ -1900,7 +1906,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       // The raw model response was cached before deterministic validation. A
       // rejected draft must never be reused on retry, otherwise the student is
       // trapped in the same quality-gate failure without a new generation.
-      if (quality.needsRepair && markAgentOutputCacheRejected(session, generationCacheKey)) {
+      if (shouldRejectCachedDraft({ validationResult, quality }) && markAgentOutputCacheRejected(session, generationCacheKey)) {
         try {
           await session.save();
         } catch (error) {
@@ -1969,6 +1975,7 @@ module.exports = {
   getAccessQuery,
   getReusableDraftOutput,
   markAgentOutputCacheRejected,
+  shouldRejectCachedDraft,
   buildAgentStageError,
   getRepairSectionForQuality,
   mergeQualityRepair,

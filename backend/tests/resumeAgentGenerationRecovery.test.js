@@ -4,6 +4,7 @@ const {
   buildGenerationCacheKey,
   getReusableDraftOutput,
   markAgentOutputCacheRejected,
+  shouldRejectCachedDraft,
   buildAgentStageError,
   getRepairSectionForQuality,
   mergeQualityRepair,
@@ -69,6 +70,16 @@ assert.strictEqual(getReusableDraftOutput(session, key)?.status, "draft_ready", 
 assert.strictEqual(getReusableDraftOutput(session, `${key}-changed`), null, "changed facts or answers invalidate the cache");
 assert.strictEqual(markAgentOutputCacheRejected(session, key), true, "a rejected draft cache is marked unusable");
 assert.strictEqual(getReusableDraftOutput(session, key), null, "a rejected draft is never reused on retry");
+assert.strictEqual(
+  shouldRejectCachedDraft({ validationResult: { valid: false }, quality: { needsRepair: false } }),
+  true,
+  "a claim-validation rejection also invalidates the cached raw draft"
+);
+assert.strictEqual(
+  shouldRejectCachedDraft({ validationResult: { valid: true }, quality: { needsRepair: false } }),
+  false,
+  "an approved draft remains reusable without another model call"
+);
 session.collectedFacts.agentOutputCache = { key, output: parsed.data };
 
 const malformed = resumeAgentOutputSchema.safeParse({ status: "draft_ready", draft: { bad: true } });
