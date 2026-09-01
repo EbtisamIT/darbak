@@ -1112,6 +1112,7 @@ const MyResumePage = () => {
           onStartFromScratch={startJourneyFromScratch}
           onOpenEditor={() => navigate("/my-resume/edit")}
           onEditProfile={() => navigate("/portfolio")}
+          onReviewResumeSetup={() => navigate("/portfolio?from=resume&review=1")}
           onCustomize={handleCustomizeLater}
           onCreateEnglish={handleTranslateToEnglish}
           onOpenVersion={openTailoredVersion}

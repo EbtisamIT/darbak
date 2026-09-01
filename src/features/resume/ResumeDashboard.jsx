@@ -25,6 +25,7 @@ const ResumeDashboard = ({
   loadingVersions = false,
   onOpenEditor,
   onEditProfile,
+  onReviewResumeSetup,
   onStartFromPortfolio,
   onStartFromScratch,
   onCustomize,
@@ -113,6 +114,9 @@ const ResumeDashboard = ({
           </button>
           <button type="button" className="is-text" onClick={onEditProfile}>
             تعديل بيانات السيرة
+          </button>
+          <button type="button" className="is-text" onClick={onReviewResumeSetup}>
+            ابدأ مراجعة بيانات السيرة من البداية
           </button>
           <button type="button" className="is-secondary" onClick={onCustomize}>
             <FiZap aria-hidden="true" /> تخصيص لفرصة
