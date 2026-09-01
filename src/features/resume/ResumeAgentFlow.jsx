@@ -444,6 +444,9 @@ const ResumeAgentFlow = ({
           tailored: Boolean(data.tailoredVersion),
         },
       });
+      // This session is finished. Leaving its id behind can restore an
+      // already-approved draft if the route changes while the editor opens.
+      if (sessionStorageKey) window.sessionStorage.removeItem(sessionStorageKey);
       onApproved?.(data);
     } catch (err) {
       if (isTailored) {
