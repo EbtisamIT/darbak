@@ -1565,6 +1565,36 @@ const markAgentOutputCacheRejected = (session = {}, cacheKey = "") => {
 const shouldRejectCachedDraft = ({ validationResult = {}, quality = {} } = {}) =>
   validationResult?.valid === false || Boolean(quality?.needsRepair);
 
+const classifyClaimValidationFailures = (errors = []) => Array.from(new Set(
+  safeArray(errors, 30, (error) => safeString(error, 320)).map((error) => {
+    if (/مهارة|skill/i.test(error)) return "unsupported_skill";
+    if (/أداة|تقنية|رقم|معلومة حالة|أهلية|شهادة|جهة شهادة/i.test(error)) return "unsupported_claim";
+    return "claim_validation_failed";
+  })
+));
+
+const persistQualityDiagnostics = (session = {}, trace = {}, failureCode = "") => {
+  if (!session || !trace.generationId) return;
+  session.collectedFacts = {
+    ...(session.collectedFacts || {}),
+    // Deliberately code-only: this makes production failures diagnosable
+    // without storing the student's text or any resume facts in diagnostics.
+    qualityDiagnostics: {
+      generationId: trace.generationId,
+      failureCode: safeString(failureCode, 80),
+      qualityFailureRules: safeArray(trace.qualityFailureRules, 12, (rule) => safeString(rule, 100)),
+      failedSections: safeArray(trace.failedSections, 4, (section) => safeString(section, 40)),
+      initialGenerationSucceeded: Boolean(trace.initialGenerationSucceeded),
+      repairAttempted: Boolean(trace.repairAttempted),
+      repairSucceeded: Boolean(trace.repairSucceeded),
+      aiCalls: Number(trace.aiCalls || 0),
+      cachedDraftUsed: Boolean(trace.reusedModelOutput),
+      recordedAt: new Date().toISOString(),
+    },
+  };
+  if (typeof session.markModified === "function") session.markModified("collectedFacts");
+};
+
 const buildAgentStageError = (stage, error, trace = {}) => {
   const wrapped = error instanceof Error ? error : new Error("Resume agent failed");
   const isStructuredOutputError =
@@ -1593,6 +1623,7 @@ const buildAgentStageError = (stage, error, trace = {}) => {
     aiCalls: Number(trace.aiCalls || 0),
     qualityFailureRules: Array.isArray(trace.qualityFailureRules) ? trace.qualityFailureRules.slice(0, 12) : [],
     failedSections: Array.isArray(trace.failedSections) ? trace.failedSections.slice(0, 4) : [],
+    generationId: safeString(trace.generationId, 64),
     turns: Number(trace.turns || 0),
     toolCalls: Number(trace.toolCalls || 0),
   };
@@ -1694,6 +1725,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     collectedFacts,
   });
   const trace = {
+    generationId: crypto.randomUUID(),
     modelCallStarted: false,
     modelCallSucceeded: false,
     structuredOutputValid: false,
@@ -1810,9 +1842,16 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       // generation. Its non-PII reason is retained for production diagnosis.
       trace.qualityFailureRules = ["quality_gate_runtime_error"];
       trace.failedSections = [];
+      persistQualityDiagnostics(session, trace, "professional_quality_gate");
       throw buildAgentStageError("professional_quality_gate", error, trace);
     }
     trace.qualityFailureRules = Array.isArray(quality.errors) ? quality.errors.slice(0, 12) : [];
+    if (!validationResult.valid) {
+      trace.qualityFailureRules = Array.from(new Set([
+        ...trace.qualityFailureRules,
+        ...classifyClaimValidationFailures(validationResult.errors),
+      ])).slice(0, 12);
+    }
     trace.failedSections = getQualityFailureSections(trace.qualityFailureRules);
 
     const repairSection = getRepairSectionForQuality({
@@ -1902,6 +1941,13 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       quality,
       validationStatus: validationResult,
     };
+    if (!validationResult.valid) {
+      trace.qualityFailureRules = Array.from(new Set([
+        ...trace.qualityFailureRules,
+        ...classifyClaimValidationFailures(validationResult.errors),
+      ])).slice(0, 12);
+      trace.failedSections = getQualityFailureSections(trace.qualityFailureRules);
+    }
     if (!validationResult.valid || quality.needsRepair) {
       // The raw model response was cached before deterministic validation. A
       // rejected draft must never be reused on retry, otherwise the student is
@@ -1920,6 +1966,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
         warnings: ["quality_validation_failed", ...(filteredOutput.warnings || []), ...validationResult.errors, ...quality.errors].slice(0, 20),
         pendingDraftId: "",
       };
+      persistQualityDiagnostics(session, trace, "quality_validation_failed");
     } else {
       try {
         filteredOutput.pendingDraftId = await persistProfessionalDraft({
@@ -1958,6 +2005,8 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       initialGenerationSucceeded: trace.initialGenerationSucceeded,
       repairAttempted: trace.repairAttempted,
       repairSucceeded: trace.repairSucceeded,
+      cachedDraftUsed: trace.reusedModelOutput,
+      generationId: trace.generationId,
       qualityFailureRules: trace.qualityFailureRules,
       failedSections: trace.failedSections,
     },
@@ -1976,6 +2025,8 @@ module.exports = {
   getReusableDraftOutput,
   markAgentOutputCacheRejected,
   shouldRejectCachedDraft,
+  classifyClaimValidationFailures,
+  persistQualityDiagnostics,
   buildAgentStageError,
   getRepairSectionForQuality,
   mergeQualityRepair,

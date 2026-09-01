@@ -7,6 +7,7 @@ const safeText = (value = "", max = 900) => (value || "").toString().replace(/\s
 const list = (value) => (Array.isArray(value) ? value : []);
 const objectList = (value) => list(value).filter((entry) => entry && typeof entry === "object");
 const isEnglish = (language) => language === "en";
+const comparable = (value = "") => safeText(value, 260).toLocaleLowerCase();
 
 const QUALITY_RULE_SECTIONS = {
   summary_missing: ["summary"],
@@ -71,8 +72,36 @@ const compactVerifiedResumeFacts = (facts = {}, answers = []) => ({
   confirmedAnswers: list(answers).map((answer) => ({ fieldKey: answer.fieldKey || answer.questionId, answer: safeText(answer.answer, 600) })),
 });
 
-const matchFact = (entry = {}, facts = []) => facts.find((fact) => fact.id === entry.id)
-  || facts.find((fact) => safeText(fact.title || fact.name).toLowerCase() === safeText(entry.title || entry.name).toLowerCase());
+const matchFact = (entry = {}, facts = []) => {
+  const entryId = safeText(entry.sourceId || entry.id, 120);
+  const exact = facts.find((fact) => safeText(fact.id, 120) === entryId);
+  if (exact) return exact;
+
+  const title = comparable(entry.title || entry.name);
+  const organization = comparable(entry.organization || entry.company);
+  const period = comparable(entry.dates || entry.period);
+  return facts.find((fact) => {
+    const factTitle = comparable(fact.title || fact.name);
+    const factOrganization = comparable(fact.organization || fact.company);
+    const factPeriod = comparable(fact.period || fact.dates);
+    // Identity is the role/project name plus known company or dates. Bullets
+    // are deliberately excluded: professional wording may be rephrased.
+    return Boolean(
+      title && factTitle === title &&
+      ((!organization || factOrganization === organization) || (!period || factPeriod === period))
+    );
+  }) || facts.find((fact) => title && comparable(fact.title || fact.name) === title);
+};
+
+const containsOnlyVerifiedArabicProperNouns = (text = "", verifiedFacts = {}) => {
+  const arabicPhrases = String(text || "").match(/[\u0600-\u06FF][\u0600-\u06FF\s-]*/gu) || [];
+  if (!arabicPhrases.length) return true;
+  const verifiedText = comparable(JSON.stringify(verifiedFacts || {}));
+  return arabicPhrases.every((phrase) => {
+    const normalized = comparable(phrase);
+    return normalized && verifiedText.includes(normalized);
+  });
+};
 
 const preserveProjectDescription = (project = {}, verifiedProject = {}) => {
   const description = safeText(project.description || verifiedProject.description, 700);
@@ -99,7 +128,16 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
       location: fact.location,
     } : entry;
   });
-  const projects = list(draft.projects).map((entry) => preserveProjectDescription(entry, matchFact(entry, list(verifiedFacts.projects)) || {}));
+  const projects = list(draft.projects).map((entry) => {
+    const fact = matchFact(entry, list(verifiedFacts.projects)) || {};
+    const allowedTechnologies = new Set(normalizeResumeSkills(list(verifiedFacts.skills)).map((skill) => skill.toLowerCase()));
+    return {
+      ...preserveProjectDescription(entry, fact),
+      sourceId: fact.id || entry.sourceId || "",
+      technologies: normalizeResumeSkills(list(entry.technologies))
+        .filter((technology) => allowedTechnologies.has(technology.toLowerCase())),
+    };
+  });
   const verifiedSkills = normalizeResumeSkills(list(verifiedFacts.skills));
   const selectedSkills = normalizeResumeSkills(list(draft.skills).map((skill) => skill?.name || skill));
   const allowed = new Set(verifiedSkills.map((skill) => skill.toLowerCase()));
@@ -154,17 +192,22 @@ const runProfessionalQualityGate = ({ draft = {}, verifiedFacts = {}, language =
   if (professionalContext && summary.toLocaleLowerCase() === professionalContext.toLocaleLowerCase()) detectedRules.push("professional_context_copied_as_summary");
   if (GENERIC_SUMMARY.test(summary)) detectedRules.push("generic_summary");
   if (safeText(safeDraft.targetTitle, 180) !== expectedHeadline) detectedRules.push("headline_conflict");
-  if (isEnglish(language) && [summary, safeDraft.targetTitle, ...experiences.flatMap((entry) => list(entry.bullets)), ...projects.flatMap((entry) => list(entry.bullets))].some((text) => ARABIC_CHARACTERS.test(text || ""))) detectedRules.push("english_language_mixing");
+  if (isEnglish(language) && [summary, safeDraft.targetTitle, ...experiences.flatMap((entry) => list(entry.bullets)), ...projects.flatMap((entry) => list(entry.bullets))]
+    .some((text) => ARABIC_CHARACTERS.test(text || "") && !containsOnlyVerifiedArabicProperNouns(text, safeFacts))) {
+    detectedRules.push("english_language_mixing");
+  }
   const verifiedSkillSet = new Set(verifiedSkills.map((skill) => skill.toLowerCase()));
   skills.forEach((skill) => {
     if (!verifiedSkillSet.has(safeText(skill.name, 80).toLowerCase())) detectedRules.push("unsupported_skill");
   });
-  verifiedProjects.forEach((project) => {
-    if (safeText(project.description) && !projects.some((item) => safeText(item.name).toLowerCase() === safeText(project.title).toLowerCase() && list(item.bullets).length)) detectedRules.push(`project_missing_bullet:${project.id}`);
+  projects.forEach((project) => {
+    const fact = matchFact(project, verifiedProjects);
+    if (safeText(fact?.description) && !list(project.bullets).length) {
+      detectedRules.push(`project_missing_bullet:${fact.id || project.sourceId || "unknown"}`);
+    }
   });
-  const verifiedExperienceIds = new Set(verifiedExperiences.map((entry) => entry.id));
   experiences.forEach((entry) => {
-    if (entry.sourceId && !verifiedExperienceIds.has(entry.sourceId)) detectedRules.push("experience_identity_conflict");
+    if (entry.sourceId && !matchFact(entry, verifiedExperiences)) detectedRules.push("experience_identity_conflict");
   });
   const hardErrors = detectedRules.filter((rule) =>
     HARD_QUALITY_RULES.has(rule) || rule.startsWith("project_missing_bullet:")

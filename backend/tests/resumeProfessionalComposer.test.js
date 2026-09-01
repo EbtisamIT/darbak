@@ -107,4 +107,26 @@ const missingProjectBullet = runProfessionalQualityGate({
 });
 assert.deepStrictEqual(getQualityFailureSections(missingProjectBullet.errors), ["projects"]);
 
+const omittedProject = runProfessionalQualityGate({
+  draft: { ...composed, projects: [] },
+  verifiedFacts: facts,
+  language: "en",
+});
+assert.strictEqual(omittedProject.needsRepair, false, "project selection is allowed; only a rendered project with a source description needs a bullet");
+
+const properNoun = runProfessionalQualityGate({
+  draft: {
+    targetTitle: "Information Technology Graduate",
+    professionalSummary: "Information Technology Graduate with experience at جامعة جدة.",
+    education: [], experiences: [], projects: [], skills: [], certifications: [], volunteering: [], languages: [],
+  },
+  verifiedFacts: {
+    personalInfo: { major: "Information Technology", studentStatus: "graduate" },
+    education: [], projects: [], skills: [],
+    experiences: [{ id: "exp-ar", title: "IT Intern", organization: "جامعة جدة", period: "2025", description: "" }],
+  },
+  language: "en",
+});
+assert.strictEqual(properNoun.languageMixing, false, "a verified Arabic proper noun does not fail an English resume");
+
 console.log("resumeProfessionalComposer tests passed");

@@ -5,6 +5,8 @@ const {
   getReusableDraftOutput,
   markAgentOutputCacheRejected,
   shouldRejectCachedDraft,
+  classifyClaimValidationFailures,
+  persistQualityDiagnostics,
   buildAgentStageError,
   getRepairSectionForQuality,
   mergeQualityRepair,
@@ -80,6 +82,27 @@ assert.strictEqual(
   false,
   "an approved draft remains reusable without another model call"
 );
+assert.deepStrictEqual(
+  classifyClaimValidationFailures(["تمت إضافة أداة أو تقنية غير مذكورة: Invented Tool"]),
+  ["unsupported_claim"],
+  "claim failures are recorded as safe categories without exposing resume text"
+);
+const diagnosticSession = { collectedFacts: {}, markModified: () => {} };
+persistQualityDiagnostics(diagnosticSession, {
+  generationId: "generation-1",
+  qualityFailureRules: ["project_missing_bullet:project-1"],
+  failedSections: ["projects"],
+  initialGenerationSucceeded: true,
+  repairAttempted: true,
+  repairSucceeded: false,
+  aiCalls: 2,
+  reusedModelOutput: false,
+}, "quality_validation_failed");
+assert.deepStrictEqual(
+  diagnosticSession.collectedFacts.qualityDiagnostics.qualityFailureRules,
+  ["project_missing_bullet:project-1"],
+  "production diagnostics retain rule codes but no student content"
+);
 session.collectedFacts.agentOutputCache = { key, output: parsed.data };
 
 const malformed = resumeAgentOutputSchema.safeParse({ status: "draft_ready", draft: { bad: true } });
@@ -105,6 +128,7 @@ assert.deepStrictEqual(structuredError.resumeAgentTrace, {
   aiCalls: 0,
   qualityFailureRules: [],
   failedSections: [],
+  generationId: "",
   turns: 0,
   toolCalls: 0,
 });

@@ -7236,6 +7236,7 @@ const serializeResumeAgentSession = (session = {}, pendingDraft = null) => ({
   baseResumeId: session.baseResumeId?.toString?.() || session.baseResumeId || "",
   opportunityId: session.opportunityId?.toString?.() || session.opportunityId || "",
   usage: session.usage || {},
+  qualityDiagnostics: session.collectedFacts?.qualityDiagnostics || {},
   updatedAt: session.updatedAt || null,
   expiresAt: session.expiresAt || null,
   pendingDraft: pendingDraft
@@ -7267,6 +7268,30 @@ const getPendingResumeDraftForAccess = async (pendingDraftId = "", access = {}) 
     contact: access.contact,
     accessCodeHash: access.accessCodeHash,
   });
+};
+
+// Fire-and-forget operational metric. It never blocks resume generation and
+// intentionally contains only rule/stage codes — never resume text or facts.
+const recordResumeQualityFailure = ({ trace = {}, purpose = "", source = "", visitorId = "" } = {}) => {
+  const rules = Array.isArray(trace.qualityFailureRules) ? trace.qualityFailureRules.filter(Boolean).slice(0, 12) : [];
+  if (!rules.length) return;
+  AnalyticsEvent.create({
+    eventName: "resume_quality_failure_rate",
+    visitorId: sanitizeAnalyticsText(visitorId, 90),
+    page: "/my-resume",
+    metadata: sanitizeAnalyticsMetadata({
+      purpose,
+      source,
+      generationId: sanitizeAnalyticsText(trace.generationId, 64),
+      qualityFailureRules: rules,
+      failedSections: Array.isArray(trace.failedSections) ? trace.failedSections.slice(0, 4) : [],
+      initialGenerationSucceeded: Boolean(trace.initialGenerationSucceeded),
+      repairAttempted: Boolean(trace.repairAttempted),
+      repairSucceeded: Boolean(trace.repairSucceeded),
+      aiCalls: Number(trace.aiCalls || 0),
+      cachedDraftUsed: Boolean(trace.cachedDraftUsed || trace.reusedModelOutput),
+    }),
+  }).catch(() => null);
 };
 
 const applyResumeAgentOutputToSession = async (session, agentResult) => {
@@ -7801,6 +7826,12 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
       answers: [],
     });
     session = await applyResumeAgentOutputToSession(session, agentResult);
+    recordResumeQualityFailure({
+      trace: agentResult.usage,
+      purpose,
+      source,
+      visitorId: req.body.visitorId,
+    });
 
     await AnalyticsEvent.create({
       eventName: "resume_agent_started",
@@ -7821,6 +7852,12 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
       usage: agentResult.usage,
     });
   } catch (err) {
+    recordResumeQualityFailure({
+      trace: err.resumeAgentTrace,
+      purpose: req.body?.purpose,
+      source: req.body?.source,
+      visitorId: req.body?.visitorId,
+    });
     if (session) {
       session.status = "failed";
       session.usage = mergeResumeAgentUsage(session.usage || {}, {
@@ -7884,6 +7921,12 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
       answers,
     });
     session = await applyResumeAgentOutputToSession(session, agentResult);
+    recordResumeQualityFailure({
+      trace: agentResult.usage,
+      purpose: session.purpose,
+      source: session.source,
+      visitorId: req.body.visitorId,
+    });
 
     await AnalyticsEvent.create({
       eventName: "resume_agent_responded",
@@ -7904,6 +7947,12 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
       usage: agentResult.usage,
     });
   } catch (err) {
+    recordResumeQualityFailure({
+      trace: err.resumeAgentTrace,
+      purpose: session?.purpose,
+      source: session?.source,
+      visitorId: req.body?.visitorId,
+    });
     if (session) {
       // Answers are written before the model runs. If generation fails, keep
       // this question set open so retrying never discards student input or
