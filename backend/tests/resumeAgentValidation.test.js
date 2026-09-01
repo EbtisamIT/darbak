@@ -129,12 +129,27 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
     skills: ["Microsoft PowerPointB", "Excel"],
     settings: { language: "en" },
   };
-  const mapped = mapDraftToResumePayload({ ...validDraft, professionalSummary: "Business Administration Student with strong skills.", skills: [{ name: "Microsoft PowerPointB", evidenceSourceId: "resume_basic" }] }, nouraBase, { basic: nouraBase.personalInfo }, "en");
+  const approvedSummary = "Business Administration Graduate with approved V2 presentation wording.";
+  const mapped = mapDraftToResumePayload({
+    ...validDraft,
+    professionalSummary: approvedSummary,
+    experiences: [{
+      sourceId: "internship-1",
+      title: "Accounting Intern",
+      organization: "Example Accounting Firm",
+      dates: "2025",
+      location: "Jeddah",
+      bullets: ["Approved internship bullet marker."],
+    }],
+    projects: [{ ...validDraft.projects[0], bullets: ["Approved project bullet marker."] }],
+    skills: [{ name: "Microsoft PowerPointB", evidenceSourceId: "resume_basic" }],
+  }, nouraBase, { basic: nouraBase.personalInfo }, "en");
   assert.strictEqual(mapped.personalInfo.headline, "Business Administration Graduate");
   assert.strictEqual(mapped.personalInfo.university, "University of Jeddah");
   assert.strictEqual(mapped.personalInfo.city, "Jeddah");
-  assert.ok(!/Student/.test(mapped.summary));
-  assert.ok(/Graduate/.test(mapped.summary));
+  assert.strictEqual(mapped.summary, approvedSummary);
+  assert.deepStrictEqual(mapped.experiences[0].achievements.map((item) => item.text), ["Approved internship bullet marker."]);
+  assert.deepStrictEqual(mapped.projects[0].achievements.map((item) => item.text), ["Approved project bullet marker."]);
   assert.ok(mapped.skills.includes("Microsoft PowerPoint"));
 }
 

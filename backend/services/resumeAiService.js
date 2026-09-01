@@ -678,6 +678,7 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
   const personal = rawInput?.basic || rawInput?.personalInfo || {};
   const educationRaw = rawInput?.education || {};
   const resumeLanguage = language === "en" ? "en" : "ar";
+  const approvedPresentationSummary = options.preserveIdentity ? "" : draft.professionalSummary;
 
   const personalInfo = {
     ...(baseResume.personalInfo || {}),
@@ -810,7 +811,10 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
       accentColor: baseResume.settings?.accentColor || "#42cfc3",
     },
   };
-  payload.summary = buildFactGroundedSummary({ personal: payload.personalInfo, resume: payload, language: resumeLanguage }) || draft.professionalSummary || baseResume.summary || "";
+  // An approved agent draft owns presentation wording. Facts remain
+  // deterministic above, but never overwrite the reviewed summary with the
+  // older fact-derived fallback during mapping or a later save.
+  payload.summary = approvedPresentationSummary || buildFactGroundedSummary({ personal: payload.personalInfo, resume: payload, language: resumeLanguage }) || baseResume.summary || "";
   // A tailored resume is presentation-only: student identity and immutable
   // employment/education facts always come from the master resume.
   if (options.preserveIdentity) {
@@ -825,7 +829,7 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
     payload.languages = baseResume.languages || [];
   }
   payload.skills = normalizeResumeSkills(payload.skills);
-  payload.summary = buildFactGroundedSummary({ personal: payload.personalInfo, resume: payload, language: resumeLanguage }) || payload.summary;
+  payload.summary = approvedPresentationSummary || buildFactGroundedSummary({ personal: payload.personalInfo, resume: payload, language: resumeLanguage }) || payload.summary;
   return payload;
 };
 
