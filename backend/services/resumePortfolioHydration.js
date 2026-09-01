@@ -152,7 +152,7 @@ const mapPortfolioEntry = (entry = {}, prefix = "portfolio-entry", index = 0) =>
   const organization = cleanText(entry.organization || entry.issuer || entry.provider, 180);
   const description = cleanText(entry.description || entry.details, 900);
   return {
-    id: entry._id?.toString?.() || `${prefix}-${index}-${title || organization || "item"}`,
+    id: entry.id || entry._id?.toString?.() || `${prefix}-${index}-${title || organization || "item"}`,
     title,
     subtitle: organization,
     organization,
@@ -161,7 +161,10 @@ const mapPortfolioEntry = (entry = {}, prefix = "portfolio-entry", index = 0) =>
     endDate: cleanText(entry.endDate || entry.year, 40),
     isCurrent: Boolean(entry.isCurrent),
     location: cleanText(entry.location, 90),
-    url: cleanText(entry.url || entry.link, 260),
+    url: cleanText(entry.url || entry.credentialUrl || entry.link, 260),
+    technologies: Array.isArray(entry.technologies)
+      ? entry.technologies.map((technology) => cleanText(technology, 80)).filter(Boolean)
+      : [],
     description,
     details: description,
     achievements: description

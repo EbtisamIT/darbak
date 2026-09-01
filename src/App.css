@@ -3442,6 +3442,14 @@ body {
   grid-template-columns: minmax(0, 1fr) minmax(150px, 0.7fr) 90px auto;
 }
 
+.portfolio-builder-repeat.is-project {
+  grid-template-columns: minmax(130px, 0.65fr) minmax(0, 1.2fr) minmax(130px, 0.7fr) minmax(150px, 0.75fr) auto;
+}
+
+.portfolio-builder-repeat.is-certification {
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 0.7fr) minmax(100px, 0.45fr) minmax(150px, 0.75fr) auto;
+}
+
 .portfolio-builder-repeat.is-experience {
   grid-template-columns: minmax(130px, 0.7fr) minmax(130px, 0.7fr) minmax(110px, 0.5fr) minmax(0, 1fr) auto;
 }
@@ -5718,6 +5726,10 @@ body {
 .portfolio-resume-setup-skill-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .portfolio-resume-setup-skill-chips button { padding: 7px 10px; }
 .portfolio-resume-setup-skill-chips button span { margin-inline-start: 5px; color: var(--app-text-soft); }
+.portfolio-resume-setup-collection { display: grid; gap: 10px; grid-column: 1 / -1; }
+.portfolio-resume-setup-collection h3 { margin: 0; color: var(--app-text); font-size: 16px; }
+.portfolio-resume-setup-collection p { margin: 4px 0 0; color: var(--app-muted); font-size: 12px; }
+.portfolio-resume-setup-skip { justify-self: start; border: 0; background: transparent; color: var(--app-muted); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; }
 
 @media (max-width: 640px) {
   .resume-portfolio-prerequisite { width: min(100% - 24px, 720px); margin: 24px auto; padding: 22px 18px; }
@@ -5729,6 +5741,8 @@ body {
   .portfolio-resume-setup .portfolio-auth-row { grid-template-columns: 1fr; }
   .portfolio-resume-setup-skill-entry { align-items: stretch; }
   .portfolio-resume-setup-skill-entry button { padding-inline: 11px; font-size: 12px; }
+  .portfolio-builder-repeat.is-project,
+  .portfolio-builder-repeat.is-certification { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 860px) {

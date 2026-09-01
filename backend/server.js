@@ -1868,11 +1868,19 @@ const sanitizePortfolioProjects = (projects = []) => {
 
   return rawProjects
     .map((project = {}) => ({
+      id: sanitizePortfolioText(project.id, 90) || crypto.randomUUID(),
       title: sanitizePortfolioText(project.title, 90),
       description: sanitizePortfolioLongText(project.description, 240),
+      technologies: normalizePortfolioList(project.technologies, 12, 60),
       url: sanitizePortfolioUrl(project.url, 260),
     }))
-    .filter((project) => project.title || project.description || project.url)
+    .filter(
+      (project) =>
+        project.title ||
+        project.description ||
+        project.technologies.length ||
+        project.url
+    )
     .slice(0, 6);
 };
 
@@ -1881,13 +1889,18 @@ const sanitizePortfolioCertifications = (certifications = []) => {
 
   return rawCertifications
     .map((certification = {}) => ({
+      id: sanitizePortfolioText(certification.id, 90) || crypto.randomUUID(),
       title: sanitizePortfolioText(certification.title, 100),
       provider: sanitizePortfolioText(certification.provider, 90),
       year: sanitizePortfolioText(certification.year, 20),
+      credentialUrl: sanitizePortfolioUrl(certification.credentialUrl, 260),
     }))
     .filter(
       (certification) =>
-        certification.title || certification.provider || certification.year
+        certification.title ||
+        certification.provider ||
+        certification.year ||
+        certification.credentialUrl
     )
     .slice(0, 8);
 };

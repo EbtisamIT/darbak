@@ -2,6 +2,11 @@ const mongoose = require("mongoose");
 
 const portfolioProjectSchema = new mongoose.Schema(
   {
+    id: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     title: {
       type: String,
       default: "",
@@ -11,6 +16,10 @@ const portfolioProjectSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+    },
+    technologies: {
+      type: [String],
+      default: [],
     },
     url: {
       type: String,
@@ -23,6 +32,11 @@ const portfolioProjectSchema = new mongoose.Schema(
 
 const portfolioCertificationSchema = new mongoose.Schema(
   {
+    id: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     title: {
       type: String,
       default: "",
@@ -34,6 +48,11 @@ const portfolioCertificationSchema = new mongoose.Schema(
       trim: true,
     },
     year: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    credentialUrl: {
       type: String,
       default: "",
       trim: true,

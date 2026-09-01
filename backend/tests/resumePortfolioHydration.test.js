@@ -181,11 +181,40 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
 {
   assert.deepStrictEqual(
     Object.keys(mapped.projects[0]).sort(),
-    ["achievements", "description", "details", "endDate", "id", "isCurrent", "location", "organization", "period", "startDate", "subtitle", "title", "url"].sort()
+    ["achievements", "description", "details", "endDate", "id", "isCurrent", "location", "organization", "period", "startDate", "subtitle", "technologies", "title", "url"].sort()
   );
   assert.strictEqual(mapped.certifications[0].title, "ITIL v4");
   assert.strictEqual(mapped.certifications[0].organization, "PeopleCert");
   assert.strictEqual(mapped.languages[1].name, "English");
+}
+
+// Multiple Portfolio projects and certifications remain distinct after a
+// hydrate/reload cycle, including their stable item IDs and optional metadata.
+{
+  const collectionPortfolio = {
+    ...portfolio,
+    projects: [
+      { id: "project-one", title: "مشروع أول", description: "وصف الأول", technologies: ["React.js"], url: "https://example.com/one" },
+      { id: "project-two", title: "مشروع ثانٍ", description: "وصف الثاني", technologies: ["Firebase"] },
+      { id: "project-three", title: "مشروع ثالث", description: "وصف الثالث" },
+    ],
+    certifications: [
+      { id: "cert-one", title: "شهادة أولى", provider: "جهة أولى", year: "2025", credentialUrl: "https://example.com/cert-one" },
+      { id: "cert-two", title: "شهادة ثانية", provider: "جهة ثانية", year: "2026" },
+    ],
+  };
+  const collectionPayload = mapPortfolioToResumePayload(collectionPortfolio, collectionPortfolio.email);
+  const reopened = hydrateResumeFromPortfolio(null, collectionPayload).resume;
+  assert.deepStrictEqual(reopened.projects.map((project) => project.id), ["project-one", "project-two", "project-three"]);
+  assert.deepStrictEqual(reopened.certifications.map((certification) => certification.id), ["cert-one", "cert-two"]);
+  assert.deepStrictEqual(reopened.projects[0].technologies, ["React.js"]);
+  assert.strictEqual(reopened.certifications[0].url, "https://example.com/cert-one");
+  const withoutMiddleProject = {
+    ...collectionPortfolio,
+    projects: collectionPortfolio.projects.filter((project) => project.id !== "project-two"),
+  };
+  const afterRemoval = mapPortfolioToResumePayload(withoutMiddleProject, withoutMiddleProject.email);
+  assert.deepStrictEqual(afterRemoval.projects.map((project) => project.id), ["project-one", "project-three"]);
 }
 
 // Case E: after the persisted payload is read again, no fields are lost.

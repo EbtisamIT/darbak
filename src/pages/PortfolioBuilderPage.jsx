@@ -132,8 +132,25 @@ const portfolioCityOptions = Array.from(
   ])
 );
 
-const emptyProject = { title: "", description: "", url: "" };
-const emptyCertification = { title: "", provider: "", year: "" };
+const createCollectionItemId = (prefix) =>
+  `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const createEmptyProject = () => ({
+  id: createCollectionItemId("project"),
+  title: "",
+  description: "",
+  technologies: "",
+  url: "",
+});
+const createEmptyCertification = () => ({
+  id: createCollectionItemId("certification"),
+  title: "",
+  provider: "",
+  year: "",
+  credentialUrl: "",
+});
+const emptyProject = createEmptyProject();
+const emptyCertification = createEmptyCertification();
 const emptyExperience = { title: "", organization: "", period: "", description: "" };
 const emptyLanguage = { name: "", level: "" };
 
@@ -169,8 +186,8 @@ const emptyForm = {
   trainingEnd: "",
   email: "",
   isPublished: false,
-  projects: [{ ...emptyProject }],
-  certifications: [{ ...emptyCertification }],
+  projects: [createEmptyProject()],
+  certifications: [createEmptyCertification()],
   experiences: [{ ...emptyExperience }],
   volunteering: [{ ...emptyExperience }],
   languages: [{ ...emptyLanguage }],
@@ -220,19 +237,25 @@ const normalizeForm = (portfolio = {}) => ({
   projects:
     portfolio.projects?.length > 0
       ? portfolio.projects.map((project) => ({
+          id: project.id || createCollectionItemId("project"),
           title: project.title || "",
           description: project.description || "",
+          technologies: Array.isArray(project.technologies)
+            ? project.technologies.join("، ")
+            : project.technologies || "",
           url: project.url || "",
         }))
-      : [{ ...emptyProject }],
+      : [createEmptyProject()],
   certifications:
     portfolio.certifications?.length > 0
       ? portfolio.certifications.map((certification) => ({
+          id: certification.id || createCollectionItemId("certification"),
           title: certification.title || "",
           provider: certification.provider || "",
           year: certification.year || "",
+          credentialUrl: certification.credentialUrl || "",
         }))
-      : [{ ...emptyCertification }],
+      : [createEmptyCertification()],
   experiences:
     portfolio.experiences?.length > 0
       ? portfolio.experiences.map((entry) => ({ ...emptyExperience, ...entry }))
@@ -606,7 +629,13 @@ export default function PortfolioBuilderPage() {
     immediateSaveRef.current = true;
     setForm((current) => {
       if (current[listName].length >= maxItems) return current;
-      return { ...current, [listName]: [...current[listName], { ...emptyItem }] };
+      const nextItem =
+        listName === "projects"
+          ? createEmptyProject()
+          : listName === "certifications"
+            ? createEmptyCertification()
+            : { ...emptyItem };
+      return { ...current, [listName]: [...current[listName], nextItem] };
     });
   };
 
@@ -618,7 +647,13 @@ export default function PortfolioBuilderPage() {
       ...current,
       [listName]:
         current[listName].length <= 1
-          ? [{ ...emptyItem }]
+          ? [
+              listName === "projects"
+                ? createEmptyProject()
+                : listName === "certifications"
+                  ? createEmptyCertification()
+                  : { ...emptyItem },
+            ]
           : current[listName].filter((_, itemIndex) => itemIndex !== index),
     }));
   };
@@ -1321,7 +1356,80 @@ export default function PortfolioBuilderPage() {
                   )}
                 </div>
               )}
-              {stageSetupKeys.has("evidence") && <label className="is-wide">مشروع أو خبرة واحدة<input id={getResumeSetupInputId("evidence")} value={form.projects[0]?.title || ""} onChange={(event) => updateListItem("projects", 0, "title", event.target.value)} placeholder="اسم مشروع عملت عليه" /></label>}
+              {stageSetupKeys.has("evidence") && (
+                <div className="portfolio-resume-setup-collection is-wide">
+                  <div className="portfolio-builder-section-head">
+                    <div>
+                      <h3>المشاريع</h3>
+                      <p>أضف مشروعًا واحدًا على الأقل أو خبرة عملية. يمكنك إضافة أكثر من مشروع.</p>
+                    </div>
+                    <button type="button" onClick={() => addListItem("projects", emptyProject, 6)}>
+                      + إضافة مشروع آخر
+                    </button>
+                  </div>
+                  {form.projects.map((project, index) => (
+                    <div className="portfolio-builder-repeat is-project" key={project.id || index}>
+                      <input
+                        id={index === 0 ? getResumeSetupInputId("evidence") : undefined}
+                        value={project.title}
+                        onChange={(event) => updateListItem("projects", index, "title", event.target.value)}
+                        placeholder="اسم المشروع"
+                      />
+                      <textarea
+                        value={project.description}
+                        onChange={(event) => updateListItem("projects", index, "description", event.target.value)}
+                        placeholder="وش سويت في المشروع؟"
+                      />
+                      <input
+                        value={project.technologies}
+                        onChange={(event) => updateListItem("projects", index, "technologies", event.target.value)}
+                        placeholder="الأدوات أو التقنيات (اختياري)"
+                      />
+                      <input
+                        value={project.url}
+                        onChange={(event) => updateListItem("projects", index, "url", event.target.value)}
+                        placeholder="رابط المشروع (اختياري)"
+                        dir="ltr"
+                      />
+                      <button type="button" onClick={() => removeListItem("projects", index, emptyProject)}>
+                        حذف المشروع
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="portfolio-resume-setup-collection is-wide">
+                <div className="portfolio-builder-section-head">
+                  <div>
+                    <h3>الشهادات والدورات</h3>
+                    <p>اختيارية، ويمكنك إضافتها لاحقًا.</p>
+                  </div>
+                  <button type="button" onClick={() => addListItem("certifications", emptyCertification, 8)}>
+                    + إضافة شهادة أخرى
+                  </button>
+                </div>
+                {form.certifications.map((certification, index) => (
+                  <div className="portfolio-builder-repeat is-certification" key={certification.id || index}>
+                    <input value={certification.title} onChange={(event) => updateListItem("certifications", index, "title", event.target.value)} placeholder="اسم الشهادة أو الدورة" />
+                    <input value={certification.provider} onChange={(event) => updateListItem("certifications", index, "provider", event.target.value)} placeholder="الجهة المانحة" />
+                    <input value={certification.year} onChange={(event) => updateListItem("certifications", index, "year", event.target.value)} placeholder="السنة أو التاريخ (اختياري)" />
+                    <input value={certification.credentialUrl} onChange={(event) => updateListItem("certifications", index, "credentialUrl", event.target.value)} placeholder="رابط الشهادة (اختياري)" dir="ltr" />
+                    <button type="button" onClick={() => removeListItem("certifications", index, emptyCertification)}>حذف الشهادة</button>
+                  </div>
+                ))}
+                <button
+                  className="portfolio-resume-setup-skip"
+                  type="button"
+                  onClick={() => {
+                    revisionRef.current += 1;
+                    dirtyRef.current = true;
+                    immediateSaveRef.current = true;
+                    setForm((current) => ({ ...current, certifications: [createEmptyCertification()] }));
+                  }}
+                >
+                  ما عندي شهادات حاليًا
+                </button>
+              </div>
             </div>
           </section>
           {message && <p className="portfolio-resume-setup-message">{message}</p>}
@@ -1733,7 +1841,7 @@ export default function PortfolioBuilderPage() {
               </button>
             </div>
             {form.projects.map((project, index) => (
-              <div className="portfolio-builder-repeat" key={index}>
+              <div className="portfolio-builder-repeat is-project" key={project.id || index}>
                 <input
                   value={project.title}
                   onChange={(event) =>
@@ -1752,6 +1860,18 @@ export default function PortfolioBuilderPage() {
                     )
                   }
                   placeholder="وصف مختصر للمشروع"
+                />
+                <input
+                  value={project.technologies}
+                  onChange={(event) =>
+                    updateListItem(
+                      "projects",
+                      index,
+                      "technologies",
+                      event.target.value
+                    )
+                  }
+                  placeholder="الأدوات أو التقنيات (اختياري)"
                 />
                 <input
                   value={project.url}
@@ -1846,7 +1966,7 @@ export default function PortfolioBuilderPage() {
               </button>
             </div>
             {form.certifications.map((certification, index) => (
-              <div className="portfolio-builder-repeat is-compact" key={index}>
+              <div className="portfolio-builder-repeat is-certification" key={certification.id || index}>
                 <input
                   value={certification.title}
                   onChange={(event) =>
@@ -1882,6 +2002,19 @@ export default function PortfolioBuilderPage() {
                     )
                   }
                   placeholder="السنة"
+                />
+                <input
+                  value={certification.credentialUrl}
+                  onChange={(event) =>
+                    updateListItem(
+                      "certifications",
+                      index,
+                      "credentialUrl",
+                      event.target.value
+                    )
+                  }
+                  placeholder="رابط الشهادة اختياري"
+                  dir="ltr"
                 />
                 <button
                   type="button"
