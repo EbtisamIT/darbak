@@ -35,6 +35,7 @@ const questionSchema = z
     section: z.string().max(90).default(""),
     question: z.string().max(320).default(""),
     whyNeeded: z.string().max(260).default(""),
+    reason: z.string().max(120).default(""),
     inputType: z
       .enum(["text", "textarea", "date", "url", "select", "number"])
       .default("textarea"),
@@ -171,10 +172,108 @@ const safeText = (value = "", maxLength = 2200) =>
     .trim()
     .slice(0, maxLength);
 
-const getQuestionFieldKey = (question = {}) => {
+const BASE_MISSING_FIELD_KEYS = new Set([
+  "phone",
+  "full_name",
+  "professional_headline",
+  "graduation_year",
+  "expected_graduation_year",
+  "gpa",
+  "gpa_scale",
+  "university",
+  "degree",
+  "student_status",
+  "major",
+  "city",
+  "training_period",
+  "target_field",
+  "opportunity_description",
+]);
+
+const OPTIONAL_MISSING_FIELD_KEYS = new Set([
+  "professional_context",
+  "certification_details",
+]);
+
+const getEntriesForQuestion = (facts = {}, section = "") => {
+  const normalizedSection = safeString(section, 90).toLowerCase();
+  const key = normalizedSection.includes("experience") || normalizedSection.includes("خبر")
+    ? "experiences"
+    : normalizedSection.includes("project") || normalizedSection.includes("مشروع")
+      ? "projects"
+      : normalizedSection.includes("certification") || normalizedSection.includes("شهاد") || normalizedSection.includes("دور")
+        ? "certifications"
+        : "";
+  if (!key) return [];
+  const entries = [
+    ...(Array.isArray(facts.resume?.[key]) ? facts.resume[key] : []),
+    ...(Array.isArray(facts.profile?.[key]) ? facts.profile[key] : []),
+  ];
+  const seen = new Set();
+  return entries.filter((entry) => {
+    const id = safeString(entry?.id || entry?._id, 120);
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+};
+
+const findQuestionEntry = (question = {}, facts = {}, section = "") => {
+  const entries = getEntriesForQuestion(facts, section);
+  if (!entries.length) return null;
+  const text = safeString(`${question.question || ""} ${question.whyNeeded || ""}`, 700).toLowerCase();
+  const explicitId = safeString(question.entryId || question.sourceId || "", 120);
+  if (explicitId) {
+    const exact = entries.find((entry) => safeString(entry.id || entry._id, 120) === explicitId);
+    if (exact) return exact;
+  }
+  const mentioned = entries.filter((entry) => {
+    const title = safeString(entry.title || entry.name, 180).toLowerCase();
+    return title && text.includes(title);
+  });
+  if (mentioned.length === 1) return mentioned[0];
+  return entries.length === 1 ? entries[0] : null;
+};
+
+const getExplicitAllowedFieldKey = (question = {}, facts = {}) => {
+  const explicit = safeString(question.fieldKey || question.id, 90);
+  if (!explicit) return "";
+  if (BASE_MISSING_FIELD_KEYS.has(explicit) || OPTIONAL_MISSING_FIELD_KEYS.has(explicit)) return explicit;
+  const match = explicit.match(/^(project_description|experience_description|certification_details):(.+)$/u);
+  if (!match) return "";
+  const [, type, entryId] = match;
+  const section = type === "project_description" ? "projects" : type === "experience_description" ? "experiences" : "certifications";
+  return getEntriesForQuestion(facts, section).some((entry) => safeString(entry.id || entry._id, 120) === entryId)
+    ? explicit
+    : "";
+};
+
+const inputTypeForFieldKey = (fieldKey = "", requested = "") => {
+  if (["graduation_year", "expected_graduation_year", "gpa", "gpa_scale"].includes(fieldKey)) return "number";
+  if (fieldKey === "opportunity_description" || fieldKey.endsWith("_description") || fieldKey.includes("_description:")) return "textarea";
+  if (["training_period", "target_field"].includes(fieldKey)) return "text";
+  return ["text", "textarea", "date", "url", "select", "number"].includes(requested) ? requested : "text";
+};
+
+const missingReasonForFieldKey = (fieldKey = "", provided = "") =>
+  safeString(provided, 120) || {
+    phone: "phone_missing",
+    graduation_year: "graduation_year_missing",
+    expected_graduation_year: "expected_graduation_year_missing",
+    gpa: "gpa_missing",
+    project_description: "project_description_missing",
+    experience_description: "experience_description_missing",
+    opportunity_description: "opportunity_description_missing",
+  }[fieldKey.split(":")[0]] || "required_fact_missing";
+
+const getQuestionFieldKey = (question = {}, facts = {}) => {
   const text = safeString(`${question.section || ""} ${question.question || ""} ${question.whyNeeded || ""}`, 700).toLowerCase();
   const section = safeString(question.section, 40).toLowerCase();
-  const explicit = safeString(question.fieldKey || question.id, 90);
+  const explicit = getExplicitAllowedFieldKey(question, facts);
+  if (explicit) return explicit;
+  const projectEntry = findQuestionEntry(question, facts, "projects");
+  const experienceEntry = findQuestionEntry(question, facts, "experiences");
+  const certificationEntry = findQuestionEntry(question, facts, "certifications");
   const knownFields = [
     [/(phone|جوال|هاتف|رقم التواصل)/, "phone"],
     [/(full.?name|الاسم الكامل|اسمك الكامل)/, "full_name"],
@@ -186,18 +285,58 @@ const getQuestionFieldKey = (question = {}) => {
     [/(major|التخصص)/, "major"],
     [/(training.?period|فترة التدريب)/, "training_period"],
     [/(target.?field|المجال التدريبي|المسمى التدريبي)/, "target_field"],
-    [/(description|وصف الفرصة|متطلبات الفرصة|وصف الوظيفة)/, "opportunity_description"],
+    [/(وصف الفرصة|متطلبات الفرصة|وصف الوظيفة|opportunity description|job description)/, "opportunity_description"],
   ];
+  if (/(project|مشروع)/.test(text) && /(description|وصف|دور|نفذت|عملت)/.test(text) && projectEntry) {
+    return `project_description:${safeString(projectEntry.id || projectEntry._id, 120)}`;
+  }
+  if (/(experience|خبر|تدريب)/.test(text) && /(description|وصف|مهام|مسؤوليات|دور)/.test(text) && experienceEntry) {
+    return `experience_description:${safeString(experienceEntry.id || experienceEntry._id, 120)}`;
+  }
+  if (/(certification|شهاد|دور)/.test(text) && /(description|تفاصيل|provider|جهة)/.test(text) && certificationEntry) {
+    return `certification_details:${safeString(certificationEntry.id || certificationEntry._id, 120)}`;
+  }
   const matched = knownFields.find(([pattern]) => pattern.test(text));
   if (matched) return matched[1];
-  return explicit || `${section || "general"}_${safeString(question.question, 50).replace(/\s+/g, "_")}`;
+  return "";
+};
+
+const normalizeNeedsInformationOutput = (output = {}, facts = {}) => {
+  if (output.status !== "needs_information") return output;
+  const rawQuestions = Array.isArray(output.questions) && output.questions.length
+    ? output.questions
+    : (output.missingInformation || []).map((item) => ({ ...item, inputType: "textarea" }));
+  const rejected = [];
+  const questions = rawQuestions.reduce((normalized, question) => {
+    const fieldKey = getQuestionFieldKey(question, facts);
+    if (!fieldKey || OPTIONAL_MISSING_FIELD_KEYS.has(fieldKey.split(":")[0])) {
+      rejected.push(question);
+      return normalized;
+    }
+    normalized.push({
+      ...question,
+      id: fieldKey,
+      fieldKey,
+      inputType: inputTypeForFieldKey(fieldKey, question.inputType),
+      options: Array.isArray(question.options) ? question.options : [],
+      reason: missingReasonForFieldKey(fieldKey, question.reason || question.whyNeeded),
+    });
+    return normalized;
+  }, []);
+  return {
+    ...output,
+    questions,
+    warnings: rejected.length
+      ? [...(output.warnings || []), "AGENT_UNMAPPABLE_MISSING_INFORMATION"].slice(0, 20)
+      : output.warnings || [],
+  };
 };
 
 const withStableQuestionKeys = (output = {}) => ({
   ...output,
   questions: (Array.isArray(output.questions) ? output.questions : []).map((question) => ({
     ...question,
-    fieldKey: getQuestionFieldKey(question),
+    fieldKey: safeString(question.fieldKey, 90) || getQuestionFieldKey(question),
   })),
 });
 
@@ -746,18 +885,40 @@ const getFallbackMissingQuestion = (facts = {}) => {
       .map((answer) => normalizeComparable(answer.fieldKey || answer.questionId || answer.id || ""))
       .filter(Boolean)
   );
-  const projects = [...(facts.profile?.projects || []), ...(facts.resume?.projects || [])];
+  const projects = getEntriesForQuestion(facts, "projects");
   const projectWithoutDescription = projects.find((project) =>
     !safeText(project.description || project.details || project.summary, 1600)
   );
 
-  if (projectWithoutDescription && !answers.has("project_description")) {
+  const projectId = safeString(projectWithoutDescription?.id || projectWithoutDescription?._id, 120);
+  const projectFieldKey = projectId ? `project_description:${projectId}` : "";
+  if (projectWithoutDescription && projectFieldKey && !answers.has(normalizeComparable(projectFieldKey))) {
     return {
-      id: "project_description",
-      fieldKey: "project_description",
+      id: projectFieldKey,
+      fieldKey: projectFieldKey,
       section: "projects",
       question: `اكتب وصفًا مختصرًا لمشروع ${safeString(projectWithoutDescription.title || projectWithoutDescription.name, 120) || "هذا"}.`,
       whyNeeded: "نستخدمه لتحويل المشروع إلى نقاط مهنية دقيقة دون افتراض معلومات.",
+      reason: "project_description_missing",
+      inputType: "textarea",
+      options: [],
+    };
+  }
+
+  const experiences = getEntriesForQuestion(facts, "experiences");
+  const experienceWithoutDescription = experiences.find((experience) =>
+    !safeText(experience.description || experience.details || experience.summary, 1600)
+  );
+  const experienceId = safeString(experienceWithoutDescription?.id || experienceWithoutDescription?._id, 120);
+  const experienceFieldKey = experienceId ? `experience_description:${experienceId}` : "";
+  if (experienceWithoutDescription && experienceFieldKey && !answers.has(normalizeComparable(experienceFieldKey))) {
+    return {
+      id: experienceFieldKey,
+      fieldKey: experienceFieldKey,
+      section: "experiences",
+      question: `اكتب وصفًا مختصرًا لما نفذته في ${safeString(experienceWithoutDescription.title, 120) || "هذه الخبرة"}.`,
+      whyNeeded: "نستخدمه لصياغة نقاط خبرة دقيقة دون افتراض مسؤوليات.",
+      reason: "experience_description_missing",
       inputType: "textarea",
       options: [],
     };
@@ -775,7 +936,7 @@ const ensureActionableNeedsInformation = (output = {}, facts = {}) => {
     ...output,
     status: "cannot_continue",
     message: "نحتاج تحديد المعلومة الناقصة بدقة قبل متابعة بناء السيرة.",
-    warnings: [...(output.warnings || []), "AGENT_NEEDS_INFORMATION_WITHOUT_FIELD_KEY"].slice(0, 20),
+    warnings: [...(output.warnings || []), "AGENT_UNMAPPABLE_MISSING_INFORMATION"].slice(0, 20),
   };
 };
 
@@ -1512,7 +1673,7 @@ professionalContext، إن وُجد، هو كلام الطالب العادي ع
 * إذا كانت المعلومة ناقصة، اسأل عنها بدل تخمينها.
 * اسأل سؤالًا إلى ثلاثة أسئلة قصيرة في كل مرة.
 * لا تعيد سؤالًا سبق أن أجاب عنه الطالب.
-* اجعل السؤال structured: اختر inputType المناسب (number للمعدل أو السنة، date للتاريخ، url للرابط، وselect فقط إذا كانت الخيارات واضحة وأعد options). لا تطلب فقرة طويلة عندما تكفي إجابة قصيرة.
+* اجعل السؤال structured: اختر inputType المناسب (number للمعدل أو السنة، date للتاريخ، url للرابط، وselect فقط إذا كانت الخيارات واضحة وأعد options). لا تطلب فقرة طويلة عندما تكفي إجابة قصيرة. عند status=needs_information أعد دائمًا fieldKey وquestion وinputType وreason، واستخدم فقط مفاتيح قابلة للتحرير: phone، full_name، major، city، university، degree، student_status، graduation_year، expected_graduation_year، gpa، gpa_scale، training_period، target_field، opportunity_description أو project_description:<projectId> أو experience_description:<experienceId>. لا تخترع fieldKey جديدًا. إذا كان التفصيل اختياريًا لتحسين الصياغة فقط فلا تعد needs_information؛ أكمل بالحقائق المتاحة.
 * لا تطيل المحادثة إذا كانت المعلومات كافية.
 * اكتب بلغة السيرة التي اختارها الطالب.
 * اجعل النبذة بين سطرين وأربعة.
@@ -1950,7 +2111,10 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
   let tailoringRelevance = "";
   try {
     facts = await loadFactsForContext(context);
-    filteredOutput = ensureActionableNeedsInformation(filterConfirmedQuestions(output, facts), facts);
+    filteredOutput = ensureActionableNeedsInformation(
+      filterConfirmedQuestions(normalizeNeedsInformationOutput(output, facts), facts),
+      facts
+    );
     if (session.purpose === "tailor_resume") {
       filteredOutput.eligibilityWarnings = getTailoringEligibilityWarnings(facts);
       tailoringRelevance = getTailoringRelevanceStrength(facts);
@@ -2182,6 +2346,8 @@ module.exports = {
   collectFacts,
   filterConfirmedQuestions,
   ensureActionableNeedsInformation,
+  normalizeNeedsInformationOutput,
+  getQuestionFieldKey,
   isDeferredTailorQuestion,
   buildGenerationCacheKey,
   getAccessQuery,

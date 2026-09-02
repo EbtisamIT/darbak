@@ -292,7 +292,7 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
       questions: [],
     },
     {
-      profile: { projects: [{ title: "بوابة الطلاب", description: "" }] },
+      profile: { projects: [{ id: "portfolio-project-1", title: "بوابة الطلاب", description: "" }] },
       resume: {},
       sources: [],
       answers: [],
@@ -300,7 +300,7 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
   );
   assert.strictEqual(actionable.status, "needs_information");
   assert.strictEqual(actionable.questions.length, 1);
-  assert.strictEqual(actionable.questions[0].fieldKey, "project_description");
+  assert.strictEqual(actionable.questions[0].fieldKey, "project_description:portfolio-project-1");
 }
 
 {
