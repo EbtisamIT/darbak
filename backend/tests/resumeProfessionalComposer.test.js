@@ -80,6 +80,75 @@ assert.deepStrictEqual(composed.languages.map((language) => language.name), ["Ar
 const quality = runProfessionalQualityGate({ draft: composed, verifiedFacts: facts, language: "en" });
 assert.strictEqual(quality.needsRepair, false);
 
+const classifierFacts = {
+  ...facts,
+  projects: [{
+    id: "arabic-classifier",
+    title: "Arabic Text Classifier",
+    description: "Prototype for Arabic text classification.",
+    url: "",
+  }],
+  skills: ["Python", "Text Processing"],
+};
+const classifierDraft = composeProfessionalDraft({
+  language: "en",
+  verifiedFacts: classifierFacts,
+  draft: {
+    ...composed,
+    projects: [{
+      sourceId: "arabic-classifier",
+      name: "Arabic Text Classifier",
+      description: "",
+      technologies: ["Python", "Text Processing"],
+      bullets: [
+        "Built a prototype to classify Arabic text into categories.",
+        "Used Python and text processing techniques to implement the classification workflow.",
+        "Developed an Arabic text classification prototype using Python and text processing.",
+      ],
+    }],
+    skills: [{ name: "Python" }, { name: "Text Processing" }],
+  },
+});
+assert.deepStrictEqual(
+  classifierDraft.projects[0].bullets,
+  [
+    "Built a prototype to classify Arabic text into categories.",
+    "Used Python and text processing techniques to implement the classification workflow.",
+  ],
+  "project bullets retain distinct build and method dimensions while dropping a semantic repeat"
+);
+
+const arabicClassifierDraft = composeProfessionalDraft({
+  language: "ar",
+  verifiedFacts: {
+    ...classifierFacts,
+    projects: [{ id: "arabic-classifier", title: "مصنف النصوص العربية", description: "نموذج أولي لتصنيف النصوص العربية.", url: "" }],
+  },
+  draft: {
+    ...composed,
+    projects: [{
+      sourceId: "arabic-classifier",
+      name: "مصنف النصوص العربية",
+      description: "",
+      technologies: ["Python"],
+      bullets: [
+        "بناء نموذج أولي لتصنيف النصوص العربية.",
+        "استخدام Python وتقنيات معالجة النصوص لتنفيذ آلية التصنيف.",
+        "تطوير نموذج أولي لتصنيف النصوص العربية باستخدام Python.",
+      ],
+    }],
+    skills: [{ name: "Python" }],
+  },
+});
+assert.deepStrictEqual(
+  arabicClassifierDraft.projects[0].bullets,
+  [
+    "بناء نموذج أولي لتصنيف النصوص العربية.",
+    "استخدام Python وتقنيات معالجة النصوص لتنفيذ آلية التصنيف.",
+  ],
+  "Arabic project bullets use the same distinct-dimension rule"
+);
+
 const mixed = runProfessionalQualityGate({
   draft: { ...composed, professionalSummary: "Information Technology Graduate خريجة تقنية معلومات." },
   verifiedFacts: facts,

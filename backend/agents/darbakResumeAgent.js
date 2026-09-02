@@ -1656,7 +1656,7 @@ const createAgentInstructions = () => `أنت Professional Resume Writer في م
 
 professionalContext، إن وُجد، هو كلام الطالب العادي عن المجال الذي يهتم به أو ما يريد إبرازه. استخدمه فقط لفهم positioning وcandidate assessment؛ لا تنسخه حرفيًا كنص summary.
 
-اكتب experience bullets بأفعال مهنية واضحة، 2–5 فقط، ومن المهام المثبتة. اكتب project bullets من وصف المشروع والحقائق فقط. إذا كان وصف المشروع غير كافٍ، اجعل needsMoreInformation ضمن missingInformation ولا تخترع bullet. لا تضف metrics أو achievements أو tools أو roles أو employment status غير موجودة.
+اكتب experience bullets بأفعال مهنية واضحة، 2–5 فقط، ومن المهام المثبتة. اكتب project bullets من وصف المشروع والحقائق فقط: استخدم 1–3 نقاط بحسب كمية المعلومات، ولا تكتب ثلاث نقاط تلقائيًا. يجب أن تضيف كل نقطة بُعدًا مختلفًا (ما بُني، الوظيفة الأساسية، أو الأداة/المنهج الموثق). احذف أي نقطة تعيد المعنى نفسه بصياغة أخرى؛ المشروع البسيط غالبًا يكفيه نقطة أو نقطتان. إذا كان وصف المشروع غير كافٍ، اجعل needsMoreInformation ضمن missingInformation ولا تخترع bullet. لا تضف metrics أو achievements أو tools أو roles أو employment status غير موجودة.
 
 في الإنجليزية اكتب business English طبيعيًا ولا تستخدم أحرفًا عربية في headline أو summary أو bullets. في العربية استخدم عربية مهنية طبيعية مع إبقاء أسماء الأدوات الرسمية مثل React.js وMicrosoft Excel.
 

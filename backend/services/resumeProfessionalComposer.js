@@ -87,6 +87,46 @@ const cleanBullets = (bullets = []) => list(bullets)
   .map((bullet) => cleanWriterText(bullet, 300))
   .filter(Boolean);
 
+const PROJECT_BULLET_STOP_WORDS = new Set([
+  "a", "an", "and", "the", "to", "for", "of", "in", "with", "using", "used", "use",
+  "applied", "supported", "built", "build", "developed", "develop", "created", "create",
+  "prototype", "project", "system", "application", "workflow", "technique", "techniques",
+  "من", "في", "على", "الى", "إلى", "عن", "مع", "باستخدام", "استخدم", "تم", "لـ", "ل",
+  "بناء", "طوّر", "تطوير", "أنشأ", "إنشاء", "نموذج", "مشروع", "نظام", "تطبيق", "تقنيات",
+]);
+
+const projectBulletTokens = (value = "") => Array.from(new Set(
+  safeText(value, 300)
+    .toLocaleLowerCase()
+    .replace(/[.,;:!?؟،()\[\]{}]/gu, " ")
+    .split(/\s+/u)
+    .map((token) => token
+      .replace(/(?:ing|ed|es|s)$/u, "")
+      .replace(/(?:tion|er)$/u, "")
+    )
+    .filter((token) => token.length > 2 && !PROJECT_BULLET_STOP_WORDS.has(token))
+));
+
+const bulletsCoverSameProjectMeaning = (candidate = "", existing = "") => {
+  const candidateTokens = projectBulletTokens(candidate);
+  const existingTokens = projectBulletTokens(existing);
+  if (!candidateTokens.length || !existingTokens.length) return comparable(candidate) === comparable(existing);
+  const existingSet = new Set(existingTokens);
+  const shared = candidateTokens.filter((token) => existingSet.has(token)).length;
+  // This deliberately uses containment rather than an exact text comparison:
+  // “Built an Arabic text classifier” and “Developed an Arabic text
+  // classification prototype” are one resume point, not two distinct facts.
+  return shared / Math.min(candidateTokens.length, existingTokens.length) >= 0.66;
+};
+
+const cleanProjectBullets = (bullets = []) => cleanBullets(bullets)
+  .reduce((distinct, bullet) => (
+    distinct.some((existing) => bulletsCoverSameProjectMeaning(bullet, existing))
+      ? distinct
+      : [...distinct, bullet]
+  ), [])
+  .slice(0, 3);
+
 const QUALITY_RULE_SECTIONS = {
   summary_missing: ["summary"],
   english_language_mixing: ["summary", "experiences", "projects"],
@@ -183,7 +223,7 @@ const containsOnlyVerifiedArabicProperNouns = (text = "", facts = {}) => {
 
 const preserveProjectDescription = (project = {}, verifiedProject = {}) => {
   const description = safeText(project.description || verifiedProject.description, 700);
-  const bullets = cleanBullets(project.bullets);
+  const bullets = cleanProjectBullets(project.bullets);
   return {
     ...project,
     name: safeText(verifiedProject.title || project.name, 180),
