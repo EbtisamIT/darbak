@@ -221,7 +221,7 @@ const getEntriesForQuestion = (facts = {}, section = "") => {
 const findQuestionEntry = (question = {}, facts = {}, section = "") => {
   const entries = getEntriesForQuestion(facts, section);
   if (!entries.length) return null;
-  const text = safeString(`${question.question || ""} ${question.whyNeeded || ""}`, 700).toLowerCase();
+  const text = safeString(`${question.question || ""} ${question.whyNeeded || ""} ${question.reason || ""}`, 700).toLowerCase();
   const explicitId = safeString(question.entryId || question.sourceId || "", 120);
   if (explicitId) {
     const exact = entries.find((entry) => safeString(entry.id || entry._id, 120) === explicitId);
@@ -267,7 +267,7 @@ const missingReasonForFieldKey = (fieldKey = "", provided = "") =>
   }[fieldKey.split(":")[0]] || "required_fact_missing";
 
 const getQuestionFieldKey = (question = {}, facts = {}) => {
-  const text = safeString(`${question.section || ""} ${question.question || ""} ${question.whyNeeded || ""}`, 700).toLowerCase();
+  const text = safeString(`${question.section || ""} ${question.question || ""} ${question.whyNeeded || ""} ${question.reason || ""}`, 700).toLowerCase();
   const section = safeString(question.section, 40).toLowerCase();
   const explicit = getExplicitAllowedFieldKey(question, facts);
   if (explicit) return explicit;
