@@ -3,11 +3,58 @@ const { normalizeResumeSkills } = require("./resumeSkillNormalization");
 const ARABIC_CHARACTERS = /[\u0600-\u06FF]/u;
 const GENERIC_SUMMARY = /\b(hardworking|passionate|motivated|seeking an opportunity)\b|مجتهد|شغوف|باحث عن فرصة/u;
 
+// These phrases describe the system's verification process, not the
+// candidate. They must never leak into presentation content shown in a CV.
+const WRITER_META_REPLACEMENTS = [
+  [/\bwith\s+(?:documented|verified)\s+skills\s+in\b/giu, "with practical experience using"],
+  [/\bwith\s+verified\s+capabilities\s+in\b/giu, "with practical experience in"],
+  [/\b(?:documented skills|verified skills|verified capabilities)\b/giu, "skills"],
+  [/\b(?:based on available information|according to provided data)\b[,:;]?\s*/giu, ""],
+  [/في نطاق المهارات الموثقة/gu, ""],
+  [/بحسب المعلومات المتاحة[،,:؛]?\s*/gu, ""],
+  [/وفق البيانات المقدمة[،,:؛]?\s*/gu, ""],
+  [/القدرات المثبتة/gu, "القدرات"],
+  [/المعلومات الموثقة/gu, "المعلومات"],
+];
+
 const safeText = (value = "", max = 900) => (value || "").toString().replace(/\s+/g, " ").trim().slice(0, max);
 const list = (value) => (Array.isArray(value) ? value : []);
 const objectList = (value) => list(value).filter((entry) => entry && typeof entry === "object");
 const isEnglish = (language) => language === "en";
 const comparable = (value = "") => safeText(value, 260).toLocaleLowerCase();
+
+const cleanWriterText = (value = "", max = 900) => {
+  let text = safeText(value, max);
+  WRITER_META_REPLACEMENTS.forEach(([pattern, replacement]) => {
+    text = text.replace(pattern, replacement);
+  });
+  return text
+    .replace(/([.!?]\s+)([a-z])/gu, (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`)
+    .replace(/\s+([,،.;:؛!?؟])/gu, "$1")
+    .replace(/([,،؛])\s*([,،؛])/gu, "$1")
+    .replace(/\s{2,}/gu, " ")
+    .trim();
+};
+
+const cleanSummary = (value = "", max = 900) => {
+  const unique = new Set();
+  const sentences = cleanWriterText(value, max)
+    // A period starts a new sentence only when the next token looks like a
+    // sentence start. This keeps tool names such as Node.js intact.
+    .split(/(?<=[!?؟])\s+|(?<=\.)\s+(?=[A-Z\u0600-\u06FF])/u)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => {
+      const key = comparable(sentence).replace(/[.!?؟]+$/u, "");
+      if (!key || unique.has(key)) return false;
+      unique.add(key);
+      return true;
+    });
+  return sentences.slice(0, 3).join(" ");
+};
+
+const cleanBullets = (bullets = []) => list(bullets)
+  .map((bullet) => cleanWriterText(bullet, 300))
+  .filter(Boolean);
 
 const QUALITY_RULE_SECTIONS = {
   summary_missing: ["summary"],
@@ -105,7 +152,7 @@ const containsOnlyVerifiedArabicProperNouns = (text = "", facts = {}) => {
 
 const preserveProjectDescription = (project = {}, verifiedProject = {}) => {
   const description = safeText(project.description || verifiedProject.description, 700);
-  const bullets = list(project.bullets).map((bullet) => safeText(bullet, 300)).filter(Boolean);
+  const bullets = cleanBullets(project.bullets);
   return {
     ...project,
     name: safeText(verifiedProject.title || project.name, 180),
@@ -122,7 +169,7 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
   // entered in their professional profile.
   const experiences = list(verifiedFacts.experiences).map((fact) => {
     const entry = list(draft.experiences).find((candidate) => matchFact(candidate, [fact])) || {};
-    const sourceBullets = list(entry.bullets).map((bullet) => safeText(bullet, 300)).filter(Boolean);
+    const sourceBullets = cleanBullets(entry.bullets);
     const fallbackBullet = safeText(fact.description, 300);
     return {
       ...entry,
@@ -152,6 +199,7 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
   return {
     ...draft,
     targetTitle: buildDeterministicHeadline(personalInfo, language),
+    professionalSummary: cleanSummary(draft.professionalSummary),
     education: list(verifiedFacts.education).map((fact) => ({
       sourceId: fact.id,
       title: fact.title,

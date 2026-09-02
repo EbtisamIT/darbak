@@ -11,6 +11,12 @@ const SKILL_ALIASES = {
   "time management": "Time Management",
   "microsoft powerpointb": "Microsoft PowerPoint",
   "microsoft powerpoint": "Microsoft PowerPoint",
+  firebase: "Firebase",
+  figma: "Figma",
+  "node.js": "Node.js",
+  "node js": "Node.js",
+  "power bi": "Power BI",
+  "microsoft excel": "Microsoft Excel",
 };
 
 const normalizeKey = (value = "") =>

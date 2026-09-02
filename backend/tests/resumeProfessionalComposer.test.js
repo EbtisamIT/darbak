@@ -223,6 +223,32 @@ assert.strictEqual(arabicBusinessDraft.targetTitle, "طالب إدارة الأ�
 assert.ok(arabicBusinessDraft.professionalSummary.split(/[.!؟]/u).filter(Boolean).length <= 2, "limited facts use a short summary instead of filler");
 assert.ok(!/شغوف|طموح|متميز/u.test(arabicBusinessDraft.professionalSummary));
 
+const technicalWriterCleanup = composeProfessionalDraft({
+  language: "en",
+  verifiedFacts: {
+    personalInfo: { major: "Computer Science", studentStatus: "student" },
+    education: [],
+    experiences: [],
+    projects: [{ id: "tech-project-1", title: "Web Application", description: "Built a web application.", url: "" }],
+    certifications: [],
+    volunteering: [],
+    languages: [],
+    skills: ["FireBase", "figma", "react.js", "node.js", "github", "power bi", "microsoft excel"],
+  },
+  draft: {
+    professionalSummary: "Computer Science Student with documented skills in FireBase and figma. Based on available information, built web applications with verified capabilities in react.js and node.js. Computer Science Student with documented skills in FireBase and figma.",
+    experiences: [],
+    projects: [{ sourceId: "tech-project-1", name: "Web Application", description: "", bullets: ["Built a web application with documented skills in react.js."], technologies: ["FireBase", "figma", "react.js", "node.js"], url: "" }],
+    skills: ["FireBase", "figma", "react.js", "node.js", "github", "power bi", "microsoft excel"],
+  },
+});
+assert.deepStrictEqual(technicalWriterCleanup.skills.map((skill) => skill.name), ["Firebase", "Figma", "React.js", "Node.js", "GitHub", "Power BI", "Microsoft Excel"]);
+assert.ok(!/في نطاق المهارات الموثقة|بحسب المعلومات المتاحة|وفق البيانات المقدمة|القدرات المثبتة|المعلومات الموثقة/u.test(technicalWriterCleanup.professionalSummary));
+assert.ok(!/documented skills|verified skills|verified capabilities|based on available information|according to provided data/iu.test(technicalWriterCleanup.professionalSummary));
+assert.ok(!/documented skills/iu.test(technicalWriterCleanup.projects[0].bullets[0]));
+assert.ok(technicalWriterCleanup.professionalSummary.includes("practical experience using"), "English summary replaces validator language with professional wording");
+assert.strictEqual((technicalWriterCleanup.professionalSummary.match(/Computer Science Student/g) || []).length, 1, "summary removes repeated ideas and stays concise");
+
 const instructions = createAgentInstructions();
 assert.ok(instructions.includes("قواعد الكتابة العربية المهنية"), "writer prompt contains the Arabic professional-writing contract");
 assert.ok(instructions.includes("لا تحوّل النبذة إلى قائمة Skills"), "writer prompt prevents skill-list prose");
