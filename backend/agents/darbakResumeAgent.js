@@ -22,6 +22,7 @@ const { buildVerifiedResumeFacts } = require("../services/resumePortfolioHydrati
 setSensitiveDataLoggingEnabled(false);
 
 const DEFAULT_RESUME_AGENT_MODEL = "gpt-5.6-terra";
+const DEFAULT_RESUME_SUMMARY_MODEL = "gpt-5.6-sol";
 const DEFAULT_MAX_TURNS = 6;
 const MAX_ANSWER_LENGTH = 1600;
 const MAX_FACT_TEXT_LENGTH = 22000;
@@ -90,6 +91,24 @@ const qualitySchema = z
     emptyImportantSections: [],
     needsRepair: false,
   });
+
+const professionalSummarySchema = z
+  .object({
+    summary: z.string().max(900).default(""),
+    quality: z
+      .object({
+        hasIdentity: z.boolean().default(false),
+        hasEvidence: z.boolean().default(false),
+        hasClearPositioning: z.boolean().default(false),
+        hasGenericFiller: z.boolean().default(false),
+        hasRepeatedIdeas: z.boolean().default(false),
+        hasUnsupportedClaim: z.boolean().default(false),
+        hasExcessiveToolListing: z.boolean().default(false),
+        naturalLanguage: z.boolean().default(false),
+      })
+      .strict(),
+  })
+  .strict();
 
 const sourceMapEntrySchema = z
   .object({
@@ -171,6 +190,81 @@ const safeText = (value = "", maxLength = 2200) =>
     .replace(/\n{4,}/g, "\n\n")
     .trim()
     .slice(0, maxLength);
+
+const SUMMARY_BANNED_PHRASES = /\b(?:documented skills|verified skills|verified capabilities|based on available information|according to provided data|focused on expanding expertise|seeking a dynamic environment|hardworking|passionate|motivated)\b|في نطاق المهارات الموثقة|بحسب المعلومات المتاحة|وفق البيانات المقدمة|القدرات المثبتة|المعلومات الموثقة|خلفية أكاديمية ضمن بكالوريوس|تشمل المهارات|تتضمن الخبرات|يتجه نحو|يسعى إلى/iu;
+const ARABIC_PROSE = /[\u0600-\u06FF]/u;
+
+const getSummaryCandidateLevel = (personalInfo = {}) => {
+  if (safeString(personalInfo.studentStatus, 40) === "graduate") return "graduate";
+  if (safeString(personalInfo.studentStatus, 40) === "student") return "student";
+  return "early_career";
+};
+
+const getSummaryEvidence = (facts = {}) => {
+  const evidence = [
+    ...(Array.isArray(facts.experiences) ? facts.experiences : []).map((entry) => ({
+      type: "experience",
+      id: safeString(entry.id, 120),
+      title: safeString(entry.title, 180),
+      organization: safeString(entry.organization, 180),
+      description: safeText(entry.description || entry.details, 500),
+      achievements: safeArray(entry.achievements, 4, (item) => safeText(item?.text || item, 260)),
+    })),
+    ...(Array.isArray(facts.projects) ? facts.projects : []).map((entry) => ({
+      type: "project",
+      id: safeString(entry.id, 120),
+      title: safeString(entry.title || entry.name, 180),
+      description: safeText(entry.description || entry.details, 500),
+      achievements: safeArray(entry.achievements, 4, (item) => safeText(item?.text || item, 260)),
+    })),
+  ].filter((entry) => entry.title || entry.description || entry.achievements.length);
+  return evidence
+    .sort((left, right) => Number(right.type === "experience") - Number(left.type === "experience"))
+    .slice(0, 2);
+};
+
+const buildProfessionalSummaryPayload = ({ verifiedResumeFacts = {}, language = "ar" } = {}) => {
+  const personalInfo = verifiedResumeFacts.personalInfo || {};
+  const skills = Array.isArray(verifiedResumeFacts.skills) ? verifiedResumeFacts.skills : [];
+  return {
+    candidateLevel: getSummaryCandidateLevel(personalInfo),
+    studentStatus: safeString(personalInfo.studentStatus, 40),
+    major: safeString(personalInfo.major, 160),
+    university: safeString((verifiedResumeFacts.education || [])[0]?.organization || "", 180),
+    academicTrack: safeString(personalInfo.academicTrack || personalInfo.concentration || "", 160),
+    strongestEvidence: getSummaryEvidence(verifiedResumeFacts),
+    relevantCapabilityThemes: skills.slice(0, 6).map((skill) => safeString(skill?.name || skill, 80)).filter(Boolean),
+    targetProfessionalDirection: safeText(verifiedResumeFacts.professionalContext, 500),
+    language,
+  };
+};
+
+const countSummarySentences = (summary = "") => safeText(summary, 900)
+  .split(/(?<=[.!?؟])\s+/u)
+  .map((sentence) => sentence.trim())
+  .filter(Boolean)
+  .length;
+
+const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
+  const summary = safeText(result.summary, 900);
+  const quality = result.quality || {};
+  const errors = [];
+  if (!summary) errors.push("summary_missing");
+  if (countSummarySentences(summary) > 3) errors.push("summary_too_long");
+  if (SUMMARY_BANNED_PHRASES.test(summary)) errors.push("summary_banned_phrase");
+  if (payload.language === "en" && ARABIC_PROSE.test(summary)) errors.push("summary_language_mixing");
+  if (payload.studentStatus === "graduate" && /\bstudent\b|\bطالب(?:ة)?\b/iu.test(summary)) errors.push("summary_status_conflict");
+  if (payload.studentStatus === "student" && /\bgraduate\b|\bخريج(?:ة)?\b/iu.test(summary)) errors.push("summary_status_conflict");
+  if (!quality.hasIdentity) errors.push("summary_identity_missing");
+  if (!quality.hasEvidence && payload.strongestEvidence.length) errors.push("summary_evidence_missing");
+  if (!quality.hasClearPositioning && payload.candidateLevel !== "early_career") errors.push("summary_positioning_missing");
+  if (quality.hasGenericFiller) errors.push("summary_generic_filler");
+  if (quality.hasRepeatedIdeas) errors.push("summary_repeated_ideas");
+  if (quality.hasUnsupportedClaim) errors.push("summary_unsupported_claim");
+  if (quality.hasExcessiveToolListing) errors.push("summary_excessive_tool_listing");
+  if (!quality.naturalLanguage) errors.push("summary_unnatural_language");
+  return { valid: errors.length === 0, errors };
+};
 
 const BASE_MISSING_FIELD_KEYS = new Set([
   "phone",
@@ -1713,6 +1807,103 @@ const createDarbakResumeAgent = () =>
     outputType: resumeAgentOutputSchema,
   });
 
+const createProfessionalSummaryAgent = () =>
+  new Agent({
+    name: "Darbak Professional Summary Writer",
+    model: process.env.OPENAI_RESUME_SUMMARY_MODEL || DEFAULT_RESUME_SUMMARY_MODEL,
+    modelSettings: { maxTokens: 700 },
+    instructions: `أنت كاتب نبذات مهنية محترف للسير الذاتية ATS. اكتب Professional Summary فقط، ولا تعدّل أي قسم آخر.
+استخدم payload المختصر الموثوق فقط. لا تخترع مهارة أو خبرة أو أداة أو نتيجة أو مسمى. اكتب 2–3 جمل: الهوية المهنية الحالية، أقوى دليل عملي، ثم اتجاه مهني تدعمه المعلومات.
+لا تكرر قائمة المهارات أو تفاصيل المشاريع؛ يكفي ذكر أقوى دليل باختصار. عند قوة دليل عالية استخدم صياغة مباشرة، وعند الدليل المحدود اكتب بإيجاز دون حشو.
+بالعربية اكتب فصحى مهنية طبيعية ومباشرة، وتجنب «يتجه نحو»، «يسعى إلى»، والعبارات الآلية أو لغة التحقق. بالإنجليزية اكتب natural resume English، وتجنب generic objective language وdocumented/verified wording.
+أعد summary وquality فقط. لا تكتب reasoning أو markdown.`,
+    tools: [],
+    outputType: professionalSummarySchema,
+  });
+
+const buildProfessionalSummaryInput = ({ payload = {}, currentSummary = "", repairErrors = [] } = {}) =>
+  safeText(JSON.stringify({
+    task: repairErrors.length ? "repair_professional_summary" : "write_professional_summary",
+    candidate: payload,
+    ...(currentSummary ? { currentSummary: safeText(currentSummary, 900) } : {}),
+    ...(repairErrors.length ? { deterministicFailureReasons: repairErrors.slice(0, 8) } : {}),
+    instruction: repairErrors.length
+      ? "أصلح النبذة فقط لمعالجة الأسباب المحددة، مع الحفاظ على الحقائق الموجودة في payload."
+      : "اكتب نبذة واحدة جاهزة للسيرة من الحقائق الموجودة فقط.",
+  }), 6500);
+
+const getReusableProfessionalSummary = (session = {}, cacheKey = "") => {
+  const cached = session.collectedFacts?.professionalSummaryCache;
+  if (!cached || cached.key !== cacheKey) return null;
+  const parsed = professionalSummarySchema.safeParse(cached.output);
+  return parsed.success ? parsed.data : null;
+};
+
+const saveProfessionalSummaryCache = async ({ session, cacheKey, output }) => {
+  session.collectedFacts = {
+    ...(session.collectedFacts || {}),
+    professionalSummaryCache: {
+      key: cacheKey,
+      output,
+      createdAt: new Date().toISOString(),
+    },
+  };
+  if (typeof session.markModified === "function") session.markModified("collectedFacts");
+  await session.save();
+};
+
+const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedResumeFacts, language, trace, currentSummary = "" }) => {
+  const payload = buildProfessionalSummaryPayload({ verifiedResumeFacts, language });
+  let output = getReusableProfessionalSummary(session, cacheKey);
+  if (!output) {
+    trace.summaryModelCalls = (trace.summaryModelCalls || 0) + 1;
+    trace.aiCalls += 1;
+    const result = await run(
+      createProfessionalSummaryAgent(),
+      buildProfessionalSummaryInput({ payload, currentSummary }),
+      { context, maxTurns: 1 }
+    );
+    output = professionalSummarySchema.parse(result.finalOutput);
+    trace.summaryUsage = summarizeRunUsage(result, Date.now());
+  }
+
+  let validation = validateProfessionalSummary({ result: output, payload });
+  if (!validation.valid) {
+    trace.summaryRepairAttempted = true;
+    trace.summaryModelCalls = (trace.summaryModelCalls || 0) + 1;
+    trace.aiCalls += 1;
+    const repairedResult = await run(
+      createProfessionalSummaryAgent(),
+      buildProfessionalSummaryInput({
+        payload,
+        currentSummary: output.summary,
+        repairErrors: validation.errors,
+      }),
+      { context, maxTurns: 1 }
+    );
+    output = professionalSummarySchema.parse(repairedResult.finalOutput);
+    validation = validateProfessionalSummary({ result: output, payload });
+    trace.summaryRepairSucceeded = validation.valid;
+    if (!validation.valid) {
+      throw Object.assign(new Error("Professional summary validation failed"), {
+        code: "SUMMARY_VALIDATION_FAILED",
+        validationErrors: validation.errors,
+      });
+    }
+  }
+  await saveProfessionalSummaryCache({ session, cacheKey, output });
+  return {
+    professionalSummary: output.summary,
+    editorialCheck: {
+      concise: true,
+      noRepeatedIdeas: !output.quality.hasRepeatedIdeas,
+      naturalArabic: language === "ar" ? output.quality.naturalLanguage : true,
+      evidenceBased: !output.quality.hasUnsupportedClaim,
+      noUnnecessaryToolListing: !output.quality.hasExcessiveToolListing,
+    },
+  };
+};
+
 const createDarbakResumeRepairAgent = () =>
   new Agent({
     name: "Darbak Resume Quality Repair Agent",
@@ -2127,6 +2318,28 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     let sourceMap;
     let validationResult;
     let quality;
+    if (session.purpose === "base_resume") {
+      try {
+        const summary = await writeProfessionalSummary({
+          session,
+          context,
+          cacheKey: generationCacheKey,
+          verifiedResumeFacts,
+          language: session.language,
+          trace,
+          currentSummary: filteredOutput.draft.professionalSummary,
+        });
+        filteredOutput = {
+          ...filteredOutput,
+          draft: {
+            ...filteredOutput.draft,
+            ...summary,
+          },
+        };
+      } catch (error) {
+        throw buildAgentStageError("professional_summary", error, trace);
+      }
+    }
     try {
       composedDraft = composeProfessionalDraft({
         draft: filteredOutput.draft,
@@ -2360,6 +2573,9 @@ module.exports = {
   getRepairSectionForQuality,
   mergeQualityRepair,
   buildQualityRepairInput,
+  buildProfessionalSummaryPayload,
+  validateProfessionalSummary,
+  buildProfessionalSummaryInput,
   createAgentInstructions,
   runDarbakResumeAgent,
   validateResumeClaims,
