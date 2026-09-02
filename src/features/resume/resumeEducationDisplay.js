@@ -11,20 +11,34 @@ export const getResumeEducationDisplay = (entry = {}, personal = {}, language = 
   const city = language === "en" && containsArabic(entryCity) && personal.city
     ? String(personal.city).trim()
     : (entryCity || String(personal.city || "").trim());
-  const year = String(personal.graduationYear || entry.period || entry.endDate || "").trim();
+  const startYear = String(personal.studyStartYear || entry.startDate || "").trim();
+  const graduationYear = String(personal.graduationYear || entry.period || entry.endDate || "").trim();
+  const expectedGraduationYear = String(personal.expectedGraduationYear || "").trim();
   const gpa = String(personal.gpa || "").trim();
   const gpaScale = String(personal.gpaScale || "").trim();
+  const academicTrack = String(personal.academicTrack || "").trim();
+  const coursework = (Array.isArray(personal.relevantCoursework) ? personal.relevantCoursework : [])
+    .map((course) => String(course || "").trim())
+    .filter(Boolean);
   const degreeIncludesMajor = major && degree.toLowerCase().includes(major.toLowerCase());
   const title = degree && major && !degreeIncludesMajor
     ? language === "en" ? `${degree} in ${major}` : `${degree} في ${major}`
     : degree || major;
 
+  const graduationLine = graduationYear
+    ? (startYear ? `${startYear} – ${graduationYear}` : graduationYear)
+    : expectedGraduationYear
+      ? (language === "en" ? `Expected Graduation: ${expectedGraduationYear}` : `متوقع التخرج ${expectedGraduationYear}`)
+      : startYear;
+
   return {
     title,
     subtitle: [university, city].filter(Boolean).join(" — "),
     facts: [
-      year,
+      graduationLine,
       gpa && (language === "en" ? `GPA: ${gpa}${gpaScale ? `/${gpaScale}` : ""}` : `المعدل: ${gpa}${gpaScale ? `/${gpaScale}` : ""}`),
+      academicTrack && (language === "en" ? `Academic Track: ${academicTrack}` : `المسار الأكاديمي: ${academicTrack}`),
+      coursework.length && (language === "en" ? `Relevant Coursework: ${coursework.join(", ")}` : `مقررات ذات صلة: ${coursework.join("، ")}`),
     ].filter(Boolean),
   };
 };

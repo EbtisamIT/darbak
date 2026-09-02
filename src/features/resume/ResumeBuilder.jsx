@@ -795,7 +795,19 @@ const CompletionPanel = ({ resume, onChange, hideCompletedChecklist = false }) =
       review: { ...(resume.localizedDisplay?.review || {}) },
     };
     if (item.section === "personal") {
-      localizedDisplay.personalInfo[item.field] = value.trim();
+      if (item.field === "relevantCoursework") {
+        const coursework = Array.isArray(localizedDisplay.personalInfo.relevantCoursework)
+          ? [...localizedDisplay.personalInfo.relevantCoursework]
+          : [...(resume.personalInfo?.relevantCoursework || [])];
+        coursework[item.index] = value.trim();
+        localizedDisplay.personalInfo.relevantCoursework = coursework;
+        localizedDisplay.review[`personal:relevantCoursework:${item.index}`] = {
+          source: item.value,
+          approved: true,
+        };
+      } else {
+        localizedDisplay.personalInfo[item.field] = value.trim();
+      }
     } else if (item.section && item.entryId) {
       const key = `${item.section}:${item.entryId}`;
       if (item.field === "achievement") {
@@ -822,7 +834,9 @@ const CompletionPanel = ({ resume, onChange, hideCompletedChecklist = false }) =
       review: { ...(resume.localizedDisplay?.review || {}) },
     };
     const key = `${item.section}:${item.entryId}`;
-    const reviewKey = item.field === "achievement"
+    const reviewKey = item.section === "personal"
+      ? `personal:${item.field}:${item.index}`
+      : item.field === "achievement"
       ? `achievements:${key}:${item.achievementId || item.index}`
       : `entries:${key}:${item.field}`;
     localizedDisplay.review[reviewKey] = {

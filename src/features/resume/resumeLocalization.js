@@ -378,6 +378,36 @@ export const getEnglishReviewItems = (resume = {}) => {
       items.push({ label: labels[field], value: personal[field], section: "personal", field, fieldKey: `personal.${field}` });
     }
   });
+  (Array.isArray(personal.relevantCoursework) ? personal.relevantCoursework : []).forEach((course, index) => {
+    const sourceValue = String(course || "").trim();
+    if (!arabicPattern.test(sourceValue)) return;
+    const translatedValue = Array.isArray(localized.personalInfo?.relevantCoursework)
+      ? String(localized.personalInfo.relevantCoursework[index] || "").trim()
+      : "";
+    const reviewKey = `personal:relevantCoursework:${index}`;
+    if (!translatedValue || arabicPattern.test(translatedValue)) {
+      items.push({
+        label: "مقرر ذو صلة",
+        value: sourceValue,
+        section: "personal",
+        field: "relevantCoursework",
+        index,
+        fieldKey: `personal.relevantCoursework.${index}`,
+        localizationState: "missing",
+      });
+    } else if (needsLocalizationReview(resume, reviewKey, sourceValue, translatedValue)) {
+      items.push({
+        label: "ترجمة مقرر ذي صلة",
+        value: sourceValue,
+        generatedValue: translatedValue,
+        section: "personal",
+        field: "relevantCoursework",
+        index,
+        fieldKey: `personal.relevantCoursework.${index}`,
+        localizationState: "review",
+      });
+    }
+  });
   if (arabicPattern.test(resume.summary || "")) {
     items.push({ label: "النبذة المهنية", value: resume.summary, section: "summary", field: "summary", fieldKey: "summary" });
   }
@@ -567,6 +597,12 @@ export const buildEnglishLocalizedDisplay = (resume = {}) => {
   if (degree) localized.personalInfo.degree = degree;
   const headline = derivedEnglishHeadline(personal, localized.personalInfo);
   if (headline) localized.personalInfo.headline = headline;
+  const coursework = (Array.isArray(personal.relevantCoursework) ? personal.relevantCoursework : [])
+    .map((course) => {
+      const value = String(course || "").trim();
+      return value && !arabicPattern.test(value) ? value : "";
+    });
+  if (coursework.some(Boolean)) localized.personalInfo.relevantCoursework = coursework;
   ["education", "experience", "projects", "certifications", "volunteering"].forEach((section) => {
     (resume[section] || []).forEach((entry) => {
       const values = {};

@@ -20,9 +20,13 @@ const PROTECTED_PERSONAL_FACT_KEYS = [
   "degree",
   "studentStatus",
   "grammaticalGender",
+  "studyStartYear",
   "graduationYear",
+  "expectedGraduationYear",
   "gpa",
   "gpaScale",
+  "academicTrack",
+  "relevantCoursework",
   "linkedinUrl",
   "githubUrl",
   "personalUrl",
@@ -179,9 +183,21 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
   const portfolioUrl = portfolio.slug && frontendUrl ? `${frontendUrl}/p/${portfolio.slug}` : "";
   const educationDescription = [
     portfolio.major,
+    portfolio.academicTrack && `المسار الأكاديمي: ${portfolio.academicTrack}`,
     portfolio.graduationYear && `سنة التخرج: ${portfolio.graduationYear}`,
+    portfolio.expectedGraduationYear && `التخرج المتوقع: ${portfolio.expectedGraduationYear}`,
     portfolio.gpa && `المعدل: ${portfolio.gpa}${portfolio.gpaScale ? ` / ${portfolio.gpaScale}` : ""}`,
+    ...(Array.isArray(portfolio.relevantCoursework) && portfolio.relevantCoursework.length
+      ? [`مقررات ذات صلة: ${portfolio.relevantCoursework.join("، ")}`]
+      : []),
   ].filter(Boolean).join(" · ");
+  const hasPracticalExperience = Array.isArray(portfolio.experiences) && portfolio.experiences.some((entry) =>
+    Boolean(cleanText(entry?.title || entry?.description || entry?.organization, 160))
+  );
+  const candidateIsStudent = ["student", "expected_graduate"].includes(portfolio.studentStatus);
+  const defaultSectionOrder = candidateIsStudent && !hasPracticalExperience
+    ? ["summary", "education", "projects", "skills", "experience", "certifications", "volunteering", "languages", "links"]
+    : ["summary", "experience", "education", "projects", "skills", "certifications", "volunteering", "languages", "links"];
 
   return {
     personalInfo: {
@@ -194,9 +210,13 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
       degree: cleanText(portfolio.degreeLevel, 80),
       studentStatus: cleanText(portfolio.studentStatus, 40),
       grammaticalGender: cleanText(portfolio.grammaticalGender, 20),
+      studyStartYear: cleanText(portfolio.studyStartYear, 20),
       graduationYear: cleanText(portfolio.graduationYear, 20),
+      expectedGraduationYear: cleanText(portfolio.expectedGraduationYear, 20),
       gpa: cleanText(portfolio.gpa, 20),
       gpaScale: cleanText(portfolio.gpaScale, 20),
+      academicTrack: cleanText(portfolio.academicTrack, 120),
+      relevantCoursework: uniqueText([], portfolio.relevantCoursework).map((course) => cleanText(course, 120)),
       linkedinUrl: cleanText(portfolio.linkedinUrl, 260),
       headline: buildPortfolioHeadline(portfolio),
       portfolioUrl,
@@ -213,9 +233,9 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
           title: cleanText(portfolio.degreeLevel || portfolio.major, 140),
           subtitle: cleanText(portfolio.university, 180),
           organization: cleanText(portfolio.university, 180),
-          period: cleanText(portfolio.graduationYear, 20),
-          startDate: "",
-          endDate: cleanText(portfolio.graduationYear, 20),
+          period: cleanText(portfolio.graduationYear || portfolio.expectedGraduationYear, 20),
+          startDate: cleanText(portfolio.studyStartYear, 20),
+          endDate: cleanText(portfolio.graduationYear || portfolio.expectedGraduationYear, 20),
           isCurrent:
             !portfolio.graduationYear &&
             ["student", "expected_graduate"].includes(portfolio.studentStatus),
@@ -243,7 +263,7 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
       portfolioUrl ? { id: "portfolio", label: "ملفي المهني", url: portfolioUrl } : null,
     ].filter(Boolean),
     skills: normalizeResumeSkills((Array.isArray(portfolio.skills) ? portfolio.skills : []).map((skill) => cleanText(skill, 60))),
-    sectionOrder,
+    sectionOrder: sectionOrder.length ? sectionOrder : defaultSectionOrder,
     hiddenSections: [],
     settings: { language: "ar", direction: "rtl", density: "comfortable", fontSize: "medium", template: "clean", accentColor: "#42cfc3" },
   };

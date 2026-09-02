@@ -417,6 +417,16 @@ const collectResumeTextForTranslation = (resume = {}) => {
   };
 
   add("summary", resume.summary, { kind: "root", key: "summary" });
+  (Array.isArray(resume.personalInfo?.relevantCoursework)
+    ? resume.personalInfo.relevantCoursework
+    : []
+  ).forEach((course, index) => {
+    add(`personal:relevantCoursework:${index}`, course, {
+      kind: "personalList",
+      key: "relevantCoursework",
+      index,
+    });
+  });
   ["education", "experience", "projects", "certifications", "volunteering"].forEach(
     (section) => {
       getResumeEntries(resume, section).forEach((entry, index) => {
@@ -517,6 +527,16 @@ const applyResumeTranslations = (resume, items, translations) => {
       translatedResume[target.key] = text;
     } else if (target.kind === "personal") {
       translatedResume.personalInfo = { ...(translatedResume.personalInfo || {}), [target.key]: text };
+    } else if (target.kind === "personalList") {
+      translatedResume.localizedDisplay = {
+        ...(translatedResume.localizedDisplay || {}),
+        personalInfo: { ...(translatedResume.localizedDisplay?.personalInfo || {}) },
+      };
+      const values = Array.isArray(translatedResume.localizedDisplay.personalInfo[target.key])
+        ? [...translatedResume.localizedDisplay.personalInfo[target.key]]
+        : [...(translatedResume.personalInfo?.[target.key] || [])];
+      values[target.index] = text;
+      translatedResume.localizedDisplay.personalInfo[target.key] = values;
     } else if (target.kind === "entry" || target.kind === "achievement") {
       const entries = getResumeEntries(translatedResume, target.section);
       const entry = entries.find((candidate) => candidate?.id === target.entryId);

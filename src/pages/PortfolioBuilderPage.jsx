@@ -168,9 +168,13 @@ const emptyForm = {
   degreeOther: "",
   studentStatus: "",
   grammaticalGender: "",
+  studyStartYear: "",
   graduationYear: "",
+  expectedGraduationYear: "",
   gpa: "",
   gpaScale: "",
+  academicTrack: "",
+  relevantCoursework: [],
   professionalHeadline: "",
   phone: "",
   readinessStatus: "مستعد ومؤهل للمقابلات الشخصية",
@@ -216,9 +220,15 @@ const normalizeForm = (portfolio = {}) => ({
   degreeLevel: portfolio.degreeLevel || "",
   studentStatus: portfolio.studentStatus || "",
   grammaticalGender: portfolio.grammaticalGender || "",
+  studyStartYear: portfolio.studyStartYear || "",
   graduationYear: portfolio.graduationYear || "",
+  expectedGraduationYear: portfolio.expectedGraduationYear || "",
   gpa: portfolio.gpa || "",
   gpaScale: portfolio.gpaScale || "",
+  academicTrack: portfolio.academicTrack || "",
+  relevantCoursework: Array.isArray(portfolio.relevantCoursework)
+    ? portfolio.relevantCoursework.map((course) => String(course || "")).filter(Boolean)
+    : [],
   professionalHeadline: portfolio.professionalHeadline || "",
   phone: portfolio.phone || "",
   readinessStatus:
@@ -631,6 +641,39 @@ export default function PortfolioBuilderPage() {
     );
   };
 
+  const addRelevantCoursework = () => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    // Keep an empty row locally until the student starts writing. Persisting
+    // it immediately would let the server normalize it away before typing.
+    immediateSaveRef.current = false;
+    setForm((current) => ({
+      ...current,
+      relevantCoursework: [...(current.relevantCoursework || []), ""],
+    }));
+  };
+
+  const updateRelevantCoursework = (index, value) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    setForm((current) => ({
+      ...current,
+      relevantCoursework: (current.relevantCoursework || []).map((course, courseIndex) =>
+        courseIndex === index ? value : course
+      ),
+    }));
+  };
+
+  const removeRelevantCoursework = (index) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    immediateSaveRef.current = true;
+    setForm((current) => ({
+      ...current,
+      relevantCoursework: (current.relevantCoursework || []).filter((_, courseIndex) => courseIndex !== index),
+    }));
+  };
+
   const addListItem = (listName, emptyItem, maxItems = 6) => {
     // Keep a newer UI revision so an in-flight autosave cannot overwrite a
     // newly added empty row before the student has a chance to fill it in.
@@ -763,9 +806,13 @@ export default function PortfolioBuilderPage() {
     degreeLevel: source.degreeLevel === "أخرى" ? source.degreeOther : source.degreeLevel,
     studentStatus: source.studentStatus,
     grammaticalGender: source.grammaticalGender,
+    studyStartYear: source.studyStartYear,
     graduationYear: source.graduationYear,
+    expectedGraduationYear: source.expectedGraduationYear,
     gpa: source.gpa,
     gpaScale: source.gpaScale,
+    academicTrack: source.academicTrack,
+    relevantCoursework: source.relevantCoursework,
     professionalHeadline: source.professionalHeadline,
     phone: source.phone,
     readinessStatus: source.readinessStatus === "أخرى" ? source.readinessOther : source.readinessStatus,
@@ -1343,6 +1390,26 @@ export default function PortfolioBuilderPage() {
               {stageSetupKeys.has("education") && <label>أو الحالة التعليمية<select value={form.studentStatus} onChange={(event) => updateField("studentStatus", event.target.value, { immediate: true })}><option value="">اختر الحالة</option><option value="student">طالب/ة</option><option value="graduate">خريج/ة</option><option value="expected_graduate">متوقع/ة التخرج</option></select></label>}
               {stageSetupKeys.has("education") && <label>صياغة السيرة بالعربية<select value={form.grammaticalGender} onChange={(event) => updateField("grammaticalGender", event.target.value, { immediate: true })}><option value="">اختر الصياغة</option><option value="feminine">خريجة / طالبة</option><option value="masculine">خريج / طالب</option></select></label>}
               {stageSetupKeys.has("education") && form.degreeLevel === "أخرى" && <label>اكتب الدرجة<input value={form.degreeOther} onChange={(event) => updateField("degreeOther", event.target.value)} placeholder="مثال: شهادة مهنية" /></label>}
+              {stageSetupKeys.has("education") && <label>سنة بداية الدراسة <small>اختياري</small><input value={form.studyStartYear} onChange={(event) => updateField("studyStartYear", event.target.value)} placeholder="مثال: 2023" inputMode="numeric" /></label>}
+              {stageSetupKeys.has("education") && <label>سنة التخرج <small>اختياري</small><input value={form.graduationYear} onChange={(event) => updateField("graduationYear", event.target.value)} placeholder="مثال: 2027" inputMode="numeric" /></label>}
+              {stageSetupKeys.has("education") && <label>سنة التخرج المتوقعة <small>اختياري</small><input value={form.expectedGraduationYear} onChange={(event) => updateField("expectedGraduationYear", event.target.value)} placeholder="مثال: 2027" inputMode="numeric" /></label>}
+              {stageSetupKeys.has("education") && <label>المعدل <small>اختياري</small><input value={form.gpa} onChange={(event) => updateField("gpa", event.target.value)} placeholder="مثال: 4.70" inputMode="decimal" /></label>}
+              {stageSetupKeys.has("education") && <label>من أصل <small>اختياري</small><input value={form.gpaScale} onChange={(event) => updateField("gpaScale", event.target.value)} placeholder="مثال: 5" inputMode="decimal" /></label>}
+              {stageSetupKeys.has("education") && <label className="is-wide">المسار أو التركيز الأكاديمي <small>اختياري</small><input value={form.academicTrack} onChange={(event) => updateField("academicTrack", event.target.value)} placeholder="مثال: تحليل الأعمال" /></label>}
+              {stageSetupKeys.has("education") && (
+                <div className="portfolio-resume-setup-collection is-wide">
+                  <div className="portfolio-builder-section-head">
+                    <div><h3>مقررات ذات صلة</h3><p>اختيارية، وتظهر فقط إذا أضفتها.</p></div>
+                    <button type="button" onClick={addRelevantCoursework}>+ إضافة مقرر</button>
+                  </div>
+                  {(form.relevantCoursework || []).map((course, index) => (
+                    <div className="portfolio-builder-repeat" key={`coursework-${index}`}>
+                      <input value={course} onChange={(event) => updateRelevantCoursework(index, event.target.value)} placeholder="مثال: قواعد البيانات أو هياكل البيانات أو تحليل الأعمال" />
+                      <button type="button" onClick={() => removeRelevantCoursework(index)}>حذف المقرر</button>
+                    </div>
+                  ))}
+                </div>
+              )}
               {stageSetupKeys.has("email") && <label>بريد التواصل<input id={getResumeSetupInputId("email")} type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
               <label className="is-wide">
                 وش المجال أو نوع الفرص اللي مهتم فيها؟ ووش أكثر شيء عندك تحب نبرزه في سيرتك؟
@@ -1676,9 +1743,41 @@ export default function PortfolioBuilderPage() {
                 </select>
               </label>
               <label>
-                سنة التخرج أو المتوقعة
+                سنة بداية الدراسة
+                <input value={form.studyStartYear} onChange={(event) => updateField("studyStartYear", event.target.value)} placeholder="مثال: 2023" inputMode="numeric" />
+              </label>
+              <label>
+                سنة التخرج
                 <input value={form.graduationYear} onChange={(event) => updateField("graduationYear", event.target.value)} placeholder="مثال: 2027" inputMode="numeric" />
               </label>
+              <label>
+                سنة التخرج المتوقعة
+                <input value={form.expectedGraduationYear} onChange={(event) => updateField("expectedGraduationYear", event.target.value)} placeholder="مثال: 2027" inputMode="numeric" />
+              </label>
+              <label>
+                المعدل
+                <input value={form.gpa} onChange={(event) => updateField("gpa", event.target.value)} placeholder="مثال: 4.70" inputMode="decimal" />
+              </label>
+              <label>
+                من أصل
+                <input value={form.gpaScale} onChange={(event) => updateField("gpaScale", event.target.value)} placeholder="مثال: 5" inputMode="decimal" />
+              </label>
+              <label className="is-wide">
+                المسار أو التركيز الأكاديمي <small>اختياري</small>
+                <input value={form.academicTrack} onChange={(event) => updateField("academicTrack", event.target.value)} placeholder="مثال: تحليل الأعمال" />
+              </label>
+              <div className="portfolio-resume-setup-collection is-wide">
+                <div className="portfolio-builder-section-head">
+                  <div><h3>مقررات ذات صلة</h3><p>اختيارية، وتظهر في السيرة إذا أضفتها.</p></div>
+                  <button type="button" onClick={addRelevantCoursework}>+ إضافة مقرر</button>
+                </div>
+                {(form.relevantCoursework || []).map((course, index) => (
+                  <div className="portfolio-builder-repeat" key={`portfolio-coursework-${index}`}>
+                    <input value={course} onChange={(event) => updateRelevantCoursework(index, event.target.value)} placeholder="مثال: قواعد البيانات أو هياكل البيانات أو تحليل الأعمال" />
+                    <button type="button" onClick={() => removeRelevantCoursework(index)}>حذف المقرر</button>
+                  </div>
+                ))}
+              </div>
               <label className="is-wide">
                 المسمى المهني
                 <input value={form.professionalHeadline} onChange={(event) => updateField("professionalHeadline", event.target.value)} placeholder={majorValue ? `متخصص/ة في ${majorValue}` : "مثال: متخصص/ة في تقنية المعلومات"} />
@@ -1798,24 +1897,6 @@ export default function PortfolioBuilderPage() {
                   onChange={(event) => updateField("personalWebsite", event.target.value)}
                   placeholder="https://..."
                   dir="ltr"
-                />
-              </label>
-              <label>
-                المعدل
-                <input
-                  value={form.gpa}
-                  onChange={(event) => updateField("gpa", event.target.value)}
-                  placeholder="مثال: 4.50"
-                  inputMode="decimal"
-                />
-              </label>
-              <label>
-                من أصل
-                <input
-                  value={form.gpaScale}
-                  onChange={(event) => updateField("gpaScale", event.target.value)}
-                  placeholder="مثال: 5"
-                  inputMode="decimal"
                 />
               </label>
               <label>

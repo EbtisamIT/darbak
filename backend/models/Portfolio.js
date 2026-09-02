@@ -144,8 +144,15 @@ const portfolioSchema = new mongoose.Schema(
       trim: true,
     },
     graduationYear: { type: String, default: "", trim: true },
+    expectedGraduationYear: { type: String, default: "", trim: true },
+    studyStartYear: { type: String, default: "", trim: true },
     gpa: { type: String, default: "", trim: true },
     gpaScale: { type: String, default: "", trim: true },
+    academicTrack: { type: String, default: "", trim: true },
+    relevantCoursework: {
+      type: [String],
+      default: [],
+    },
     professionalHeadline: { type: String, default: "", trim: true },
     phone: { type: String, default: "", trim: true },
     readinessStatus: {

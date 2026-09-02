@@ -1957,9 +1957,13 @@ const sanitizePortfolioPayload = (body = {}, contact = "") => {
     grammaticalGender: ["feminine", "masculine"].includes(body.grammaticalGender)
       ? body.grammaticalGender
       : "",
+    studyStartYear: sanitizePortfolioText(body.studyStartYear, 12),
     graduationYear: sanitizePortfolioText(body.graduationYear, 12),
+    expectedGraduationYear: sanitizePortfolioText(body.expectedGraduationYear, 12),
     gpa: sanitizePortfolioText(body.gpa, 20),
     gpaScale: sanitizePortfolioText(body.gpaScale, 20),
+    academicTrack: sanitizePortfolioText(body.academicTrack, 120),
+    relevantCoursework: normalizePortfolioList(body.relevantCoursework, 10, 120),
     professionalHeadline: sanitizePortfolioText(body.professionalHeadline, 140),
     phone: sanitizePortfolioText(body.phone, 40),
     readinessStatus:
@@ -2046,9 +2050,13 @@ const serializePortfolio = (portfolio = {}, accessStatus = {}, req = null) => ({
   degreeLevel: portfolio.degreeLevel || "",
   studentStatus: portfolio.studentStatus || "",
   grammaticalGender: portfolio.grammaticalGender || "",
+  studyStartYear: portfolio.studyStartYear || "",
   graduationYear: portfolio.graduationYear || "",
+  expectedGraduationYear: portfolio.expectedGraduationYear || "",
   gpa: portfolio.gpa || "",
   gpaScale: portfolio.gpaScale || "",
+  academicTrack: portfolio.academicTrack || "",
+  relevantCoursework: Array.isArray(portfolio.relevantCoursework) ? portfolio.relevantCoursework : [],
   professionalHeadline: portfolio.professionalHeadline || "",
   phone: portfolio.phone || "",
   readinessStatus: portfolio.readinessStatus || "",
@@ -6381,9 +6389,13 @@ const sanitizeResumePayload = (body = {}) => {
       grammaticalGender: ["feminine", "masculine"].includes(personalInfo.grammaticalGender)
         ? personalInfo.grammaticalGender
         : "",
+      studyStartYear: sanitizePortfolioText(personalInfo.studyStartYear, 20),
       graduationYear: sanitizePortfolioText(personalInfo.graduationYear, 20),
+      expectedGraduationYear: sanitizePortfolioText(personalInfo.expectedGraduationYear, 20),
       gpa: sanitizePortfolioText(personalInfo.gpa, 20),
       gpaScale: sanitizePortfolioText(personalInfo.gpaScale, 20),
+      academicTrack: sanitizePortfolioText(personalInfo.academicTrack, 120),
+      relevantCoursework: normalizePortfolioList(personalInfo.relevantCoursework, 10, 120),
       linkedinUrl: sanitizePortfolioUrl(personalInfo.linkedinUrl, 260),
       headline: sanitizePortfolioText(personalInfo.headline, 140),
       portfolioUrl: sanitizePortfolioUrl(personalInfo.portfolioUrl, 260),

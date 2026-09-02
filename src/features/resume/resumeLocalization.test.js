@@ -97,6 +97,27 @@ describe("English resume presentation", () => {
       .toBe("Imam Mohammad Ibn Saud Islamic University");
   });
 
+  it("uses an approved coursework translation without changing the Arabic source fact", () => {
+    const resume = {
+      ...englishResume,
+      personalInfo: {
+        ...englishResume.personalInfo,
+        relevantCoursework: ["قواعد البيانات"],
+      },
+      localizedDisplay: {
+        personalInfo: { relevantCoursework: ["Database Systems"] },
+        review: {
+          "personal:relevantCoursework:0": { source: "قواعد البيانات", approved: true },
+        },
+      },
+    };
+
+    expect(getLocalizedResumeForDisplay(resume).personalInfo.relevantCoursework)
+      .toEqual(["Database Systems"]);
+    expect(resume.personalInfo.relevantCoursework).toEqual(["قواعد البيانات"]);
+    expect(getEnglishReviewItems(resume).some((item) => item.field === "relevantCoursework")).toBe(false);
+  });
+
   it("does not block PDF validation when education uses the localized profile university", () => {
     const resume = {
       ...englishResume,

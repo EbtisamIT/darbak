@@ -51,6 +51,31 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(result.resume.education[0].isCurrent, false);
 }
 
+// Student enrichment facts are optional, persist from Portfolio, and influence
+// only the initial section presentation for students without experience.
+{
+  const enrichedStudent = mapPortfolioToResumePayload({
+    ...portfolio,
+    experiences: [],
+    studyStartYear: "2023",
+    expectedGraduationYear: "2027",
+    graduationYear: "",
+    academicTrack: "الذكاء الاصطناعي",
+    relevantCoursework: ["قواعد البيانات", "هياكل البيانات"],
+  }, portfolio.email);
+  assert.strictEqual(enrichedStudent.personalInfo.studyStartYear, "2023");
+  assert.strictEqual(enrichedStudent.personalInfo.expectedGraduationYear, "2027");
+  assert.deepStrictEqual(enrichedStudent.personalInfo.relevantCoursework, ["قواعد البيانات", "هياكل البيانات"]);
+  assert.deepStrictEqual(enrichedStudent.sectionOrder.slice(0, 4), ["summary", "education", "projects", "skills"]);
+
+  const graduateWithExperience = mapPortfolioToResumePayload({
+    ...portfolio,
+    studentStatus: "graduate",
+    experiences: [{ title: "متدرب", description: "خبرة عملية" }],
+  }, portfolio.email);
+  assert.deepStrictEqual(graduateWithExperience.sectionOrder.slice(0, 4), ["summary", "experience", "education", "projects"]);
+}
+
 // Noura acceptance: verified Portfolio facts always win over a stale local or
 // legacy ResumeProfile, while the summary remains presentation.
 {
