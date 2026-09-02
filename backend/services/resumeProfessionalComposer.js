@@ -23,6 +23,24 @@ const objectList = (value) => list(value).filter((entry) => entry && typeof entr
 const isEnglish = (language) => language === "en";
 const comparable = (value = "") => safeText(value, 260).toLocaleLowerCase();
 
+const hasSubstantiveEvidence = (entry = {}) => Boolean(
+  safeText(entry.description || entry.details, 700) ||
+  list(entry.achievements).some((item) => safeText(item, 240))
+);
+
+// This is presentation guidance only. It never changes a candidate's facts
+// or invents a direction; it tells the writer how confidently it may phrase
+// the direction already supported by projects or experience.
+const getEvidenceStrength = (facts = {}) => {
+  const experiences = objectList(facts.experiences);
+  const projects = objectList(facts.projects);
+  const substantiveProjects = projects.filter(hasSubstantiveEvidence);
+
+  if (experiences.some(hasSubstantiveEvidence) || substantiveProjects.length >= 2) return "strong";
+  if (substantiveProjects.length || normalizeResumeSkills(list(facts.skills)).length >= 2) return "moderate";
+  return "limited";
+};
+
 const cleanWriterText = (value = "", max = 900) => {
   let text = safeText(value, max);
   WRITER_META_REPLACEMENTS.forEach(([pattern, replacement]) => {
@@ -36,9 +54,22 @@ const cleanWriterText = (value = "", max = 900) => {
     .trim();
 };
 
-const cleanSummary = (value = "", max = 900) => {
+const strengthenSummaryPositioning = (value = "", evidenceStrength = "limited", language = "ar") => {
+  if (evidenceStrength !== "strong") return value;
+  if (isEnglish(language)) {
+    return value
+      .replace(/\b(?:is\s+)?seeking\s+to\s+develop\b/giu, "focuses on developing")
+      .replace(/\baspiring\s+to\b/giu, "focused on");
+  }
+  return value
+    .replace(/يتجه نحو\s*/gu, "يركز على ")
+    .replace(/يسعى إلى تطوير\s*/gu, "يعمل على تطوير ")
+    .replace(/يطمح إلى\s*/gu, "يركز على ");
+};
+
+const cleanSummary = (value = "", max = 900, evidenceStrength = "limited", language = "ar") => {
   const unique = new Set();
-  const sentences = cleanWriterText(value, max)
+  const sentences = cleanWriterText(strengthenSummaryPositioning(value, evidenceStrength, language), max)
     // A period starts a new sentence only when the next token looks like a
     // sentence start. This keeps tool names such as Node.js intact.
     .split(/(?<=[!?؟])\s+|(?<=\.)\s+(?=[A-Z\u0600-\u06FF])/u)
@@ -164,6 +195,7 @@ const preserveProjectDescription = (project = {}, verifiedProject = {}) => {
 
 const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "ar" } = {}) => {
   const personalInfo = verifiedFacts.personalInfo || {};
+  const evidenceStrength = getEvidenceStrength(verifiedFacts);
   // Experience identity belongs to the student's verified facts. The agent
   // may improve bullets, but it may not omit or replace a fact the student
   // entered in their professional profile.
@@ -199,7 +231,7 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
   return {
     ...draft,
     targetTitle: buildDeterministicHeadline(personalInfo, language),
-    professionalSummary: cleanSummary(draft.professionalSummary),
+    professionalSummary: cleanSummary(draft.professionalSummary, 900, evidenceStrength, language),
     education: list(verifiedFacts.education).map((fact) => ({
       sourceId: fact.id,
       title: fact.title,
@@ -286,6 +318,7 @@ module.exports = {
   buildDeterministicHeadline,
   compactVerifiedResumeFacts,
   composeProfessionalDraft,
+  getEvidenceStrength,
   runProfessionalQualityGate,
   getQualityFailureSections,
 };

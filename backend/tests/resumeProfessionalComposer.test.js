@@ -3,6 +3,7 @@ const {
   buildDeterministicHeadline,
   compactVerifiedResumeFacts,
   composeProfessionalDraft,
+  getEvidenceStrength,
   runProfessionalQualityGate,
   getQualityFailureSections,
 } = require("../services/resumeProfessionalComposer");
@@ -222,6 +223,55 @@ const arabicBusinessDraft = composeProfessionalDraft({
 assert.strictEqual(arabicBusinessDraft.targetTitle, "طالب إدارة الأعمال");
 assert.ok(arabicBusinessDraft.professionalSummary.split(/[.!؟]/u).filter(Boolean).length <= 2, "limited facts use a short summary instead of filler");
 assert.ok(!/شغوف|طموح|متميز/u.test(arabicBusinessDraft.professionalSummary));
+
+const strongPositioningFacts = {
+  personalInfo: { major: "علوم الحاسب", studentStatus: "student", grammaticalGender: "masculine" },
+  education: [],
+  experiences: [],
+  projects: [
+    { id: "strong-1", title: "تطبيق ويب", description: "تطبيق لإدارة المواعيد.", url: "" },
+    { id: "strong-2", title: "منصة طلابية", description: "منصة لتنظيم طلبات الطلاب.", url: "" },
+  ],
+  skills: ["React.js", "Node.js"],
+};
+const strongPositioningDraft = composeProfessionalDraft({
+  language: "ar",
+  verifiedFacts: strongPositioningFacts,
+  draft: { professionalSummary: "طالب علوم حاسب بنى مشاريع تطبيقية في الويب. يتجه نحو تطوير البرمجيات وتطبيقات الويب باستخدام React.js وNode.js.", experiences: [], projects: [], skills: [] },
+});
+assert.strictEqual(getEvidenceStrength(strongPositioningFacts), "strong");
+assert.ok(!/يتجه نحو|يسعى إلى|يطمح إلى/u.test(strongPositioningDraft.professionalSummary), "strong evidence uses direct positioning");
+assert.ok(strongPositioningDraft.professionalSummary.includes("يركز على تطوير البرمجيات"));
+
+const moderatePositioningFacts = {
+  personalInfo: { major: "نظم المعلومات", studentStatus: "student", grammaticalGender: "feminine" },
+  education: [],
+  experiences: [],
+  projects: [{ id: "moderate-1", title: "لوحة بيانات", description: "لوحة لعرض البيانات.", url: "" }],
+  skills: ["Power BI"],
+};
+const moderatePositioningDraft = composeProfessionalDraft({
+  language: "ar",
+  verifiedFacts: moderatePositioningFacts,
+  draft: { professionalSummary: "طالبة نظم معلومات لديها مشروع في عرض البيانات. تهتم بتطوير خبرتها في تحليل البيانات.", experiences: [], projects: [], skills: [] },
+});
+assert.strictEqual(getEvidenceStrength(moderatePositioningFacts), "moderate");
+assert.ok(moderatePositioningDraft.professionalSummary.includes("تهتم بتطوير خبرتها"), "moderate evidence keeps an appropriately measured direction");
+
+const limitedPositioningFacts = {
+  personalInfo: { major: "إدارة الأعمال", studentStatus: "student", grammaticalGender: "masculine" },
+  education: [],
+  experiences: [],
+  projects: [],
+  skills: [],
+};
+const limitedPositioningDraft = composeProfessionalDraft({
+  language: "ar",
+  verifiedFacts: limitedPositioningFacts,
+  draft: { professionalSummary: "طالب إدارة أعمال. مهتم بفرص في الأعمال الإدارية.", experiences: [], projects: [], skills: [] },
+});
+assert.strictEqual(getEvidenceStrength(limitedPositioningFacts), "limited");
+assert.ok(limitedPositioningDraft.professionalSummary.includes("مهتم بفرص في"), "limited evidence does not overstate experience");
 
 const technicalWriterCleanup = composeProfessionalDraft({
   language: "en",
