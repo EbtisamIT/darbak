@@ -165,6 +165,76 @@ describe("English resume presentation", () => {
     expect(resume.projects[0].title).toBe("نظام حجز مواعيد");
   });
 
+  it("uses canonical list values without asking for manual English localization", () => {
+    const resume = {
+      ...englishResume,
+      personalInfo: {
+        ...englishResume.personalInfo,
+        city: "أبها",
+        university: "جامعة الملك خالد",
+      },
+    };
+
+    const localized = getLocalizedResumeForDisplay(resume);
+    const reviews = getEnglishReviewItems(resume);
+
+    expect(localized.personalInfo.city).toBe("Abha");
+    expect(localized.personalInfo.university).toBe("King Khalid University");
+    expect(reviews.some((item) => ["city", "university"].includes(item.field))).toBe(false);
+  });
+
+  it("keeps a generated project localization tied to its stable id and flags only a changed Arabic source for review", () => {
+    const resume = {
+      ...englishResume,
+      projects: [{
+        id: "appointment-booking",
+        title: "نظام حجز مواعيد",
+        description: "نظام يتيح للمستخدمين حجز المواعيد وتعديلها وإلغائها.",
+        achievements: [{ id: "booking-bullet", text: "يدعم إدارة المواعيد." }],
+      }],
+      localizedDisplay: {
+        entries: {
+          "projects:appointment-booking": {
+            title: "Appointment Booking System",
+            description: "A web application for booking, updating, and cancelling appointments.",
+          },
+        },
+        achievements: {
+          "projects:appointment-booking:booking-bullet": "Supports appointment management.",
+        },
+        review: {
+          "entries:projects:appointment-booking:title": { source: "نظام حجز مواعيد", approved: true },
+          "entries:projects:appointment-booking:description": { source: "نظام يتيح للمستخدمين حجز المواعيد وتعديلها وإلغائها.", approved: true },
+          "achievements:projects:appointment-booking:booking-bullet": { source: "يدعم إدارة المواعيد.", approved: true },
+        },
+      },
+    };
+
+    const localized = getLocalizedResumeForDisplay(resume);
+    expect(localized.projects[0]).toMatchObject({
+      id: "appointment-booking",
+      title: "Appointment Booking System",
+      description: "A web application for booking, updating, and cancelling appointments.",
+    });
+    expect(localized.projects[0].achievements[0].text).toBe("Supports appointment management.");
+    expect(getEnglishReviewItems(resume)).toEqual([]);
+
+    const changedSource = {
+      ...resume,
+      verifiedResumeFacts: {
+        projects: [{
+          ...resume.projects[0],
+          title: "نظام إدارة المواعيد",
+        }],
+      },
+    };
+    const changedReviews = getEnglishReviewItems(changedSource);
+    expect(changedReviews.some((item) => (
+      item.field === "title" && item.localizationState === "review"
+    ))).toBe(true);
+    expect(resume.projects[0].title).toBe("نظام حجز مواعيد");
+  });
+
   it("does not render an untranslated Arabic skill in an English resume", () => {
     const localized = getLocalizedResumeForDisplay({
       ...englishResume,

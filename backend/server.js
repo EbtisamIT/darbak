@@ -6426,7 +6426,7 @@ const buildEnglishLocalizedDisplay = (resume = {}, generatedResume = {}) => {
     if (/ماجستير/.test(value)) return "Master's Degree";
     return "";
   };
-  const localized = { personalInfo: {}, entries: {} };
+  const localized = { personalInfo: {}, entries: {}, achievements: {} };
   if (personal.englishName) localized.personalInfo.fullName = personal.englishName;
   if (degree(personal.major || "")) localized.personalInfo.major = degree(personal.major);
   ["education", "experience", "projects", "certifications", "volunteering"].forEach((section) => {
@@ -6447,7 +6447,23 @@ const buildEnglishLocalizedDisplay = (resume = {}, generatedResume = {}) => {
       if (degree(entry.title || "")) values.title = degree(entry.title);
       if (entry.title === "دربك") values.title = "Darbak";
       if (entry.organization === "دربك") values.organization = "Darbak";
+      const generatedDescription = sanitizeResumeText(
+        generatedEntry?.description || generatedEntry?.details || "",
+        900,
+      );
+      if (generatedDescription && !/[\u0600-\u06FF]/.test(generatedDescription)) {
+        values.description = generatedDescription;
+      } else if (entry.description && !/[\u0600-\u06FF]/.test(entry.description)) {
+        values.description = entry.description;
+      }
       if (Object.keys(values).length) localized.entries[`${section}:${entry.id}`] = values;
+      (generatedEntry?.achievements || entry.achievements || []).forEach((achievement, index) => {
+        const text = sanitizeResumeText(achievement?.text || "", 320);
+        if (text && !/[\u0600-\u06FF]/.test(text)) {
+          const achievementId = sanitizeResumeId(achievement?.id) || `${index}`;
+          localized.achievements[`${section}:${entry.id}:${achievementId}`] = text;
+        }
+      });
     });
   });
   return localized;
@@ -8963,6 +8979,10 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       entries: {
         ...(generatedLocalizedDisplay.entries || {}),
         ...(savedLocalizedDisplay.entries || {}),
+      },
+      achievements: {
+        ...(generatedLocalizedDisplay.achievements || {}),
+        ...(savedLocalizedDisplay.achievements || {}),
       },
     };
     const version = await ResumeTailoredVersion.findOneAndUpdate(

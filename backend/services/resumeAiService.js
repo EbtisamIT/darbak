@@ -421,6 +421,17 @@ const collectResumeTextForTranslation = (resume = {}) => {
     (section) => {
       getResumeEntries(resume, section).forEach((entry, index) => {
         const entryId = entry?.id || `${section}-${index}`;
+        // Titles are presentation values in an English version. Their source
+        // facts stay untouched in the master resume and are restored later by
+        // canonical composition using this same stable entry id.
+        if (section !== "education") {
+          add(`${section}:${entryId}:title`, entry?.title, {
+            kind: "entry",
+            section,
+            entryId,
+            key: "title",
+          });
+        }
         ["description"].forEach((key) => {
           const text = key === "description" ? entry.description || entry.details : entry[key];
           add(`${section}:${entryId}:${key}`, text, { kind: "entry", section, entryId, key });
@@ -449,7 +460,6 @@ const translationStructure = (resume = {}) => ({
     (section) =>
       getResumeEntries(resume, section).map((entry) => ({
         id: entry?.id || "",
-        title: entry?.title || "",
         subtitle: entry?.subtitle || "",
         organization: entry?.organization || "",
         period: entry?.period || "",

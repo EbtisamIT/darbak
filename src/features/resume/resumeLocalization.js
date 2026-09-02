@@ -26,6 +26,33 @@ const englishUniversityLabels = {
   "جامعه الاميره نوره بنت عبدالرحمن": "Princess Nourah bint Abdulrahman University",
   "جامعه الملك عبدالعزيز": "King Abdulaziz University",
   "جامعه جده": "University of Jeddah",
+  "جامعه الملك خالد": "King Khalid University",
+  "جامعه الملك فهد للبترول والمعادن": "King Fahd University of Petroleum and Minerals",
+  "جامعه القصيم": "Qassim University",
+  "جامعه ام القري": "Umm Al-Qura University",
+  "جامعه طيبه": "Taibah University",
+  "جامعه الطائف": "Taif University",
+  "جامعه جازان": "Jazan University",
+  "جامعه نجران": "Najran University",
+  "جامعه تبوك": "University of Tabuk",
+  "جامعه حائل": "University of Hail",
+  "جامعه الجوف": "Jouf University",
+  "جامعه الباحه": "Al Baha University",
+  "جامعه الامير سطام بن عبدالعزيز": "Prince Sattam bin Abdulaziz University",
+  "جامعه شقراء": "Shaqra University",
+  "جامعه المجمعه": "Majmaah University",
+  "جامعه بيشه": "University of Bisha",
+  "جامعه حفر الباطن": "University of Hafr Al Batin",
+  "الجامعه السعوديه الالكترونيه": "Saudi Electronic University",
+  "جامعه الملك فيصل": "King Faisal University",
+  "جامعه الامام عبدالرحمن بن فيصل": "Imam Abdulrahman Bin Faisal University",
+  "جامعه اليمامه": "Al Yamamah University",
+  "جامعه الامير سلطان": "Prince Sultan University",
+  "جامعه الفيصل": "Alfaisal University",
+  "جامعه دار العلوم": "Dar Al Uloom University",
+  "جامعه عفت": "Effat University",
+  "جامعه دار الحكمه": "Dar Al-Hekma University",
+  "كليات التقنيه": "Technical Colleges",
 };
 
 const englishCityLabels = {
@@ -35,6 +62,7 @@ const englishCityLabels = {
   "الخبر": "Al Khobar",
   "مكه": "Makkah",
   "المدينه المنوره": "Madinah",
+  "ابها": "Abha",
 };
 
 const englishSkillLabels = {
@@ -233,6 +261,24 @@ const mergeLocalizedValues = (generated = {}, saved = {}) =>
     { ...generated },
   );
 
+const stableEntryKey = (section, entryId) => `${section}:${entryId}`;
+const stableAchievementKey = (section, entryId, achievementId) =>
+  `${section}:${entryId}:${achievementId}`;
+
+const getSourceEntry = (resume = {}, section, entry = {}) => {
+  const facts = resume.verifiedResumeFacts?.[section] || [];
+  return facts.find((candidate) => candidate?.id === entry.id) || entry;
+};
+
+const getReviewState = (resume = {}, key) =>
+  resume.localizedDisplay?.review?.[key] || {};
+
+const needsLocalizationReview = (resume, key, source, translated) => {
+  if (!source || !translated || arabicPattern.test(translated)) return false;
+  const review = getReviewState(resume, key);
+  return review.source !== source || review.approved !== true;
+};
+
 const derivedEnglishHeadline = (personal = {}, display = {}) => {
   const major = display.major || localizedMajor(personal.major) || (!arabicPattern.test(personal.major || "") ? String(personal.major || "").trim() : "");
   if (!major) return "";
@@ -306,6 +352,10 @@ export const getEnglishReviewItems = (resume = {}) => {
       ...(buildEnglishLocalizedDisplay(resume).entries || {}),
       ...(resume.localizedDisplay?.entries || {}),
     },
+    achievements: {
+      ...(buildEnglishLocalizedDisplay(resume).achievements || {}),
+      ...(resume.localizedDisplay?.achievements || {}),
+    },
     skills: {
       ...(buildEnglishLocalizedDisplay(resume).skills || {}),
       ...(resume.localizedDisplay?.skills || {}),
@@ -333,13 +383,23 @@ export const getEnglishReviewItems = (resume = {}) => {
   }
   ["education", "experience", "projects", "certifications", "volunteering"].forEach((section) => {
     (resume[section] || []).forEach((entry) => {
-      const values = localized.entries?.[`${section}:${entry.id}`] || {};
+      const entryKey = stableEntryKey(section, entry.id);
+      const values = localized.entries?.[entryKey] || {};
+      const sourceEntry = getSourceEntry(resume, section, entry);
       ["title", "organization"].forEach((field) => {
         const educationOrganizationUsesLocalizedUniversity =
           section === "education" &&
           field === "organization" &&
           Boolean(localized.personalInfo?.university);
-        if (arabicPattern.test(entry[field] || "") && !values[field] && !educationOrganizationUsesLocalizedUniversity) {
+        const sourceValue = sourceEntry[field] || entry[field] || "";
+        const translatedValue = values[field] || entry[field] || "";
+        const isCanonicalValue = Boolean(
+          (field === "title" && localizedDegree(sourceValue)) ||
+          (field === "organization" && localizedUniversity(sourceValue)) ||
+          (field === "organization" && localizedOrganization(sourceValue)) ||
+          (section === "volunteering" && field === "title" && localizedActivity(sourceValue)),
+        );
+        if (arabicPattern.test(sourceValue) && !translatedValue && !educationOrganizationUsesLocalizedUniversity) {
           const sectionLabels = {
             education: "التعليم",
             experience: "الخبرة",
@@ -347,17 +407,58 @@ export const getEnglishReviewItems = (resume = {}) => {
             certifications: "الشهادة",
             volunteering: "النشاط",
           };
-          items.push({ label: field === "title" ? `اسم ${sectionLabels[section]}` : "اسم الجهة", value: entry[field], section, field, entryId: entry.id, fieldKey: `${section}.${entry.id}.${field}` });
+          items.push({ label: field === "title" ? `اسم ${sectionLabels[section]}` : "اسم الجهة", value: sourceValue, section, field, entryId: entry.id, fieldKey: `${section}.${entry.id}.${field}`, localizationState: "missing" });
+        } else if (arabicPattern.test(sourceValue) && !isCanonicalValue && needsLocalizationReview(resume, `entries:${entryKey}:${field}`, sourceValue, translatedValue)) {
+          items.push({
+            label: field === "title" ? "ترجمة الاسم" : "ترجمة اسم الجهة",
+            value: sourceValue,
+            generatedValue: translatedValue,
+            section,
+            field,
+            entryId: entry.id,
+            fieldKey: `${section}.${entry.id}.${field}`,
+            localizationState: "review",
+          });
         }
       });
-      const description = entry.description || entry.details || "";
-      if (arabicPattern.test(description)) {
-        items.push({ label: "وصف", value: description, section, field: "description", entryId: entry.id, fieldKey: `${section}.${entry.id}.description` });
+      const sourceDescription = sourceEntry.description || sourceEntry.details || "";
+      const description = values.description || entry.description || entry.details || "";
+      if (arabicPattern.test(sourceDescription) && !description) {
+        items.push({ label: "وصف", value: sourceDescription, section, field: "description", entryId: entry.id, fieldKey: `${section}.${entry.id}.description`, localizationState: "missing" });
+      } else if (arabicPattern.test(sourceDescription) && needsLocalizationReview(resume, `entries:${entryKey}:description`, sourceDescription, description)) {
+        items.push({
+          label: "ترجمة الوصف",
+          value: sourceDescription,
+          generatedValue: description,
+          section,
+          field: "description",
+          entryId: entry.id,
+          fieldKey: `${section}.${entry.id}.description`,
+          localizationState: "review",
+        });
       }
       (entry.achievements || []).forEach((achievement, index) => {
-        const value = achievement?.text || "";
-        if (arabicPattern.test(value)) {
-          items.push({ label: "نقطة", value, section, field: "achievement", entryId: entry.id, index, fieldKey: `${section}.${entry.id}.achievements.${index}` });
+        const achievementId = achievement?.id || `${index}`;
+        const sourceAchievement = (sourceEntry.achievements || []).find(
+          (candidate, sourceIndex) => (candidate?.id || `${sourceIndex}`) === achievementId,
+        );
+        const sourceValue = sourceAchievement?.text || achievement?.text || "";
+        const translatedValue = localized.achievements?.[stableAchievementKey(section, entry.id, achievementId)] || achievement?.text || "";
+        if (arabicPattern.test(sourceValue) && !translatedValue) {
+          items.push({ label: "نقطة", value: sourceValue, section, field: "achievement", entryId: entry.id, index, achievementId, fieldKey: `${section}.${entry.id}.achievements.${index}`, localizationState: "missing" });
+        } else if (arabicPattern.test(sourceValue) && needsLocalizationReview(resume, `achievements:${stableAchievementKey(section, entry.id, achievementId)}`, sourceValue, translatedValue)) {
+          items.push({
+            label: "ترجمة نقطة",
+            value: sourceValue,
+            generatedValue: translatedValue,
+            section,
+            field: "achievement",
+            entryId: entry.id,
+            index,
+            achievementId,
+            fieldKey: `${section}.${entry.id}.achievements.${index}`,
+            localizationState: "review",
+          });
         }
       });
     });
@@ -396,6 +497,10 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
       ...(generated.entries || {}),
       ...(resume.localizedDisplay?.entries || {}),
     },
+    achievements: {
+      ...(generated.achievements || {}),
+      ...(resume.localizedDisplay?.achievements || {}),
+    },
     skills: {
       ...(generated.skills || {}),
       ...(resume.localizedDisplay?.skills || {}),
@@ -421,6 +526,11 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
           localizedEntry[field] = "";
         }
       });
+      localizedEntry.achievements = (localizedEntry.achievements || []).map((achievement, index) => {
+        const achievementId = achievement?.id || `${index}`;
+        const text = localized.achievements?.[stableAchievementKey(section, entry.id, achievementId)];
+        return text ? { ...achievement, text, html: achievement.html || "" } : achievement;
+      });
       return section === "projects"
         ? getDarbakProjectPresentation(localizedEntry, resume.summary)
         : localizedEntry;
@@ -445,14 +555,16 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
 
 export const buildEnglishLocalizedDisplay = (resume = {}) => {
   const personal = resume.personalInfo || {};
-  const localized = { personalInfo: {}, entries: {}, skills: {}, languages: {} };
+  const localized = { personalInfo: {}, entries: {}, achievements: {}, skills: {}, languages: {} };
   if (personal.englishName) localized.personalInfo.fullName = personal.englishName;
   const major = localizedMajor(personal.major);
   const university = localizedUniversity(personal.university);
   const city = localizedCity(personal.city);
+  const degree = localizedDegree(personal.degree);
   if (major) localized.personalInfo.major = major;
   if (university) localized.personalInfo.university = university;
   if (city) localized.personalInfo.city = city;
+  if (degree) localized.personalInfo.degree = degree;
   const headline = derivedEnglishHeadline(personal, localized.personalInfo);
   if (headline) localized.personalInfo.headline = headline;
   ["education", "experience", "projects", "certifications", "volunteering"].forEach((section) => {
@@ -462,6 +574,8 @@ export const buildEnglishLocalizedDisplay = (resume = {}) => {
       // localizedDisplay values still override this below, keyed by the stable
       // entry id rather than its array position.
       if (entry.title && !arabicPattern.test(entry.title)) values.title = entry.title;
+      const description = entry.description || entry.details || "";
+      if (description && !arabicPattern.test(description)) values.description = description;
       if (localizedDegree(entry.title)) values.title = localizedDegree(entry.title);
       if (section === "volunteering" && localizedActivity(entry.title)) values.title = localizedActivity(entry.title);
       if (entry.title === "دربك") values.title = "Darbak";
@@ -470,6 +584,12 @@ export const buildEnglishLocalizedDisplay = (resume = {}) => {
       if (localizedOrganization(entry.organization)) values.organization = localizedOrganization(entry.organization);
       if (localizedCity(entry.location)) values.location = localizedCity(entry.location);
       if (Object.keys(values).length) localized.entries[`${section}:${entry.id}`] = values;
+      (entry.achievements || []).forEach((achievement, index) => {
+        const text = achievement?.text || "";
+        if (text && !arabicPattern.test(text)) {
+          localized.achievements[stableAchievementKey(section, entry.id, achievement?.id || `${index}`)] = text;
+        }
+      });
     });
   });
   (resume.skills || []).forEach((skill, index) => {
