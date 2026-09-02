@@ -353,7 +353,14 @@ const AchievementListEditor = ({ achievements = [], onChange }) => {
   );
 };
 
-const EntryAccordion = ({ sectionKey, entries = [], onChange }) => {
+const EntryAccordion = ({
+  sectionKey,
+  entries = [],
+  onChange,
+  language = "ar",
+  localizedEntries = {},
+  onLocalizedEntryChange,
+}) => {
   const labels = fieldLabels[sectionKey] || fieldLabels.experience;
   const [openId, setOpenId] = useState(entries[0]?.id || "");
   const items = entries.length ? entries : [];
@@ -384,6 +391,9 @@ const EntryAccordion = ({ sectionKey, entries = [], onChange }) => {
       >
         {items.map((entry, index) => {
           const open = openId === entry.id;
+          const localizedEntry = language === "en"
+            ? { ...entry, ...(localizedEntries[`${sectionKey}:${entry.id}`] || {}) }
+            : entry;
           return (
             <SortableBlock
               key={entry.id}
@@ -404,7 +414,7 @@ const EntryAccordion = ({ sectionKey, entries = [], onChange }) => {
                       <FiMenu aria-hidden="true" />
                     </button>
                     <button type="button" onClick={() => setOpenId(open ? "" : entry.id)}>
-                      <strong>{getItemLabel(entry, RESUME_SECTION_META[sectionKey].addLabel)}</strong>
+                      <strong>{getItemLabel(localizedEntry, RESUME_SECTION_META[sectionKey].addLabel)}</strong>
                       <span>{entry.organization || entry.subtitle || "أضف التفاصيل"}</span>
                     </button>
                     <button
@@ -422,8 +432,14 @@ const EntryAccordion = ({ sectionKey, entries = [], onChange }) => {
                         <label>
                           {labels.title}
                           <input
-                            value={entry.title || ""}
-                            onChange={(event) => updateEntry(index, "title", event.target.value)}
+                            value={localizedEntry.title || ""}
+                            onChange={(event) => {
+                              if (language === "en" && onLocalizedEntryChange) {
+                                onLocalizedEntryChange(entry.id, "title", event.target.value);
+                                return;
+                              }
+                              updateEntry(index, "title", event.target.value);
+                            }}
                           />
                         </label>
                         <label>
@@ -855,6 +871,24 @@ const ResumeBuilder = ({
       <EntryAccordion
         sectionKey={sectionKey}
         entries={resume[sectionKey] || []}
+        language={resume.settings?.language || "ar"}
+        localizedEntries={resume.localizedDisplay?.entries || {}}
+        onLocalizedEntryChange={(entryId, field, value) => {
+          const key = `${sectionKey}:${entryId}`;
+          onChange({
+            ...resume,
+            localizedDisplay: {
+              ...(resume.localizedDisplay || {}),
+              entries: {
+                ...(resume.localizedDisplay?.entries || {}),
+                [key]: {
+                  ...(resume.localizedDisplay?.entries?.[key] || {}),
+                  [field]: value,
+                },
+              },
+            },
+          });
+        }}
         onChange={(entries) =>
           onChange({
             ...resume,

@@ -6418,7 +6418,7 @@ const sanitizeResumePayload = (body = {}) => {
   };
 };
 
-const buildEnglishLocalizedDisplay = (resume = {}) => {
+const buildEnglishLocalizedDisplay = (resume = {}, generatedResume = {}) => {
   const personal = resume.personalInfo || {};
   const degree = (value = "") => {
     if (/بكالوريوس/.test(value)) return "Bachelor's Degree";
@@ -6432,6 +6432,18 @@ const buildEnglishLocalizedDisplay = (resume = {}) => {
   ["education", "experience", "projects", "certifications", "volunteering"].forEach((section) => {
     (resume[section] || []).forEach((entry) => {
       const values = {};
+      // Translation and agent output are presentation values. Keep a generated
+      // English title by its stable entry id even though canonical composition
+      // restores the Arabic Portfolio fact into `resume`.
+      const generatedEntry = (generatedResume[section] || []).find(
+        (candidate) => candidate?.id && candidate.id === entry.id,
+      );
+      const generatedTitle = sanitizeResumeText(generatedEntry?.title || "", 180);
+      if (generatedTitle && !/[\u0600-\u06FF]/.test(generatedTitle)) {
+        values.title = generatedTitle;
+      } else if (entry.title && !/[\u0600-\u06FF]/.test(entry.title)) {
+        values.title = entry.title;
+      }
       if (degree(entry.title || "")) values.title = degree(entry.title);
       if (entry.title === "دربك") values.title = "Darbak";
       if (entry.organization === "دربك") values.organization = "Darbak";
@@ -8926,20 +8938,33 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       resume: basePayload,
       userKey: req.darbakAccess.user?._id?.toString?.() || req.darbakAccess.contact,
     });
-    const translatedPayload = sanitizeResumePayload(composeCanonicalResume({
+    const translatedPresentation = sanitizeResumePayload({
       ...result.data,
       settings: {
         ...(result.data.settings || {}),
         language: "en",
         direction: "ltr",
       },
-    }, portfolio || {}, req.darbakAccess.contact, {
+    });
+    const translatedPayload = sanitizeResumePayload(composeCanonicalResume(translatedPresentation, portfolio || {}, req.darbakAccess.contact, {
       frontendUrl: getFrontendUrl(),
       sectionOrder: RESUME_SECTION_KEYS,
       language: "en",
     }));
-    const localizedDisplay = buildEnglishLocalizedDisplay(translatedPayload);
-    translatedPayload.localizedDisplay = localizedDisplay;
+    const generatedLocalizedDisplay = buildEnglishLocalizedDisplay(translatedPayload, translatedPresentation);
+    const savedLocalizedDisplay = translatedPresentation.localizedDisplay || {};
+    translatedPayload.localizedDisplay = {
+      ...generatedLocalizedDisplay,
+      ...savedLocalizedDisplay,
+      personalInfo: {
+        ...(generatedLocalizedDisplay.personalInfo || {}),
+        ...(savedLocalizedDisplay.personalInfo || {}),
+      },
+      entries: {
+        ...(generatedLocalizedDisplay.entries || {}),
+        ...(savedLocalizedDisplay.entries || {}),
+      },
+    };
     const version = await ResumeTailoredVersion.findOneAndUpdate(
       {
         contact: req.darbakAccess.contact,

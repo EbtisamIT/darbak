@@ -458,6 +458,10 @@ export const buildEnglishLocalizedDisplay = (resume = {}) => {
   ["education", "experience", "projects", "certifications", "volunteering"].forEach((section) => {
     (resume[section] || []).forEach((entry) => {
       const values = {};
+      // A title that is already English is a safe presentation fallback. Saved
+      // localizedDisplay values still override this below, keyed by the stable
+      // entry id rather than its array position.
+      if (entry.title && !arabicPattern.test(entry.title)) values.title = entry.title;
       if (localizedDegree(entry.title)) values.title = localizedDegree(entry.title);
       if (section === "volunteering" && localizedActivity(entry.title)) values.title = localizedActivity(entry.title);
       if (entry.title === "دربك") values.title = "Darbak";

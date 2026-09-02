@@ -130,6 +130,41 @@ describe("English resume presentation", () => {
     expect(localized.volunteering[0]).toMatchObject({ title: "Programmer", organization: "Injaz Club" });
   });
 
+  it("uses the saved English project title by stable project id in both the summary and Projects section", () => {
+    const resume = {
+      ...englishResume,
+      summary: "Built the Appointment Booking System to help users schedule and manage appointments.",
+      projects: [{
+        id: "appointment-booking",
+        title: "نظام حجز مواعيد",
+        description: "نظام يتيح للمستخدمين حجز المواعيد وتعديلها وإلغائها.",
+        achievements: [{ id: "booking-bullet", text: "Built appointment booking and management flows." }],
+      }],
+      localizedDisplay: {
+        entries: {
+          "projects:appointment-booking": {
+            title: "Appointment Booking System",
+          },
+        },
+      },
+    };
+
+    const localized = getLocalizedResumeForDisplay(resume);
+    const refreshed = getLocalizedResumeForDisplay({
+      ...resume,
+      projects: resume.projects.map((project) => ({ ...project })),
+    });
+
+    expect(localized.summary).toContain("Appointment Booking System");
+    expect(localized.projects[0]).toMatchObject({
+      id: "appointment-booking",
+      title: "Appointment Booking System",
+    });
+    expect(localized.projects[0].achievements[0].text).toBe("Built appointment booking and management flows.");
+    expect(refreshed.projects[0].title).toBe("Appointment Booking System");
+    expect(resume.projects[0].title).toBe("نظام حجز مواعيد");
+  });
+
   it("does not render an untranslated Arabic skill in an English resume", () => {
     const localized = getLocalizedResumeForDisplay({
       ...englishResume,
