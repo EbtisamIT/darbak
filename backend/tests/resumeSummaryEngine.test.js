@@ -15,6 +15,9 @@ const quality = {
   hasUnsupportedClaim: false,
   hasExcessiveToolListing: false,
   naturalLanguage: true,
+  evidenceLinkedTools: true,
+  noGenericClosing: true,
+  everySentenceAddsValue: true,
 };
 
 const fixture = ({ language, status, major, summary, experiences = [], projects = [], skills = [] }) => ({
@@ -133,6 +136,21 @@ assert.ok(
   }).errors.includes("summary_tentative_positioning"),
   "strong English evidence rejects tentative positioning"
 );
+
+const genericToolLinking = validateProfessionalSummary({
+  result: {
+    summary: "Computer Science Student with practical project experience. Uses web development tools such as React.js and Node.js to build practical digital solutions.",
+    quality: {
+      ...quality,
+      evidenceLinkedTools: false,
+      noGenericClosing: false,
+      everySentenceAddsValue: false,
+    },
+  },
+  payload: faisalEnPayload,
+});
+assert.ok(genericToolLinking.errors.includes("summary_tools_not_evidence_linked"), "generic tool lists fail editorial review");
+assert.ok(genericToolLinking.errors.includes("summary_generic_closing"), "generic closing fails editorial review");
 
 const solMarker = "SOL_V3_SUMMARY_MARKER";
 const markerFacts = {

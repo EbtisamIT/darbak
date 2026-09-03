@@ -106,6 +106,9 @@ const professionalSummarySchema = z
         hasUnsupportedClaim: z.boolean().default(false),
         hasExcessiveToolListing: z.boolean().default(false),
         naturalLanguage: z.boolean().default(false),
+        evidenceLinkedTools: z.boolean().default(false),
+        noGenericClosing: z.boolean().default(false),
+        everySentenceAddsValue: z.boolean().default(false),
       })
       .strict(),
   })
@@ -210,6 +213,7 @@ const getSummaryEvidence = (facts = {}) => {
       organization: safeString(entry.organization, 180),
       description: safeText(entry.description || entry.details, 500),
       achievements: safeArray(entry.achievements, 4, (item) => safeText(item?.text || item, 260)),
+      tools: safeArray(entry.tools || entry.technologies, 8, (item) => safeString(item?.name || item, 80)),
     })),
     ...(Array.isArray(facts.projects) ? facts.projects : []).map((entry) => ({
       type: "project",
@@ -217,6 +221,7 @@ const getSummaryEvidence = (facts = {}) => {
       title: safeString(entry.title || entry.name, 180),
       description: safeText(entry.description || entry.details, 500),
       achievements: safeArray(entry.achievements, 4, (item) => safeText(item?.text || item, 260)),
+      tools: safeArray(entry.tools || entry.technologies, 8, (item) => safeString(item?.name || item, 80)),
     })),
   ].filter((entry) => entry.title || entry.description || entry.achievements.length);
   return evidence
@@ -280,6 +285,9 @@ const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
   if (quality.hasUnsupportedClaim) errors.push("summary_unsupported_claim");
   if (quality.hasExcessiveToolListing) errors.push("summary_excessive_tool_listing");
   if (!quality.naturalLanguage) errors.push("summary_unnatural_language");
+  if (!quality.evidenceLinkedTools) errors.push("summary_tools_not_evidence_linked");
+  if (!quality.noGenericClosing) errors.push("summary_generic_closing");
+  if (!quality.everySentenceAddsValue) errors.push("summary_low_value_sentence");
   return { valid: errors.length === 0, errors };
 };
 
@@ -1830,9 +1838,10 @@ const createProfessionalSummaryAgent = () =>
     model: process.env.OPENAI_RESUME_SUMMARY_MODEL || DEFAULT_RESUME_SUMMARY_MODEL,
     modelSettings: { maxTokens: 700 },
     instructions: `أنت كاتب نبذات مهنية محترف للسير الذاتية ATS. اكتب Professional Summary فقط، ولا تعدّل أي قسم آخر.
-استخدم payload المختصر الموثوق فقط. لا تخترع مهارة أو خبرة أو أداة أو نتيجة أو مسمى. اكتب 2–3 جمل: الهوية المهنية الحالية، أقوى دليل عملي، ثم اتجاه مهني تدعمه المعلومات.
-لا تكرر قائمة المهارات أو تفاصيل المشاريع؛ يكفي ذكر أقوى دليل باختصار. عند الدليل القوي أو المتوسط استخدم positioning مباشرًا يوضح القيمة المهنية، ولا تستخدم building experience in أو expanding expertise in أو ما يعادلها بالعربية. عند الدليل المحدود اكتب بإيجاز دون حشو.
+استخدم payload المختصر الموثوق فقط. لا تخترع مهارة أو خبرة أو أداة أو نتيجة أو مسمى. اكتب غالبًا جملتين: الهوية المهنية الحالية والمجال، ثم أقوى دليل عملي مع التقنية أو المنهج المرتبط به عند وجوده. أضف جملة ثالثة فقط إذا أضافت positioning جديدًا محددًا ومدعومًا.
+لا تكرر قائمة المهارات أو تفاصيل المشاريع؛ يكفي ذكر أقوى دليل باختصار. لا تذكر أداة أو تقنية داخل النبذة لمجرد وجودها في قائمة skills: اذكرها فقط إذا كانت مرتبطة مباشرة بمشروع أو خبرة ضمن strongestEvidence، واذكر العلاقة بالفعل الذي نُفذ. عند الدليل القوي أو المتوسط استخدم positioning مباشرًا يوضح القيمة المهنية، ولا تستخدم building experience in أو expanding expertise in أو ما يعادلها بالعربية. لا تختم بجملة عامة مثل «لبناء حلول رقمية عملية» أو «growing expertise» إذا لم تضف دليلًا جديدًا؛ الأفضل أن تنتهي النبذة بأقوى evidence.
 بالعربية اكتب فصحى مهنية طبيعية ومباشرة، وتجنب «يتجه نحو»، «يسعى إلى»، والعبارات الآلية أو لغة التحقق. بالإنجليزية اكتب natural resume English، وتجنب generic objective language وdocumented/verified wording.
+داخل quality أعد أيضًا evidenceLinkedTools وnoGenericClosing وeverySentenceAddsValue كقيم true/false بعد مراجعة النبذة.
 أعد summary وquality فقط. لا تكتب reasoning أو markdown.`,
     tools: [],
     outputType: professionalSummarySchema,
@@ -1924,6 +1933,9 @@ const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedRe
       naturalArabic: language === "ar" ? output.quality.naturalLanguage : true,
       evidenceBased: !output.quality.hasUnsupportedClaim,
       noUnnecessaryToolListing: !output.quality.hasExcessiveToolListing,
+      evidenceLinkedTools: output.quality.evidenceLinkedTools,
+      noGenericClosing: output.quality.noGenericClosing,
+      everySentenceAddsValue: output.quality.everySentenceAddsValue,
     },
     summaryProvenance: {
       summaryWriterModel: trace.summaryWriterModel,
