@@ -137,6 +137,11 @@ const mergeLinks = (current = [], fallback = []) => {
 
 const buildPortfolioHeadline = (portfolio = {}) => {
   const major = cleanText(portfolio.major, 120);
+  const normalizedStatus = {
+    طالبة: "student", طالبه: "student", طالب: "student",
+    خريجة: "graduate", خريجه: "graduate", خريج: "graduate",
+    "متوقعة التخرج": "expected_graduate", "متوقع التخرج": "expected_graduate",
+  }[cleanText(portfolio.studentStatus, 40)] || portfolio.studentStatus;
   const statusLabels = {
     student: { feminine: "طالبة", masculine: "طالب", neutral: "طالب/ة" },
     graduate: { feminine: "خريجة", masculine: "خريج", neutral: "خريج/ة" },
@@ -144,8 +149,8 @@ const buildPortfolioHeadline = (portfolio = {}) => {
   };
   const stage = cleanText(portfolio.degreeLevel, 120);
   if (!major) return "";
-  if (statusLabels[portfolio.studentStatus]) {
-    return `${statusLabels[portfolio.studentStatus][portfolio.grammaticalGender] || statusLabels[portfolio.studentStatus].neutral} ${major}`;
+  if (statusLabels[normalizedStatus]) {
+    return `${statusLabels[normalizedStatus][portfolio.grammaticalGender] || statusLabels[normalizedStatus].neutral} ${major}`;
   }
   const confirmedStage = stage.match(/(?:طالبة|طالب|خريجة|خريج)/)?.[0];
   return confirmedStage ? `${confirmedStage} ${major}` : `متخصص/ة في ${major}`;

@@ -246,7 +246,9 @@ const buildProfessionalSummaryPayload = ({ verifiedResumeFacts = {}, language = 
     studentStatus: safeString(personalInfo.studentStatus, 40),
     major: safeString(personalInfo.major, 160),
     university: safeString((verifiedResumeFacts.education || [])[0]?.organization || "", 180),
-    academicTrack: safeString(personalInfo.academicTrack || personalInfo.concentration || "", 160),
+    // Academic track is an explicit education fact only; never infer it from
+    // professional context or an unverified concentration.
+    academicTrack: safeString(personalInfo.academicTrack, 160),
     strongestEvidence,
     evidenceStrength: getSummaryEvidenceStrength(strongestEvidence),
     relevantCapabilityThemes: skills.slice(0, 6).map((skill) => safeString(skill?.name || skill, 80)).filter(Boolean),

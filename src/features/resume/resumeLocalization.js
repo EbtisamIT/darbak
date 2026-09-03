@@ -13,6 +13,7 @@ const englishMajorLabels = {
   "تقنيه المعلومات": "Information Technology",
   "علوم الحاسب": "Computer Science",
   "نظم المعلومات": "Information Systems",
+  "نظم المعلومات الاداريه": "Management Information Systems",
   "هندسه البرمجيات": "Software Engineering",
   "المحاسبه": "Accounting",
   "اداره الاعمال": "Business Administration",
@@ -120,6 +121,15 @@ const localizedDegree = (value = "") => {
 };
 
 const localizedMajor = (value = "") => englishMajorLabels[normalizeLookupValue(value)] || "";
+
+export const canonicalEnglishMajor = (value = "") => localizedMajor(value) || (arabicPattern.test(String(value)) ? "" : String(value).trim());
+export const canonicalEnglishStudentStatus = (value = "") => {
+  const normalized = normalizeLookupValue(value).toLowerCase();
+  if (["طالبه", "student"].includes(normalized)) return "Student";
+  if (["خريجه", "graduate"].includes(normalized)) return "Graduate";
+  if (["متوقعه التخرج", "expected_graduate", "expected graduate"].includes(normalized)) return "Expected Graduate";
+  return "";
+};
 
 const localizedUniversity = (value = "") => englishUniversityLabels[normalizeLookupValue(value)] || "";
 
@@ -282,8 +292,9 @@ const needsLocalizationReview = (resume, key, source, translated) => {
 const derivedEnglishHeadline = (personal = {}, display = {}) => {
   const major = display.major || localizedMajor(personal.major) || (!arabicPattern.test(personal.major || "") ? String(personal.major || "").trim() : "");
   if (!major) return "";
-  if (personal.studentStatus === "student") return `${major} Student`;
-  if (personal.studentStatus === "graduate") return `${major} Graduate`;
+  const status = canonicalEnglishStudentStatus(personal.studentStatus).toLowerCase();
+  if (status === "student") return `${major} Student`;
+  if (status === "graduate") return `${major} Graduate`;
   return `${major} Specialist`;
 };
 

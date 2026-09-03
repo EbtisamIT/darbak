@@ -1,5 +1,7 @@
 import {
   applyVerifiedResumeFacts,
+  canonicalEnglishMajor,
+  canonicalEnglishStudentStatus,
   getEnglishReviewItems,
   getLocalizedResumeForDisplay,
 } from "./resumeLocalization";
@@ -33,6 +35,33 @@ const englishResume = {
 };
 
 describe("English resume presentation", () => {
+  it("uses canonical MIS and status values without manual review", () => {
+    const sara = {
+      personalInfo: {
+        fullName: "سارة أحمد",
+        major: "نظم المعلومات الإدارية",
+        university: "جامعة الملك سعود",
+        city: "الرياض",
+        degree: "بكالوريوس",
+        studentStatus: "طالبة",
+        academicTrack: "",
+        headline: "طالبة نظم المعلومات الإدارية",
+      },
+      education: [{ id: "edu-1", title: "بكالوريوس", organization: "جامعة الملك سعود", location: "الرياض" }],
+      projects: [],
+      experience: [],
+      certifications: [],
+      volunteering: [],
+      settings: { language: "en", direction: "ltr" },
+    };
+    const localized = getLocalizedResumeForDisplay(sara);
+    expect(canonicalEnglishMajor("نظم المعلومات الإدارية")).toBe("Management Information Systems");
+    expect(canonicalEnglishStudentStatus("طالبة")).toBe("Student");
+    expect(localized.personalInfo.headline).toBe("Management Information Systems Student");
+    expect(localized.education[0].organization).toBe("King Saud University");
+    expect(getEnglishReviewItems(sara).some((item) => ["major", "studentStatus", "university", "degree"].includes(item.field))).toBe(false);
+    expect(localized.personalInfo.academicTrack || "").toBe("");
+  });
   it("keeps source facts immutable while showing deterministic English display values", () => {
     const localized = getLocalizedResumeForDisplay(englishResume);
 
