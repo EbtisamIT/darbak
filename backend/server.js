@@ -1967,7 +1967,9 @@ const sanitizePortfolioPayload = (body = {}, contact = "") => {
     expectedGraduationYear: sanitizePortfolioText(body.expectedGraduationYear, 12),
     gpa: sanitizePortfolioText(body.gpa, 20),
     gpaScale: sanitizePortfolioText(body.gpaScale, 20),
-    academicTrack: sanitizePortfolioText(body.academicTrack, 120),
+    academicTrack: ["business_analytics", "data_analytics", "software_development", "artificial_intelligence", "cybersecurity", "computer_networks", "accounting", "finance", "marketing", "human_resources", "project_management", "supply_chain", "graphic_design"].includes(body.academicTrack)
+      ? body.academicTrack
+      : "",
     relevantCoursework: normalizePortfolioList(body.relevantCoursework, 10, 120),
     professionalHeadline: sanitizePortfolioText(body.professionalHeadline, 140),
     phone: sanitizePortfolioText(body.phone, 40),

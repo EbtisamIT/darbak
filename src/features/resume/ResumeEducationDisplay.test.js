@@ -31,7 +31,7 @@ describe("getResumeEducationDisplay", () => {
         expectedGraduationYear: "2027",
         gpa: "4.70",
         gpaScale: "5",
-        academicTrack: "الذكاء الاصطناعي",
+        academicTrack: "artificial_intelligence",
         relevantCoursework: ["قواعد البيانات", "هياكل البيانات"],
       },
       "ar"
@@ -45,6 +45,16 @@ describe("getResumeEducationDisplay", () => {
       "المسار الأكاديمي: الذكاء الاصطناعي",
       "مقررات ذات صلة: قواعد البيانات، هياكل البيانات",
     ]);
+  });
+
+  it("does not display a legacy free-text academic track", () => {
+    const display = getResumeEducationDisplay(
+      { title: "Bachelor's", organization: "University of Jeddah" },
+      { major: "Management Information Systems", academicTrack: "تطوير الأعمال" },
+      "en"
+    );
+
+    expect(display.facts).toEqual([]);
   });
 
   it("uses English education labels for the same confirmed facts", () => {

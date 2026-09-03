@@ -7,6 +7,25 @@ const cleanText = (value = "", maxLength = 900) =>
 
 const { normalizeResumeSkills } = require("./resumeSkillNormalization");
 
+const ACADEMIC_TRACK_IDS = new Set([
+  "business_analytics",
+  "data_analytics",
+  "software_development",
+  "artificial_intelligence",
+  "cybersecurity",
+  "computer_networks",
+  "accounting",
+  "finance",
+  "marketing",
+  "human_resources",
+  "project_management",
+  "supply_chain",
+  "graphic_design",
+]);
+
+const getAcademicTrackId = (value = "") =>
+  ACADEMIC_TRACK_IDS.has(cleanText(value, 80)) ? cleanText(value, 80) : "";
+
 // These values are student facts, not resume presentation. Portfolio owns them
 // whenever it has a verified value; ResumeProfile only keeps a materialized
 // copy for compatibility with the existing resume APIs.
@@ -191,9 +210,10 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
   const frontendUrl = options.frontendUrl || "";
   const sectionOrder = options.sectionOrder || [];
   const portfolioUrl = portfolio.slug && frontendUrl ? `${frontendUrl}/p/${portfolio.slug}` : "";
+  const academicTrack = getAcademicTrackId(portfolio.academicTrack);
   const educationDescription = [
     portfolio.major,
-    portfolio.academicTrack && `المسار الأكاديمي: ${portfolio.academicTrack}`,
+    academicTrack && `Academic track: ${academicTrack}`,
     portfolio.graduationYear && `سنة التخرج: ${portfolio.graduationYear}`,
     portfolio.expectedGraduationYear && `التخرج المتوقع: ${portfolio.expectedGraduationYear}`,
     portfolio.gpa && `المعدل: ${portfolio.gpa}${portfolio.gpaScale ? ` / ${portfolio.gpaScale}` : ""}`,
@@ -225,7 +245,7 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
       expectedGraduationYear: cleanText(portfolio.expectedGraduationYear, 20),
       gpa: cleanText(portfolio.gpa, 20),
       gpaScale: cleanText(portfolio.gpaScale, 20),
-      academicTrack: cleanText(portfolio.academicTrack, 120),
+      academicTrack,
       relevantCoursework: uniqueText([], portfolio.relevantCoursework).map((course) => cleanText(course, 120)),
       linkedinUrl: cleanText(portfolio.linkedinUrl, 260),
       headline: buildPortfolioHeadline(portfolio),

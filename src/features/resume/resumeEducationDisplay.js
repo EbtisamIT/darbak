@@ -1,3 +1,5 @@
+import { getAcademicTrackLabel } from "../../data/academicTracks";
+
 const containsArabic = (value = "") => /[\u0600-\u06FF]/.test(String(value));
 
 export const getResumeEducationDisplay = (entry = {}, personal = {}, language = "ar") => {
@@ -16,7 +18,7 @@ export const getResumeEducationDisplay = (entry = {}, personal = {}, language = 
   const expectedGraduationYear = String(personal.expectedGraduationYear || "").trim();
   const gpa = String(personal.gpa || "").trim();
   const gpaScale = String(personal.gpaScale || "").trim();
-  const academicTrack = String(personal.academicTrack || "").trim();
+  const academicTrack = getAcademicTrackLabel(personal.academicTrack, language);
   const coursework = (Array.isArray(personal.relevantCoursework) ? personal.relevantCoursework : [])
     .map((course) => String(course || "").trim())
     .filter(Boolean);

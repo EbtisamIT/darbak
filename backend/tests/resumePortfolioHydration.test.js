@@ -60,11 +60,12 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
     studyStartYear: "2023",
     expectedGraduationYear: "2027",
     graduationYear: "",
-    academicTrack: "الذكاء الاصطناعي",
+    academicTrack: "artificial_intelligence",
     relevantCoursework: ["قواعد البيانات", "هياكل البيانات"],
   }, portfolio.email);
   assert.strictEqual(enrichedStudent.personalInfo.studyStartYear, "2023");
   assert.strictEqual(enrichedStudent.personalInfo.expectedGraduationYear, "2027");
+  assert.strictEqual(enrichedStudent.personalInfo.academicTrack, "artificial_intelligence");
   assert.deepStrictEqual(enrichedStudent.personalInfo.relevantCoursework, ["قواعد البيانات", "هياكل البيانات"]);
   assert.deepStrictEqual(enrichedStudent.sectionOrder.slice(0, 4), ["summary", "education", "projects", "skills"]);
 
@@ -74,6 +75,21 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
     experiences: [{ title: "متدرب", description: "خبرة عملية" }],
   }, portfolio.email);
   assert.deepStrictEqual(graduateWithExperience.sectionOrder.slice(0, 4), ["summary", "experience", "education", "projects"]);
+}
+
+// Academic tracks are explicit list selections. Legacy free-text values are
+// not facts and must not reach the verified resume payload.
+{
+  const explicitTrack = mapPortfolioToResumePayload({
+    ...portfolio,
+    academicTrack: "business_analytics",
+  }, portfolio.email);
+  const legacyTrack = mapPortfolioToResumePayload({
+    ...portfolio,
+    academicTrack: "تطوير الأعمال",
+  }, portfolio.email);
+  assert.strictEqual(explicitTrack.personalInfo.academicTrack, "business_analytics");
+  assert.strictEqual(legacyTrack.personalInfo.academicTrack, "");
 }
 
 // Noura acceptance: verified Portfolio facts always win over a stale local or
