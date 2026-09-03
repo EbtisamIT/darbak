@@ -531,6 +531,27 @@ const MyResumePage = () => {
     setEnglishNameStepOpen(true);
   }, [createEnglishVersion, lastServerResume, resume.personalInfo?.englishName]);
 
+  const handleImproveSummary = useCallback(async () => {
+    try {
+      setError("");
+      setMessage("");
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/resume/ai/improve-summary`,
+        { visitorId: getVisitorId() },
+        { headers: getAccessHeaders({ itemKey: "resume:improve-summary" }) },
+      );
+      const improvedResume = normalizeResume({
+        ...(data.resume || resume),
+        access: { ...(resume.access || {}), ...(data.resume?.access || {}) },
+      });
+      setResume(improvedResume);
+      setLastServerResume(improvedResume);
+      setMessage(data.message || "تم تحسين النبذة. حدّث النسخة الإنجليزية عندما تريد.");
+    } catch (err) {
+      setError(err.response?.data?.error || "تعذر تحسين النبذة الآن.");
+    }
+  }, [resume]);
+
   const submitEnglishNameStep = async () => {
     const englishName = englishNameInput.trim().replace(/\s+/g, " ");
     if (!englishName) return setEnglishNameError("اكتب الاسم الكامل بالإنجليزي.");
@@ -1114,6 +1135,7 @@ const MyResumePage = () => {
           onEditProfile={() => navigate("/portfolio")}
           onReviewResumeSetup={() => navigate("/portfolio?from=resume&review=1")}
           onCustomize={handleCustomizeLater}
+          onImproveSummary={handleImproveSummary}
           onCreateEnglish={handleTranslateToEnglish}
           onOpenVersion={openTailoredVersion}
         />

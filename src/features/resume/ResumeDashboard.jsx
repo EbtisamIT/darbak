@@ -29,6 +29,7 @@ const ResumeDashboard = ({
   onStartFromPortfolio,
   onStartFromScratch,
   onCustomize,
+  onImproveSummary,
   onCreateEnglish,
   onOpenVersion,
 }) => {
@@ -115,6 +116,9 @@ const ResumeDashboard = ({
           </button>
           <button type="button" className="is-text" onClick={onEditProfile}>
             تعديل بيانات السيرة
+          </button>
+          <button type="button" className="is-text" onClick={onImproveSummary}>
+            تحسين النبذة
           </button>
           <button type="button" className="is-review" onClick={onReviewResumeSetup}>
             مراجعة بيانات السيرة من البداية

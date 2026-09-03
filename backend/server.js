@@ -49,6 +49,7 @@ const {
 } = require("./services/resumeAiService");
 const {
   runDarbakResumeAgent,
+  regenerateProfessionalSummary,
 } = require("./agents/darbakResumeAgent");
 const { compareResumeToJob } = require("./services/resumeMatchService");
 const { hasCompleteApplicationPack } = require("./services/applicationPackIntegrity");
@@ -7704,6 +7705,60 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
   } catch (err) {
     console.error("❌ Resume save error:", err);
     res.status(500).json({ error: "تعذر حفظ السيرة." });
+  }
+});
+
+// Summary refresh is a deliberate user action. It updates the master only;
+// English remains unchanged until the student explicitly refreshes it.
+app.post('/api/resume/ai/improve-summary', requireResumeAccess, async (req, res) => {
+  try {
+    if (!checkResumeAiRateLimit(req, res, "improve_summary")) return;
+    const { contact, accessCodeHash, user } = req.darbakAccess;
+    const [storedResume, portfolio] = await Promise.all([
+      getResumeForAccess({ contact, accessCodeHash }),
+      getPortfolioForAccess({ contact, accessCodeHash }),
+    ]);
+    if (!storedResume) {
+      return res.status(400).json({ error: "احفظ السيرة الأساسية أولًا قبل تحسين النبذة." });
+    }
+
+    const masterResume = composeCanonicalResume(storedResume, portfolio || {}, contact, {
+      frontendUrl: getFrontendUrl(),
+      sectionOrder: RESUME_SECTION_KEYS,
+      language: "ar",
+    });
+    const result = await regenerateProfessionalSummary({
+      verifiedResumeFacts: masterResume.verifiedResumeFacts || {},
+      language: "ar",
+      currentSummary: masterResume.summary || "",
+      context: { userId: user?._id?.toString?.() || contact },
+    });
+    const summaryProvenance = mergeMasterSummaryProvenance({
+      existing: storedResume.summaryProvenance || {},
+      incoming: result.summaryProvenance,
+      previousSummary: storedResume.summary || "",
+      nextSummary: result.summary,
+      generated: true,
+    });
+    const resume = await ResumeProfile.findOneAndUpdate(
+      { contact, accessCodeHash },
+      { $set: { summary: result.summary, summaryProvenance } },
+      { new: true, runValidators: true },
+    ).lean();
+
+    return res.json({
+      resume: serializeResume(resume, req.darbakAccess),
+      usage: result.usage,
+      message: "تم تحسين النبذة. حدّث النسخة الإنجليزية عندما تريد ترجمتها.",
+    });
+  } catch (err) {
+    console.error("❌ Resume summary improvement error:", {
+      code: err.code || "",
+      name: err.name || "",
+      message: err.message || "",
+    });
+    const response = getResumeAiErrorResponse(err);
+    return res.status(response.status).json(response.body);
   }
 });
 

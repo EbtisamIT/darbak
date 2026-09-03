@@ -1982,6 +1982,67 @@ const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedRe
   };
 };
 
+// This path is intentionally explicit: opening a resume or PDF must never
+// rewrite a student's saved summary. It is used only by the "Improve summary"
+// action on the master resume.
+const regenerateProfessionalSummary = async ({ verifiedResumeFacts, language = "ar", currentSummary = "", context = {} }) => {
+  const payload = buildProfessionalSummaryPayload({ verifiedResumeFacts, language });
+  const trace = {
+    aiCalls: 0,
+    summaryWriterModel: process.env.OPENAI_RESUME_SUMMARY_MODEL || DEFAULT_RESUME_SUMMARY_MODEL,
+    summaryWriterVersion: PROFESSIONAL_SUMMARY_WRITER_VERSION,
+    summaryWriterCalled: true,
+    summaryRepairCalled: false,
+  };
+
+  trace.aiCalls += 1;
+  const result = await run(
+    createProfessionalSummaryAgent(),
+    buildProfessionalSummaryInput({ payload, currentSummary }),
+    { context, maxTurns: 1 }
+  );
+  let output = professionalSummarySchema.parse(result.finalOutput);
+  let validation = validateProfessionalSummary({ result: output, payload });
+
+  if (!validation.valid) {
+    trace.summaryRepairCalled = true;
+    trace.aiCalls += 1;
+    const repairedResult = await run(
+      createProfessionalSummaryAgent(),
+      buildProfessionalSummaryInput({
+        payload,
+        currentSummary: output.summary,
+        repairErrors: validation.errors,
+      }),
+      { context, maxTurns: 1 }
+    );
+    output = professionalSummarySchema.parse(repairedResult.finalOutput);
+    validation = validateProfessionalSummary({ result: output, payload });
+    if (!validation.valid) {
+      throw Object.assign(new Error("Professional summary validation failed"), {
+        code: "SUMMARY_VALIDATION_FAILED",
+        validationErrors: validation.errors,
+      });
+    }
+  }
+
+  return {
+    summary: output.summary,
+    summaryProvenance: {
+      summaryWriterModel: trace.summaryWriterModel,
+      summaryWriterVersion: PROFESSIONAL_SUMMARY_WRITER_VERSION,
+      summaryWriterCalled: true,
+      summaryRepairCalled: trace.summaryRepairCalled,
+      summarySourceAtSave: "sol_v3_manual",
+    },
+    usage: {
+      model: trace.summaryWriterModel,
+      aiCalls: trace.aiCalls,
+      summaryRepairCalled: trace.summaryRepairCalled,
+    },
+  };
+};
+
 const createDarbakResumeRepairAgent = () =>
   new Agent({
     name: "Darbak Resume Quality Repair Agent",
@@ -2692,6 +2753,7 @@ module.exports = {
   buildProfessionalSummaryPayload,
   validateProfessionalSummary,
   buildProfessionalSummaryInput,
+  regenerateProfessionalSummary,
   createAgentInstructions,
   runDarbakResumeAgent,
   validateResumeClaims,
