@@ -62,6 +62,58 @@ describe("English resume presentation", () => {
     expect(getEnglishReviewItems(sara).some((item) => ["major", "studentStatus", "university", "degree"].includes(item.field))).toBe(false);
     expect(localized.personalInfo.academicTrack || "").toBe("");
   });
+  it("does not let stale localized canonical facts override Sara's verified profile", () => {
+    const sara = {
+      personalInfo: {
+        major: "نظم المعلومات الإدارية",
+        university: "جامعة الملك سعود",
+        city: "الرياض",
+        degree: "بكالوريوس",
+        studentStatus: "طالبة",
+        academicTrack: "",
+      },
+      verifiedResumeFacts: {
+        personalInfo: {
+          major: "نظم المعلومات الإدارية",
+          university: "جامعة الملك سعود",
+          city: "الرياض",
+          degree: "بكالوريوس",
+          studentStatus: "طالبة",
+          academicTrack: "",
+        },
+        education: [{ id: "portfolio-education", title: "بكالوريوس", organization: "جامعة الملك سعود", location: "الرياض" }],
+      },
+      education: [{ id: "portfolio-education", title: "Bachelor's Degree in نظم المعلومات الإدارية", organization: "جامعة الملك سعود", location: "الرياض" }],
+      summary: "طالبة نظم المعلومات الإدارية. Management Information Systems student with project experience.",
+      summaryProvenance: { summaryWriterVersion: "v3" },
+      localizedDisplay: {
+        personalInfo: {
+          major: "Information system",
+          headline: "طالبة نظم المعلومات الإدارية",
+          academicTrack: "تطوير الأعمال",
+        },
+        entries: {
+          "education:portfolio-education": {
+            title: "Bachelor's Degree in نظم المعلومات الإدارية",
+          },
+        },
+      },
+      projects: [],
+      experience: [],
+      certifications: [],
+      volunteering: [],
+      settings: { language: "en", direction: "ltr" },
+    };
+
+    const localized = getLocalizedResumeForDisplay(sara);
+    const education = getResumeEducationDisplay(localized.education[0], localized.personalInfo, "en");
+    expect(localized.personalInfo.headline).toBe("Management Information Systems Student");
+    expect(localized.personalInfo.major).toBe("Management Information Systems");
+    expect(localized.personalInfo.academicTrack || "").toBe("");
+    expect(localized.summary).toBe("Management Information Systems student with project experience.");
+    expect(education.title).toBe("Bachelor's Degree in Management Information Systems");
+    expect(education.facts.some((fact) => fact.includes("Academic Track"))).toBe(false);
+  });
   it("keeps source facts immutable while showing deterministic English display values", () => {
     const localized = getLocalizedResumeForDisplay(englishResume);
 

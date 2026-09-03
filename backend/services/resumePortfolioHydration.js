@@ -137,11 +137,12 @@ const mergeLinks = (current = [], fallback = []) => {
 
 const buildPortfolioHeadline = (portfolio = {}) => {
   const major = cleanText(portfolio.major, 120);
+  const rawStatus = cleanText(portfolio.studentStatus, 40);
   const normalizedStatus = {
     طالبة: "student", طالبه: "student", طالب: "student",
     خريجة: "graduate", خريجه: "graduate", خريج: "graduate",
     "متوقعة التخرج": "expected_graduate", "متوقع التخرج": "expected_graduate",
-  }[cleanText(portfolio.studentStatus, 40)] || portfolio.studentStatus;
+  }[rawStatus] || portfolio.studentStatus;
   const statusLabels = {
     student: { feminine: "طالبة", masculine: "طالب", neutral: "طالب/ة" },
     graduate: { feminine: "خريجة", masculine: "خريج", neutral: "خريج/ة" },
@@ -149,6 +150,10 @@ const buildPortfolioHeadline = (portfolio = {}) => {
   };
   const stage = cleanText(portfolio.degreeLevel, 120);
   if (!major) return "";
+  if (["طالبة", "طالبه", "خريجة", "خريجه", "طالب", "خريج"].includes(rawStatus)) {
+    const explicitArabicStatus = rawStatus.replace("طالبه", "طالبة").replace("خريجه", "خريجة");
+    return `${explicitArabicStatus} ${major}`;
+  }
   if (statusLabels[normalizedStatus]) {
     return `${statusLabels[normalizedStatus][portfolio.grammaticalGender] || statusLabels[normalizedStatus].neutral} ${major}`;
   }
@@ -314,6 +319,9 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
     const value = verifiedResumeFacts.personalInfo?.[key];
     if (hasValue(value)) personalInfo[key] = value;
   });
+  // Unlike optional presentation values, an absent verified academic track is
+  // authoritative and clears stale inferred values from older resume versions.
+  personalInfo.academicTrack = verifiedResumeFacts.personalInfo?.academicTrack || "";
   // The headline is always derived from verified facts. English display is
   // localized on the client from these same facts.
   personalInfo.headline = buildPortfolioHeadline(portfolio);

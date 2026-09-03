@@ -271,6 +271,29 @@ const mergeLocalizedValues = (generated = {}, saved = {}) =>
     { ...generated },
   );
 
+const CANONICAL_PERSONAL_DISPLAY_FIELDS = ["major", "studentStatus", "degree", "university", "city", "headline"];
+
+const mergeCanonicalPersonalDisplay = (generated = {}, saved = {}) => {
+  const merged = mergeLocalizedValues(generated, saved);
+  CANONICAL_PERSONAL_DISPLAY_FIELDS.forEach((field) => {
+    if (generated[field]) merged[field] = generated[field];
+    else delete merged[field];
+  });
+  // Academic track is not a localizable presentation fallback. Its absence in
+  // verified facts must clear stale values from old English versions.
+  delete merged.academicTrack;
+  return merged;
+};
+
+const mergeCanonicalEntryDisplay = (generated = {}, saved = {}) => {
+  const merged = { ...generated, ...saved };
+  Object.entries(generated).forEach(([key, generatedEntry]) => {
+    if (!key.startsWith("education:")) return;
+    merged[key] = { ...(saved[key] || {}), ...generatedEntry };
+  });
+  return merged;
+};
+
 const stableEntryKey = (section, entryId) => `${section}:${entryId}`;
 const stableAchievementKey = (section, entryId, achievementId) =>
   `${section}:${entryId}:${achievementId}`;
@@ -316,6 +339,7 @@ export const applyVerifiedResumeFacts = (resume = {}) => {
   if (!facts) return resume;
   const language = resume.settings?.language === "en" ? "en" : "ar";
   const personalInfo = { ...(resume.personalInfo || {}), ...(facts.personalInfo || {}) };
+  personalInfo.academicTrack = facts.personalInfo?.academicTrack || "";
   const composeEntries = (section) => {
     const verified = facts[section] || [];
     if (!verified.length) return resume[section] || [];
@@ -355,14 +379,14 @@ export const getEnglishReviewItems = (resume = {}) => {
   const localized = {
     ...buildEnglishLocalizedDisplay(resume),
     ...(resume.localizedDisplay || {}),
-    personalInfo: mergeLocalizedValues(
+    personalInfo: mergeCanonicalPersonalDisplay(
       buildEnglishLocalizedDisplay(resume).personalInfo,
       resume.localizedDisplay?.personalInfo,
     ),
-    entries: {
-      ...(buildEnglishLocalizedDisplay(resume).entries || {}),
-      ...(resume.localizedDisplay?.entries || {}),
-    },
+    entries: mergeCanonicalEntryDisplay(
+      buildEnglishLocalizedDisplay(resume).entries || {},
+      resume.localizedDisplay?.entries || {},
+    ),
     achievements: {
       ...(buildEnglishLocalizedDisplay(resume).achievements || {}),
       ...(resume.localizedDisplay?.achievements || {}),
@@ -533,11 +557,8 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
   const localized = {
     ...generated,
     ...(resume.localizedDisplay || {}),
-    personalInfo: mergeLocalizedValues(generated.personalInfo, resume.localizedDisplay?.personalInfo),
-    entries: {
-      ...(generated.entries || {}),
-      ...(resume.localizedDisplay?.entries || {}),
-    },
+    personalInfo: mergeCanonicalPersonalDisplay(generated.personalInfo, resume.localizedDisplay?.personalInfo),
+    entries: mergeCanonicalEntryDisplay(generated.entries || {}, resume.localizedDisplay?.entries || {}),
     achievements: {
       ...(generated.achievements || {}),
       ...(resume.localizedDisplay?.achievements || {}),
@@ -578,9 +599,13 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
     });
   });
   const preserveWriterSummary = Boolean(resume.summaryProvenance?.summaryWriterVersion === "v3");
-  next.summary = !preserveWriterSummary && hasEnglishStatusConflict(resume.summary, resume.personalInfo?.studentStatus)
+  const summaryWithoutStaleArabicIdentity = String(resume.summary || "").replace(
+    /^(?:طالبة|طالب|خريجة|خريج|متخصصة|متخصص)\s+[^.!؟]+[.!؟]\s*/u,
+    "",
+  ).trim();
+  next.summary = !preserveWriterSummary && hasEnglishStatusConflict(summaryWithoutStaleArabicIdentity, resume.personalInfo?.studentStatus)
     ? buildEnglishFactSummary(resume, personal)
-    : getEnglishSummary(resume.summary, personal, preserveWriterSummary);
+    : getEnglishSummary(summaryWithoutStaleArabicIdentity, personal, preserveWriterSummary);
   next.skills = getCleanEnglishSkills((resume.skills || []).map((skill, index) => {
     const source = typeof skill === "string" ? skill : skill?.name || "";
     return localized.skills?.[index] || (!arabicPattern.test(source) ? source : "");

@@ -113,6 +113,26 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(composed.projects[0].description, "Analyzed customer satisfaction feedback.");
 }
 
+// An old inferred academic track must disappear when Portfolio has no explicit
+// academic track fact; professional context remains separate.
+{
+  const saraPortfolio = {
+    ...portfolio,
+    _id: "sara-portfolio",
+    major: "نظم المعلومات الإدارية",
+    studentStatus: "طالبة",
+    academicTrack: "",
+    bio: "مهتمة بتحليل الأعمال والبيانات، وأحب أبرز مشروعي في Power BI.",
+  };
+  const composed = composeCanonicalResume({
+    personalInfo: { academicTrack: "تطوير الأعمال" },
+    settings: { language: "en" },
+  }, saraPortfolio, saraPortfolio.email);
+  assert.strictEqual(composed.personalInfo.academicTrack, "");
+  assert.strictEqual(composed.verifiedResumeFacts.professionalContext, saraPortfolio.bio);
+  assert.strictEqual(composed.personalInfo.headline, "طالبة نظم المعلومات الإدارية");
+}
+
 // Case G: a legacy education item with no year is completed from Portfolio,
 // without replacing any student-entered education date.
 {
