@@ -278,6 +278,13 @@ const hasGenericSummaryClosing = (summary = "") => {
   return /(?:(?:ي|ت)ركز\s+على\s+(?:تطوير|بناء)\s+(?:حلول|خبر(?:ت|تها))|يتجه\s+نحو|يسعى\s+إلى|يطمح\s+إلى|\bfocused on (?:developing|building experience|expanding)\b|\bbuilding experience in\b|\bexpanding expertise in\b)/iu.test(closing);
 };
 
+// With meaningful evidence, a direction-only closing weakens the candidate's
+// positioning. It needs to connect a real capability to a concrete value.
+const hasGenericDirectionalClosing = (summary = "") => {
+  const closing = getSummaryClosing(summary);
+  return /^(?:(?:ي|ت)ركز\s+على\s+|focused on\s+)/iu.test(closing);
+};
+
 const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
   const summary = safeText(result.summary, 900);
   const quality = result.quality || {};
@@ -290,6 +297,12 @@ const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
     && /تطوير\s+خبرت(?:ه|ها)\s+في|بناء\s+خبرة\s+في|\b(?:building experience in|expanding expertise in)\b/iu.test(summary)
   ) {
     errors.push("summary_tentative_positioning");
+  }
+  if (
+    ["strong", "moderate"].includes(payload.evidenceStrength)
+    && hasGenericDirectionalClosing(summary)
+  ) {
+    errors.push("summary_generic_directional_closing");
   }
   if (payload.language === "en" && ARABIC_PROSE.test(summary)) errors.push("summary_language_mixing");
   if (payload.studentStatus === "graduate" && /\bstudent\b|\bطالب(?:ة)?\b/iu.test(summary)) errors.push("summary_status_conflict");

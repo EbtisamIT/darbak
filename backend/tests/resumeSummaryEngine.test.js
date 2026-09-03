@@ -124,6 +124,16 @@ assert.ok(
   }).errors.includes("summary_tentative_positioning"),
   "strong Arabic evidence rejects tentative positioning"
 );
+assert.ok(
+  validateProfessionalSummary({
+    result: {
+      summary: "طالب علوم حاسب لديه خبرة تطبيقية من خلال مشاريع في تطبيقات الويب. طوّر نظامًا لإدارة المواعيد ونموذجًا أوليًا لتصنيف النصوص. يركز على تطبيقات الويب.",
+      quality,
+    },
+    payload: faisalArPayload,
+  }).errors.includes("summary_generic_directional_closing"),
+  "strong Arabic evidence rejects a direction-only closing deterministically"
+);
 
 const faisalEn = fixtures[5];
 const faisalEnPayload = buildProfessionalSummaryPayload({ verifiedResumeFacts: faisalEn.facts, language: "en" });
@@ -137,6 +147,16 @@ assert.ok(
     payload: faisalEnPayload,
   }).errors.includes("summary_tentative_positioning"),
   "strong English evidence rejects tentative positioning"
+);
+assert.ok(
+  validateProfessionalSummary({
+    result: {
+      summary: "Computer Science Student with practical project experience in web applications. Built an appointment management system and a text classification prototype. Focused on software development.",
+      quality,
+    },
+    payload: faisalEnPayload,
+  }).errors.includes("summary_generic_directional_closing"),
+  "strong English evidence rejects a direction-only closing deterministically"
 );
 
 const genericToolLinking = validateProfessionalSummary({
