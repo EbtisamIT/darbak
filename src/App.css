@@ -8726,6 +8726,27 @@ body {
 .resume-english-name-step input { width: 100%; box-sizing: border-box; border: 1px solid var(--app-border); border-radius: 10px; padding: 12px; background: var(--app-input-bg); color: var(--app-text); font: inherit; }
 .resume-english-name-step button { min-height: 48px; border: 0; border-radius: 10px; background: var(--app-brand); color: #07100e; font: inherit; font-weight: 900; cursor: pointer; }
 .resume-english-name-error { color: #c2410c !important; font-size: 13px; font-weight: 800; }
+.resume-english-ready-step ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; color: var(--app-text); font-weight: 700; }
+.english-translation-review { width: min(880px, 100%); margin: 0 auto; display: grid; gap: 18px; padding: clamp(20px, 4vw, 34px); border: 1px solid var(--app-border); border-radius: 20px; background: var(--app-surface); }
+.english-translation-review > header { display: grid; gap: 6px; }
+.english-translation-review > header > span, .english-translation-review > header > strong { color: var(--app-brand); font-weight: 900; }
+.english-translation-review h2, .english-translation-review p { margin: 0; }
+.english-translation-review p { color: var(--app-text-muted); line-height: 1.7; }
+.english-review-list { display: grid; gap: 12px; }
+.english-review-card { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--app-border); border-radius: 16px; background: var(--app-input-bg); }
+.english-review-card.is-active { border-color: var(--app-brand-border); box-shadow: 0 0 0 1px var(--app-brand-soft); }
+.english-review-card.is-approved { background: var(--app-brand-soft); }
+.english-review-card-head, .english-review-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.english-review-card-head span { color: var(--app-brand); font-weight: 900; }
+.english-review-card-head b { color: var(--app-brand); font-size: 13px; }
+.english-review-copy { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.english-review-copy label, .english-review-edit-fields label { display: grid; gap: 7px; color: var(--app-text); font-size: 13px; font-weight: 800; }
+.english-review-copy pre { min-height: 50px; margin: 0; padding: 10px; overflow-wrap: anywhere; white-space: pre-wrap; border-radius: 10px; background: var(--app-surface); color: var(--app-text-muted); font: inherit; font-weight: 500; line-height: 1.65; }
+.english-review-edit-fields { display: grid; gap: 10px; }
+.english-review-edit-fields textarea { min-height: 82px; box-sizing: border-box; resize: vertical; border: 1px solid var(--app-border); border-radius: 10px; padding: 10px; background: var(--app-surface); color: var(--app-text); font: inherit; }
+.english-review-primary, .english-review-actions button, .english-review-edit-again { min-height: 40px; width: fit-content; border: 1px solid var(--app-brand-border); border-radius: 10px; padding: 0 14px; background: transparent; color: var(--app-brand); font: inherit; font-weight: 900; cursor: pointer; }
+.english-review-primary { background: var(--app-brand); color: #07100e; }
+@media (max-width: 720px) { .english-translation-review { padding: 18px; } .english-review-copy { grid-template-columns: 1fr; } .english-review-card-head, .english-review-actions { align-items: flex-start; flex-direction: column; } }
 .resume-dashboard-start-grid > button:hover { border-color: var(--app-brand); transform: translateY(-1px); }
 .resume-dashboard-start-grid svg { color: var(--app-brand); font-size: 25px; }
 .resume-dashboard-start-grid strong { font-size: 18px; }

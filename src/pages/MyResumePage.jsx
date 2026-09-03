@@ -22,6 +22,7 @@ import {
 import { getVisitorId, trackEvent, trackEventOncePerSession } from "../utils/analytics";
 import ResumeAgentFlow from "../features/resume/ResumeAgentFlow";
 import ResumeBuilder, { SettingsEditor } from "../features/resume/ResumeBuilder";
+import EnglishTranslationReview, { getEnglishReviewGroups } from "../features/resume/EnglishTranslationReview";
 import ResumePdfDocument from "../features/resume/ResumePdfDocument";
 import ResumePreview from "../features/resume/ResumePreview";
 import ResumeJobMatchPanel from "../features/resume/ResumeJobMatchPanel";
@@ -186,6 +187,8 @@ const MyResumePage = () => {
   const [englishNameStepOpen, setEnglishNameStepOpen] = useState(false);
   const [englishNameInput, setEnglishNameInput] = useState("");
   const [englishNameError, setEnglishNameError] = useState("");
+  const [englishTranslationReady, setEnglishTranslationReady] = useState(false);
+  const [englishReviewOpen, setEnglishReviewOpen] = useState(false);
   const [tailoredVersions, setTailoredVersions] = useState([]);
   const [loadingTailoredVersions, setLoadingTailoredVersions] = useState(false);
   const [applicationPack, setApplicationPack] = useState(null);
@@ -503,9 +506,7 @@ const MyResumePage = () => {
       setEditingVersionType("translation");
       setResumeMode("editor");
       if (data.version?._id) navigate(`/my-resume/versions/${data.version._id}`);
-      setMessage(
-        data.message || "تم تجهيز نسخة إنجليزية رسمية للمراجعة. راجعها قبل الحفظ أو التحميل."
-      );
+      setEnglishTranslationReady(true);
       trackEvent("resume_translate_english_clicked", {
         page: "/my-resume",
         metadata: {
@@ -1043,7 +1044,25 @@ const MyResumePage = () => {
           </section>
         </div>
       )}
-      {!(resumeMode === "dashboard" && journeyView === "start") && !(
+      {englishTranslationReady && (
+        <div className="resume-english-name-overlay" role="dialog" aria-modal="true" aria-labelledby="english-translation-ready-title">
+          <section className="resume-english-name-step resume-english-ready-step">
+            <span>تم تجهيز النسخة الإنجليزية ✨</span>
+            <h2 id="english-translation-ready-title">نسختك جاهزة للمراجعة</h2>
+            <ul>
+              <li>تم ترجمة البيانات الأساسية ✓</li>
+              <li>تم تحسين النبذة ✓</li>
+              <li>تم ترجمة المشاريع ✓</li>
+              <li>تم تجهيز النسخة الإنجليزية ✓</li>
+            </ul>
+            <button type="button" onClick={() => {
+              setEnglishTranslationReady(false);
+              setEnglishReviewOpen(getEnglishReviewGroups(resume).some((group) => group.status === "pending"));
+            }}>مراجعة الترجمات</button>
+          </section>
+        </div>
+      )}
+      {!englishReviewOpen && !(resumeMode === "dashboard" && journeyView === "start") && !(
         routeView === "tailor" && (resumeMode === "match" || resumeMode === "agent")
       ) && <section className="resume-topbar">
         <div>
@@ -1093,7 +1112,7 @@ const MyResumePage = () => {
         </div>
       </section>}
 
-      {!(resumeMode === "dashboard" && journeyView === "start") && !isTailoredApplicationFlow && <ResumeJourneyStepper
+      {!englishReviewOpen && !(resumeMode === "dashboard" && journeyView === "start") && !isTailoredApplicationFlow && <ResumeJourneyStepper
         currentStep={journeyStep}
         completedSteps={journeyCompletedSteps}
         onStepChange={(step) => {
@@ -1204,6 +1223,13 @@ const MyResumePage = () => {
               onOpenResume={() => setActiveMobileTab("preview")}
             />
           )}
+          {englishReviewOpen ? (
+            <EnglishTranslationReview
+              resume={resume}
+              onChange={(nextResume) => setResume(normalizeResume(nextResume))}
+              onOpenEditor={() => setEnglishReviewOpen(false)}
+            />
+          ) : <>
           <div className="resume-mobile-tabs" role="tablist" aria-label="السيرة">
             <button
               type="button"
@@ -1279,10 +1305,11 @@ const MyResumePage = () => {
               </div>
             </aside>
           </section>
+          </>}
         </>
       )}
 
-      {resumeMode === "editor" && <div className="resume-sticky-actions">
+      {resumeMode === "editor" && !englishReviewOpen && <div className="resume-sticky-actions">
         {editingTailoredVersion && <button type="button" onClick={returnToMasterResume}>
           سيرتي الأساسية
         </button>}

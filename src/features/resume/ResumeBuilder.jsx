@@ -21,7 +21,6 @@ import {
   hasEntryContent,
 } from "./resumeDefaults";
 import { getResumeCompletionItems } from "./resumeValidation";
-import { getEnglishReviewItems } from "./resumeLocalization";
 
 const fieldLabels = {
   education: {
@@ -756,11 +755,7 @@ const CompletionPanel = ({ resume, onChange, hideCompletedChecklist = false }) =
   });
   const hasActionableItem = required.some((item) => item.status !== "completed") || items.some((item) => item.status === "needs_review");
   if (hideCompletedChecklist && !hasActionableItem) return null;
-  const reviews = [...getReviewSuggestions(resume), ...getEnglishReviewItems(resume).map((item) => ({
-    ...item,
-    title: `راجع ${item.label}`,
-    detail: `القيمة الحالية: ${item.value}`,
-  }))].map((item, index) => {
+  const reviews = getReviewSuggestions(resume).map((item, index) => {
     const key = `review:${item.title}:${item.detail}:${index}`;
     return {
       ...item,
@@ -784,67 +779,6 @@ const CompletionPanel = ({ resume, onChange, hideCompletedChecklist = false }) =
     });
   };
 
-  const addEnglishDisplayValue = (item) => {
-    const value = window.prompt(`اكتب ${item.label} بالإنجليزية كما يظهر رسميًا`, item.generatedValue || "");
-    if (!value?.trim()) return;
-    const localizedDisplay = {
-      ...(resume.localizedDisplay || {}),
-      personalInfo: { ...(resume.localizedDisplay?.personalInfo || {}) },
-      entries: { ...(resume.localizedDisplay?.entries || {}) },
-      achievements: { ...(resume.localizedDisplay?.achievements || {}) },
-      review: { ...(resume.localizedDisplay?.review || {}) },
-    };
-    if (item.section === "personal") {
-      if (item.field === "relevantCoursework") {
-        const coursework = Array.isArray(localizedDisplay.personalInfo.relevantCoursework)
-          ? [...localizedDisplay.personalInfo.relevantCoursework]
-          : [...(resume.personalInfo?.relevantCoursework || [])];
-        coursework[item.index] = value.trim();
-        localizedDisplay.personalInfo.relevantCoursework = coursework;
-        localizedDisplay.review[`personal:relevantCoursework:${item.index}`] = {
-          source: item.value,
-          approved: true,
-        };
-      } else {
-        localizedDisplay.personalInfo[item.field] = value.trim();
-      }
-    } else if (item.section && item.entryId) {
-      const key = `${item.section}:${item.entryId}`;
-      if (item.field === "achievement") {
-        const achievementKey = `${key}:${item.achievementId || item.index}`;
-        localizedDisplay.achievements[achievementKey] = value.trim();
-        localizedDisplay.review[`achievements:${achievementKey}`] = {
-          source: item.value,
-          approved: true,
-        };
-      } else {
-        localizedDisplay.entries[key] = { ...(localizedDisplay.entries[key] || {}), [item.field]: value.trim() };
-        localizedDisplay.review[`entries:${key}:${item.field}`] = {
-          source: item.value,
-          approved: true,
-        };
-      }
-    }
-    onChange({ ...resume, localizedDisplay });
-  };
-
-  const approveEnglishDisplayValue = (item) => {
-    const localizedDisplay = {
-      ...(resume.localizedDisplay || {}),
-      review: { ...(resume.localizedDisplay?.review || {}) },
-    };
-    const key = `${item.section}:${item.entryId}`;
-    const reviewKey = item.section === "personal"
-      ? `personal:${item.field}:${item.index}`
-      : item.field === "achievement"
-      ? `achievements:${key}:${item.achievementId || item.index}`
-      : `entries:${key}:${item.field}`;
-    localizedDisplay.review[reviewKey] = {
-      source: item.value,
-      approved: true,
-    };
-    onChange({ ...resume, localizedDisplay });
-  };
 
   return (
     <aside className="resume-completion-panel">
@@ -866,11 +800,7 @@ const CompletionPanel = ({ resume, onChange, hideCompletedChecklist = false }) =
             </div>
             <div className="resume-completion-actions">
               {item.status === "completed" ? <b>تم التحسين ✓</b> : <>
-                {item.localizationState === "review" ? <>
-                  <p className="resume-localization-preview"><b>{item.value}</b><span>{item.generatedValue}</span></p>
-                  <button type="button" onClick={() => approveEnglishDisplayValue(item)}>اعتماد كما هي</button>
-                  <button type="button" onClick={() => addEnglishDisplayValue(item)}>تعديل</button>
-                </> : item.field ? <button type="button" onClick={() => addEnglishDisplayValue(item)}>إضافة كتابة إنجليزية</button> : item.section && <button type="button" onClick={() => { setInProgress((current) => new Set(current).add(item.key)); scrollToSection(item.section); }}>مراجعة</button>}
+                {item.section && <button type="button" onClick={() => { setInProgress((current) => new Set(current).add(item.key)); scrollToSection(item.section); }}>مراجعة</button>}
                 {item.status === "optional" && <em>تحسين اختياري</em>}
                 {item.status === "in_progress" && <em>قيد التحسين</em>}
               </>}
