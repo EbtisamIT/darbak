@@ -47,6 +47,7 @@ const ResumeDashboard = ({
   const englishVersion = versions.find(
     (version) => version.variantType === "translation" || version.language === "en"
   );
+  const needsEnglishRefresh = Boolean(englishVersion?.needsLocalizationRefresh);
   const applicationPacks = versions.filter((version) => version.variantType === "tailored");
   const getPackIdentity = (version) => [
     version.companyName || version.applicationPack?.applicationInfo?.organizationName || "",
@@ -121,8 +122,12 @@ const ResumeDashboard = ({
           <button type="button" className="is-secondary" onClick={onCustomize}>
             <FiZap aria-hidden="true" /> تخصيص لفرصة
           </button>
-          <button type="button" className="is-text" onClick={() => englishVersion ? onOpenVersion(englishVersion) : onCreateEnglish()}>
-            {englishVersion ? "فتح النسخة الإنجليزية" : "إنشاء نسخة إنجليزية"}
+          <button
+            type="button"
+            className="is-text"
+            onClick={() => englishVersion && !needsEnglishRefresh ? onOpenVersion(englishVersion) : onCreateEnglish()}
+          >
+            {needsEnglishRefresh ? "تحديث النسخة الإنجليزية" : englishVersion ? "فتح النسخة الإنجليزية" : "إنشاء نسخة إنجليزية"}
           </button>
         </article>
 

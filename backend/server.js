@@ -59,6 +59,10 @@ const {
   hydrateResumeFromPortfolio,
 } = require("./services/resumePortfolioHydration");
 const { normalizeResumeSkills } = require("./services/resumeSkillNormalization");
+const {
+  buildEnglishSummaryFreshness,
+  mergeMasterSummaryProvenance,
+} = require("./services/resumeSummaryFreshness");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -7652,6 +7656,9 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
   try {
     const { contact, accessCodeHash, user } = req.darbakAccess;
     const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
+    const existingResume = await ResumeProfile.findOne({ contact, accessCodeHash })
+      .select("summary summaryProvenance")
+      .lean();
     const payload = sanitizeResumePayload(composeCanonicalResume(sanitizeResumePayload(req.body), portfolio || {}, contact, {
       frontendUrl: getFrontendUrl(),
       sectionOrder: RESUME_SECTION_KEYS,
@@ -7659,6 +7666,12 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
     // A master resume is never converted by a translation action. English lives
     // exclusively in ResumeTailoredVersion with variantType: translation.
     payload.settings = { ...payload.settings, language: "ar", direction: "rtl" };
+    payload.summaryProvenance = mergeMasterSummaryProvenance({
+      existing: existingResume?.summaryProvenance || {},
+      incoming: sanitizeResumeLooseTree(req.body?.summaryProvenance || {}),
+      previousSummary: existingResume?.summary || "",
+      nextSummary: payload.summary || "",
+    });
 
     const resume = await ResumeProfile.findOneAndUpdate(
       { contact, accessCodeHash },
@@ -8136,6 +8149,11 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
       req.darbakAccess,
       req.body?.language || pendingDraft.draft?.settings?.language || "ar"
     );
+    payload.summaryProvenance = mergeMasterSummaryProvenance({
+      incoming: payload.summaryProvenance || {},
+      nextSummary: payload.summary || "",
+      generated: Boolean(payload.summaryProvenance?.summaryWriterVersion),
+    });
 
     if (pendingDraft.draftType === "tailored_resume") {
       const usageBefore = getResumeUsageSnapshot(req.darbakAccess);
@@ -8409,34 +8427,51 @@ app.post('/api/resume-agent/reject/:pendingDraftId', requireResumeAccess, async 
 
 app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, res) => {
   try {
-    const versions = await ResumeTailoredVersion.find({
-      contact: req.darbakAccess.contact,
-      accessCodeHash: req.darbakAccess.accessCodeHash,
-      status: "approved",
-    })
-      .sort({ updatedAt: -1 })
-      .limit(RESUME_AGENT_MAX_TAILORED_VERSIONS)
-      .lean();
+    const [versions, masterResume] = await Promise.all([
+      ResumeTailoredVersion.find({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+        status: "approved",
+      })
+        .sort({ updatedAt: -1 })
+        .limit(RESUME_AGENT_MAX_TAILORED_VERSIONS)
+        .lean(),
+      ResumeProfile.findOne({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      }).select("summaryProvenance").lean(),
+    ]);
 
     return res.json({
-      versions: versions.map((version) => ({
-        _id: version._id?.toString?.() || "",
-        name:
-          version.name ||
-          [version.roleTitle, version.companyName].filter(Boolean).join(" — ") ||
-          "نسخة مخصصة",
-        companyName: version.companyName || "",
-        roleTitle: version.roleTitle || "",
-        opportunityId: version.opportunityId?.toString?.() || "",
-        variantType: version.variantType || "tailored",
-        language: version.language || version.resumePayload?.settings?.language || "ar",
-        template: version.template || version.resumePayload?.settings?.template || "clean",
-        matchScore: Number(version.matchScore || 0),
-        matchBreakdown: version.matchBreakdown || {},
-        applicationPack: version.applicationPack || {},
-        changesSummary: version.changesSummary || [],
-        updatedAt: version.updatedAt || version.approvedAt || null,
-      })),
+      versions: versions.map((version) => {
+        const isEnglishTranslation = version.variantType === "translation" ||
+          (version.language || version.resumePayload?.settings?.language) === "en";
+        const summaryFreshness = isEnglishTranslation
+          ? buildEnglishSummaryFreshness({
+              masterProvenance: masterResume?.summaryProvenance || {},
+              englishProvenance: version.resumePayload?.summaryProvenance || {},
+            })
+          : {};
+        return {
+          _id: version._id?.toString?.() || "",
+          name:
+            version.name ||
+            [version.roleTitle, version.companyName].filter(Boolean).join(" — ") ||
+            "نسخة مخصصة",
+          companyName: version.companyName || "",
+          roleTitle: version.roleTitle || "",
+          opportunityId: version.opportunityId?.toString?.() || "",
+          variantType: version.variantType || "tailored",
+          language: version.language || version.resumePayload?.settings?.language || "ar",
+          template: version.template || version.resumePayload?.settings?.template || "clean",
+          matchScore: Number(version.matchScore || 0),
+          matchBreakdown: version.matchBreakdown || {},
+          applicationPack: version.applicationPack || {},
+          changesSummary: version.changesSummary || [],
+          updatedAt: version.updatedAt || version.approvedAt || null,
+          needsLocalizationRefresh: Boolean(summaryFreshness.needsLocalizationRefresh),
+        };
+      }),
     });
   } catch (err) {
     console.error("❌ Tailored versions fetch error:", err);
@@ -8461,10 +8496,16 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
       return res.status(404).json({ error: "النسخة غير موجودة." });
     }
 
-    const portfolio = await getPortfolioForAccess({
-      contact: req.darbakAccess.contact,
-      accessCodeHash: req.darbakAccess.accessCodeHash,
-    });
+    const [portfolio, masterResume] = await Promise.all([
+      getPortfolioForAccess({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      }),
+      ResumeProfile.findOne({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      }).select("summaryProvenance").lean(),
+    ]);
     // Versions own presentation only. Recompose immutable facts from Portfolio
     // for both translations and tailored versions before anything reaches UI.
     const composedVersionPayload = composeCanonicalResume(
@@ -8496,6 +8537,15 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
     const versionPayload = {
       ...composedVersionPayload,
       personalInfo: synchronizedPersonal,
+      summaryProvenance: {
+        ...(version.resumePayload?.summaryProvenance || {}),
+        ...(version.variantType === "translation" && version.language === "en"
+          ? buildEnglishSummaryFreshness({
+              masterProvenance: masterResume?.summaryProvenance || {},
+              englishProvenance: version.resumePayload?.summaryProvenance || {},
+            })
+          : {}),
+      },
       localizedDisplay: {
         ...recoveredLocalizedDisplay,
         ...existingLocalizedDisplay,
@@ -9037,6 +9087,15 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
         ...(generatedLocalizedDisplay.achievements || {}),
         ...(savedLocalizedDisplay.achievements || {}),
       },
+    };
+    const summaryFreshness = buildEnglishSummaryFreshness({
+      masterProvenance: storedResume.summaryProvenance || {},
+    });
+    translatedPayload.summaryProvenance = {
+      ...(translatedPayload.summaryProvenance || {}),
+      sourceSummaryUpdatedAt: summaryFreshness.masterSummaryUpdatedAt,
+      sourceSummaryVersion: summaryFreshness.masterSummaryVersion,
+      needsLocalizationRefresh: false,
     };
     const version = await ResumeTailoredVersion.findOneAndUpdate(
       {
