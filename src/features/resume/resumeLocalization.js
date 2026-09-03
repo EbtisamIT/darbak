@@ -197,9 +197,9 @@ const getDeduplicatedEntries = (entries = [], section = "", personal = {}) => {
   });
 };
 
-const getEnglishSummary = (summary = "", personal = {}) => {
+const getEnglishSummary = (summary = "", personal = {}, preserveWriterSummary = false) => {
   const clean = summary.toString().trim().replace(/\s+/g, " ");
-  if (!clean) return "";
+  if (!clean || preserveWriterSummary) return clean;
   const headline = personal.headline || derivedEnglishHeadline(personal, { major: personal.major });
   if (!headline || clean.toLowerCase().startsWith(headline.toLowerCase())) return clean;
   return `${headline}. ${clean}`;
@@ -566,9 +566,10 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
         : localizedEntry;
     });
   });
-  next.summary = hasEnglishStatusConflict(resume.summary, resume.personalInfo?.studentStatus)
+  const preserveWriterSummary = Boolean(resume.summaryProvenance?.summaryWriterVersion === "v3");
+  next.summary = !preserveWriterSummary && hasEnglishStatusConflict(resume.summary, resume.personalInfo?.studentStatus)
     ? buildEnglishFactSummary(resume, personal)
-    : getEnglishSummary(resume.summary, personal);
+    : getEnglishSummary(resume.summary, personal, preserveWriterSummary);
   next.skills = getCleanEnglishSkills((resume.skills || []).map((skill, index) => {
     const source = typeof skill === "string" ? skill : skill?.name || "";
     return localized.skills?.[index] || (!arabicPattern.test(source) ? source : "");

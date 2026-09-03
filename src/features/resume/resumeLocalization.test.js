@@ -57,6 +57,20 @@ describe("English resume presentation", () => {
     expect(localized.personalInfo.headline).toBe("Information Technology Student");
   });
 
+  it("keeps a saved Sol V3 summary unchanged for English preview and PDF payloads", () => {
+    const resume = {
+      ...englishResume,
+      summary: "SOL_V3_SUMMARY_MARKER",
+      summaryProvenance: {
+        summaryWriterVersion: "v3",
+        summarySourceAtSave: "sol_v3",
+        summarySourceAtRender: "saved_master_summary",
+      },
+    };
+
+    expect(getLocalizedResumeForDisplay(resume).summary).toBe("SOL_V3_SUMMARY_MARKER");
+  });
+
   it("renders structured education without leaking projects or training content", () => {
     const localized = getLocalizedResumeForDisplay(englishResume);
     const education = getResumeEducationDisplay(localized.education[0], localized.personalInfo, "en");

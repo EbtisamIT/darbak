@@ -214,6 +214,12 @@ const resumeProfileSchema = new mongoose.Schema(
       outputTokens: { type: Number, default: 0 },
       totalTokens: { type: Number, default: 0 },
     },
+    // Safe provenance used to audit which summary writer produced the saved
+    // presentation. This deliberately contains no resume text or PII.
+    summaryProvenance: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   { timestamps: true }
 );

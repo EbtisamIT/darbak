@@ -233,7 +233,7 @@ const preserveProjectDescription = (project = {}, verifiedProject = {}) => {
   };
 };
 
-const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "ar" } = {}) => {
+const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "ar", preserveSummary = false } = {}) => {
   const personalInfo = verifiedFacts.personalInfo || {};
   const evidenceStrength = getEvidenceStrength(verifiedFacts);
   // Experience identity belongs to the student's verified facts. The agent
@@ -271,7 +271,11 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
   return {
     ...draft,
     targetTitle: buildDeterministicHeadline(personalInfo, language),
-    professionalSummary: cleanSummary(draft.professionalSummary, 900, evidenceStrength, language),
+    // Sol V3 returns the already-reviewed presentation summary. Do not let a
+    // legacy composer rewrite it after the writer has passed validation.
+    professionalSummary: preserveSummary
+      ? safeText(draft.professionalSummary, 900)
+      : cleanSummary(draft.professionalSummary, 900, evidenceStrength, language),
     education: list(verifiedFacts.education).map((fact) => ({
       sourceId: fact.id,
       title: fact.title,

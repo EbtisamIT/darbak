@@ -3,6 +3,8 @@ const {
   buildProfessionalSummaryPayload,
   validateProfessionalSummary,
 } = require("../agents/darbakResumeAgent");
+const { composeProfessionalDraft } = require("../services/resumeProfessionalComposer");
+const { mapDraftToResumePayload } = require("../services/resumeAiService");
 
 const quality = {
   hasIdentity: true,
@@ -103,5 +105,43 @@ const mixedValidation = validateProfessionalSummary({
   payload: mixedPayload,
 });
 assert.ok(mixedValidation.errors.includes("summary_language_mixing"), "English summary cannot contain Arabic prose");
+
+const solMarker = "SOL_V3_SUMMARY_MARKER";
+const markerFacts = {
+  personalInfo: {
+    fullName: "QA Candidate",
+    major: "Computer Science",
+    studentStatus: "student",
+  },
+  education: [],
+  experiences: [],
+  projects: [],
+  certifications: [],
+  volunteering: [],
+  languages: [],
+  skills: [],
+};
+const composedMarkerDraft = composeProfessionalDraft({
+  language: "en",
+  verifiedFacts: markerFacts,
+  preserveSummary: true,
+  draft: {
+    professionalSummary: solMarker,
+    experiences: [],
+    projects: [],
+    skills: [],
+    certifications: [],
+    volunteering: [],
+    languages: [],
+  },
+});
+assert.strictEqual(composedMarkerDraft.professionalSummary, solMarker, "Sol V3 summary survives the composer unchanged");
+const mappedMarkerResume = mapDraftToResumePayload(
+  composedMarkerDraft,
+  { personalInfo: markerFacts.personalInfo, settings: {} },
+  { basic: markerFacts.personalInfo },
+  "en",
+);
+assert.strictEqual(mappedMarkerResume.summary, solMarker, "Sol V3 summary reaches the canonical master payload unchanged");
 
 console.log("resumeSummaryEngine tests passed");

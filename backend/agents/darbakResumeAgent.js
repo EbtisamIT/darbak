@@ -23,6 +23,7 @@ setSensitiveDataLoggingEnabled(false);
 
 const DEFAULT_RESUME_AGENT_MODEL = "gpt-5.6-terra";
 const DEFAULT_RESUME_SUMMARY_MODEL = "gpt-5.6-sol";
+const PROFESSIONAL_SUMMARY_WRITER_VERSION = "v3";
 const DEFAULT_MAX_TURNS = 6;
 const MAX_ANSWER_LENGTH = 1600;
 const MAX_FACT_TEXT_LENGTH = 22000;
@@ -1855,7 +1856,13 @@ const saveProfessionalSummaryCache = async ({ session, cacheKey, output }) => {
 const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedResumeFacts, language, trace, currentSummary = "" }) => {
   const payload = buildProfessionalSummaryPayload({ verifiedResumeFacts, language });
   let output = getReusableProfessionalSummary(session, cacheKey);
+  const reusedSummary = Boolean(output);
+  trace.summaryWriterModel = process.env.OPENAI_RESUME_SUMMARY_MODEL || DEFAULT_RESUME_SUMMARY_MODEL;
+  trace.summaryWriterVersion = PROFESSIONAL_SUMMARY_WRITER_VERSION;
+  trace.summaryWriterCalled = false;
+  trace.summaryRepairCalled = false;
   if (!output) {
+    trace.summaryWriterCalled = true;
     trace.summaryModelCalls = (trace.summaryModelCalls || 0) + 1;
     trace.aiCalls += 1;
     const result = await run(
@@ -1870,6 +1877,7 @@ const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedRe
   let validation = validateProfessionalSummary({ result: output, payload });
   if (!validation.valid) {
     trace.summaryRepairAttempted = true;
+    trace.summaryRepairCalled = true;
     trace.summaryModelCalls = (trace.summaryModelCalls || 0) + 1;
     trace.aiCalls += 1;
     const repairedResult = await run(
@@ -1900,6 +1908,13 @@ const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedRe
       naturalArabic: language === "ar" ? output.quality.naturalLanguage : true,
       evidenceBased: !output.quality.hasUnsupportedClaim,
       noUnnecessaryToolListing: !output.quality.hasExcessiveToolListing,
+    },
+    summaryProvenance: {
+      summaryWriterModel: trace.summaryWriterModel,
+      summaryWriterVersion: PROFESSIONAL_SUMMARY_WRITER_VERSION,
+      summaryWriterCalled: trace.summaryWriterCalled,
+      summaryRepairCalled: trace.summaryRepairCalled,
+      summarySourceAtSave: reusedSummary ? "sol_v3_cached" : "sol_v3",
     },
   };
 };
@@ -2151,7 +2166,7 @@ const buildDeterministicSourceMap = (draft = {}, facts = {}) => {
   ].filter((entry) => entry.sourceId);
 };
 
-const persistProfessionalDraft = async ({ context = {}, draft = {}, sourceMap = [], validationResult = {}, changesSummary = [], applicationPack = {} }) => {
+const persistProfessionalDraft = async ({ context = {}, draft = {}, sourceMap = [], validationResult = {}, changesSummary = [], applicationPack = {}, summaryProvenance = {} }) => {
   const isTailored = context.purpose === "tailor_resume";
   const pending = await ResumePendingDraft.findOneAndUpdate(
     {
@@ -2171,6 +2186,7 @@ const persistProfessionalDraft = async ({ context = {}, draft = {}, sourceMap = 
         draft,
         sourceMap,
         validationResult,
+        summaryProvenance,
         agentSessionId: context.sessionId,
         baseResumeId: context.baseResumeId || null,
         opportunityId: context.opportunityId || null,
@@ -2247,6 +2263,12 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     aiCalls: 0,
     qualityFailureRules: [],
     failedSections: [],
+    summaryWriterModel: "",
+    summaryWriterVersion: "",
+    summaryWriterCalled: false,
+    summaryRepairCalled: false,
+    summarySourceAtSave: "",
+    summarySourceAtRender: "",
   };
   let result = null;
   let output = getReusableDraftOutput(session, generationCacheKey);
@@ -2318,6 +2340,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     let sourceMap;
     let validationResult;
     let quality;
+    let summaryProvenance = {};
     if (session.purpose === "base_resume") {
       try {
         const summary = await writeProfessionalSummary({
@@ -2336,6 +2359,22 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
             ...summary,
           },
         };
+        summaryProvenance = summary.summaryProvenance || {};
+        trace.summarySourceAtSave = summaryProvenance.summarySourceAtSave || "";
+        trace.summarySourceAtRender = trace.summarySourceAtSave ? "saved_master_summary" : "";
+        // Persist the Sol-updated draft in the reusable cache. Otherwise a
+        // subsequent retry can restore the earlier Terra-only summary.
+        output = { ...output, draft: filteredOutput.draft };
+        session.collectedFacts = {
+          ...(session.collectedFacts || {}),
+          agentOutputCache: {
+            key: generationCacheKey,
+            output,
+            createdAt: new Date().toISOString(),
+          },
+        };
+        if (typeof session.markModified === "function") session.markModified("collectedFacts");
+        await session.save();
       } catch (error) {
         throw buildAgentStageError("professional_summary", error, trace);
       }
@@ -2345,6 +2384,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
         draft: filteredOutput.draft,
         verifiedFacts: verifiedResumeFacts,
         language: session.language,
+        preserveSummary: Boolean(summaryProvenance.summarySourceAtSave),
       });
     } catch (error) {
       throw buildAgentStageError("professional_composer", error, trace);
@@ -2364,6 +2404,12 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       trace.composerCompleted = true;
     } catch (error) {
       throw buildAgentStageError("claims_validation", error, trace);
+    }
+    if (summaryProvenance.summarySourceAtSave) {
+      validationResult.summaryProvenance = {
+        ...summaryProvenance,
+        summarySourceAtRender: trace.summarySourceAtRender,
+      };
     }
     try {
       quality = runProfessionalQualityGate({
@@ -2516,6 +2562,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
           validationResult,
           changesSummary: filteredOutput.changesSummary,
           applicationPack: filteredOutput.applicationPack,
+          summaryProvenance: validationResult.summaryProvenance || {},
         });
         trace.saveCompleted = true;
       } catch (error) {
@@ -2549,6 +2596,12 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       generationId: trace.generationId,
       qualityFailureRules: trace.qualityFailureRules,
       failedSections: trace.failedSections,
+      summaryWriterModel: trace.summaryWriterModel,
+      summaryWriterVersion: trace.summaryWriterVersion,
+      summaryWriterCalled: trace.summaryWriterCalled,
+      summaryRepairCalled: trace.summaryRepairCalled,
+      summarySourceAtSave: trace.summarySourceAtSave,
+      summarySourceAtRender: trace.summarySourceAtRender,
     },
   };
 };

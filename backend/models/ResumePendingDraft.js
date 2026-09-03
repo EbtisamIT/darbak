@@ -45,6 +45,11 @@ const resumePendingDraftSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+    // Safe provenance only: model/version/source names, never resume content.
+    summaryProvenance: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
     agentSessionId: {
       type: String,
       required: true,

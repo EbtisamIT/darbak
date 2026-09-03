@@ -6788,6 +6788,7 @@ const serializeResume = (resume = {}, access = {}) => {
     hiddenSections: Array.isArray(resume.hiddenSections) ? resume.hiddenSections : [],
     settings: sanitizeResumeSettings(resume.settings),
     localizedDisplay: sanitizeResumeLooseTree(resume.localizedDisplay || {}),
+    summaryProvenance: sanitizeResumeLooseTree(resume.summaryProvenance || {}),
     workflow: resume.workflow || {},
     updatedAt: resume.updatedAt || null,
     access: {
@@ -7267,6 +7268,12 @@ const mergeResumeAgentUsage = (current = {}, next = {}) => ({
   failedSections: Array.isArray(next.failedSections)
     ? next.failedSections.slice(0, 4)
     : current.failedSections || [],
+  summaryWriterModel: next.summaryWriterModel || current.summaryWriterModel || "",
+  summaryWriterVersion: next.summaryWriterVersion || current.summaryWriterVersion || "",
+  summaryWriterCalled: Boolean(next.summaryWriterCalled || current.summaryWriterCalled),
+  summaryRepairCalled: Boolean(next.summaryRepairCalled || current.summaryRepairCalled),
+  summarySourceAtSave: next.summarySourceAtSave || current.summarySourceAtSave || "",
+  summarySourceAtRender: next.summarySourceAtRender || current.summarySourceAtRender || "",
   failureReason: next.failureReason || current.failureReason || "",
 });
 
@@ -7301,6 +7308,7 @@ const serializeResumeAgentSession = (session = {}, pendingDraft = null) => ({
         draft: pendingDraft.draft,
         applicationPack: pendingDraft.applicationPack || {},
         validationResult: pendingDraft.validationResult || {},
+        summaryProvenance: pendingDraft.summaryProvenance || pendingDraft.validationResult?.summaryProvenance || {},
         changesSummary: pendingDraft.changesSummary || [],
         companyName: pendingDraft.companyName || "",
         roleTitle: pendingDraft.roleTitle || "",
@@ -7413,7 +7421,7 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     }
   );
 
-  return sanitizeResumePayload(composeCanonicalResume({
+  const payload = sanitizeResumePayload(composeCanonicalResume({
     ...mappedPayload,
     sectionOrder: baseResume.sectionOrder || RESUME_SECTION_KEYS,
     hiddenSections: baseResume.hiddenSections || [],
@@ -7422,6 +7430,15 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     sectionOrder: RESUME_SECTION_KEYS,
     language,
   }));
+  return {
+    ...payload,
+    summaryProvenance: {
+      ...(pendingDraft.summaryProvenance || pendingDraft.validationResult?.summaryProvenance || {}),
+      summarySourceAtRender: pendingDraft.summaryProvenance?.summarySourceAtSave
+        ? "saved_master_summary"
+        : "",
+    },
+  };
 };
 
 const buildApplicationEmail = ({ resume = {}, job = {}, trainingPeriod = "", targetField = "" }) => {
@@ -8304,6 +8321,7 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
           aiDraftUsage: {
             ...(pendingDraft.validationResult || {}),
           },
+          summaryProvenance: payload.summaryProvenance || {},
         },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
