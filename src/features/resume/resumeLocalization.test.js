@@ -84,7 +84,7 @@ describe("English resume presentation", () => {
         education: [{ id: "portfolio-education", title: "بكالوريوس", organization: "جامعة الملك سعود", location: "الرياض" }],
       },
       education: [{ id: "portfolio-education", title: "Bachelor's Degree in نظم المعلومات الإدارية", organization: "جامعة الملك سعود", location: "الرياض" }],
-      summary: "طالبة نظم المعلومات الإدارية. Management Information Systems student with project experience.",
+      summary: "طالبة نظم المعلومات الإدارية. Management Information Systems Student. Academic background in Business Development. Built a Power BI project for business analysis.",
       summaryProvenance: { summaryWriterVersion: "v3" },
       localizedDisplay: {
         personalInfo: {
@@ -110,7 +110,7 @@ describe("English resume presentation", () => {
     expect(localized.personalInfo.headline).toBe("Management Information Systems Student");
     expect(localized.personalInfo.major).toBe("Management Information Systems");
     expect(localized.personalInfo.academicTrack || "").toBe("");
-    expect(localized.summary).toBe("Management Information Systems student with project experience.");
+    expect(localized.summary).toBe("Built a Power BI project for business analysis.");
     expect(education.title).toBe("Bachelor's Degree in Management Information Systems");
     expect(education.facts.some((fact) => fact.includes("Academic Track"))).toBe(false);
   });

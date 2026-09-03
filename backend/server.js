@@ -8482,8 +8482,11 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
     const {
       headline: _staleHeadline,
       major: _staleMajor,
+      studentStatus: _staleStudentStatus,
+      degree: _staleDegree,
       university: _staleUniversity,
       city: _staleCity,
+      academicTrack: _staleAcademicTrack,
       ...existingLocalizedPersonal
     } = existingLocalizedDisplay.personalInfo || {};
     const recoveredLocalizedDisplay =
@@ -8500,10 +8503,15 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
           ...(recoveredLocalizedDisplay.personalInfo || {}),
           ...existingLocalizedPersonal,
         },
-        entries: {
-          ...(recoveredLocalizedDisplay.entries || {}),
-          ...(existingLocalizedDisplay.entries || {}),
-        },
+        entries: Object.entries(existingLocalizedDisplay.entries || {}).reduce(
+          (entries, [key, value]) => ({
+            ...entries,
+            [key]: key.startsWith("education:")
+              ? { ...(value || {}), ...(recoveredLocalizedDisplay.entries?.[key] || {}) }
+              : value,
+          }),
+          { ...(recoveredLocalizedDisplay.entries || {}) },
+        ),
       },
     };
 
@@ -8999,17 +9007,32 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
     }));
     const generatedLocalizedDisplay = buildEnglishLocalizedDisplay(translatedPayload, translatedPresentation);
     const savedLocalizedDisplay = translatedPresentation.localizedDisplay || {};
+    const {
+      headline: _savedHeadline,
+      major: _savedMajor,
+      studentStatus: _savedStudentStatus,
+      degree: _savedDegree,
+      university: _savedUniversity,
+      city: _savedCity,
+      academicTrack: _savedAcademicTrack,
+      ...savedUserSpecificPersonal
+    } = savedLocalizedDisplay.personalInfo || {};
     translatedPayload.localizedDisplay = {
       ...generatedLocalizedDisplay,
       ...savedLocalizedDisplay,
       personalInfo: {
         ...(generatedLocalizedDisplay.personalInfo || {}),
-        ...(savedLocalizedDisplay.personalInfo || {}),
+        ...savedUserSpecificPersonal,
       },
-      entries: {
-        ...(generatedLocalizedDisplay.entries || {}),
-        ...(savedLocalizedDisplay.entries || {}),
-      },
+      entries: Object.entries(savedLocalizedDisplay.entries || {}).reduce(
+        (entries, [key, value]) => ({
+          ...entries,
+          [key]: key.startsWith("education:")
+            ? { ...(value || {}), ...(generatedLocalizedDisplay.entries?.[key] || {}) }
+            : value,
+        }),
+        { ...(generatedLocalizedDisplay.entries || {}) },
+      ),
       achievements: {
         ...(generatedLocalizedDisplay.achievements || {}),
         ...(savedLocalizedDisplay.achievements || {}),
