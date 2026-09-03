@@ -12,9 +12,8 @@ import {
 
 const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 
-const normalizeLabel = (value = "") =>
-  value
-    .toString()
+const normalizeLabel = (value) =>
+  String(value ?? "")
     .trim()
     .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ");
@@ -132,12 +131,6 @@ const CompanyApplyPage = () => {
   const fetchContext = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
-
-    if (!getStoredAccessIdentity().contact || !getStoredAccessIdentity().accessCode) {
-      setContext({ requiresLogin: true });
-      setLoading(false);
-      return;
-    }
 
     try {
       const { data } = await axios.get(
