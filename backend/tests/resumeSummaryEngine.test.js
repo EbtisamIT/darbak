@@ -198,6 +198,18 @@ const genericClosing = validateProfessionalSummary({
 });
 assert.ok(genericClosing.errors.includes("summary_generic_closing"), "generic direction-only closing is rejected");
 
+const saraCurrentArabicClosing = validateProfessionalSummary({
+  result: {
+    summary: "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية في تحليل الأعمال والبيانات. طوّرت مشروعًا باستخدام Power BI لتحليل بيانات الأعمال. تركز على تطوير حلول رقمية عملية تدعم تنظيم المعلومات واتخاذ القرار.",
+    quality,
+  },
+  payload: saraPayload,
+});
+assert.ok(
+  saraCurrentArabicClosing.errors.includes("summary_value_linked_closing_required"),
+  "Sara's current Arabic direction-only closing requires value-linked repair",
+);
+
 const saraEnglishPayload = buildProfessionalSummaryPayload({
   language: "en",
   verifiedResumeFacts: {
@@ -211,6 +223,18 @@ assert.deepStrictEqual(
   validateProfessionalSummary({ result: { summary: saraEnglishClosing, quality }, payload: saraEnglishPayload }).errors,
   [],
   "Sara English uses an evidence-linked value closing",
+);
+
+const saraCurrentEnglishClosing = validateProfessionalSummary({
+  result: {
+    summary: "Management Information Systems Student with hands-on project experience in business and data analysis. Built a Power BI project to analyze business data. Focused on developing practical digital solutions that support information organization and decision-making.",
+    quality,
+  },
+  payload: saraEnglishPayload,
+});
+assert.ok(
+  saraCurrentEnglishClosing.errors.includes("summary_value_linked_closing_required"),
+  "Sara's current English direction-only closing requires value-linked repair",
 );
 assert.ok(fixtures[0].result.summary.includes("يوظف خبرته"), "Faisal uses a direct evidence-linked Arabic closing");
 assert.ok(fixtures[3].result.summary.includes("مهتم بفرص يطبق فيها"), "limited evidence keeps a measured closing");

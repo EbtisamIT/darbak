@@ -23,7 +23,7 @@ setSensitiveDataLoggingEnabled(false);
 
 const DEFAULT_RESUME_AGENT_MODEL = "gpt-5.6-terra";
 const DEFAULT_RESUME_SUMMARY_MODEL = "gpt-5.6-sol";
-const PROFESSIONAL_SUMMARY_WRITER_VERSION = "v3";
+const PROFESSIONAL_SUMMARY_WRITER_VERSION = "v3.1";
 const DEFAULT_MAX_TURNS = 6;
 const MAX_ANSWER_LENGTH = 1600;
 const MAX_FACT_TEXT_LENGTH = 22000;
@@ -280,9 +280,9 @@ const hasGenericSummaryClosing = (summary = "") => {
 
 // With meaningful evidence, a direction-only closing weakens the candidate's
 // positioning. It needs to connect a real capability to a concrete value.
-const hasGenericDirectionalClosing = (summary = "") => {
+const hasNonValueLinkedDirectionalClosing = (summary = "") => {
   const closing = getSummaryClosing(summary);
-  return /^(?:(?:ي|ت)ركز\s+على\s+|focused on\s+)/iu.test(closing);
+  return /^(?:(?:ي|ت)ركز\s+على\s+|تسعى\s+إلى\s+|يسعى\s+إلى\s+|focused on\s+|seeking to\s+|interested in\s+)/iu.test(closing);
 };
 
 const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
@@ -300,9 +300,10 @@ const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
   }
   if (
     ["strong", "moderate"].includes(payload.evidenceStrength)
-    && hasGenericDirectionalClosing(summary)
+    && hasNonValueLinkedDirectionalClosing(summary)
   ) {
     errors.push("summary_generic_directional_closing");
+    errors.push("summary_value_linked_closing_required");
   }
   if (payload.language === "en" && ARABIC_PROSE.test(summary)) errors.push("summary_language_mixing");
   if (payload.studentStatus === "graduate" && /\bstudent\b|\bطالب(?:ة)?\b/iu.test(summary)) errors.push("summary_status_conflict");
@@ -1893,7 +1894,11 @@ const buildProfessionalSummaryInput = ({ payload = {}, currentSummary = "", repa
 
 const getReusableProfessionalSummary = (session = {}, cacheKey = "") => {
   const cached = session.collectedFacts?.professionalSummaryCache;
-  if (!cached || cached.key !== cacheKey) return null;
+  if (
+    !cached
+    || cached.key !== cacheKey
+    || cached.writerVersion !== PROFESSIONAL_SUMMARY_WRITER_VERSION
+  ) return null;
   const parsed = professionalSummarySchema.safeParse(cached.output);
   return parsed.success ? parsed.data : null;
 };
@@ -1904,6 +1909,7 @@ const saveProfessionalSummaryCache = async ({ session, cacheKey, output }) => {
     professionalSummaryCache: {
       key: cacheKey,
       output,
+      writerVersion: PROFESSIONAL_SUMMARY_WRITER_VERSION,
       createdAt: new Date().toISOString(),
     },
   };
