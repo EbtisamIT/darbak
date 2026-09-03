@@ -106,6 +106,34 @@ const mixedValidation = validateProfessionalSummary({
 });
 assert.ok(mixedValidation.errors.includes("summary_language_mixing"), "English summary cannot contain Arabic prose");
 
+const faisalAr = fixtures[0];
+const faisalArPayload = buildProfessionalSummaryPayload({ verifiedResumeFacts: faisalAr.facts, language: "ar" });
+assert.strictEqual(faisalArPayload.evidenceStrength, "strong", "Faisal Arabic fixture has strong project evidence");
+assert.ok(
+  validateProfessionalSummary({
+    result: {
+      summary: "طالب علوم حاسب لديه خبرة تطبيقية من خلال مشاريع في تطبيقات الويب. طوّر نظامًا لإدارة المواعيد ونموذجًا أوليًا لتصنيف النصوص. يركز على تطوير خبرته في تطوير البرمجيات.",
+      quality,
+    },
+    payload: faisalArPayload,
+  }).errors.includes("summary_tentative_positioning"),
+  "strong Arabic evidence rejects tentative positioning"
+);
+
+const faisalEn = fixtures[5];
+const faisalEnPayload = buildProfessionalSummaryPayload({ verifiedResumeFacts: faisalEn.facts, language: "en" });
+assert.strictEqual(faisalEnPayload.evidenceStrength, "strong", "Faisal English fixture has strong project evidence");
+assert.ok(
+  validateProfessionalSummary({
+    result: {
+      summary: "Computer Science Student with practical project experience in web applications. Built an appointment management system and a text classification prototype. Focused on building experience in software development and web applications.",
+      quality,
+    },
+    payload: faisalEnPayload,
+  }).errors.includes("summary_tentative_positioning"),
+  "strong English evidence rejects tentative positioning"
+);
+
 const solMarker = "SOL_V3_SUMMARY_MARKER";
 const markerFacts = {
   personalInfo: {

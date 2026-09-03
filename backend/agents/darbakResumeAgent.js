@@ -224,16 +224,26 @@ const getSummaryEvidence = (facts = {}) => {
     .slice(0, 2);
 };
 
+const getSummaryEvidenceStrength = (evidence = []) => {
+  const hasExperience = evidence.some((entry) => entry.type === "experience");
+  const projectCount = evidence.filter((entry) => entry.type === "project").length;
+  if (hasExperience || projectCount >= 2) return "strong";
+  if (evidence.length) return "moderate";
+  return "limited";
+};
+
 const buildProfessionalSummaryPayload = ({ verifiedResumeFacts = {}, language = "ar" } = {}) => {
   const personalInfo = verifiedResumeFacts.personalInfo || {};
   const skills = Array.isArray(verifiedResumeFacts.skills) ? verifiedResumeFacts.skills : [];
+  const strongestEvidence = getSummaryEvidence(verifiedResumeFacts);
   return {
     candidateLevel: getSummaryCandidateLevel(personalInfo),
     studentStatus: safeString(personalInfo.studentStatus, 40),
     major: safeString(personalInfo.major, 160),
     university: safeString((verifiedResumeFacts.education || [])[0]?.organization || "", 180),
     academicTrack: safeString(personalInfo.academicTrack || personalInfo.concentration || "", 160),
-    strongestEvidence: getSummaryEvidence(verifiedResumeFacts),
+    strongestEvidence,
+    evidenceStrength: getSummaryEvidenceStrength(strongestEvidence),
     relevantCapabilityThemes: skills.slice(0, 6).map((skill) => safeString(skill?.name || skill, 80)).filter(Boolean),
     targetProfessionalDirection: safeText(verifiedResumeFacts.professionalContext, 500),
     language,
@@ -253,6 +263,12 @@ const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
   if (!summary) errors.push("summary_missing");
   if (countSummarySentences(summary) > 3) errors.push("summary_too_long");
   if (SUMMARY_BANNED_PHRASES.test(summary)) errors.push("summary_banned_phrase");
+  if (
+    ["strong", "moderate"].includes(payload.evidenceStrength)
+    && /تطوير\s+خبرت(?:ه|ها)\s+في|بناء\s+خبرة\s+في|\b(?:building experience in|expanding expertise in)\b/iu.test(summary)
+  ) {
+    errors.push("summary_tentative_positioning");
+  }
   if (payload.language === "en" && ARABIC_PROSE.test(summary)) errors.push("summary_language_mixing");
   if (payload.studentStatus === "graduate" && /\bstudent\b|\bطالب(?:ة)?\b/iu.test(summary)) errors.push("summary_status_conflict");
   if (payload.studentStatus === "student" && /\bgraduate\b|\bخريج(?:ة)?\b/iu.test(summary)) errors.push("summary_status_conflict");
@@ -1739,7 +1755,7 @@ const createAgentInstructions = () => `أنت Professional Resume Writer في م
 قواعد الكتابة العربية المهنية:
 * اكتب نبذة عربية فصحى خفيفة وطبيعية من 2–3 جمل (45–75 كلمة غالبًا عندما تسمح الحقائق)، لا ترجمة حرفية من الإنجليزية.
 * ابدأ بالهوية المهنية ثم أقوى دليل عملي: خبرة تدريبية للخريج عند توفرها، أو مشروع تطبيقي للطالب، ثم قدرات مدعومة واتجاه مهني منطقي.
-* قبل كتابة خاتمة النبذة صنّف قوة الدليل داخليًا إلى strong أو moderate أو limited. عند وجود خبرة أو مشاريع واضحة في المجال استخدم خاتمة مباشرة مثل «يركز على…» أو «يعمل على تطوير خبرته في…»، ولا تستخدم «يتجه نحو» أو «يسعى إلى» أو «يطمح إلى». عند الدليل المتوسط يمكن استخدام «يهتم بتطوير خبرته في…»، وعند الدليل المحدود فقط استخدم صياغة أخف مثل «مهتم بفرص في…». لا تجعل الخاتمة قائمة أدوات ولا تكرر أدوات ذكرتها في الجمل السابقة إلا إذا أضافت معنى جديدًا.
+* قبل كتابة خاتمة النبذة صنّف قوة الدليل داخليًا إلى strong أو moderate أو limited. عند الدليل القوي أو المتوسط لا تستخدم «تطوير خبرته في…» أو «بناء خبرة في…» أو «building experience in…» أو «expanding expertise in…». استخدم بدلًا منها خاتمة قيمة مهنية مباشرة مثل «يركز على بناء حلول برمجية وتطبيقات ويب عملية» أو «يركز على تطوير حلول رقمية عملية»، من دون إضافة claim جديد. عند الدليل المحدود فقط استخدم صياغة أخف مثل «مهتم بفرص في…». لا تستخدم «يتجه نحو» أو «يسعى إلى» أو «يطمح إلى». لا تجعل الخاتمة قائمة أدوات ولا تكرر أدوات ذكرتها في الجمل السابقة إلا إذا أضافت معنى جديدًا.
 * لا تكرر headline حرفيًا إن لم تضف الجملة معنى جديدًا، ولا تحوّل النبذة إلى قائمة Skills. اذكر أداة أو أداتين فقط إذا أضافتا معنى مهنيًا؛ قسم المهارات يعرض بقية الأدوات.
 * تجنب العبارات الآلية أو العامة مثل: «تشمل المهارات»، «تتضمن الخبرات»، «يمتلك أساسًا في»، «خلفية أكاديمية ضمن بكالوريوس»، «تطبيق عملي من خلال»، «تشمل القدرات المثبتة»، «شغوف»، «طموح»، «متميز»، «سريع التعلم»، «قادر على العمل تحت الضغط»، و«بيئة ديناميكية» ما لم تكن حقيقة مثبتة ذات صلة مباشرة.
 * لا تملأ السيرة بعبارات عامة عند قلة البيانات؛ اكتب نبذة أقصر مبنية على التخصص والمشروع أو النشاط المتاح فقط.
@@ -1815,7 +1831,7 @@ const createProfessionalSummaryAgent = () =>
     modelSettings: { maxTokens: 700 },
     instructions: `أنت كاتب نبذات مهنية محترف للسير الذاتية ATS. اكتب Professional Summary فقط، ولا تعدّل أي قسم آخر.
 استخدم payload المختصر الموثوق فقط. لا تخترع مهارة أو خبرة أو أداة أو نتيجة أو مسمى. اكتب 2–3 جمل: الهوية المهنية الحالية، أقوى دليل عملي، ثم اتجاه مهني تدعمه المعلومات.
-لا تكرر قائمة المهارات أو تفاصيل المشاريع؛ يكفي ذكر أقوى دليل باختصار. عند قوة دليل عالية استخدم صياغة مباشرة، وعند الدليل المحدود اكتب بإيجاز دون حشو.
+لا تكرر قائمة المهارات أو تفاصيل المشاريع؛ يكفي ذكر أقوى دليل باختصار. عند الدليل القوي أو المتوسط استخدم positioning مباشرًا يوضح القيمة المهنية، ولا تستخدم building experience in أو expanding expertise in أو ما يعادلها بالعربية. عند الدليل المحدود اكتب بإيجاز دون حشو.
 بالعربية اكتب فصحى مهنية طبيعية ومباشرة، وتجنب «يتجه نحو»، «يسعى إلى»، والعبارات الآلية أو لغة التحقق. بالإنجليزية اكتب natural resume English، وتجنب generic objective language وdocumented/verified wording.
 أعد summary وquality فقط. لا تكتب reasoning أو markdown.`,
     tools: [],
