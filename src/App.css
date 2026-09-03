@@ -7114,6 +7114,24 @@ body {
   box-shadow: 0 0 0 3px var(--app-brand-soft);
 }
 
+.resume-builder-section > textarea.resume-summary-editor {
+  display: block;
+  min-height: 132px;
+  resize: vertical;
+  line-height: 1.75;
+  font-size: 15px;
+}
+
+.resume-summary-editor.is-english {
+  direction: ltr;
+  text-align: left;
+}
+
+.resume-summary-editor.is-arabic {
+  direction: rtl;
+  text-align: right;
+}
+
 .resume-builder-section-header,
 .resume-accordion-head {
   display: grid;

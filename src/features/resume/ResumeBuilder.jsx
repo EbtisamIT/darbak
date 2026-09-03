@@ -898,8 +898,12 @@ const ResumeBuilder = ({
 
   const renderSectionContent = (sectionKey) => {
     if (sectionKey === "summary") {
+      const isEnglish = resume.settings?.language === "en";
       return (
         <textarea
+          className={`resume-summary-editor${isEnglish ? " is-english" : " is-arabic"}`}
+          dir={isEnglish ? "ltr" : "rtl"}
+          lang={isEnglish ? "en" : "ar"}
           value={resume.summary || ""}
           onChange={(event) => onChange({ ...resume, summary: event.target.value })}
           placeholder="اكتب نبذة من 3 إلى 4 أسطر عن تخصصك واهتماماتك وما تبحث عنه في التدريب."

@@ -7,6 +7,21 @@ import {
 const isValidEmail = (value = "") =>
   !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.toString().trim());
 
+export const getSummaryMetrics = (summary = "") => {
+  const clean = String(summary || "").trim();
+  return {
+    wordCount: clean ? clean.split(/\s+/u).filter(Boolean).length : 0,
+    sentenceCount: clean ? clean.split(/[.!؟?]+/u).filter((sentence) => sentence.trim()).length : 0,
+  };
+};
+
+export const isSummaryTooLong = (summary = "") => {
+  const { wordCount, sentenceCount } = getSummaryMetrics(summary);
+  // Three concise sentences are a normal professional summary. Avoid treating
+  // a medium-length V3 summary as a problem solely because of character count.
+  return sentenceCount > 4 || wordCount > 100;
+};
+
 export const estimateResumePages = (resume = {}) => {
   const visibleSections = getVisibleSectionOrder(resume);
   const densityFactor = resume.settings?.density === "compact" ? 0.82 : 1;
@@ -45,6 +60,7 @@ export const getResumeCompletionItems = (resume = {}) => {
   const personal = resume.personalInfo || {};
   const visibleSections = getVisibleSectionOrder(resume);
   const summaryLength = (resume.summary || "").trim().length;
+  const summaryTooLong = isSummaryTooLong(resume.summary);
   const nonEmptyProjects = (resume.projects || []).filter(hasEntryContent);
   const nonEmptyExperience = (resume.experience || resume.experiences || []).filter(
     hasEntryContent
@@ -95,12 +111,12 @@ export const getResumeCompletionItems = (resume = {}) => {
       detail: personal.major || personal.headline ? "واضح في أعلى السيرة." : "أضف تخصصك أو مسماك.",
     },
     {
-      status: summaryLength >= 70 && summaryLength <= 420 ? "complete" : "improve",
+      status: summaryLength >= 70 && !summaryTooLong ? "complete" : "improve",
       title: "النبذة المهنية",
       detail:
         summaryLength === 0
           ? "اكتب نبذة قصيرة من 3 إلى 4 أسطر."
-          : summaryLength > 420
+          : summaryTooLong
           ? "النبذة طويلة؛ اختصرها لتكون أسرع قراءة."
           : summaryLength < 70
           ? "النبذة موجودة لكن تحتاج تفاصيل أكثر."
