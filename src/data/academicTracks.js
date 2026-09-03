@@ -14,8 +14,13 @@ export const ACADEMIC_TRACK_OPTIONS = [
   { value: "graphic_design", ar: "التصميم الجرافيكي", en: "Graphic Design" },
 ];
 
+export const NO_ACADEMIC_TRACK = "no_academic_track";
+
 export const isAcademicTrackId = (value = "") =>
   ACADEMIC_TRACK_OPTIONS.some((track) => track.value === value);
+
+export const isAcademicTrackSelection = (value = "") =>
+  value === NO_ACADEMIC_TRACK || isAcademicTrackId(value);
 
 export const getAcademicTrackLabel = (value = "", language = "ar") => {
   const track = ACADEMIC_TRACK_OPTIONS.find((candidate) => candidate.value === value);

@@ -5,7 +5,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import API_BASE_URL from "../config/api";
 import ResumeServicePromo from "../components/ResumeServicePromo";
 import { cityOptions, specializationOptions } from "../data/trainingOptions";
-import { ACADEMIC_TRACK_OPTIONS, isAcademicTrackId } from "../data/academicTracks";
+import {
+  ACADEMIC_TRACK_OPTIONS,
+  isAcademicTrackSelection,
+  NO_ACADEMIC_TRACK,
+} from "../data/academicTracks";
 import {
   getStoredAccessIdentity,
   saveAccessIdentity,
@@ -226,7 +230,7 @@ const normalizeForm = (portfolio = {}) => ({
   expectedGraduationYear: portfolio.expectedGraduationYear || "",
   gpa: portfolio.gpa || "",
   gpaScale: portfolio.gpaScale || "",
-  academicTrack: isAcademicTrackId(portfolio.academicTrack) ? portfolio.academicTrack : "",
+  academicTrack: isAcademicTrackSelection(portfolio.academicTrack) ? portfolio.academicTrack : "",
   relevantCoursework: Array.isArray(portfolio.relevantCoursework)
     ? portfolio.relevantCoursework.map((course) => String(course || "")).filter(Boolean)
     : [],
@@ -1351,7 +1355,7 @@ export default function PortfolioBuilderPage() {
             <div className="portfolio-resume-setup-groups">
               {[
                 ["معلوماتك الأساسية", ["fullName", "major", "city", "university", "email"]],
-                ["لتحسين سيرتك", ["education", "evidence", "skills"]],
+                ["لتحسين سيرتك", ["education", "academicTrack", "evidence", "skills"]],
               ].map(([title, keys]) => (
                 <div key={title} className="portfolio-resume-setup-group">
                   <strong>{title}</strong>
@@ -1399,9 +1403,10 @@ export default function PortfolioBuilderPage() {
               {stageSetupKeys.has("education") && (
                 <label className="is-wide">
                   المسار أو التركيز الأكاديمي
-                  <small>اختياري — اختره فقط إذا كان مسارًا معلنًا من جامعتك</small>
-                  <select value={form.academicTrack} onChange={(event) => updateField("academicTrack", event.target.value, { immediate: true })}>
-                    <option value="">لا يوجد مسار أكاديمي</option>
+                  <small>مطلوب — اختر المسار المعلن من جامعتك، أو أكد عدم وجود مسار.</small>
+                  <select id={getResumeSetupInputId("academicTrack")} value={form.academicTrack} onChange={(event) => updateField("academicTrack", event.target.value, { immediate: true })} required>
+                    <option value="" disabled>اختر مسارك الأكاديمي</option>
+                    <option value={NO_ACADEMIC_TRACK}>لا يوجد مسار أكاديمي</option>
                     {ACADEMIC_TRACK_OPTIONS.map((track) => <option key={track.value} value={track.value}>{track.ar}</option>)}
                   </select>
                 </label>
@@ -1773,9 +1778,10 @@ export default function PortfolioBuilderPage() {
                 <input value={form.gpaScale} onChange={(event) => updateField("gpaScale", event.target.value)} placeholder="مثال: 5" inputMode="decimal" />
               </label>
               <label className="is-wide">
-                المسار أو التركيز الأكاديمي <small>اختياري — اختره فقط إذا كان مسارًا معلنًا من جامعتك</small>
-                <select value={form.academicTrack} onChange={(event) => updateField("academicTrack", event.target.value, { immediate: true })}>
-                  <option value="">لا يوجد مسار أكاديمي</option>
+                المسار أو التركيز الأكاديمي <small>مطلوب — اختر المسار المعلن من جامعتك، أو أكد عدم وجود مسار.</small>
+                <select value={form.academicTrack} onChange={(event) => updateField("academicTrack", event.target.value, { immediate: true })} required>
+                  <option value="" disabled>اختر مسارك الأكاديمي</option>
+                  <option value={NO_ACADEMIC_TRACK}>لا يوجد مسار أكاديمي</option>
                   {ACADEMIC_TRACK_OPTIONS.map((track) => <option key={track.value} value={track.value}>{track.ar}</option>)}
                 </select>
               </label>

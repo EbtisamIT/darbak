@@ -13,13 +13,14 @@ describe("resume setup missing-field stage", () => {
     const initialForm = { email: "qa@example.com", projects: [], experiences: [] };
     const stageFields = missingStage(initialForm);
 
-    expect(stageFields).toHaveLength(7);
+    expect(stageFields).toHaveLength(8);
     expect(stageFields.map(([key]) => key)).toEqual([
       "fullName",
       "major",
       "city",
       "university",
       "education",
+      "academicTrack",
       "skills",
       "evidence",
     ]);
@@ -31,13 +32,14 @@ describe("resume setup missing-field stage", () => {
     };
     const currentFields = getResumeSetupFields(typedDraft, "");
 
-    expect(stageFields).toHaveLength(7);
+    expect(stageFields).toHaveLength(8);
     expect(stageFields.map(([key]) => key)).toEqual([
       "fullName",
       "major",
       "city",
       "university",
       "education",
+      "academicTrack",
       "skills",
       "evidence",
     ]);
@@ -60,6 +62,7 @@ describe("resume setup missing-field stage", () => {
       "city",
       "university",
       "education",
+      "academicTrack",
       "skills",
       "evidence",
     ]);
@@ -73,7 +76,7 @@ describe("resume setup missing-field stage", () => {
       major: "تقنية المعلومات",
     }, "");
 
-    expect(onboardingFields).toHaveLength(8);
+    expect(onboardingFields).toHaveLength(9);
     expect(onboardingFields.map(([key]) => key)).toEqual(autosavedDraft.map(([key]) => key));
     expect(getResumeSetupProgress(onboardingFields, autosavedDraft)).toBe(3);
   });
@@ -93,12 +96,24 @@ describe("resume setup missing-field stage", () => {
     }, "sara@example.com");
 
     expect(staleAccount.completedCount).toBe(7);
-    expect(staleAccount.missingCount).toBe(1);
+    expect(staleAccount.missingCount).toBe(2);
     expect(staleAccount.fields.find(([key]) => key === "education")[2]).toBe(false);
   });
 
   it("maps each checklist item to its editable input", () => {
     expect(getResumeSetupInputId("education")).toBe("resume-setup-education");
+    expect(getResumeSetupInputId("academicTrack")).toBe("resume-setup-academicTrack");
     expect(getResumeSetupInputId("skills")).toBe("resume-setup-skills");
+  });
+
+  it("requires an explicit academic-track choice, including no track", () => {
+    const unanswered = getResumeSetupCompleteness({ email: "qa@example.com" }, "");
+    const confirmedNoTrack = getResumeSetupCompleteness({
+      email: "qa@example.com",
+      academicTrack: "no_academic_track",
+    }, "");
+
+    expect(unanswered.fields.find(([key]) => key === "academicTrack")[2]).toBe(false);
+    expect(confirmedNoTrack.fields.find(([key]) => key === "academicTrack")[2]).toBe(true);
   });
 });

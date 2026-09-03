@@ -1,4 +1,21 @@
 const isValidEmail = (value) => /^\S+@\S+\.\S+$/.test(String(value || "").trim());
+const isAcademicTrackSelection = (value) =>
+  [
+    "no_academic_track",
+    "business_analytics",
+    "data_analytics",
+    "software_development",
+    "artificial_intelligence",
+    "cybersecurity",
+    "computer_networks",
+    "accounting",
+    "finance",
+    "marketing",
+    "human_resources",
+    "project_management",
+    "supply_chain",
+    "graphic_design",
+  ].includes(value);
 
 export const getResumeSetupInputId = (key) => `resume-setup-${key}`;
 
@@ -22,6 +39,11 @@ const valueFor = (source = {}, key, fallbackEmail = "") => {
     city,
     university,
     education: degree || validStudentStatus,
+    academicTrack: source.academicTrack === "no_academic_track"
+      ? "لا يوجد مسار أكاديمي"
+      : isAcademicTrackSelection(source.academicTrack)
+        ? source.academicTrack
+        : "",
     email: isValidEmail(source.email) ? source.email : isValidEmail(fallbackEmail) ? fallbackEmail : "",
     bio: source.bio,
     skills: skills.map((skill) => String(skill || "").trim()).filter(Boolean).join("، "),
@@ -38,6 +60,7 @@ export const getResumeSetupFields = (source = {}, fallbackEmail = "") => {
     ["city", "المدينة", Boolean(valueFor(source, "city", fallbackEmail))],
     ["university", "الجامعة", Boolean(valueFor(source, "university", fallbackEmail))],
     ["education", "الدرجة أو الحالة التعليمية", Boolean(valueFor(source, "education", fallbackEmail))],
+    ["academicTrack", "المسار الأكاديمي", Boolean(valueFor(source, "academicTrack", fallbackEmail))],
     ["email", "وسيلة التواصل", Boolean(valueFor(source, "email", fallbackEmail))],
     ["skills", "مهارة واحدة على الأقل", Boolean(valueFor(source, "skills", fallbackEmail))],
     ["evidence", "مشروع أو خبرة واحدة على الأقل", Boolean(valueFor(source, "evidence", fallbackEmail))],
