@@ -109,6 +109,10 @@ const professionalSummarySchema = z
         evidenceLinkedTools: z.boolean().default(false),
         noGenericClosing: z.boolean().default(false),
         everySentenceAddsValue: z.boolean().default(false),
+        // Defaults keep pre-existing cached V3 summaries readable. New Sol
+        // responses are explicitly asked to return both closing checks.
+        closingAddsNewValue: z.boolean().default(true),
+        closingIsEvidenceLinked: z.boolean().default(true),
       })
       .strict(),
   })
@@ -263,6 +267,17 @@ const countSummarySentences = (summary = "") => safeText(summary, 900)
   .filter(Boolean)
   .length;
 
+const getSummaryClosing = (summary = "") => safeText(summary, 900)
+  .split(/(?<=[.!?؟])\s+/u)
+  .map((sentence) => sentence.trim())
+  .filter(Boolean)
+  .at(-1) || "";
+
+const hasGenericSummaryClosing = (summary = "") => {
+  const closing = getSummaryClosing(summary);
+  return /(?:(?:ي|ت)ركز\s+على\s+(?:تطوير|بناء)\s+(?:حلول|خبر(?:ت|تها))|يتجه\s+نحو|يسعى\s+إلى|يطمح\s+إلى|\bfocused on (?:developing|building experience|expanding)\b|\bbuilding experience in\b|\bexpanding expertise in\b)/iu.test(closing);
+};
+
 const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
   const summary = safeText(result.summary, 900);
   const quality = result.quality || {};
@@ -290,6 +305,9 @@ const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
   if (!quality.evidenceLinkedTools) errors.push("summary_tools_not_evidence_linked");
   if (!quality.noGenericClosing) errors.push("summary_generic_closing");
   if (!quality.everySentenceAddsValue) errors.push("summary_low_value_sentence");
+  if (!quality.closingAddsNewValue) errors.push("summary_closing_low_value");
+  if (!quality.closingIsEvidenceLinked) errors.push("summary_closing_not_evidence_linked");
+  if (hasGenericSummaryClosing(summary)) errors.push("summary_generic_closing");
   return { valid: errors.length === 0, errors };
 };
 
@@ -1841,9 +1859,9 @@ const createProfessionalSummaryAgent = () =>
     modelSettings: { maxTokens: 700 },
     instructions: `أنت كاتب نبذات مهنية محترف للسير الذاتية ATS. اكتب Professional Summary فقط، ولا تعدّل أي قسم آخر.
 استخدم payload المختصر الموثوق فقط. لا تخترع مهارة أو خبرة أو أداة أو نتيجة أو مسمى. اكتب غالبًا جملتين: الهوية المهنية الحالية والمجال، ثم أقوى دليل عملي مع التقنية أو المنهج المرتبط به عند وجوده. أضف جملة ثالثة فقط إذا أضافت positioning جديدًا محددًا ومدعومًا.
-لا تكرر قائمة المهارات أو تفاصيل المشاريع؛ يكفي ذكر أقوى دليل باختصار. لا تذكر أداة أو تقنية داخل النبذة لمجرد وجودها في قائمة skills: اذكرها فقط إذا كانت مرتبطة مباشرة بمشروع أو خبرة ضمن strongestEvidence، واذكر العلاقة بالفعل الذي نُفذ. عند الدليل القوي أو المتوسط استخدم positioning مباشرًا يوضح القيمة المهنية، ولا تستخدم building experience in أو expanding expertise in أو ما يعادلها بالعربية. لا تختم بجملة عامة مثل «لبناء حلول رقمية عملية» أو «growing expertise» إذا لم تضف دليلًا جديدًا؛ الأفضل أن تنتهي النبذة بأقوى evidence.
+لا تكرر قائمة المهارات أو تفاصيل المشاريع؛ يكفي ذكر أقوى دليل باختصار. لا تذكر أداة أو تقنية داخل النبذة لمجرد وجودها في قائمة skills: اذكرها فقط إذا كانت مرتبطة مباشرة بمشروع أو خبرة ضمن strongestEvidence، واذكر العلاقة بالفعل الذي نُفذ. عند الدليل القوي أو المتوسط استخدم positioning مباشرًا يوضح القيمة المهنية، ولا تستخدم building experience in أو expanding expertise in أو ما يعادلها بالعربية. إذا احتجت إلى خاتمة، اربط المجال بالفعل والقيمة الواقعية: «توظف تحليل الأعمال والبيانات في تطوير حلول رقمية عملية» أو «يوظف خبرته في تطوير تطبيقات الويب لبناء حلول برمجية عملية»، وبالإنجليزية "Applies business and data analysis to build practical digital solutions" أو "Applies web development experience to build practical software solutions" عندما تدعمها facts. لا تستخدم «يركز على تطوير…»، «Focused on developing…»، أو خاتمة عامة لا تضيف معنى جديدًا. إذا غطت أول جملتين الهوية والدليل والتموضع، احذف الجملة الثالثة بدل ملئها.
 بالعربية اكتب فصحى مهنية طبيعية ومباشرة، وتجنب «يتجه نحو»، «يسعى إلى»، والعبارات الآلية أو لغة التحقق. بالإنجليزية اكتب natural resume English، وتجنب generic objective language وdocumented/verified wording.
-داخل quality أعد أيضًا evidenceLinkedTools وnoGenericClosing وeverySentenceAddsValue كقيم true/false بعد مراجعة النبذة.
+داخل quality أعد أيضًا evidenceLinkedTools وnoGenericClosing وeverySentenceAddsValue وclosingAddsNewValue وclosingIsEvidenceLinked كقيم true/false بعد مراجعة النبذة. closingAddsNewValue تكون true فقط إذا أضافت الخاتمة قيمة أو فعلًا جديدًا، وclosingIsEvidenceLinked تكون true فقط إذا ربطت المجال بما فعله المرشح فعليًا أو حُذفت الخاتمة الزائدة.
 أعد summary وquality فقط. لا تكتب reasoning أو markdown.`,
     tools: [],
     outputType: professionalSummarySchema,
@@ -1938,6 +1956,8 @@ const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedRe
       evidenceLinkedTools: output.quality.evidenceLinkedTools,
       noGenericClosing: output.quality.noGenericClosing,
       everySentenceAddsValue: output.quality.everySentenceAddsValue,
+      closingAddsNewValue: output.quality.closingAddsNewValue,
+      closingIsEvidenceLinked: output.quality.closingIsEvidenceLinked,
     },
     summaryProvenance: {
       summaryWriterModel: trace.summaryWriterModel,
