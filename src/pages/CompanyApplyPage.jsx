@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
+import { cityOptions, specializationOptions } from "../data/trainingOptions";
 import { trackEvent } from "../utils/analytics";
 import { getAccessHeaders } from "../utils/premiumAccess";
 
@@ -21,15 +22,50 @@ const emptyForm = {
   linkedinUrl: "",
 };
 
-const trainingStartOptions = [
-  "الفصل الأول 2026-2027",
-  "الفصل الثاني 2026-2027",
-  "صيف 2027",
-  "الفصل الأول 2027-2028",
-  "الفصل الثاني 2027-2028",
-  "صيف 2028",
-  "لم يُحدد موعد التدريب بعد",
+const OTHER_VALUE = "__other__";
+
+const saudiUniversities = [
+  "جامعة الملك سعود",
+  "جامعة الإمام محمد بن سعود الإسلامية",
+  "جامعة الملك عبدالعزيز",
+  "جامعة الملك فهد للبترول والمعادن",
+  "جامعة الملك خالد",
+  "جامعة القصيم",
+  "جامعة أم القرى",
+  "جامعة طيبة",
+  "جامعة الطائف",
+  "جامعة جازان",
+  "جامعة نجران",
+  "جامعة تبوك",
+  "جامعة حائل",
+  "جامعة الجوف",
+  "جامعة الباحة",
+  "جامعة الحدود الشمالية",
+  "جامعة الأمير سطام بن عبدالعزيز",
+  "جامعة شقراء",
+  "جامعة المجمعة",
+  "جامعة جدة",
+  "جامعة بيشة",
+  "جامعة حفر الباطن",
+  "الجامعة السعودية الإلكترونية",
+  "جامعة الأميرة نورة بنت عبدالرحمن",
+  "جامعة الملك فيصل",
+  "جامعة الإمام عبدالرحمن بن فيصل",
+  "جامعة اليمامة",
+  "جامعة الأمير سلطان",
+  "جامعة الفيصل",
+  "جامعة دار العلوم",
+  "جامعة عفت",
+  "جامعة دار الحكمة",
+  "كليات التقنية",
 ];
+
+const specializationValues = specializationOptions.map((item) => item.value);
+
+const getSelectValue = (value, options) => {
+  if (!value) return "";
+  return options.includes(value) ? value : OTHER_VALUE;
+};
 
 const normalizeQuestion = (item) => ({
   question: String(item?.question ?? "").trim(),
@@ -143,6 +179,17 @@ const CompanyApplyPage = () => {
       [field]: value,
       ...(field === "email" && value !== current.email ? { confirmEmail: "" } : {}),
     }));
+  };
+
+  const updateSelectField = (field, value, options) => {
+    if (value === OTHER_VALUE) {
+      setForm((current) => ({
+        ...current,
+        [field]: options.includes(current[field]) ? "" : current[field],
+      }));
+      return;
+    }
+    updateField(field, value);
   };
 
   const updateAnswer = (index, value) => {
@@ -344,15 +391,73 @@ const CompanyApplyPage = () => {
                 </label>
                 <label>
                   الجامعة <b>*</b>
-                  <input value={form.university} onChange={(e) => updateField("university", e.target.value)} required />
+                  <span className="company-apply-choice-with-custom">
+                    <select
+                      value={getSelectValue(form.university, saudiUniversities)}
+                      onChange={(e) => updateSelectField("university", e.target.value, saudiUniversities)}
+                      required
+                    >
+                      <option value="">اختر الجامعة</option>
+                      {saudiUniversities.map((university) => (
+                        <option key={university} value={university}>{university}</option>
+                      ))}
+                      <option value={OTHER_VALUE}>أخرى</option>
+                    </select>
+                    {getSelectValue(form.university, saudiUniversities) === OTHER_VALUE && (
+                      <input
+                        value={form.university}
+                        onChange={(e) => updateField("university", e.target.value)}
+                        placeholder="اكتب اسم الجامعة"
+                        required
+                      />
+                    )}
+                  </span>
                 </label>
                 <label>
                   التخصص <b>*</b>
-                  <input value={form.major} onChange={(e) => updateField("major", e.target.value)} required />
+                  <span className="company-apply-choice-with-custom">
+                    <select
+                      value={getSelectValue(form.major, specializationValues)}
+                      onChange={(e) => updateSelectField("major", e.target.value, specializationValues)}
+                      required
+                    >
+                      <option value="">اختر التخصص</option>
+                      {specializationOptions.map((specialization) => (
+                        <option key={specialization.value} value={specialization.value}>
+                          {specialization.value}
+                        </option>
+                      ))}
+                      <option value={OTHER_VALUE}>أخرى</option>
+                    </select>
+                    {getSelectValue(form.major, specializationValues) === OTHER_VALUE && (
+                      <input
+                        value={form.major}
+                        onChange={(e) => updateField("major", e.target.value)}
+                        placeholder="اكتب التخصص"
+                        required
+                      />
+                    )}
+                  </span>
                 </label>
                 <label>
                   المدينة
-                  <input value={form.city} onChange={(e) => updateField("city", e.target.value)} />
+                  <span className="company-apply-choice-with-custom">
+                    <select
+                      value={getSelectValue(form.city, cityOptions)}
+                      onChange={(e) => updateSelectField("city", e.target.value, cityOptions)}
+                    >
+                      <option value="">اختر المدينة</option>
+                      {cityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
+                      <option value={OTHER_VALUE}>أخرى</option>
+                    </select>
+                    {getSelectValue(form.city, cityOptions) === OTHER_VALUE && (
+                      <input
+                        value={form.city}
+                        onChange={(e) => updateField("city", e.target.value)}
+                        placeholder="اكتب المدينة"
+                      />
+                    )}
+                  </span>
                 </label>
                 <label>
                   المعدل <small>اختياري</small>
@@ -377,10 +482,11 @@ const CompanyApplyPage = () => {
                 </label>
                 <label>
                   بداية التدريب المتوقعة <small>اختياري</small>
-                  <select value={form.trainingInfo} onChange={(e) => updateField("trainingInfo", e.target.value)}>
-                    <option value="">اختر الموعد المتوقع</option>
-                    {trainingStartOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
+                  <input
+                    type="date"
+                    value={form.trainingInfo}
+                    onChange={(e) => updateField("trainingInfo", e.target.value)}
+                  />
                 </label>
                 <label className="company-apply-wide-field">
                   LinkedIn <small>اختياري</small>
@@ -457,6 +563,7 @@ const CompanyApplyPage = () => {
         .company-apply-form label { display:grid; gap:7px; color:var(--app-text); font-size:14px; font-weight:800; } .company-apply-form b { color:var(--app-brand-strong); } .company-apply-form small { color:var(--app-text-soft); font-weight:600; }
         .company-apply-form input, .company-apply-form select, .company-apply-form textarea { width:100%; box-sizing:border-box; border:1px solid var(--app-border); border-radius:10px; padding:11px 12px; background:var(--app-input-bg); color:var(--app-text); font:inherit; font-weight:600; outline:none; }
         .company-apply-form input:focus, .company-apply-form select:focus, .company-apply-form textarea:focus { border-color:var(--app-brand); box-shadow:0 0 0 3px color-mix(in srgb,var(--app-brand) 18%,transparent); } .company-apply-wide-field { grid-column:1 / -1; }
+        .company-apply-choice-with-custom { display:grid; gap:8px; }
         .company-apply-phone-control { display:grid; grid-template-columns:auto minmax(0,1fr); overflow:hidden; border:1px solid var(--app-border); border-radius:10px; background:var(--app-input-bg); direction:ltr; }
         .company-apply-phone-control:focus-within { border-color:var(--app-brand); box-shadow:0 0 0 3px color-mix(in srgb,var(--app-brand) 18%,transparent); }
         .company-apply-phone-control > span { display:grid; place-items:center; min-width:59px; padding:0 10px; border-right:1px solid var(--app-border); color:var(--app-text-soft); font-size:14px; font-weight:900; }
