@@ -51,8 +51,19 @@ const opportunitySchema = new mongoose.Schema(
     },
     applicationMethod: {
       type: String,
-      enum: ["website", "email", "linkedin", "manual", "other", ""],
+      enum: ["website", "email", "linkedin", "manual", "darbak", "other", ""],
       default: "",
+    },
+    isDarbakApplication: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    companyApplicationCampaignId: {
+      type: String,
+      default: "",
+      trim: true,
+      index: true,
     },
     applicationUrl: {
       type: String,
@@ -110,5 +121,6 @@ opportunitySchema.index({ status: 1, cities: 1, createdAt: -1 });
 opportunitySchema.index({ status: 1, specialties: 1, createdAt: -1 });
 opportunitySchema.index({ status: 1, majorCategories: 1, createdAt: -1 });
 opportunitySchema.index({ organizationName: 1 });
+opportunitySchema.index({ companyApplicationCampaignId: 1, isDarbakApplication: 1 });
 
 module.exports = mongoose.model("opportunities", opportunitySchema);

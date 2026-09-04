@@ -49,6 +49,11 @@ import {
   getSeoSpecialtyBySlug,
 } from "../utils/seoRoutes";
 import { buildTrainingFinderSeoMeta, setPageSeo } from "../utils/seoMetadata";
+import {
+  getSearchSummaryKey,
+  hasSeenSearchSummary,
+  markSearchSummarySeen,
+} from "../utils/searchSummarySession";
 
 const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_FINDER_FAQ = false;
@@ -1529,6 +1534,7 @@ export default function TrainingFinderPage() {
   const [selectedGuideOrganization, setSelectedGuideOrganization] =
     useState(null);
   const [showSearchInsightModal, setShowSearchInsightModal] = useState(false);
+  const seenSearchSummaryKeysRef = useRef(new Set());
   const [activeResultsTab, setActiveResultsTab] = useState("opportunities");
   const [opportunityFilters, setOpportunityFilters] = useState({
     status: "",
@@ -2003,7 +2009,7 @@ export default function TrainingFinderPage() {
 
   const goToSubscribePage = (source, metadata = {}) => {
     const subscribeParams = new URLSearchParams({ source });
-    subscribeParams.set("plan", metadata.planId || "monthly");
+    subscribeParams.set("plan", metadata.planId || "darbak_plus");
     if (metadata.step) subscribeParams.set("step", metadata.step);
     trackEvent("premium_cta_clicked", {
       major: selectedSpecialtyLabel,
@@ -2131,9 +2137,24 @@ export default function TrainingFinderPage() {
           ? "targets"
           : "opportunities"
       );
-      setShowSearchInsightModal(
-        Boolean(resolvedSpecialtyValue || cityValue || resolvedOrganizationQuery)
+      const hasSearchFilters = Boolean(
+        resolvedSpecialtyValue || cityValue || resolvedOrganizationQuery
       );
+      const searchSummaryKey = getSearchSummaryKey({
+        major: resolvedSpecialtyValue,
+        city: cityValue,
+        organization: resolvedOrganizationQuery,
+      });
+      const shouldShowSearchSummary =
+        hasSearchFilters &&
+        !seenSearchSummaryKeysRef.current.has(searchSummaryKey) &&
+        !hasSeenSearchSummary(searchSummaryKey);
+
+      if (shouldShowSearchSummary) {
+        seenSearchSummaryKeysRef.current.add(searchSummaryKey);
+        markSearchSummarySeen(searchSummaryKey);
+      }
+      setShowSearchInsightModal(shouldShowSearchSummary);
     } catch (err) {
       console.error(err);
       setError("تعذر عرض النتائج حاليًا.");
@@ -2565,6 +2586,26 @@ export default function TrainingFinderPage() {
 
   const openOpportunityApplication = (opportunity) => {
     const opportunityId = opportunity._id || opportunity.id || "";
+    const darbakApplyUrl =
+      opportunity.darbakApplyUrl ||
+      (opportunity.isDarbakApplication ? opportunity.applicationUrl : "");
+
+    if (opportunity.isDarbakApplication && darbakApplyUrl) {
+      trackEvent("opportunity_apply_clicked", {
+        major: selectedSpecialty,
+        city,
+        metadata: {
+          opportunityId,
+          opportunityTitle: opportunity.title || "",
+          organizationName: opportunity.organizationName || "",
+          applicationMethod: "darbak",
+          freeApplication: true,
+        },
+      });
+      window.location.assign(darbakApplyUrl);
+      return;
+    }
+
     if (!opportunity.applicationUrl && !opportunity.hasApplicationUrl) return;
 
     requestPremiumAccess(
@@ -2737,6 +2778,9 @@ export default function TrainingFinderPage() {
           title: organization?.applicationWindow || "تدريب تعاوني",
           company: organization?.name || organization?.organizationName || "",
           description: [organization?.sector, organization?.note, ...(organization?.specialties || [])].filter(Boolean).join(". "),
+          city: organization?.city || city || "",
+          specialties: organization?.specialties || [],
+          applicationMethod: contact.type,
           url: contactUrl,
         },
       },
@@ -3094,7 +3138,7 @@ export default function TrainingFinderPage() {
       </div>
       <Link
         to={buildSubscribePath("where_to_train_opportunities_banner", {
-          planId: "monthly",
+          planId: "darbak_plus",
         })}
         className="opportunity-plus-inline-cta"
         onClick={openOpportunityPremiumBanner}
@@ -3673,6 +3717,11 @@ export default function TrainingFinderPage() {
                                   مميزة
                                 </span>
                               )}
+                              {opportunity.isDarbakApplication && (
+                                <span className="opportunity-featured-badge is-darbak-application">
+                                  قدّم عبر دربك
+                                </span>
+                              )}
                             </div>
                           </div>
                           <p
@@ -3767,7 +3816,9 @@ export default function TrainingFinderPage() {
 
                         {renderResumeTailorCta({ opportunity })}
 
-                        {(opportunity.applicationUrl || opportunity.hasApplicationUrl) &&
+                        {(opportunity.applicationUrl ||
+                          opportunity.darbakApplyUrl ||
+                          opportunity.hasApplicationUrl) &&
                         applicationState.tone !== "closed" ? (
                           <button
                             type="button"
@@ -3777,7 +3828,9 @@ export default function TrainingFinderPage() {
                               openOpportunityApplication(opportunity);
                             }}
                           >
-                            تقديم الآن
+                            {opportunity.isDarbakApplication
+                              ? "قدّم مجانًا"
+                              : "تقديم الآن"}
                           </button>
                         ) : applicationState.tone === "closed" ? (
                           <button
@@ -4791,6 +4844,11 @@ export default function TrainingFinderPage() {
               {selectedOpportunity.featured && (
                 <span className="opportunity-featured-badge">مميزة</span>
               )}
+              {selectedOpportunity.isDarbakApplication && (
+                <span className="opportunity-featured-badge is-darbak-application">
+                  قدّم عبر دربك - مجاني
+                </span>
+              )}
               {selectedOpportunity.deadline && (
                 <span className="opportunity-deadline">
                   ينتهي: {formatOpportunityDate(selectedOpportunity.deadline)}
@@ -4884,14 +4942,16 @@ export default function TrainingFinderPage() {
               >
                 إغلاق
               </button>
-              {selectedOpportunity.applicationUrl &&
+              {(selectedOpportunity.applicationUrl || selectedOpportunity.darbakApplyUrl) &&
               selectedOpportunityStatus?.tone !== "closed" ? (
                 <button
                   type="button"
                   className="opportunity-apply-button"
                   onClick={() => openOpportunityApplication(selectedOpportunity)}
                 >
-                  تقديم الآن
+                  {selectedOpportunity.isDarbakApplication
+                    ? "قدّم مجانًا عبر دربك"
+                    : "تقديم الآن"}
                 </button>
               ) : selectedOpportunityStatus?.tone === "closed" ? (
                 <button
@@ -5852,6 +5912,12 @@ export default function TrainingFinderPage() {
           background: rgba(250,204,21,0.12);
           border: 1px solid rgba(250,204,21,0.28);
           color: #fde68a;
+        }
+
+        .opportunity-featured-badge.is-darbak-application {
+          background: rgba(45, 212, 191, 0.14);
+          border-color: rgba(94, 234, 212, 0.38);
+          color: #99f6e4;
         }
 
         .opportunity-audience-badge.women {

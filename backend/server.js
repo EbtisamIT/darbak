@@ -95,7 +95,7 @@ let lastExpiredOpportunitySweepAt = 0;
 const EXPERIENCE_PUBLIC_FIELDS =
   "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl ambassadorDisplayName featuredAmbassadorLogoUrl featuredAmbassadorCardTitle featuredAmbassadorCardSummary featuredAmbassadorCardTags featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
 const OPPORTUNITY_PUBLIC_FIELDS =
-  "organizationName title city cities majorCategories specialties trainingEnvironment targetAudience trainingMode hasReward applicationMethod logoUrl deadline status sourceType featured createdAt updatedAt";
+  "organizationName title city cities majorCategories specialties trainingEnvironment targetAudience trainingMode hasReward applicationMethod isDarbakApplication companyApplicationCampaignId logoUrl deadline status sourceType featured createdAt updatedAt";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const SUBSCRIPTION_PRICE_SAR = Number(process.env.SUBSCRIPTION_PRICE_SAR || 5.99);
 const SUBSCRIPTION_DURATION_DAYS = Number(
@@ -1823,11 +1823,19 @@ const sanitizeOpportunityPayload = (body = {}) => {
       "email",
       "linkedin",
       "manual",
+      "darbak",
       "other",
       "",
     ].includes(body.applicationMethod)
       ? body.applicationMethod
       : "",
+    isDarbakApplication:
+      body.isDarbakApplication === true || body.isDarbakApplication === "true",
+    companyApplicationCampaignId:
+      body.companyApplicationCampaignId &&
+      mongoose.Types.ObjectId.isValid(body.companyApplicationCampaignId)
+        ? body.companyApplicationCampaignId.toString()
+        : "",
     applicationUrl: (body.applicationUrl || "").trim(),
     logoUrl: (body.logoUrl || "").trim(),
     sourceUrl: (body.sourceUrl || "").trim(),
@@ -2341,6 +2349,59 @@ const buildCompanyApplicationCampaignForApplication = (campaign = {}) => {
     organizationLogoUrl: serialized.organizationLogoUrl,
     opportunityTitle: serialized.opportunityTitle,
     opportunityId: null,
+  };
+};
+
+const hydrateDarbakOpportunityFromCampaign = async (payload = {}) => {
+  if (!payload.isDarbakApplication) {
+    return {
+      ...payload,
+      companyApplicationCampaignId: "",
+    };
+  }
+
+  if (!payload.companyApplicationCampaignId) {
+    const error = new Error("اختاري برنامج التقديم المرتبط بهذه الفرصة.");
+    error.status = 400;
+    throw error;
+  }
+
+  const campaign = await CompanyApplicationCampaign.findById(
+    payload.companyApplicationCampaignId
+  ).lean();
+
+  if (!campaign || campaign.status === "archived") {
+    const error = new Error("برنامج التقديم المختار غير متاح.");
+    error.status = 404;
+    throw error;
+  }
+
+  const serialized = serializeCompanyApplicationCampaign(campaign);
+  const deadline = serialized.applicationDeadline || undefined;
+
+  return {
+    ...payload,
+    organizationName: serialized.organizationName,
+    title: serialized.opportunityTitle,
+    city: serialized.city,
+    cities: serialized.cities,
+    majorCategories: serialized.majorCategories,
+    specialties: serialized.specialties,
+    logoUrl: serialized.organizationLogoUrl,
+    applicationUrl: serialized.applyUrl,
+    applicationMethod: "darbak",
+    sourceUrl: "",
+    note: serialized.description || payload.note,
+    deadline,
+    status: serialized.isOpen
+      ? "active"
+      : deadline && isClosedByDeadline(deadline)
+      ? "expired"
+      : "draft",
+    sourceType: "admin",
+    featured: true,
+    isDarbakApplication: true,
+    companyApplicationCampaignId: serialized.id,
   };
 };
 
@@ -12839,6 +12900,7 @@ app.get('/api/opportunities', async (req, res) => {
         return {
           ...publicOpportunity,
           hasApplicationUrl: Boolean(applicationUrl),
+          darbakApplyUrl: opportunity.isDarbakApplication ? applicationUrl : "",
         };
       }),
       total: opportunitiesWithCounts.length,
@@ -14918,10 +14980,23 @@ app.post('/api/admin/opportunities', requireAdmin, async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const payload = sanitizeOpportunityPayload(req.body);
+    let payload = sanitizeOpportunityPayload(req.body);
+    payload = await hydrateDarbakOpportunityFromCampaign(payload);
 
     if (!payload.organizationName || !payload.title) {
       return res.status(400).json({ error: "اسم الجهة وعنوان الفرصة مطلوبة." });
+    }
+
+    if (payload.isDarbakApplication) {
+      const existing = await Opportunity.exists({
+        isDarbakApplication: true,
+        companyApplicationCampaignId: payload.companyApplicationCampaignId,
+      });
+      if (existing) {
+        return res.status(409).json({
+          error: "هذه الفرصة مرتبطة بالبرنامج المختار بالفعل. عدّلي الفرصة الحالية بدلًا من إضافتها مرة أخرى.",
+        });
+      }
     }
 
     const fieldsToCheck = [
@@ -14947,7 +15022,7 @@ app.post('/api/admin/opportunities', requireAdmin, async (req, res) => {
     res.json(opportunity);
   } catch (err) {
     console.error("❌ Admin opportunity create error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -14957,10 +15032,24 @@ app.patch('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const payload = sanitizeOpportunityPayload(req.body);
+    let payload = sanitizeOpportunityPayload(req.body);
+    payload = await hydrateDarbakOpportunityFromCampaign(payload);
 
     if (!payload.organizationName || !payload.title) {
       return res.status(400).json({ error: "اسم الجهة وعنوان الفرصة مطلوبة." });
+    }
+
+    if (payload.isDarbakApplication) {
+      const existing = await Opportunity.exists({
+        isDarbakApplication: true,
+        companyApplicationCampaignId: payload.companyApplicationCampaignId,
+        _id: { $ne: req.params.id },
+      });
+      if (existing) {
+        return res.status(409).json({
+          error: "هذه الفرصة مرتبطة بالبرنامج المختار بالفعل. عدّلي الفرصة الحالية بدلًا من إضافتها مرة أخرى.",
+        });
+      }
     }
 
     const fieldsToCheck = [
@@ -15000,7 +15089,7 @@ app.patch('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
     res.json(updated);
   } catch (err) {
     console.error("❌ Admin opportunity edit error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

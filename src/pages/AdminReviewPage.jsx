@@ -197,6 +197,8 @@ const defaultOpportunityForm = {
   sourceType: "admin",
   submitterContact: "",
   featured: false,
+  isDarbakApplication: false,
+  companyApplicationCampaignId: "",
 };
 
 const opportunityCityOptions = [
@@ -979,18 +981,6 @@ const getAdminRewardLabel = (exp = {}) => {
   return exp.hadReward === "yes" && amount ? `${baseLabel} - ${amount}` : baseLabel;
 };
 
-const experienceRewardStatusLabels = {
-  pending: "بانتظار الاعتماد",
-  granted: "تم منح شهر الوصول",
-  not_eligible: "غير مؤهلة",
-  revoked: "ملغاة",
-};
-
-const getExperienceRewardLabel = (exp = {}) => {
-  if (!exp.rewardEligible) return "غير مرتبطة بحساب";
-  return experienceRewardStatusLabels[exp.rewardStatus] || "بانتظار الاعتماد";
-};
-
 const formatAdminDateTime = (value) => {
   if (!value) return "غير محدد";
 
@@ -1366,19 +1356,32 @@ export default function AdminReviewPage() {
       setMessage("");
       sessionStorage.setItem("darbak_admin_password", password);
 
-      const { data } = await axios.get(`${API_BASE_URL}/api/admin/opportunities`, {
-        params: {
-          status: opportunityStatus === "all" ? "" : opportunityStatus,
-          search: opportunitySearch.trim(),
-          city: opportunityCityFilter,
-          sourceType: opportunitySourceFilter,
-          hasReward: opportunityRewardFilter,
-          featured: opportunityFeaturedFilter,
-        },
-        headers: authHeaders,
-      });
+      const [opportunitiesResponse, campaignsResponse] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/admin/opportunities`, {
+          params: {
+            status: opportunityStatus === "all" ? "" : opportunityStatus,
+            search: opportunitySearch.trim(),
+            city: opportunityCityFilter,
+            sourceType: opportunitySourceFilter,
+            hasReward: opportunityRewardFilter,
+            featured: opportunityFeaturedFilter,
+          },
+          headers: authHeaders,
+        }),
+        axios.get(`${API_BASE_URL}/api/admin/company-application-campaigns`, {
+          params: { status: "", search: "" },
+          headers: authHeaders,
+        }),
+      ]);
 
-      setOpportunities(Array.isArray(data.data) ? data.data : []);
+      setOpportunities(
+        Array.isArray(opportunitiesResponse.data.data)
+          ? opportunitiesResponse.data.data
+          : []
+      );
+      setCompanyCampaigns(
+        Array.isArray(campaignsResponse.data.data) ? campaignsResponse.data.data : []
+      );
     } catch (err) {
       console.error(err);
       setMessage(
@@ -1809,11 +1812,7 @@ export default function AdminReviewPage() {
           : prev.filter((exp) => exp._id !== id)
       );
 
-      if (data.rewardGrant?.granted) {
-        setMessage("تم اعتماد التجربة ومنح الطالب شهر وصول كامل كهدية.");
-      } else if (data.rewardGrant?.reason === "already_granted") {
-        setMessage("هذه التجربة حصلت على مكافأتها مسبقًا.");
-      } else if (nextStatus === "approved") {
+      if (nextStatus === "approved") {
         setMessage("تم اعتماد التجربة.");
       } else if (nextStatus === "rejected") {
         setMessage("تم رفض التجربة.");
@@ -1822,17 +1821,6 @@ export default function AdminReviewPage() {
       console.error(err);
       setMessage(err.response?.data?.error || "تعذر تحديث حالة التجربة.");
     }
-  };
-
-  const grantRewardForApprovedExperience = (exp) => {
-    if (!exp?._id) return;
-
-    const confirmed = window.confirm(
-      "هل تريدين منح صاحب هذه التجربة 30 يومًا من الوصول الكامل؟"
-    );
-    if (!confirmed) return;
-
-    updateStatus(exp._id, "approved", "", { keepInList: true });
   };
 
   const toggleFeaturedAmbassador = async (exp) => {
@@ -2348,6 +2336,45 @@ export default function AdminReviewPage() {
   );
 
   const updateOpportunityField = (field, value) => {
+    if (field === "companyApplicationCampaignId") {
+      const campaign = companyCampaigns.find(
+        (item) => (item._id || item.id) === value
+      );
+
+      if (!campaign) {
+        setOpportunityForm((prev) => ({
+          ...prev,
+          companyApplicationCampaignId: "",
+          isDarbakApplication: false,
+        }));
+        return;
+      }
+
+      setOpportunityForm((prev) => ({
+        ...prev,
+        companyApplicationCampaignId: campaign._id || campaign.id,
+        isDarbakApplication: true,
+        organizationName: campaign.organizationName || "",
+        title: campaign.opportunityTitle || "",
+        city: (campaign.cities || [])[0] || campaign.city || "",
+        cities: campaign.cities || (campaign.city ? [campaign.city] : []),
+        majorCategories: campaign.majorCategories || [],
+        specialties: (campaign.specialties || []).length
+          ? campaign.specialties
+          : [ALL_SPECIALTIES_VALUE],
+        applicationMethod: "darbak",
+        applicationUrl: campaign.applyUrl || "",
+        logoUrl: campaign.organizationLogoUrl || "",
+        deadline: formatDateForInput(campaign.applicationDeadline),
+        sourceUrl: "",
+        note: campaign.description || "",
+        status: campaign.isOpen ? "active" : "draft",
+        sourceType: "admin",
+        featured: true,
+      }));
+      return;
+    }
+
     if (field === "cities") {
       const selectedCities = normalizeFormArray(value);
       setOpportunityForm((prev) => ({
@@ -2464,6 +2491,8 @@ export default function AdminReviewPage() {
       sourceType: opportunity.sourceType || "admin",
       submitterContact: opportunity.submitterContact || "",
       featured: Boolean(opportunity.featured),
+      isDarbakApplication: Boolean(opportunity.isDarbakApplication),
+      companyApplicationCampaignId: opportunity.companyApplicationCampaignId || "",
     });
     setMessage("");
     window.setTimeout(() => {
@@ -5366,7 +5395,7 @@ export default function AdminReviewPage() {
               </h2>
               <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.8 }}>
                 هذا البرنامج يولد رابطًا مثل /apply/company-program، والطالب يقدم
-                عليه بملفه المهني بدون إعادة تعبئة بياناته.
+                عليه مباشرة بنموذج بسيط وسيرة PDF.
               </p>
             </div>
 
@@ -6494,6 +6523,45 @@ export default function AdminReviewPage() {
               </p>
             </div>
 
+            <section
+              style={{
+                padding: "14px",
+                borderRadius: "12px",
+                border: `1px solid ${adminColors.brand}`,
+                background: "color-mix(in srgb, var(--app-brand) 7%, transparent)",
+                display: "grid",
+                gap: "7px",
+              }}
+            >
+              <strong style={{ color: adminColors.brand }}>فرصة تقديم عبر دربك</strong>
+              <p style={{ margin: 0, color: adminColors.textSoft, fontSize: "13px", lineHeight: 1.75 }}>
+                اختاري برنامجًا لتعبئة بيانات الفرصة تلقائيًا. ستظهر مميزة للطلاب مع تقديم مجاني عبر دربك.
+              </p>
+              <select
+                value={opportunityForm.companyApplicationCampaignId || ""}
+                onChange={(e) =>
+                  updateOpportunityField("companyApplicationCampaignId", e.target.value)
+                }
+                style={adminSelectStyle}
+              >
+                <option value="">إضافة فرصة عادية</option>
+                {companyCampaigns.map((campaign) => {
+                  const campaignId = campaign._id || campaign.id;
+                  return (
+                    <option key={campaignId} value={campaignId}>
+                      {campaign.organizationName} - {campaign.opportunityTitle}
+                      {campaign.isOpen ? " (مفتوح)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+              {opportunityForm.isDarbakApplication && (
+                <small style={{ color: adminColors.brandStrong, lineHeight: 1.7 }}>
+                  مرتبط ببرنامج تقديم دربك: الرابط والشعار والبيانات سيُحفظون من البرنامج تلقائيًا.
+                </small>
+              )}
+            </section>
+
             <div className="admin-edit-grid">
               {[
                 ["organizationName", "اسم الجهة", "مثال: STC"],
@@ -7071,35 +7139,6 @@ export default function AdminReviewPage() {
                       : getAdminOptionLabel(field, exp[field])}
                   </span>
                 ))}
-                <span
-                  style={{
-                    background:
-                      exp.rewardStatus === "granted"
-                        ? "rgba(34,197,94,0.12)"
-                        : exp.rewardEligible
-                        ? "rgba(251,191,36,0.1)"
-                        : "rgba(148,163,184,0.08)",
-                    border:
-                      exp.rewardStatus === "granted"
-                        ? "1px solid rgba(34,197,94,0.28)"
-                        : exp.rewardEligible
-                        ? "1px solid rgba(251,191,36,0.25)"
-                        : "1px solid rgba(148,163,184,0.18)",
-                    borderRadius: "999px",
-                    color:
-                      exp.rewardStatus === "granted"
-                        ? "#bbf7d0"
-                        : exp.rewardEligible
-                        ? "#fde68a"
-                        : adminColors.textSoft,
-                    padding: "6px 9px",
-                    fontSize: "12px",
-                    lineHeight: 1.4,
-                    fontWeight: 800,
-                  }}
-                >
-                  مكافأة التجربة: {getExperienceRewardLabel(exp)}
-                </span>
               </div>
 
               {FEATURED_AMBASSADORS_ENABLED &&
@@ -7684,27 +7723,6 @@ export default function AdminReviewPage() {
                     >
                       تعديل
                     </button>
-                    {(exp.status || status) === "approved" &&
-                      exp.rewardEligible &&
-                      exp.submittedByUserId &&
-                      exp.rewardStatus !== "granted" && (
-                        <button
-                          type="button"
-                          onClick={() => grantRewardForApprovedExperience(exp)}
-                          style={{
-                            background: "rgba(34,197,94,0.12)",
-                            color: "#bbf7d0",
-                            border: "1px solid rgba(34,197,94,0.35)",
-                            borderRadius: "10px",
-                            padding: "9px 14px",
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                            fontWeight: "bold",
-                          }}
-                        >
-                          منح شهر الوصول
-                        </button>
-                      )}
                     {FEATURED_AMBASSADORS_ENABLED && (
                       <button
                         type="button"
