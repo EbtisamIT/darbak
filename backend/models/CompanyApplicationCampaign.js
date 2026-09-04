@@ -50,6 +50,23 @@ const companyApplicationCampaignSchema = new mongoose.Schema(
       trim: true,
       maxlength: 500,
     },
+    applicationNotificationEmail: {
+      type: String,
+      default: "",
+      trim: true,
+      lowercase: true,
+      maxlength: 160,
+    },
+    applicationShareToken: {
+      type: String,
+      default: undefined,
+      trim: true,
+      unique: true,
+      sparse: true,
+      index: true,
+      minlength: 48,
+      maxlength: 160,
+    },
     opportunityTitle: {
       type: String,
       required: true,

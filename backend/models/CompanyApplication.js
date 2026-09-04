@@ -142,6 +142,14 @@ const companyApplicationSchema = new mongoose.Schema(
       maxlength: 160,
       index: true,
     },
+    normalizedEmail: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+      maxlength: 160,
+      index: true,
+    },
     phone: {
       type: String,
       default: "",
@@ -218,6 +226,12 @@ const companyApplicationSchema = new mongoose.Schema(
       trim: true,
       maxlength: 160,
     },
+    cvOriginalName: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 160,
+    },
     note: {
       type: String,
       default: "",
@@ -271,7 +285,13 @@ companyApplicationSchema.index({ organizationName: 1, createdAt: -1 });
 companyApplicationSchema.index({ email: 1, organizationName: 1 });
 companyApplicationSchema.index({ studentId: 1, submittedAt: -1 });
 companyApplicationSchema.index({ campaignId: 1, studentId: 1 });
-companyApplicationSchema.index({ campaignId: 1, email: 1 });
+companyApplicationSchema.index(
+  { campaignId: 1, normalizedEmail: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { normalizedEmail: { $type: "string" } },
+  }
+);
 
 module.exports = mongoose.model(
   "company_applications",

@@ -268,8 +268,8 @@ const CompanyApplyPage = () => {
     if (cvFile.type !== "application/pdf" && !cvFile.name.toLowerCase().endsWith(".pdf")) {
       throw new Error("السيرة الذاتية يجب أن تكون بصيغة PDF.");
     }
-    if (cvFile.size > 4 * 1024 * 1024) {
-      throw new Error("حجم السيرة كبير. الحد الأقصى 4MB.");
+    if (cvFile.size > 10 * 1024 * 1024) {
+      throw new Error("حجم السيرة كبير. الحد الأقصى 10MB.");
     }
 
     const { data } = await axios.post(
@@ -565,7 +565,7 @@ const CompanyApplyPage = () => {
                   onChange={(event) => setCvFile(event.target.files?.[0] || null)}
                   required
                 />
-                <small>{cvFile ? `تم اختيار: ${cvFile.name}` : "الحد الأقصى 4MB"}</small>
+                <small>{cvFile ? `تم اختيار: ${cvFile.name}` : "الحد الأقصى 10MB"}</small>
               </label>
 
               {customAnswers.length > 0 && (

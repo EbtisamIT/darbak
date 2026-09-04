@@ -14,6 +14,12 @@ const companyApplicationFileSchema = new mongoose.Schema(
       trim: true,
       maxlength: 160,
     },
+    originalFilename: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 160,
+    },
     contentType: {
       type: String,
       required: true,
@@ -23,7 +29,7 @@ const companyApplicationFileSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 1,
-      max: 4 * 1024 * 1024,
+      max: 10 * 1024 * 1024,
     },
     data: {
       type: Buffer,

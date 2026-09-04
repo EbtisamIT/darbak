@@ -26,9 +26,9 @@ import { trackEvent } from "./utils/analytics";
 import {
   PREMIUM_ACCESS_EVENT,
   PREMIUM_STATUS_EVENT,
+  getSubscriptionCapabilities,
   getStoredPremiumPass,
   hasActivePremiumPass,
-  passHasEntitlement,
 } from "./utils/premiumAccess";
 
 const ExperiencesPage = lazy(() => import("./pages/ExperiencesPage"));
@@ -40,6 +40,7 @@ const AdminReviewPage = lazy(() => import("./pages/AdminReviewPage"));
 const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
 const PortfolioBuilderPage = lazy(() => import("./pages/PortfolioBuilderPage"));
 const CompanyApplyPage = lazy(() => import("./pages/CompanyApplyPage"));
+const CompanyApplicationsSharePage = lazy(() => import("./pages/CompanyApplicationsSharePage"));
 const MyApplicationsPage = lazy(() => import("./pages/MyApplicationsPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
 const MyResumePage = lazy(() => import("./pages/MyResumePage"));
@@ -252,9 +253,10 @@ function SubscribeRoute() {
   const subscribePlan = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const plan = params.get("plan") || "";
-    return ["resume", "darbak_resume", "darbak_plus_resume"].includes(plan)
-      ? "darbak_resume"
-      : plan;
+    if (["resume", "darbak_resume", "darbak_plus_resume"].includes(plan)) {
+      return "darbak_resume";
+    }
+    return ["monthly", "darbak_plus"].includes(plan) ? "darbak_plus" : plan;
   }, [location.search]);
   const subscribeStep = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -264,9 +266,10 @@ function SubscribeRoute() {
     const pass = getStoredPremiumPass();
     if (!pass) return false;
 
-    if (subscribePlan === "darbak_resume") {
-      return passHasEntitlement(pass, "resume_builder");
-    }
+    const capabilities = getSubscriptionCapabilities(pass);
+
+    if (subscribePlan === "darbak_resume") return capabilities.hasResumeAccess;
+    if (subscribePlan === "darbak_plus") return capabilities.hasCoreAccess;
 
     if (!subscribePlan) return hasActivePremiumPass();
 
@@ -1191,6 +1194,9 @@ function AppLayout({ theme, setTheme }) {
   const location = useLocation();
   const isAdminPage = location.pathname === ADMIN_REVIEW_PATH;
   const isPublicPortfolioPage = location.pathname.startsWith("/p/");
+  const isCompanyApplicationsSharePage = location.pathname.startsWith(
+    "/company-applications/"
+  );
   const isHomePage = location.pathname === "/";
   const appStyle = {
     minHeight: "100vh",
@@ -1342,11 +1348,11 @@ function AppLayout({ theme, setTheme }) {
 
   return (
     <div style={appStyle}>
-      <Navbar theme={theme} setTheme={setTheme} />
+      {!isCompanyApplicationsSharePage && <Navbar theme={theme} setTheme={setTheme} />}
 
       <PageBanner />
-      {!isPublicPortfolioPage && <PlatformUpdateNotice />}
-      {!isPublicPortfolioPage && (
+      {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && <PlatformUpdateNotice />}
+      {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && (
         <Suspense fallback={null}>
           <PremiumAccessGate />
           <AccountModal />
@@ -1402,6 +1408,10 @@ function AppLayout({ theme, setTheme }) {
                 element={<TrainingFinderPage />}
               />
               <Route path="/apply/:companySlug" element={<CompanyApplyPage />} />
+              <Route
+                path="/company-applications/:shareToken"
+                element={<CompanyApplicationsSharePage />}
+              />
               <Route path="/p/:slug" element={<PortfolioPage />} />
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/terms" element={<LegalPage />} />
@@ -1413,7 +1423,7 @@ function AppLayout({ theme, setTheme }) {
         </div>
       </div>
 
-      <Footer />
+      {!isCompanyApplicationsSharePage && <Footer />}
     </div>
   );
 }

@@ -5672,6 +5672,51 @@ body {
   .resume-completion-actions { flex-wrap: wrap; justify-content: end; }
 }
 
+/* Private, token-protected company applications view. */
+.company-share-page { min-height: 100vh; padding: 28px 16px 42px; background: #08100f; color: #edf7f5; box-sizing: border-box; }
+.company-share-shell { width: min(1180px, 100%); margin: 0 auto; }
+.company-share-header { display: flex; align-items: center; justify-content: space-between; color: #94aaa5; font-size: 13px; margin-bottom: 22px; }
+.company-share-brand { color: #7ddbcd; font-size: 23px; font-weight: 900; }
+.company-share-hero { display: flex; align-items: center; gap: 16px; padding: 22px; background: #101b1a; border: 1px solid #223531; border-radius: 16px; }
+.company-share-logo { width: 62px; height: 62px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border-radius: 14px; background: #fff; color: #0f766e; font-size: 25px; font-weight: 900; }
+.company-share-logo img { width: 100%; height: 100%; object-fit: contain; padding: 6px; box-sizing: border-box; }
+.company-share-hero p { margin: 0 0 5px; color: #7ddbcd; font-size: 13px; font-weight: 800; }
+.company-share-hero h1 { margin: 0; font-size: clamp(21px, 3vw, 30px); }
+.company-share-hero h2 { margin: 5px 0 0; color: #b7cbc6; font-size: 15px; font-weight: 600; }
+.company-share-count { margin-inline-start: auto; min-width: 92px; padding: 11px; text-align: center; border-radius: 12px; color: #7ddbcd; background: rgba(125,219,205,.1); font-size: 25px; line-height: 1; }
+.company-share-count small { display: block; margin-top: 6px; color: #d7e8e4; font-size: 12px; font-weight: 700; }
+.company-share-controls { display: grid; grid-template-columns: minmax(220px, 1.8fr) minmax(150px, 1fr) minmax(150px, 1fr) auto; gap: 10px; padding: 14px 0; }
+.company-share-controls input, .company-share-controls select { min-height: 44px; padding: 0 12px; background: #101b1a; color: #edf7f5; border: 1px solid #29403b; border-radius: 10px; font: inherit; box-sizing: border-box; }
+.company-share-controls input::placeholder { color: #78918b; }
+.company-share-export, .company-share-cv { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px; border-radius: 10px; box-sizing: border-box; background: #7ddbcd; color: #07100e; text-decoration: none; font-weight: 900; white-space: nowrap; }
+.company-share-table-wrap { position: relative; overflow: auto; background: #101b1a; border: 1px solid #223531; border-radius: 16px; }
+.company-share-table { width: 100%; min-width: 790px; border-collapse: collapse; text-align: right; }
+.company-share-table th, .company-share-table td { padding: 15px 14px; border-bottom: 1px solid #20332f; vertical-align: middle; }
+.company-share-table th { color: #89a49e; font-size: 12px; font-weight: 800; background: #0d1716; }
+.company-share-table td { color: #dbeae7; font-size: 14px; }
+.company-share-table td strong, .company-share-table td small { display: block; }
+.company-share-table td small { color: #91a9a4; direction: ltr; text-align: right; font-size: 11px; margin-top: 3px; overflow-wrap: anywhere; }
+.company-share-cv { min-height: 34px; padding: 0 11px; font-size: 12px; }
+.company-share-linkedin { display: inline-block; margin-top: 7px; color: #7ddbcd; font-size: 12px; font-weight: 800; }
+.company-share-state { margin: 80px auto; max-width: 520px; padding: 28px; text-align: center; background: #101b1a; border: 1px solid #223531; border-radius: 16px; color: #c9d9d5; }
+.company-share-error h1 { color: #fca5a5; }
+.company-share-table-loading { position: absolute; z-index: 2; inset: 0 0 auto; padding: 7px; background: rgba(8,16,15,.88); color: #7ddbcd; text-align: center; font-size: 12px; }
+.company-share-empty, .company-share-privacy { color: #92aaa5; line-height: 1.8; font-size: 13px; }
+.company-share-empty { padding: 18px; margin: 0; text-align: center; }
+.company-share-privacy { margin: 14px 4px 0; }
+@media (max-width: 720px) {
+  .company-share-page { padding: 16px 11px 30px; }
+  .company-share-hero { align-items: start; padding: 16px; gap: 12px; }
+  .company-share-logo { width: 48px; height: 48px; border-radius: 11px; font-size: 20px; }
+  .company-share-count { min-width: 58px; font-size: 20px; padding: 9px; }
+  .company-share-count small { font-size: 10px; }
+  .company-share-hero h1 { font-size: 20px; }
+  .company-share-hero h2 { font-size: 12px; line-height: 1.6; }
+  .company-share-controls { grid-template-columns: 1fr 1fr; }
+  .company-share-controls input { grid-column: 1 / -1; }
+  .company-share-export { grid-column: 1 / -1; }
+}
+
 /* Resume onboarding starts from the student's professional profile, not a second form. */
 .resume-portfolio-prerequisite {
   width: min(720px, calc(100% - 32px));

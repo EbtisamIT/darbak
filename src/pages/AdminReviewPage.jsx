@@ -66,6 +66,7 @@ const companyCampaignStatusLabels = {
 const defaultCompanyCampaignForm = {
   organizationName: "",
   organizationLogoUrl: "",
+  applicationNotificationEmail: "",
   opportunityTitle: "",
   slug: "",
   city: "",
@@ -2149,6 +2150,7 @@ export default function AdminReviewPage() {
     setCompanyCampaignForm({
       organizationName: campaign.organizationName || "",
       organizationLogoUrl: campaign.organizationLogoUrl || "",
+      applicationNotificationEmail: campaign.applicationNotificationEmail || "",
       opportunityTitle: campaign.opportunityTitle || "",
       slug: campaign.slug || "",
       city: campaign.city || "",
@@ -2276,6 +2278,26 @@ export default function AdminReviewPage() {
     try {
       await navigator.clipboard.writeText(link);
       setMessage("تم نسخ رابط برنامج التقديم.");
+    } catch {
+      setMessage(link);
+    }
+  };
+
+  const copyCompanyApplicantsLink = async (campaign = {}) => {
+    const link =
+      campaign.applicationsShareUrl ||
+      (campaign.applicationShareToken
+        ? `${window.location.origin}/company-applications/${campaign.applicationShareToken}`
+        : "");
+
+    if (!link) {
+      setMessage("رابط مراجعة الطلبات غير جاهز. أعيدي تحميل البرامج ثم حاولي مرة أخرى.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(link);
+      setMessage("تم نسخ رابط مراجعة المتقدمين الخاص بالجهة.");
     } catch {
       setMessage(link);
     }
@@ -5451,6 +5473,11 @@ export default function AdminReviewPage() {
                 ["opportunityTitle", "اسم البرنامج", "مثال: برنامج التدريب التعاوني"],
                 ["slug", "الرابط المختصر", "مثال: stc-coop-2026"],
                 ["organizationLogoUrl", "رابط شعار الجهة", "اختياري"],
+                [
+                  "applicationNotificationEmail",
+                  "بريد إشعار الطلبات",
+                  "اختياري - يصل إليه إشعار عند كل طلب جديد",
+                ],
               ].map(([field, label, placeholder]) => (
                 <label
                   key={field}
@@ -5622,27 +5649,9 @@ export default function AdminReviewPage() {
               />
             </label>
 
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                color: adminColors.textSoft,
-                fontSize: 13,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={companyCampaignForm.allowDuplicateApplications}
-                onChange={(e) =>
-                  updateCompanyCampaignField(
-                    "allowDuplicateApplications",
-                    e.target.checked
-                  )
-                }
-              />
-              السماح للطالب بإرسال أكثر من طلب لنفس البرنامج
-            </label>
+            <p style={{ color: adminColors.muted, fontSize: 13, margin: 0 }}>
+              يمنع النظام تلقائيًا تكرار التقديم على البرنامج نفسه بالبريد نفسه.
+            </p>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button
@@ -5855,6 +5864,22 @@ export default function AdminReviewPage() {
                         }}
                       >
                         نسخ الرابط
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => copyCompanyApplicantsLink(campaign)}
+                        style={{
+                          background: "rgba(125,219,205,0.1)",
+                          color: adminColors.brandStrong,
+                          border: `1px solid ${adminColors.brand}`,
+                          borderRadius: 10,
+                          padding: "9px 13px",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          fontWeight: 800,
+                        }}
+                      >
+                        نسخ رابط المتقدمين
                       </button>
                       <button
                         type="button"
