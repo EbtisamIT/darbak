@@ -172,6 +172,16 @@ const companyApplicationSchema = new mongoose.Schema(
       trim: true,
       maxlength: 30,
     },
+    gpaValue: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    gpaScale: {
+      type: Number,
+      default: null,
+      enum: [4, 5, 100, null],
+    },
     trainingInfo: {
       type: String,
       default: "",

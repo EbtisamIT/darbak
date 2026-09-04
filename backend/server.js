@@ -372,7 +372,17 @@ const sanitizeCompanyApplicationPayload = (body = {}) => {
     .slice(0, 140);
   const city = (body.city || "").toString().trim().slice(0, 120);
   const phone = normalizeSaudiMobile(body.phone || "");
-  const gpa = (body.gpa || "").toString().trim().slice(0, 30);
+  const rawGpaValue = (body.gpaValue ?? "").toString().trim();
+  const rawGpaScale = (body.gpaScale ?? "").toString().trim();
+  const gpaValue = rawGpaValue && Number.isFinite(Number(rawGpaValue))
+    ? Number(rawGpaValue)
+    : null;
+  const gpaScale = [4, 5, 100].includes(Number(rawGpaScale))
+    ? Number(rawGpaScale)
+    : null;
+  const gpa = gpaValue !== null && gpaScale !== null
+    ? `${gpaValue} من ${gpaScale}`
+    : "";
   const trainingInfo = (body.trainingInfo || body.trainingTerm || "")
     .toString()
     .trim()
@@ -406,6 +416,8 @@ const sanitizeCompanyApplicationPayload = (body = {}) => {
     university,
     city,
     gpa,
+    gpaValue,
+    gpaScale,
     trainingInfo,
     cvFileId,
     portfolioUrl,
@@ -2450,6 +2462,8 @@ const serializeCompanyApplication = (application = {}) => {
     portfolioUrl: application.portfolioUrl || snapshot.portfolioUrl || "",
     linkedinUrl: application.linkedinUrl || snapshot.linkedinUrl || "",
     gpa: application.gpa || "",
+    gpaValue: application.gpaValue ?? null,
+    gpaScale: application.gpaScale ?? null,
     trainingInfo: application.trainingInfo || "",
     cvUrl: application.cvUrl || snapshot.cvUrl || "",
     cvFilename: application.cvFilename || "",
@@ -12128,6 +12142,14 @@ app.post('/api/company-applications', async (req, res) => {
 
     if (!payload.major || payload.major.length < 2) {
       return res.status(400).json({ error: "اكتب التخصص." });
+    }
+
+    if ((payload.gpaValue === null) !== (payload.gpaScale === null)) {
+      return res.status(400).json({ error: "اكتب قيمة المعدل واختر مقياسه." });
+    }
+
+    if (payload.gpaValue !== null && payload.gpaValue > payload.gpaScale) {
+      return res.status(400).json({ error: "قيمة المعدل لا يمكن أن تتجاوز مقياسه." });
     }
 
     if (!payload.cvFileId) {

@@ -15,7 +15,8 @@ const emptyForm = {
   university: "",
   major: "",
   city: "",
-  gpa: "",
+  gpaValue: "",
+  gpaScale: "",
   trainingInfo: "",
   linkedinUrl: "",
 };
@@ -183,6 +184,11 @@ const CompanyApplyPage = () => {
     if (!isValidSaudiPhone(`+966${form.phone}`)) return "اكتب رقم جوال سعوديًا صحيحًا.";
     if (form.university.trim().length < 2) return "اكتب اسم الجامعة.";
     if (form.major.trim().length < 2) return "اكتب التخصص.";
+    if (form.gpaValue && !form.gpaScale) return "اختر مقياس المعدل.";
+    if (form.gpaScale && !form.gpaValue) return "اكتب قيمة المعدل.";
+    if (form.gpaValue && Number(form.gpaValue) > Number(form.gpaScale)) {
+      return "قيمة المعدل لا يمكن أن تتجاوز المقياس المختار.";
+    }
     if (!cvFile) return "ارفع السيرة الذاتية بصيغة PDF.";
     if (!consent) return "يلزم الموافقة على مشاركة بيانات الطلب مع الجهة.";
     if (customAnswers.some((item) => item.required && !item.answer.trim())) {
@@ -209,6 +215,7 @@ const CompanyApplyPage = () => {
         {
           ...form,
           phone: `+966${form.phone}`,
+          gpa: form.gpaValue && form.gpaScale ? `${form.gpaValue} من ${form.gpaScale}` : "",
           cvFileId: upload?.id,
           campaignSlug: campaign.slug || companySlug,
           companySlug: campaign.companySlug || companySlug,
@@ -349,7 +356,24 @@ const CompanyApplyPage = () => {
                 </label>
                 <label>
                   المعدل <small>اختياري</small>
-                  <input value={form.gpa} onChange={(e) => updateField("gpa", e.target.value)} placeholder="مثال: 4.60 من 5" />
+                  <span className="company-apply-gpa-control">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.gpaValue}
+                      onChange={(e) => updateField("gpaValue", e.target.value)}
+                      placeholder="مثال: 4.60"
+                      inputMode="decimal"
+                      dir="ltr"
+                    />
+                    <select value={form.gpaScale} onChange={(e) => updateField("gpaScale", e.target.value)}>
+                      <option value="">من كم؟</option>
+                      <option value="4">من 4</option>
+                      <option value="5">من 5</option>
+                      <option value="100">من 100</option>
+                    </select>
+                  </span>
                 </label>
                 <label>
                   بداية التدريب المتوقعة <small>اختياري</small>
@@ -437,6 +461,7 @@ const CompanyApplyPage = () => {
         .company-apply-phone-control:focus-within { border-color:var(--app-brand); box-shadow:0 0 0 3px color-mix(in srgb,var(--app-brand) 18%,transparent); }
         .company-apply-phone-control > span { display:grid; place-items:center; min-width:59px; padding:0 10px; border-right:1px solid var(--app-border); color:var(--app-text-soft); font-size:14px; font-weight:900; }
         .company-apply-phone-control input { border:0; border-radius:0; box-shadow:none !important; }
+        .company-apply-gpa-control { display:grid; grid-template-columns:minmax(0,1fr) 112px; gap:8px; direction:ltr; }
         .company-apply-file-field { margin-top:16px; padding:14px; border:1px dashed color-mix(in srgb,var(--app-brand) 55%,var(--app-border)); border-radius:12px; background:color-mix(in srgb,var(--app-brand) 5%,transparent); } .company-apply-file-field input { padding:8px 0; border:0; background:transparent; }
         .company-apply-questions { display:grid; gap:12px; margin-top:20px; padding-top:18px; border-top:1px solid var(--app-border); } .company-apply-questions h3 { margin:0; font-size:17px; }
         .company-apply-consent { display:flex !important; grid-template-columns:auto 1fr; align-items:flex-start; gap:10px !important; margin-top:20px; color:var(--app-text-soft) !important; line-height:1.8; } .company-apply-consent input { width:17px; height:17px; margin-top:4px; accent-color:var(--app-brand); }
