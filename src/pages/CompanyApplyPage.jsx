@@ -67,6 +67,25 @@ const getSelectValue = (value, options) => {
   return options.includes(value) ? value : OTHER_VALUE;
 };
 
+const DiscoveryLogo = ({ logoUrl, organizationName }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const fallback = (organizationName || "د").trim().charAt(0) || "د";
+
+  return (
+    <span className="company-apply-discovery-logo" aria-label={organizationName}>
+      {logoUrl && !imageFailed ? (
+        <img
+          src={logoUrl}
+          alt={`شعار ${organizationName}`}
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <span>{fallback}</span>
+      )}
+    </span>
+  );
+};
+
 const normalizeQuestion = (item) => ({
   question: String(item?.question ?? "").trim(),
   required: Boolean(item?.required),
@@ -116,6 +135,11 @@ const CompanyApplyPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successApplication, setSuccessApplication] = useState(null);
+  const [discovery, setDiscovery] = useState({
+    latestOpportunities: [],
+    latestExperiences: [],
+    loading: false,
+  });
   const didPrefill = useRef(false);
 
   const fetchContext = useCallback(async () => {
@@ -199,6 +223,45 @@ const CompanyApplyPage = () => {
       )
     );
   };
+
+  useEffect(() => {
+    if (!successApplication) return undefined;
+
+    let cancelled = false;
+    setDiscovery({
+      latestOpportunities: [],
+      latestExperiences: [],
+      loading: true,
+    });
+
+    axios
+      .get(`${API_BASE_URL}/api/post-apply-discovery`)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setDiscovery({
+          latestOpportunities: Array.isArray(data?.latestOpportunities)
+            ? data.latestOpportunities
+            : [],
+          latestExperiences: Array.isArray(data?.latestExperiences)
+            ? data.latestExperiences
+            : [],
+          loading: false,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDiscovery({
+            latestOpportunities: [],
+            latestExperiences: [],
+            loading: false,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [successApplication]);
 
   const uploadCv = async () => {
     if (!cvFile) throw new Error("ارفع السيرة الذاتية بصيغة PDF.");
@@ -536,6 +599,77 @@ const CompanyApplyPage = () => {
             <span>✓</span>
             <h2>تم إرسال طلبك بنجاح</h2>
             <p>تم استلام طلبك للتقديم على {successApplication.opportunityTitle || campaign.opportunityTitle || campaign.organizationName}.</p>
+            <div className="company-apply-success-divider" />
+
+            {(discovery.loading || discovery.latestOpportunities.length > 0 || discovery.latestExperiences.length > 0) && (
+              <section className="company-apply-discovery" aria-label="اكتشف المزيد في دربك">
+                <h3>اكتشف المزيد في دربك</h3>
+                {discovery.loading ? (
+                  <p className="company-apply-discovery-loading">جار تجهيز محتوى جديد لك...</p>
+                ) : (
+                  <>
+                    {discovery.latestOpportunities.length > 0 && (
+                      <section className="company-apply-discovery-section">
+                        <div className="company-apply-discovery-heading">
+                          <h4>أحدث 3 فرص</h4>
+                          <Link to="/where-to-train">عرض كل الفرص</Link>
+                        </div>
+                        <div className="company-apply-discovery-list">
+                          {discovery.latestOpportunities.map((opportunity) => (
+                            <Link
+                              key={opportunity.id}
+                              to={`/where-to-train/opportunity/${opportunity.id}`}
+                              className="company-apply-discovery-row"
+                            >
+                              <DiscoveryLogo
+                                logoUrl={opportunity.logoUrl}
+                                organizationName={opportunity.organizationName}
+                              />
+                              <span className="company-apply-discovery-copy">
+                                <strong>{opportunity.title}</strong>
+                                <small>
+                                  {[opportunity.organizationName, opportunity.city]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </small>
+                                {opportunity.field && <em>{opportunity.field}</em>}
+                              </span>
+                              <span className="company-apply-discovery-arrow">عرض ‹</span>
+                            </Link>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+
+                    {discovery.latestExperiences.length > 0 && (
+                      <section className="company-apply-discovery-section company-apply-discovery-experiences">
+                        <div className="company-apply-discovery-heading">
+                          <h4>تجربتان جديدتان</h4>
+                          <Link to="/experiences">عرض كل التجارب</Link>
+                        </div>
+                        <div className="company-apply-discovery-list">
+                          {discovery.latestExperiences.map((experience) => (
+                            <Link
+                              key={experience.id}
+                              to={`/experiences/${experience.id}`}
+                              className="company-apply-discovery-row company-apply-discovery-experience"
+                            >
+                              <span className="company-apply-discovery-experience-mark">ت</span>
+                              <span className="company-apply-discovery-copy">
+                                <strong>{experience.organizationName}</strong>
+                                {experience.major && <small>{experience.major}</small>}
+                                {experience.excerpt && <em>{experience.excerpt}</em>}
+                              </span>
+                              <span className="company-apply-discovery-arrow">عرض ‹</span>
+                            </Link>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+                  </>
+                )}
+              </section>
+            )}
             <Link to="/" className="company-apply-success-primary">استكشف دربك</Link>
             <button type="button" onClick={() => setSuccessApplication(null)}>العودة للفرصة</button>
           </section>
@@ -574,9 +708,9 @@ const CompanyApplyPage = () => {
         .company-apply-consent { display:flex !important; grid-template-columns:auto 1fr; align-items:flex-start; gap:10px !important; margin-top:20px; color:var(--app-text-soft) !important; line-height:1.8; } .company-apply-consent input { width:17px; height:17px; margin-top:4px; accent-color:var(--app-brand); }
         .company-apply-submit { width:100%; margin-top:18px; padding:13px 16px; border:0; border-radius:11px; background:var(--app-brand); color:#06201e; font:inherit; font-weight:900; font-size:16px; cursor:pointer; } .company-apply-submit:disabled { opacity:.62; cursor:wait; }
         .company-apply-error { margin:0 0 14px; padding:11px 13px; border-radius:10px; color:#fecaca; background:rgba(248,113,113,.12); border:1px solid rgba(248,113,113,.26); line-height:1.7; } .company-apply-error-state { color:#fecaca; }
-        .company-apply-success-overlay { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(3,13,12,.72); backdrop-filter:blur(5px); } .company-apply-success-modal { width:min(100%,420px); padding:30px; border:1px solid var(--app-border); border-radius:20px; background:var(--app-card); text-align:center; box-shadow:0 26px 80px rgba(0,0,0,.35); } .company-apply-success-modal > span { display:grid; place-items:center; width:50px; height:50px; margin:0 auto 14px; border-radius:50%; background:rgba(125,219,205,.14); color:var(--app-brand); font-size:28px; font-weight:900; } .company-apply-success-modal h2 { margin:0 0 10px; } .company-apply-success-modal p { color:var(--app-text-soft); line-height:1.8; } .company-apply-success-modal a, .company-apply-success-modal button { display:block; width:100%; box-sizing:border-box; margin-top:11px; padding:12px; border-radius:10px; font:inherit; font-weight:900; text-decoration:none; cursor:pointer; } .company-apply-success-primary { background:var(--app-brand); color:#06201e; } .company-apply-success-modal button { border:1px solid var(--app-border); background:transparent; color:var(--app-text-soft); }
+        .company-apply-success-overlay { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(3,13,12,.72); backdrop-filter:blur(5px); } .company-apply-success-modal { width:min(100%,590px); max-height:min(88vh,760px); overflow:auto; padding:28px; border:1px solid var(--app-border); border-radius:20px; background:var(--app-card); text-align:center; box-shadow:0 26px 80px rgba(0,0,0,.35); } .company-apply-success-modal > span { display:grid; place-items:center; width:50px; height:50px; margin:0 auto 14px; border-radius:50%; background:rgba(125,219,205,.14); color:var(--app-brand); font-size:28px; font-weight:900; } .company-apply-success-modal h2 { margin:0 0 8px; } .company-apply-success-modal > p { margin:0; color:var(--app-text-soft); line-height:1.8; } .company-apply-success-divider { height:1px; margin:20px 0; background:var(--app-border); } .company-apply-discovery { text-align:right; } .company-apply-discovery > h3 { margin:0 0 14px; color:var(--app-text); font-size:18px; } .company-apply-discovery-loading { margin:0 0 14px; color:var(--app-text-soft); font-size:13px; } .company-apply-discovery-section { display:grid; gap:8px; } .company-apply-discovery-experiences { margin-top:18px; padding-top:18px; border-top:1px solid var(--app-border); } .company-apply-discovery-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; } .company-apply-discovery-heading h4 { margin:0; color:var(--app-text); font-size:15px; } .company-apply-discovery-heading a { color:var(--app-brand-strong); font-size:12px; font-weight:800; text-decoration:none; } .company-apply-discovery-list { display:grid; gap:7px; } .company-apply-discovery-row { display:grid; grid-template-columns:44px minmax(0,1fr) auto; align-items:center; gap:10px; min-height:58px; padding:7px; border:1px solid var(--app-border); border-radius:11px; color:var(--app-text); text-decoration:none; transition:border-color .16s ease, transform .16s ease; } .company-apply-discovery-row:hover { border-color:var(--app-brand); transform:translateY(-1px); } .company-apply-discovery-logo, .company-apply-discovery-experience-mark { display:grid; place-items:center; width:42px; height:42px; overflow:hidden; border-radius:10px; background:color-mix(in srgb,var(--app-brand) 12%,var(--app-input-bg)); color:var(--app-brand-strong); font-weight:900; } .company-apply-discovery-logo img { width:100%; height:100%; object-fit:contain; background:#fff; } .company-apply-discovery-copy { display:grid; min-width:0; gap:2px; } .company-apply-discovery-copy strong { overflow:hidden; color:var(--app-text); font-size:13px; line-height:1.35; text-overflow:ellipsis; white-space:nowrap; } .company-apply-discovery-copy small, .company-apply-discovery-copy em { overflow:hidden; color:var(--app-text-soft); font-size:11px; font-style:normal; line-height:1.35; text-overflow:ellipsis; white-space:nowrap; } .company-apply-discovery-copy em { color:var(--app-brand-strong); } .company-apply-discovery-experience .company-apply-discovery-copy em { color:var(--app-text-soft); } .company-apply-discovery-arrow { color:var(--app-brand-strong); font-size:12px; font-weight:900; white-space:nowrap; } .company-apply-success-modal > a, .company-apply-success-modal > button { display:block; width:100%; box-sizing:border-box; margin-top:12px; padding:12px; border-radius:10px; font:inherit; font-weight:900; text-decoration:none; cursor:pointer; } .company-apply-success-primary { background:var(--app-brand); color:#06201e; } .company-apply-success-modal > button { border:1px solid var(--app-border); background:transparent; color:var(--app-text-soft); }
         @media (max-width:780px) { .company-apply-page { padding:18px 12px 34px; } .company-apply-shell { grid-template-columns:1fr; } .company-apply-hero { position:static; } .company-apply-card { min-height:0; } }
-        @media (max-width:520px) { .company-apply-fields { grid-template-columns:1fr; } .company-apply-wide-field { grid-column:auto; } .company-apply-hero { padding:22px 19px; } .company-apply-card { padding:22px 17px; } }
+        @media (max-width:520px) { .company-apply-fields { grid-template-columns:1fr; } .company-apply-wide-field { grid-column:auto; } .company-apply-hero { padding:22px 19px; } .company-apply-card { padding:22px 17px; } .company-apply-success-overlay { padding:10px; } .company-apply-success-modal { width:100%; max-height:calc(100vh - 20px); padding:22px 16px; border-radius:17px; } .company-apply-discovery-row { grid-template-columns:40px minmax(0,1fr) auto; gap:8px; } .company-apply-discovery-logo, .company-apply-discovery-experience-mark { width:38px; height:38px; } .company-apply-discovery-arrow { font-size:11px; } }
       `}</style>
     </main>
   );

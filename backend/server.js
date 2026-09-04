@@ -12959,6 +12959,62 @@ app.get('/api/opportunities/:id', async (req, res) => {
   }
 });
 
+// محتوى خفيف يظهر بعد إرسال طلب برامج الشركات. يبقى منفصلًا عن حفظ الطلب نفسه.
+app.get('/api/post-apply-discovery', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    await markExpiredOpportunities();
+    const now = new Date();
+    const [latestOpportunities, latestExperiences] = await Promise.all([
+      Opportunity.find({
+        status: "active",
+        $or: [
+          { deadline: { $exists: false } },
+          { deadline: null },
+          { deadline: { $gte: now } },
+        ],
+      })
+        .select("organizationName title city cities majorCategories specialties logoUrl createdAt")
+        .sort({ createdAt: -1 })
+        .limit(3)
+        .lean(),
+      Experience.find(getApprovedExperiencesFilter())
+        .select("organizationName major majorCategory description reviewedAt createdAt")
+        .sort({ reviewedAt: -1, createdAt: -1 })
+        .limit(2)
+        .lean(),
+    ]);
+
+    const makeExcerpt = (value = "") => {
+      const normalized = String(value || "").replace(/\s+/g, " ").trim();
+      return normalized.length > 150 ? `${normalized.slice(0, 147).trim()}...` : normalized;
+    };
+
+    res.json({
+      latestOpportunities: latestOpportunities.map((opportunity) => ({
+        id: opportunity._id.toString(),
+        title: opportunity.title || "فرصة تدريب",
+        organizationName: opportunity.organizationName || "جهة تدريبية",
+        logoUrl: opportunity.logoUrl || "",
+        city: opportunity.city || opportunity.cities?.[0] || "",
+        field: opportunity.specialties?.[0] || opportunity.majorCategories?.[0] || "",
+      })),
+      latestExperiences: latestExperiences.map((experience) => ({
+        id: experience._id.toString(),
+        organizationName: experience.organizationName || "جهة تدريبية",
+        major: experience.major || experience.majorCategory || "",
+        excerpt: makeExcerpt(experience.description),
+      })),
+    });
+  } catch (err) {
+    console.error("❌ Post-apply discovery error:", err);
+    res.status(500).json({ error: "Unable to load discovery content" });
+  }
+});
+
 app.post('/api/opportunities', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
