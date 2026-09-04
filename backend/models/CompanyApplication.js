@@ -121,6 +121,13 @@ const companyApplicationSchema = new mongoose.Schema(
       ref: "opportunities",
       default: null,
     },
+    companyId: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 160,
+      index: true,
+    },
     fullName: {
       type: String,
       required: true,
@@ -159,6 +166,18 @@ const companyApplicationSchema = new mongoose.Schema(
       trim: true,
       maxlength: 120,
     },
+    gpa: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 30,
+    },
+    trainingInfo: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 120,
+    },
     portfolioUrl: {
       type: String,
       default: "",
@@ -170,6 +189,24 @@ const companyApplicationSchema = new mongoose.Schema(
       default: "",
       trim: true,
       maxlength: 300,
+    },
+    cvFileId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "company_application_files",
+      default: null,
+      index: true,
+    },
+    cvUrl: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 500,
+    },
+    cvFilename: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 160,
     },
     note: {
       type: String,
@@ -224,6 +261,7 @@ companyApplicationSchema.index({ organizationName: 1, createdAt: -1 });
 companyApplicationSchema.index({ email: 1, organizationName: 1 });
 companyApplicationSchema.index({ studentId: 1, submittedAt: -1 });
 companyApplicationSchema.index({ campaignId: 1, studentId: 1 });
+companyApplicationSchema.index({ campaignId: 1, email: 1 });
 
 module.exports = mongoose.model(
   "company_applications",

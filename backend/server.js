@@ -16,6 +16,7 @@ const Subscription = require('./models/Subscription');
 const User = require('./models/User');
 const Portfolio = require('./models/Portfolio');
 const PortfolioAsset = require('./models/PortfolioAsset');
+const CompanyApplicationFile = require('./models/CompanyApplicationFile');
 const ResumeProfile = require('./models/ResumeProfile');
 const ResumeAgentSession = require('./models/ResumeAgentSession');
 const ResumePendingDraft = require('./models/ResumePendingDraft');
@@ -365,7 +366,21 @@ const sanitizeCompanyApplicationPayload = (body = {}) => {
     .toString()
     .trim()
     .slice(0, 140);
+  const university = (body.university || "")
+    .toString()
+    .trim()
+    .slice(0, 140);
   const city = (body.city || "").toString().trim().slice(0, 120);
+  const phone = normalizeSaudiMobile(body.phone || "");
+  const gpa = (body.gpa || "").toString().trim().slice(0, 30);
+  const trainingInfo = (body.trainingInfo || body.trainingTerm || "")
+    .toString()
+    .trim()
+    .slice(0, 120);
+  const cvFileId =
+    body.cvFileId && mongoose.Types.ObjectId.isValid(body.cvFileId)
+      ? body.cvFileId
+      : null;
   const portfolioUrl = sanitizeExternalUrl(body.portfolioUrl || "");
   const linkedinUrl = body.linkedinUrl
     ? normalizeLinkedInProfileUrl(body.linkedinUrl)
@@ -386,8 +401,13 @@ const sanitizeCompanyApplicationPayload = (body = {}) => {
     opportunityId,
     fullName,
     email,
+    phone,
     major,
+    university,
     city,
+    gpa,
+    trainingInfo,
+    cvFileId,
     portfolioUrl,
     linkedinUrl,
     note,
@@ -1954,6 +1974,8 @@ const sanitizePortfolioPayload = (body = {}, contact = "") => {
     major: sanitizePortfolioText(body.major, 90),
     university: sanitizePortfolioText(body.university, 110),
     city: sanitizePortfolioText(body.city, 60),
+    preferredMajor: sanitizePortfolioText(body.preferredMajor, 90),
+    preferredCity: sanitizePortfolioText(body.preferredCity, 60),
     dateOfBirth: sanitizePortfolioDate(body.dateOfBirth),
     degreeLevel: sanitizePortfolioText(body.degreeLevel, 70),
     studentStatus: ["student", "graduate", "expected_graduate"].includes(body.studentStatus)
@@ -2053,6 +2075,8 @@ const serializePortfolio = (portfolio = {}, accessStatus = {}, req = null) => ({
   major: portfolio.major || "",
   university: portfolio.university || "",
   city: portfolio.city || "",
+  preferredMajor: portfolio.preferredMajor || "",
+  preferredCity: portfolio.preferredCity || "",
   dateOfBirth: portfolio.dateOfBirth || "",
   degreeLevel: portfolio.degreeLevel || "",
   studentStatus: portfolio.studentStatus || "",
@@ -2351,6 +2375,12 @@ const buildCompanyApplicationSnapshot = ({ portfolio = {}, contact = "", req = n
   };
 };
 
+const getCompanyApplicationFileUrl = (req, file = {}) => {
+  const fileId = file._id?.toString?.() || file.id || "";
+  if (!fileId || !file.accessToken) return "";
+  return `${getPublicApiUrl(req)}/api/company-application-files/${fileId}?token=${file.accessToken}`;
+};
+
 const getCompanyApplicationMissingPortfolioFields = (portfolio = null, contact = "") => {
   const missing = [];
 
@@ -2419,6 +2449,10 @@ const serializeCompanyApplication = (application = {}) => {
     city: application.city || snapshot.city || "",
     portfolioUrl: application.portfolioUrl || snapshot.portfolioUrl || "",
     linkedinUrl: application.linkedinUrl || snapshot.linkedinUrl || "",
+    gpa: application.gpa || "",
+    trainingInfo: application.trainingInfo || "",
+    cvUrl: application.cvUrl || snapshot.cvUrl || "",
+    cvFilename: application.cvFilename || "",
     note: application.note || "",
     customAnswers: Array.isArray(application.customAnswers)
       ? application.customAnswers
@@ -6070,6 +6104,67 @@ app.post('/api/access/reminder-shown', async (req, res) => {
   }
 });
 
+// A free Darbak account saves only identity and journey preferences. It stays
+// separate from subscriptions and does not create a Portfolio.
+app.post('/api/account/free-session', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const rawEmail = req.body.email || req.body.contact;
+    const contact = normalizeSubscriberContact(rawEmail);
+    const accessCode = normalizeAccessCode(req.body.accessCode);
+    const firstName = (req.body.firstName || "").toString().trim().slice(0, 60);
+    const preferredMajor = (req.body.preferredMajor || "").toString().trim().slice(0, 120);
+    const preferredCity = (req.body.preferredCity || "").toString().trim().slice(0, 120);
+
+    if (!isValidEmail(rawEmail) || !isValidAccessCode(accessCode)) {
+      return res.status(400).json({
+        error: "اكتب بريدًا إلكترونيًا صحيحًا ورمز دخول من 4 إلى 12 حرفًا أو رقمًا.",
+      });
+    }
+
+    const user = await ensureAccessUser({ contact, accessCode });
+    if (!user) return res.status(400).json({ error: "تعذر إنشاء الحساب حاليًا." });
+
+    const updates = {};
+    if (firstName) updates.firstName = firstName;
+    if (preferredMajor) updates.preferredMajor = preferredMajor;
+    if (preferredCity) updates.preferredCity = preferredCity;
+    const updatedUser = Object.keys(updates).length
+      ? await User.findByIdAndUpdate(user._id, { $set: updates }, { new: true }).lean()
+      : user.toObject ? user.toObject() : user;
+
+    res.json({ ok: true, account: {
+      firstName: updatedUser.firstName || "",
+      preferredMajor: updatedUser.preferredMajor || "",
+      preferredCity: updatedUser.preferredCity || "",
+    }});
+  } catch (err) {
+    console.error("❌ Free account session error:", err);
+    res.status(500).json({ error: "تعذر حفظ حسابك حاليًا. حاول مرة أخرى." });
+  }
+});
+
+app.get('/api/account/free-session', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+    const user = await ensureAccessUser(getAccessIdentityFromRequest(req));
+    if (!user) return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    res.json({ account: {
+      firstName: user.firstName || "",
+      preferredMajor: user.preferredMajor || "",
+      preferredCity: user.preferredCity || "",
+    }});
+  } catch (err) {
+    console.error("❌ Free account session lookup error:", err);
+    res.status(500).json({ error: "تعذر تحميل الحساب حاليًا." });
+  }
+});
+
 app.post('/api/account/reward-identity', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -7466,8 +7561,8 @@ const buildApplicationEmail = ({ resume = {}, job = {}, trainingPeriod = "", tar
   const relevant = (matchedFacts.length ? matchedFacts : [...projects, ...skills]).slice(0, 2);
   const missing = [];
   if (!fullName) missing.push({ key: "fullName", label: "اسمك الكامل", appliesTo: "email" });
-  if ((isCompanyOutreach || /فتر[ةه]\s+التدريب|تاريخ\s+(?:البداية|البدء)|من\s*[-–]\s*إلى/u.test(jobText)) && !trainingPeriod) {
-    missing.push({ key: "trainingPeriod", label: "فترة التدريب", appliesTo: "email" });
+  if (!trainingPeriod) {
+    missing.push({ key: "trainingPeriod", label: "فترة التدريب المتوقعة", appliesTo: "email" });
   }
   if (isCompanyOutreach && !targetField) {
     missing.push({ key: "targetField", label: "المسمى أو المجال التدريبي المستهدف", appliesTo: "email" });
@@ -7536,7 +7631,9 @@ const buildApplicationPack = ({ draftPack = {}, job = {}, resume = {} }) => {
     "وتفضلوا بقبول خالص التحية.",
     personal.fullName || "",
   ].filter(Boolean).join("\n\n");
-  const canSendEmail = applicationMethod !== "unavailable";
+  // A contact method is required to send the email, not to prepare it. Every
+  // tailored version keeps a useful, customizable email draft for the student.
+  const canPrepareEmail = true;
   const savedTrainingPeriod = personal.trainingStart && personal.trainingEnd
     ? `من ${personal.trainingStart} إلى ${personal.trainingEnd}`
     : "";
@@ -7546,7 +7643,7 @@ const buildApplicationPack = ({ draftPack = {}, job = {}, resume = {} }) => {
     trainingPeriod: savedTrainingPeriod,
     targetField: personal.trainingField || "",
   });
-  const missingApplicationFields = canSendEmail ? generatedEmail.missing : [];
+  const missingApplicationFields = canPrepareEmail ? generatedEmail.missing : [];
   return {
     packType,
     status: missingApplicationFields.length ? "needs_input" : "ready",
@@ -7556,11 +7653,11 @@ const buildApplicationPack = ({ draftPack = {}, job = {}, resume = {} }) => {
       body: sanitizeResumeText(draftPack.trainingLetter?.body || fallbackLetter, 2200),
     },
     email: {
-      status: canSendEmail
+      status: canPrepareEmail
         ? generatedEmail.status
         : "unavailable",
-      subject: canSendEmail ? generatedEmail.subject : "",
-      body: canSendEmail ? generatedEmail.body : "",
+      subject: canPrepareEmail ? generatedEmail.subject : "",
+      body: canPrepareEmail ? generatedEmail.body : "",
     },
     applicationInfo: {
       sourceType: job.id ? "opportunity" : "where_to_train",
@@ -7896,9 +7993,13 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
           organizationName: sanitizeResumeText(req.body.externalJob.company, 160),
           note: sanitizeResumeText(req.body.externalJob.description, 8000),
           applicationUrl: sanitizeApplicationContact(req.body.externalJob.url, 260),
-          specialties: [],
+          specialties: (Array.isArray(req.body.externalJob.specialties) ? req.body.externalJob.specialties : [])
+            .slice(0, 20)
+            .map((specialty) => sanitizeResumeText(specialty, 120))
+            .filter(Boolean),
           majorCategories: [],
           city: sanitizeResumeText(req.body.externalJob.city, 120),
+          applicationMethod: sanitizeResumeText(req.body.externalJob.applicationMethod, 40),
           sourceType: ["company_suggestion", "where_to_train"].includes(req.body.externalJob.sourceType)
             ? "company_suggestion"
             : "external_job",
@@ -8486,13 +8587,13 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
   try {
     const [versions, masterResume] = await Promise.all([
       ResumeTailoredVersion.find({
-        contact: req.darbakAccess.contact,
-        accessCodeHash: req.darbakAccess.accessCodeHash,
-        status: "approved",
-      })
-        .sort({ updatedAt: -1 })
-        .limit(RESUME_AGENT_MAX_TAILORED_VERSIONS)
-        .lean(),
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+      status: "approved",
+    })
+      .sort({ updatedAt: -1 })
+      .limit(RESUME_AGENT_MAX_TAILORED_VERSIONS)
+      .lean(),
       ResumeProfile.findOne({
         contact: req.darbakAccess.contact,
         accessCodeHash: req.darbakAccess.accessCodeHash,
@@ -8509,25 +8610,25 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
               englishProvenance: version.resumePayload?.summaryProvenance || {},
             })
           : {};
-        return {
-          _id: version._id?.toString?.() || "",
-          name:
-            version.name ||
-            [version.roleTitle, version.companyName].filter(Boolean).join(" — ") ||
-            "نسخة مخصصة",
-          companyName: version.companyName || "",
-          roleTitle: version.roleTitle || "",
-          opportunityId: version.opportunityId?.toString?.() || "",
-          variantType: version.variantType || "tailored",
-          language: version.language || version.resumePayload?.settings?.language || "ar",
-          template: version.template || version.resumePayload?.settings?.template || "clean",
-          matchScore: Number(version.matchScore || 0),
-          matchBreakdown: version.matchBreakdown || {},
-          applicationPack: version.applicationPack || {},
-          changesSummary: version.changesSummary || [],
-          updatedAt: version.updatedAt || version.approvedAt || null,
-          needsLocalizationRefresh: Boolean(summaryFreshness.needsLocalizationRefresh),
-        };
+        return ({
+        _id: version._id?.toString?.() || "",
+        name:
+          version.name ||
+          [version.roleTitle, version.companyName].filter(Boolean).join(" — ") ||
+          "نسخة مخصصة",
+        companyName: version.companyName || "",
+        roleTitle: version.roleTitle || "",
+        opportunityId: version.opportunityId?.toString?.() || "",
+        variantType: version.variantType || "tailored",
+        language: version.language || version.resumePayload?.settings?.language || "ar",
+        template: version.template || version.resumePayload?.settings?.template || "clean",
+        matchScore: Number(version.matchScore || 0),
+        matchBreakdown: version.matchBreakdown || {},
+        applicationPack: version.applicationPack || {},
+        changesSummary: version.changesSummary || [],
+        updatedAt: version.updatedAt || version.approvedAt || null,
+        needsLocalizationRefresh: Boolean(summaryFreshness.needsLocalizationRefresh),
+      });
       }),
     });
   } catch (err) {
@@ -8555,8 +8656,8 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
 
     const [portfolio, masterResume] = await Promise.all([
       getPortfolioForAccess({
-        contact: req.darbakAccess.contact,
-        accessCodeHash: req.darbakAccess.accessCodeHash,
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
       }),
       ResumeProfile.findOne({
         contact: req.darbakAccess.contact,
@@ -8734,8 +8835,47 @@ app.put('/api/resume-agent/tailored-versions/:id/application-pack', requireResum
       trainingPeriod: `من ${start} إلى ${end}`,
       targetField: targetField || pack.applicationInfo?.targetField || "",
     };
+    const personalInfo = version.resumePayload?.personalInfo || {};
+    version.resumePayload = {
+      ...(version.resumePayload || {}),
+      personalInfo: {
+        ...personalInfo,
+        trainingStart: start,
+        trainingEnd: end,
+        ...(targetField ? { trainingField: targetField } : {}),
+      },
+    };
     version.applicationPack = pack;
-    await version.save();
+    version.markModified("resumePayload");
+    await Promise.all([
+      version.save(),
+      Portfolio.updateOne(
+        {
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+        },
+        {
+          $set: {
+            trainingStart: start,
+            trainingEnd: end,
+            ...(targetField ? { targetTrainingField: targetField } : {}),
+          },
+        }
+      ),
+      ResumeProfile.updateOne(
+        {
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+        },
+        {
+          $set: {
+            "personalInfo.trainingStart": start,
+            "personalInfo.trainingEnd": end,
+            ...(targetField ? { "personalInfo.trainingField": targetField } : {}),
+          },
+        }
+      ),
+    ]);
     return res.json({ applicationPack: pack, message: "اكتملت رسالة التقديم." });
   } catch (err) {
     console.error("❌ Application Pack update error:", err);
@@ -11738,6 +11878,82 @@ app.post('/api/suggestions', async (req, res) => {
   }
 });
 
+const companyApplicationFileParser = express.raw({
+  type: ["application/pdf"],
+  limit: "4mb",
+});
+
+app.post('/api/company-application-files', companyApplicationFileParser, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const fileBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
+    const contentType = (req.headers["content-type"] || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const filename = sanitizePortfolioText(
+      decodeURIComponent(req.headers["x-file-name"] || ""),
+      160
+    ) || "cv.pdf";
+
+    if (contentType !== "application/pdf" || !fileBuffer.length) {
+      return res.status(400).json({ error: "ارفع السيرة الذاتية بصيغة PDF." });
+    }
+
+    if (fileBuffer.length > 4 * 1024 * 1024) {
+      return res.status(413).json({ error: "حجم السيرة كبير. الحد الأقصى 4MB." });
+    }
+
+    const file = await CompanyApplicationFile.create({
+      filename,
+      contentType,
+      size: fileBuffer.length,
+      data: fileBuffer,
+      accessToken: crypto.randomBytes(24).toString("hex"),
+    });
+
+    res.json({
+      status: "ok",
+      data: {
+        id: file._id.toString(),
+        filename: file.filename,
+        url: getCompanyApplicationFileUrl(req, file),
+      },
+    });
+  } catch (err) {
+    console.error("❌ Company application file upload error:", err);
+    res.status(500).json({ error: "تعذر رفع السيرة الذاتية الآن. حاول مرة أخرى." });
+  }
+});
+
+app.get('/api/company-application-files/:fileId', async (req, res) => {
+  try {
+    const fileId = req.params.fileId || "";
+    const token = (req.query.token || "").toString();
+    if (!mongoose.Types.ObjectId.isValid(fileId) || !token) {
+      return res.status(404).send("Not found");
+    }
+
+    const file = await CompanyApplicationFile.findById(fileId).lean();
+    if (!file || file.accessToken !== token) {
+      return res.status(404).send("Not found");
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${file.filename.replace(/[\\\"\\r\\n]/g, "") || "cv.pdf"}"`
+    );
+    res.send(file.data);
+  } catch (err) {
+    console.error("❌ Company application file fetch error:", err);
+    res.status(404).send("Not found");
+  }
+});
+
 app.get('/api/company-apply/:companySlug/context', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -11757,48 +11973,32 @@ app.get('/api/company-apply/:companySlug/context', async (req, res) => {
     const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
     const campaign = serializeCompanyApplicationCampaign(campaignDocument);
 
-    if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
-      return res.json({
-        status: "ok",
-        requiresLogin: true,
-        canSubmit: false,
-        campaign,
-        missingFields: [],
-        portfolio: null,
-        snapshot: {},
-        publicUrl: "",
-        existingApplication: null,
-      });
-    }
-
-    const accessUser = await ensureAccessUser({ contact, accessCode });
-    const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
-    const missingFields = getCompanyApplicationMissingPortfolioFields(
-      portfolio,
-      contact
-    );
+    const hasIdentity =
+      isValidSubscriberContact(contact) && isValidAccessCode(accessCode);
+    const accessUser = hasIdentity
+      ? await ensureAccessUser({ contact, accessCode })
+      : null;
+    const portfolio = hasIdentity
+      ? await Portfolio.findOne({ contact, accessCodeHash }).lean()
+      : null;
     const snapshot = portfolio
       ? buildCompanyApplicationSnapshot({ portfolio, contact, req })
       : {
+          fullName: accessUser?.firstName || "",
           email: isValidEmail(contact) ? contact : "",
-          contact,
+          contact: hasIdentity ? contact : "",
           phone: getPortfolioPhoneForApplication({}, contact),
+          major: accessUser?.preferredMajor || "",
+          city: accessUser?.preferredCity || "",
+          university: "",
+          linkedinUrl: "",
         };
-    const existingApplication = accessUser
-      ? await CompanyApplication.findOne({
-          studentId: accessUser._id,
-          campaignId: campaign.campaignId,
-          status: { $nin: ["withdrawn"] },
-        })
-          .sort({ submittedAt: -1, createdAt: -1 })
-          .lean()
-      : null;
 
     res.json({
       status: "ok",
       requiresLogin: false,
-      canSubmit: Boolean(portfolio && missingFields.length === 0),
-      missingFields,
+      canSubmit: campaign.isOpen,
+      missingFields: [],
       campaign,
       portfolio: portfolio
         ? serializePortfolio(
@@ -11809,9 +12009,7 @@ app.get('/api/company-apply/:companySlug/context', async (req, res) => {
         : null,
       snapshot,
       publicUrl: portfolio ? buildCompanyApplicationPortfolioUrl(portfolio) : "",
-      existingApplication: existingApplication
-        ? serializeCompanyApplication(existingApplication)
-        : null,
+      existingApplication: null,
     });
   } catch (err) {
     console.error("❌ Company apply context error:", err);
@@ -11866,101 +12064,47 @@ app.post('/api/company-applications', async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const usePortfolio = Boolean(req.body?.usePortfolio);
     let payload = sanitizeCompanyApplicationPayload(req.body || {});
+    const campaignDocument = await getCompanyApplicationCampaignBySlug(
+      req.body?.campaignSlug || req.body?.companySlug || req.params?.companySlug
+    );
 
-    if (usePortfolio) {
-      const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
-
-      if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
-        return res.status(401).json({
-          requiresLogin: true,
-          error: "سجّل الدخول أولًا عشان نربط الطلب بحسابك وملفك المهني.",
-        });
-      }
-
-      const accessUser = await ensureAccessUser({ contact, accessCode });
-      const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
-      const missingFields = getCompanyApplicationMissingPortfolioFields(
-        portfolio,
-        contact
-      );
-
-      if (!portfolio || missingFields.length > 0) {
-        return res.status(400).json({
-          error: "أكمل ملفك المهني أولًا قبل إرسال الطلب.",
-          missingFields,
-        });
-      }
-
-      const campaignDocument = await getCompanyApplicationCampaignBySlug(
-        req.body?.campaignSlug || req.body?.companySlug || req.params?.companySlug
-      );
-
-      if (!campaignDocument) {
-        return res.status(404).json({
-          error: "برنامج التقديم غير موجود أو لم يعد متاحًا.",
-        });
-      }
-
-      if (!isCompanyApplicationCampaignOpen(campaignDocument)) {
-        return res.status(400).json({
-          error: "هذا البرنامج مغلق حاليًا ولا يستقبل طلبات جديدة.",
-        });
-      }
-
-      const campaign = buildCompanyApplicationCampaignForApplication(
-        campaignDocument
-      );
-
-      if (!campaignDocument.allowDuplicateApplications) {
-        const existingApplication = await CompanyApplication.findOne({
-          studentId: accessUser?._id,
-          campaignId: campaign.campaignId,
-          status: { $nin: ["withdrawn"] },
-        }).lean();
-
-        if (existingApplication) {
-          return res.status(409).json({
-            error: "سبق وأرسلت طلبك لهذا البرنامج. تقدر تتابع حالته من صفحة طلباتي.",
-            existingApplication: serializeCompanyApplication(existingApplication),
-          });
-        }
-      }
-
-      const snapshot = buildCompanyApplicationSnapshot({ portfolio, contact, req });
-      const customAnswers = sanitizeCompanyApplicationCustomAnswers(
-        req.body?.customAnswers || []
-      );
-
-      payload = {
-        ...payload,
-        ...campaign,
-        studentId: accessUser?._id || null,
-        portfolioId: portfolio._id,
-        fullName: snapshot.fullName,
-        email: snapshot.email,
-        phone: snapshot.phone,
-        major: snapshot.major,
-        university: snapshot.university,
-        city: snapshot.city,
-        portfolioUrl: snapshot.portfolioUrl,
-        linkedinUrl: snapshot.linkedinUrl,
-        customAnswers,
-        portfolioSnapshot: snapshot,
-        status: "submitted",
-        submittedAt: new Date(),
-        source: "darbak_portfolio_apply",
-        statusHistory: [
-          {
-            status: "submitted",
-            changedAt: new Date(),
-            changedBy: "student",
-            studentVisibleMessage: "تم إرسال طلبك عبر ملفك المهني في دربك.",
-          },
-        ],
-      };
+    if (!campaignDocument) {
+      return res.status(404).json({ error: "برنامج التقديم غير موجود أو لم يعد متاحًا." });
     }
+
+    if (!isCompanyApplicationCampaignOpen(campaignDocument)) {
+      return res.status(400).json({ error: "هذا البرنامج مغلق حاليًا ولا يستقبل طلبات جديدة." });
+    }
+
+    const campaign = buildCompanyApplicationCampaignForApplication(campaignDocument);
+    const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
+    const hasIdentity =
+      isValidSubscriberContact(contact) && isValidAccessCode(accessCode);
+    const accessUser = hasIdentity
+      ? await ensureAccessUser({ contact, accessCode })
+      : null;
+    const portfolio = hasIdentity
+      ? await Portfolio.findOne({ contact, accessCodeHash }).lean()
+      : null;
+    const profileSnapshot = portfolio
+      ? buildCompanyApplicationSnapshot({ portfolio, contact, req })
+      : {};
+    const customAnswers = sanitizeCompanyApplicationCustomAnswers(
+      req.body?.customAnswers || []
+    );
+
+    payload = {
+      ...payload,
+      ...campaign,
+      companyId: campaign.campaignId,
+      studentId: accessUser?._id || null,
+      portfolioId: portfolio?._id || null,
+      customAnswers,
+      status: "submitted",
+      submittedAt: new Date(),
+      source: "darbak_company_apply_form",
+    };
 
     if (!payload.organizationName || payload.organizationName.length < 2) {
       return res.status(400).json({ error: "اسم الجهة غير واضح." });
@@ -11974,9 +12118,46 @@ app.post('/api/company-applications', async (req, res) => {
       return res.status(400).json({ error: "اكتب بريدًا إلكترونيًا صحيحًا." });
     }
 
+    if (!payload.phone) {
+      return res.status(400).json({ error: "اكتب رقم جوال سعوديًا صحيحًا." });
+    }
+
+    if (!payload.university || payload.university.length < 2) {
+      return res.status(400).json({ error: "اكتب اسم الجامعة." });
+    }
+
+    if (!payload.major || payload.major.length < 2) {
+      return res.status(400).json({ error: "اكتب التخصص." });
+    }
+
+    if (!payload.cvFileId) {
+      return res.status(400).json({ error: "ارفع السيرة الذاتية بصيغة PDF." });
+    }
+
     if (!payload.consent) {
       return res.status(400).json({
         error: "يجب الموافقة على مشاركة بيانات الطلب مع الجهة لغرض التقديم.",
+      });
+    }
+
+    const cvFile = await CompanyApplicationFile.findOne({
+      _id: payload.cvFileId,
+      applicationId: null,
+    }).lean();
+    if (!cvFile) {
+      return res.status(400).json({
+        error: "ملف السيرة غير متاح. ارفعه مرة أخرى ثم أرسل الطلب.",
+      });
+    }
+
+    const existingApplication = await CompanyApplication.findOne({
+      campaignId: payload.campaignId,
+      email: payload.email,
+    }).lean();
+    if (existingApplication) {
+      return res.status(409).json({
+        error: "سبق استخدام هذا البريد للتقديم على البرنامج.",
+        existingApplication: serializeCompanyApplication(existingApplication),
       });
     }
 
@@ -12000,7 +12181,36 @@ app.post('/api/company-applications', async (req, res) => {
       });
     }
 
-    const application = await CompanyApplication.create(payload);
+    const snapshot = {
+      ...profileSnapshot,
+      fullName: payload.fullName,
+      email: payload.email,
+      phone: payload.phone,
+      major: payload.major,
+      university: payload.university,
+      city: payload.city,
+      linkedinUrl: payload.linkedinUrl,
+      cvUrl: getCompanyApplicationFileUrl(req, cvFile),
+    };
+    const application = await CompanyApplication.create({
+      ...payload,
+      cvUrl: getCompanyApplicationFileUrl(req, cvFile),
+      cvFilename: cvFile.filename,
+      portfolioSnapshot: snapshot,
+      statusHistory: [
+        {
+          status: "submitted",
+          changedAt: new Date(),
+          changedBy: "student",
+          studentVisibleMessage: "تم استلام طلبك عبر دربك.",
+        },
+      ],
+    });
+
+    await CompanyApplicationFile.updateOne(
+      { _id: cvFile._id, applicationId: null },
+      { $set: { applicationId: application._id, expiresAt: null } }
+    );
 
     res.json({
       status: "ok",
@@ -12772,8 +12982,6 @@ app.post('/api/experiences', async (req, res) => {
       submittedByUser = await ensureAccessUser(accessIdentity);
     }
 
-    const rewardEligible = Boolean(submittedByUser?._id);
-
     const newExp = new Experience({
       ...req.body,
       interviewQuestions: normalizeInterviewQuestions(req.body.interviewQuestions),
@@ -12783,8 +12991,9 @@ app.post('/api/experiences', async (req, res) => {
       ambassadorProfileImageUrl: "",
       submittedByUserId: submittedByUser?._id,
       submissionStatus: "pending",
-      rewardEligible,
-      rewardStatus: rewardEligible ? "pending" : "not_eligible",
+      // New submissions are reviewed for quality only; publishing no longer grants access.
+      rewardEligible: false,
+      rewardStatus: "not_eligible",
       publicationConsent: req.body.publicationConsent === true,
       sourceType: "direct",
       status: "pending",
@@ -14800,11 +15009,8 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
           submissionStatus: status,
           reviewedAt: reviewDate,
           rejectionReason: status === "rejected" ? rejectionReason.trim() : "",
-          ...(status === "rejected" && experience.rewardStatus !== "granted"
-            ? { rewardStatus: "not_eligible" }
-            : {}),
-          ...(status === "pending" && experience.rewardStatus !== "granted"
-            ? { rewardStatus: experience.rewardEligible ? "pending" : "not_eligible" }
+          ...(experience.rewardStatus !== "granted"
+            ? { rewardEligible: false, rewardStatus: "not_eligible" }
             : {}),
         },
       },
@@ -14815,23 +15021,7 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
       return res.status(404).json({ error: "Experience not found" });
     }
 
-    let rewardGrant = null;
-    if (
-      status === "approved" &&
-      updated.rewardEligible &&
-      updated.submittedByUserId &&
-      updated.rewardStatus !== "granted"
-    ) {
-      rewardGrant = await grantExperienceRewardAccess(updated, {
-        grantedBy: "admin_experience_approval",
-      });
-
-      if (rewardGrant?.experience) {
-        updated = rewardGrant.experience;
-      }
-    }
-
-    res.json({ ...updated, rewardGrant });
+    res.json(updated);
   } catch (err) {
     console.error("❌ Admin update error:", err);
     res.status(500).json({ error: err.message });

@@ -1,247 +1,182 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
 import { trackEvent } from "../utils/analytics";
-import {
-  PREMIUM_ACCESS_EVENT,
-  PREMIUM_STATUS_EVENT,
-  getAccessHeaders,
-  getStoredAccessIdentity,
-} from "../utils/premiumAccess";
+import { getAccessHeaders } from "../utils/premiumAccess";
 
 const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 
-const normalizeLabel = (value) =>
-  String(value ?? "")
-    .trim()
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ");
-
-const getQueryValue = (searchParams, keys = []) => {
-  for (const key of keys) {
-    const value = normalizeLabel(searchParams.get(key) || "");
-    if (value) return value;
-  }
-  return "";
+const emptyForm = {
+  fullName: "",
+  email: "",
+  phone: "",
+  university: "",
+  major: "",
+  city: "",
+  gpa: "",
+  trainingInfo: "",
+  linkedinUrl: "",
 };
 
-const buildCustomQuestions = (searchParams) => {
-  const questions = [
-    searchParams.get("question"),
-    searchParams.get("question1"),
-    searchParams.get("question2"),
-    searchParams.get("question3"),
-  ]
-    .map(normalizeLabel)
-    .filter(Boolean);
+const normalizeQuestion = (item) => ({
+  question: String(item?.question ?? "").trim(),
+  required: Boolean(item?.required),
+  answer: "",
+});
 
-  if (questions.length) {
-    return questions.map((question) => ({ question, answer: "" }));
-  }
-
-  return [
-    {
-      question: "ملاحظات إضافية ترغب أن تراها الجهة قبل مراجعة ملفك",
-      answer: "",
-    },
-  ];
+const isValidEmail = (value = "") => /^\S+@\S+\.\S+$/.test(value.trim());
+const isValidSaudiPhone = (value = "") => {
+  const digits = String(value).replace(/[^\d+]/g, "");
+  return /^(\+9665\d{8}|9665\d{8}|05\d{8}|5\d{8})$/.test(digits);
 };
 
-const statusColors = {
-  submitted: ["#66d0c3", "rgba(102,208,195,0.12)"],
-  under_review: ["#f2c94c", "rgba(242,201,76,0.12)"],
-  shortlisted: ["#7ddbcd", "rgba(125,219,205,0.14)"],
-  interview: ["#93c5fd", "rgba(147,197,253,0.12)"],
-  accepted: ["#86efac", "rgba(134,239,172,0.12)"],
-  rejected: ["#fca5a5", "rgba(252,165,165,0.12)"],
-  withdrawn: ["#cbd5e1", "rgba(203,213,225,0.1)"],
+const formatDeadline = (value) => {
+  if (!value) return "غير محدد";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "غير محدد";
+  return new Intl.DateTimeFormat("ar-SA", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
 };
-
-const InfoBlock = ({ label, value, href }) => (
-  <div className="company-apply-info-block">
-    <span>{label}</span>
-    {href && value ? (
-      <a href={href} target="_blank" rel="noreferrer">
-        {value}
-      </a>
-    ) : (
-      <strong>{value || "غير مضاف"}</strong>
-    )}
-  </div>
-);
-
-const ListPreview = ({ title, items = [], emptyText = "غير مضاف" }) => (
-  <section className="company-apply-review-section">
-    <h3>{title}</h3>
-    {items.length ? (
-      <div className="company-apply-chip-list">
-        {items.map((item, index) => {
-          const label =
-            typeof item === "string"
-              ? item
-              : item.title || item.provider || item.description || "عنصر";
-          const description =
-            typeof item === "string"
-              ? ""
-              : [item.provider, item.year, item.description, item.url]
-                  .filter(Boolean)
-                  .join(" · ");
-
-          return (
-            <div key={`${label}-${index}`} className="company-apply-chip-card">
-              <strong>{label}</strong>
-              {description && <span>{description}</span>}
-            </div>
-          );
-        })}
-      </div>
-    ) : (
-      <p className="company-apply-muted">{emptyText}</p>
-    )}
-  </section>
-);
 
 const CompanyApplyPage = () => {
   const { companySlug = "" } = useParams();
-  const [searchParams] = useSearchParams();
-  const organizationName = useMemo(() => {
-    const company = getQueryValue(searchParams, ["company", "organizationName"]);
-    return company || normalizeLabel(companySlug) || "جهة تدريبية";
-  }, [companySlug, searchParams]);
-  const opportunityTitle =
-    getQueryValue(searchParams, ["role", "title", "opportunity", "opportunityTitle"]) ||
-    "التدريب التعاوني";
-  const opportunityId = searchParams.get("opportunityId") || "";
-  const organizationLogoUrl =
-    searchParams.get("organizationLogoUrl") || searchParams.get("logoUrl") || "";
   const [context, setContext] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [form, setForm] = useState(emptyForm);
+  const [customAnswers, setCustomAnswers] = useState([]);
+  const [cvFile, setCvFile] = useState(null);
   const [consent, setConsent] = useState(false);
-  const [customAnswers, setCustomAnswers] = useState(() =>
-    buildCustomQuestions(searchParams)
-  );
-
-  const identity = getStoredAccessIdentity();
-  const hasIdentity = Boolean(identity.contact && identity.accessCode);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successApplication, setSuccessApplication] = useState(null);
+  const didPrefill = useRef(false);
 
   const fetchContext = useCallback(async () => {
     setLoading(true);
-    setErrorMessage("");
-
     try {
       const { data } = await axios.get(
         `${API_BASE_URL}/api/company-apply/${companySlug}/context`,
-        {
-          params: {
-            company: organizationName,
-            opportunityTitle,
-            opportunityId,
-            organizationLogoUrl,
-          },
-          headers: getAccessHeaders(),
-        }
+        { headers: getAccessHeaders() }
       );
       setContext(data);
     } catch (err) {
-      if (err.response?.status === 401) {
-        setContext({ requiresLogin: true });
-      } else {
-        setErrorMessage(
-          err.response?.data?.error ||
-            "تعذر تجهيز صفحة التقديم حاليًا. حاول مرة أخرى بعد قليل."
-        );
-      }
+      setErrorMessage(
+        err.response?.data?.error || "تعذر تحميل برنامج التقديم الآن. حاول مرة أخرى."
+      );
     } finally {
       setLoading(false);
     }
-  }, [companySlug, opportunityId, opportunityTitle, organizationLogoUrl, organizationName]);
-
-  useEffect(() => {
-    document.title = `التقديم على ${organizationName} | دربك`;
-    trackEvent("company_apply_page_viewed", {
-      organizationName,
-      companySlug,
-      opportunityTitle,
-      opportunityId,
-    });
-  }, [companySlug, opportunityId, opportunityTitle, organizationName]);
+  }, [companySlug]);
 
   useEffect(() => {
     fetchContext();
-
-    const refreshAfterLogin = () => fetchContext();
-    window.addEventListener(PREMIUM_STATUS_EVENT, refreshAfterLogin);
-    window.addEventListener("storage", refreshAfterLogin);
-    window.addEventListener("focus", refreshAfterLogin);
-    return () => {
-      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshAfterLogin);
-      window.removeEventListener("storage", refreshAfterLogin);
-      window.removeEventListener("focus", refreshAfterLogin);
-    };
   }, [fetchContext]);
 
-  const openLogin = () => {
-    setErrorMessage("");
-    window.dispatchEvent(
-      new CustomEvent(PREMIUM_ACCESS_EVENT, {
-        detail: {
-          loginOnly: true,
-          feature: "company_apply",
-          title: "تسجيل الدخول للتقديم",
-          source: "company_apply",
-        },
-      })
+  useEffect(() => {
+    const campaign = context?.campaign;
+    if (!campaign) return;
+
+    document.title = `التقديم على ${campaign.organizationName} | دربك`;
+    trackEvent("company_apply_page_viewed", {
+      companySlug,
+      organizationName: campaign.organizationName,
+      opportunityTitle: campaign.opportunityTitle,
+    });
+
+    if (!didPrefill.current) {
+      const snapshot = context?.snapshot || {};
+      setForm((current) => ({
+        ...current,
+        fullName: snapshot.fullName || current.fullName,
+        email: snapshot.email || current.email,
+        phone: snapshot.phone || current.phone,
+        university: snapshot.university || current.university,
+        major: snapshot.major || current.major,
+        city: snapshot.city || current.city,
+        linkedinUrl: snapshot.linkedinUrl || current.linkedinUrl,
+      }));
+      didPrefill.current = true;
+    }
+
+    setCustomAnswers(
+      Array.isArray(campaign.customQuestions)
+        ? campaign.customQuestions.map(normalizeQuestion).filter((item) => item.question)
+        : []
     );
+  }, [companySlug, context]);
+
+  const updateField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const updateAnswer = (index, answer) => {
-    setCustomAnswers((prev) =>
-      prev.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, answer } : item
+  const updateAnswer = (index, value) => {
+    setCustomAnswers((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, answer: value } : item
       )
     );
   };
 
-  useEffect(() => {
-    const campaignQuestions = context?.campaign?.customQuestions;
-    if (!Array.isArray(campaignQuestions) || campaignQuestions.length === 0) {
+  const uploadCv = async () => {
+    if (!cvFile) throw new Error("ارفع السيرة الذاتية بصيغة PDF.");
+    if (cvFile.type !== "application/pdf" && !cvFile.name.toLowerCase().endsWith(".pdf")) {
+      throw new Error("السيرة الذاتية يجب أن تكون بصيغة PDF.");
+    }
+    if (cvFile.size > 4 * 1024 * 1024) {
+      throw new Error("حجم السيرة كبير. الحد الأقصى 4MB.");
+    }
+
+    const { data } = await axios.post(
+      `${API_BASE_URL}/api/company-application-files`,
+      cvFile,
+      {
+        headers: {
+          "Content-Type": "application/pdf",
+          "X-File-Name": encodeURIComponent(cvFile.name),
+        },
+      }
+    );
+    return data?.data;
+  };
+
+  const validateForm = () => {
+    if (form.fullName.trim().length < 3) return "اكتب الاسم الكامل بشكل واضح.";
+    if (!isValidEmail(form.email)) return "اكتب بريدًا إلكترونيًا صحيحًا.";
+    if (!isValidSaudiPhone(form.phone)) return "اكتب رقم جوال سعوديًا صحيحًا.";
+    if (form.university.trim().length < 2) return "اكتب اسم الجامعة.";
+    if (form.major.trim().length < 2) return "اكتب التخصص.";
+    if (!cvFile) return "ارفع السيرة الذاتية بصيغة PDF.";
+    if (!consent) return "يلزم الموافقة على مشاركة بيانات الطلب مع الجهة.";
+    if (customAnswers.some((item) => item.required && !item.answer.trim())) {
+      return "أجب عن أسئلة البرنامج المطلوبة قبل الإرسال.";
+    }
+    return "";
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setErrorMessage("");
+    const validationError = validateForm();
+    if (validationError) {
+      setErrorMessage(validationError);
       return;
     }
 
-    setCustomAnswers((prev) => {
-      const previousAnswers = new Map(
-        prev.map((item) => [item.question, item.answer || ""])
-      );
-
-      return campaignQuestions.map((item) => ({
-        question: item.question,
-        required: Boolean(item.required),
-        answer: previousAnswers.get(item.question) || "",
-      }));
-    });
-  }, [context?.campaign?.id, context?.campaign?.customQuestions]);
-
-  const handleSubmit = async () => {
     setSubmitting(true);
-    setErrorMessage("");
-    setSuccessMessage("");
-
     try {
+      const upload = await uploadCv();
+      const campaign = context?.campaign || {};
       const { data } = await axios.post(
         `${API_BASE_URL}/api/company-applications`,
         {
-          usePortfolio: true,
-          companySlug: context?.campaign?.slug || companySlug,
-          campaignSlug: context?.campaign?.slug || companySlug,
-          organizationName: context?.campaign?.organizationName || organizationName,
-          organizationLogoUrl:
-            context?.campaign?.organizationLogoUrl || organizationLogoUrl,
-          opportunityTitle: context?.campaign?.opportunityTitle || opportunityTitle,
-          opportunityId,
+          ...form,
+          cvFileId: upload?.id,
+          campaignSlug: campaign.slug || companySlug,
+          companySlug: campaign.companySlug || companySlug,
           customAnswers,
           consent,
         },
@@ -249,562 +184,188 @@ const CompanyApplyPage = () => {
       );
 
       trackEvent("company_application_submitted", {
-        organizationName,
         companySlug,
-        opportunityTitle,
-        opportunityId,
-        city: data.data?.city || context?.snapshot?.city || "",
-        major: data.data?.major || context?.snapshot?.major || "",
+        organizationName: campaign.organizationName,
+        opportunityTitle: campaign.opportunityTitle,
+        city: form.city,
+        major: form.major,
       });
-      setSuccessMessage("تم إرسال طلبك بنجاح. تقدر تتابع حالته من صفحة طلباتي.");
-      fetchContext();
+      setSuccessApplication(data?.data || { organizationName: campaign.organizationName });
     } catch (err) {
       setErrorMessage(
-        err.response?.data?.error ||
-          "تعذر إرسال الطلب حاليًا. حاول مرة أخرى بعد قليل."
+        err.response?.data?.error || err.message || "تعذر إرسال الطلب الآن. حاول مرة أخرى."
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const snapshot = context?.snapshot || {};
-  const missingFields = Array.isArray(context?.missingFields)
-    ? context.missingFields
-    : [];
-  const existingApplication = context?.existingApplication;
-  const statusTone =
-    statusColors[existingApplication?.status] || statusColors.submitted;
-  const displayOrganizationName =
-    context?.campaign?.organizationName || organizationName;
-  const displayOpportunityTitle =
-    context?.campaign?.opportunityTitle || opportunityTitle;
-  const displayOrganizationLogoUrl =
-    context?.campaign?.organizationLogoUrl || organizationLogoUrl;
-  const hasMissingRequiredAnswers = customAnswers.some(
-    (item) => item.required && !item.answer?.trim()
-  );
+  const campaign = context?.campaign || {};
+  const isOpen = Boolean(campaign.isOpen);
+  const specialties = Array.isArray(campaign.specialties) ? campaign.specialties : [];
+  const cities = Array.isArray(campaign.cities) ? campaign.cities : [];
+  const displayCities = cities.length ? cities.join("، ") : campaign.city || "كل المدن";
 
   return (
     <main dir="rtl" className="company-apply-page">
       <section className="company-apply-shell">
         <aside className="company-apply-hero">
-          <span className="company-apply-badge">تقديم عبر ملفك المهني</span>
-          <h1>قدّم على {displayOrganizationName}</h1>
-          <p>
-            دربك يجهز بياناتك من ملفك المهني مباشرة. راجع معلوماتك، جاوب
-            أسئلة البرنامج إن وجدت، ثم أرسل طلبك بدون تعبئة مكررة.
-          </p>
+          <span className="company-apply-badge">التقديم عبر دربك</span>
+          {campaign.organizationLogoUrl && (
+            <img
+              className="company-apply-logo"
+              src={campaign.organizationLogoUrl}
+              alt={`شعار ${campaign.organizationName}`}
+            />
+          )}
+          <h1>{campaign.organizationName || "برنامج تدريب"}</h1>
+          <h2>{campaign.opportunityTitle || "التدريب التعاوني"}</h2>
+          {campaign.description && <p>{campaign.description}</p>}
 
           <div className="company-apply-summary">
-            <InfoBlock label="البرنامج" value={displayOpportunityTitle} />
-            <InfoBlock label="طريقة التقديم" value="ملفك المهني في دربك" />
-            <InfoBlock
-              label="الموافقة"
-              value="مطلوبة قبل مشاركة بياناتك مع الجهة"
-            />
+            <div><span>المدينة</span><strong>{displayCities}</strong></div>
+            <div><span>التخصصات</span><strong>{specialties.length ? specialties.join("، ") : "متاح لعدة تخصصات"}</strong></div>
+            <div><span>آخر موعد</span><strong>{formatDeadline(campaign.applicationDeadline)}</strong></div>
           </div>
-
-          {context?.campaign?.description && (
-            <p className="company-apply-campaign-description">
-              {context.campaign.description}
-            </p>
-          )}
         </aside>
 
         <section className="company-apply-card">
           {loading ? (
-            <div className="company-apply-state">جار تجهيز بياناتك...</div>
-          ) : context?.requiresLogin || !hasIdentity ? (
-            <div className="company-apply-state">
-              <h2>سجّل الدخول عشان نربط الطلب بملفك المهني</h2>
-              <p>
-                نحتاج بريدك ورمز الدخول فقط، وبعدها نجيب بيانات ملف الأعمال
-                تلقائيًا ونجهز صفحة المراجعة.
-              </p>
-              <button type="button" onClick={openLogin}>
-                تسجيل الدخول أو إنشاء حساب
-              </button>
-            </div>
-          ) : context?.campaign && !context.campaign.isOpen ? (
+            <div className="company-apply-state">جار تجهيز نموذج التقديم...</div>
+          ) : errorMessage && !campaign.organizationName ? (
+            <div className="company-apply-state company-apply-error-state">{errorMessage}</div>
+          ) : !isOpen ? (
             <div className="company-apply-state">
               <h2>التقديم على هذا البرنامج مغلق حاليًا</h2>
-              <p>
-                البرنامج موجود في دربك، لكن حالته الآن لا تسمح باستقبال طلبات
-                جديدة. تقدر تتابع فرص أخرى من صفحة وين أتدرب.
-              </p>
-              <Link to="/where-to-train" className="company-apply-primary-link">
-                استكشف فرص أخرى
-              </Link>
-            </div>
-          ) : missingFields.length ? (
-            <div className="company-apply-state">
-              <h2>أكمل ملفك المهني أولًا</h2>
-              <p>
-                قبل إرسال الطلب للجهة، أضف البيانات الأساسية التالية في ملف
-                الأعمال:
-              </p>
-              <div className="company-apply-missing-list">
-                {missingFields.map((item) => (
-                  <span key={item.field}>{item.label}</span>
-                ))}
-              </div>
-              <Link to="/portfolio" className="company-apply-primary-link">
-                إكمال ملفي المهني
-              </Link>
-            </div>
-          ) : existingApplication ? (
-            <div className="company-apply-state">
-              <h2>سبق وأرسلت طلبك لهذه الجهة</h2>
-              <p>
-                تقدر تتابع الحالة من صفحة طلباتي، وأي تحديث من الإدارة بيظهر لك
-                هناك.
-              </p>
-              <div
-                className="company-apply-status-pill"
-                style={{ color: statusTone[0], background: statusTone[1] }}
-              >
-                {existingApplication.statusLabel || "تم الإرسال"}
-              </div>
-              <Link to="/applications" className="company-apply-primary-link">
-                عرض طلباتي
-              </Link>
+              <p>تابع الفرص الأخرى المتاحة في دربك.</p>
+              <Link to="/where-to-train" className="company-apply-primary-link">استكشف الفرص</Link>
             </div>
           ) : (
-            <>
-              <div className="company-apply-card-header">
-                <div>
-                  <span>مراجعة قبل الإرسال</span>
-                  <h2>بيانات ملفك المهني</h2>
-                </div>
-                {displayOrganizationLogoUrl && (
-                  <img src={displayOrganizationLogoUrl} alt={displayOrganizationName} />
-                )}
-              </div>
+            <form onSubmit={handleSubmit} className="company-apply-form">
+              <header>
+                <span>طلب جديد</span>
+                <h2>قدّم على البرنامج</h2>
+                <p>أدخل بياناتك وأرسل طلبك مباشرة للجهة.</p>
+              </header>
 
               {errorMessage && <p className="company-apply-error">{errorMessage}</p>}
-              {successMessage && (
-                <p className="company-apply-success">{successMessage}</p>
-              )}
 
-              <div className="company-apply-grid">
-                <InfoBlock label="الاسم" value={snapshot.fullName} />
-                <InfoBlock label="البريد" value={snapshot.email} />
-                <InfoBlock label="رقم الجوال" value={snapshot.phone} />
-                <InfoBlock label="التخصص" value={snapshot.major} />
-                <InfoBlock label="الجامعة" value={snapshot.university} />
-                <InfoBlock label="المدينة" value={snapshot.city} />
-                <InfoBlock label="درجة الشهادة" value={snapshot.degreeLevel} />
-                <InfoBlock label="حالة الجاهزية" value={snapshot.readinessStatus} />
-                <InfoBlock
-                  label="السيرة الذاتية"
-                  value={snapshot.cvUrl ? "عرض السيرة" : ""}
-                  href={snapshot.cvUrl}
-                />
-                <InfoBlock
-                  label="LinkedIn"
-                  value={snapshot.linkedinUrl ? "فتح LinkedIn" : ""}
-                  href={snapshot.linkedinUrl}
-                />
-                <InfoBlock
-                  label="رابط الملف المهني"
-                  value={snapshot.portfolioUrl ? "عرض الملف" : ""}
-                  href={snapshot.portfolioUrl}
-                />
+              <div className="company-apply-fields">
+                <label>
+                  الاسم الكامل <b>*</b>
+                  <input value={form.fullName} onChange={(e) => updateField("fullName", e.target.value)} autoComplete="name" required />
+                </label>
+                <label>
+                  البريد الإلكتروني <b>*</b>
+                  <input type="email" value={form.email} onChange={(e) => updateField("email", e.target.value)} autoComplete="email" dir="ltr" required />
+                </label>
+                <label>
+                  رقم الجوال <b>*</b>
+                  <input type="tel" value={form.phone} onChange={(e) => updateField("phone", e.target.value)} placeholder="05xxxxxxxx" autoComplete="tel" dir="ltr" required />
+                </label>
+                <label>
+                  الجامعة <b>*</b>
+                  <input value={form.university} onChange={(e) => updateField("university", e.target.value)} required />
+                </label>
+                <label>
+                  التخصص <b>*</b>
+                  <input value={form.major} onChange={(e) => updateField("major", e.target.value)} required />
+                </label>
+                <label>
+                  المدينة
+                  <input value={form.city} onChange={(e) => updateField("city", e.target.value)} />
+                </label>
+                <label>
+                  المعدل <small>اختياري</small>
+                  <input value={form.gpa} onChange={(e) => updateField("gpa", e.target.value)} placeholder="مثال: 4.60 من 5" />
+                </label>
+                <label>
+                  موعد التدريب أو التخرج <small>اختياري</small>
+                  <input value={form.trainingInfo} onChange={(e) => updateField("trainingInfo", e.target.value)} placeholder="مثال: صيف 2026" />
+                </label>
+                <label className="company-apply-wide-field">
+                  LinkedIn <small>اختياري</small>
+                  <input type="url" value={form.linkedinUrl} onChange={(e) => updateField("linkedinUrl", e.target.value)} placeholder="https://linkedin.com/in/..." dir="ltr" />
+                </label>
               </div>
 
-              <section className="company-apply-review-section">
-                <h3>نبذة شخصية</h3>
-                <p className="company-apply-long-text">
-                  {snapshot.bio || "غير مضافة"}
-                </p>
-              </section>
-
-              <ListPreview title="المهارات" items={snapshot.skills || []} />
-              <ListPreview title="المشاريع" items={snapshot.projects || []} />
-              <ListPreview
-                title="الشهادات والدورات"
-                items={snapshot.certifications || []}
-              />
-
-              <section className="company-apply-review-section">
-                <h3>أسئلة البرنامج الإضافية</h3>
-                <div className="company-apply-questions">
-                  {customAnswers.map((item, index) => (
-                    <label key={`${item.question}-${index}`}>
-                      <span>{item.question}</span>
-                      <textarea
-                        value={item.answer}
-                        onChange={(event) => updateAnswer(index, event.target.value)}
-                        placeholder={item.required ? "مطلوب" : "اختياري"}
-                        rows={3}
-                      />
-                    </label>
-                  ))}
-                </div>
-              </section>
-
-              <label className="company-apply-consent">
-                  <input
-                  type="checkbox"
-                  checked={consent}
-                  onChange={(event) => setConsent(event.target.checked)}
+              <label className="company-apply-file-field">
+                <span>رفع السيرة الذاتية PDF <b>*</b></span>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(event) => setCvFile(event.target.files?.[0] || null)}
+                  required
                 />
-                <span>
-                  أوافق على مشاركة بيانات ملفي المهني مع {displayOrganizationName} لغرض
-                  مراجعة طلب التقديم.
-                </span>
+                <small>{cvFile ? `تم اختيار: ${cvFile.name}` : "الحد الأقصى 4MB"}</small>
               </label>
 
-              <div className="company-apply-actions">
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={!consent || submitting || hasMissingRequiredAnswers}
-                >
-                  {submitting ? "جار الإرسال..." : "إرسال الطلب"}
-                </button>
-                <Link to="/applications">طلباتي</Link>
-              </div>
-            </>
+              {customAnswers.length > 0 && (
+                <section className="company-apply-questions">
+                  <h3>أسئلة البرنامج</h3>
+                  {customAnswers.map((item, index) => (
+                    <label key={`${item.question}-${index}`}>
+                      {item.question} {item.required && <b>*</b>}
+                      <textarea value={item.answer} onChange={(e) => updateAnswer(index, e.target.value)} rows={3} required={item.required} />
+                    </label>
+                  ))}
+                </section>
+              )}
+
+              <label className="company-apply-consent">
+                <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                <span>أوافق على مشاركة بيانات هذا الطلب مع الجهة لغرض التقديم على البرنامج.</span>
+              </label>
+
+              <button className="company-apply-submit" type="submit" disabled={submitting}>
+                {submitting ? "جار إرسال الطلب..." : "إرسال الطلب"}
+              </button>
+            </form>
           )}
         </section>
       </section>
 
+      {successApplication && (
+        <div className="company-apply-success-overlay" role="dialog" aria-modal="true">
+          <section className="company-apply-success-modal">
+            <span>✓</span>
+            <h2>تم إرسال طلبك بنجاح</h2>
+            <p>تم استلام طلبك للتقديم على {successApplication.opportunityTitle || campaign.opportunityTitle || campaign.organizationName}.</p>
+            <Link to="/" className="company-apply-success-primary">استكشف دربك</Link>
+            <button type="button" onClick={() => setSuccessApplication(null)}>العودة للفرصة</button>
+          </section>
+        </div>
+      )}
+
       <style>{`
-        .company-apply-page {
-          min-height: 100vh;
-          padding: clamp(22px, 5vw, 58px) 14px;
-          font-family: ${pageFont};
-          color: var(--app-text);
-          background:
-            radial-gradient(circle at top right, color-mix(in srgb, var(--app-brand) 22%, transparent), transparent 34%),
-            var(--app-bg);
-        }
-
-        .company-apply-shell {
-          max-width: 1080px;
-          margin: 0 auto;
-          display: grid;
-          grid-template-columns: minmax(280px, 0.82fr) minmax(0, 1.18fr);
-          gap: clamp(18px, 4vw, 30px);
-          align-items: start;
-        }
-
-        .company-apply-hero,
-        .company-apply-card {
-          border: 1px solid var(--app-border);
-          border-radius: 26px;
-          box-shadow: 0 24px 70px var(--app-shadow);
-        }
-
-        .company-apply-hero {
-          position: sticky;
-          top: 92px;
-          padding: 28px 24px;
-          background: linear-gradient(160deg, #102523 0%, #123936 100%);
-          color: #fff;
-        }
-
-        .company-apply-badge {
-          display: inline-flex;
-          padding: 7px 13px;
-          border-radius: 999px;
-          background: rgba(125, 219, 205, 0.14);
-          color: #9ff2e8;
-          font-weight: 900;
-          font-size: 13px;
-        }
-
-        .company-apply-hero h1 {
-          margin: 18px 0 10px;
-          font-size: clamp(30px, 5vw, 48px);
-          line-height: 1.15;
-          letter-spacing: 0;
-        }
-
-        .company-apply-hero p {
-          color: rgba(255, 255, 255, 0.76);
-          line-height: 1.9;
-          font-size: 16px;
-          margin: 0 0 20px;
-        }
-
-        .company-apply-summary {
-          display: grid;
-          gap: 10px;
-          margin-top: 24px;
-        }
-
-        .company-apply-campaign-description {
-          margin: 18px 0 0 !important;
-          padding-top: 16px;
-          border-top: 1px solid rgba(255,255,255,0.12);
-          white-space: pre-wrap;
-          font-size: 14px !important;
-        }
-
-        .company-apply-card {
-          padding: clamp(18px, 4vw, 26px);
-          background: color-mix(in srgb, var(--app-surface) 94%, transparent);
-        }
-
-        .company-apply-card-header {
-          display: flex;
-          justify-content: space-between;
-          gap: 14px;
-          align-items: flex-start;
-          margin-bottom: 16px;
-        }
-
-        .company-apply-card-header span {
-          color: var(--app-brand);
-          font-size: 13px;
-          font-weight: 900;
-        }
-
-        .company-apply-card-header h2,
-        .company-apply-state h2 {
-          margin: 5px 0 0;
-          color: var(--app-text);
-          font-size: clamp(24px, 4vw, 34px);
-          letter-spacing: 0;
-        }
-
-        .company-apply-card-header img {
-          width: 64px;
-          height: 64px;
-          border-radius: 18px;
-          object-fit: contain;
-          background: #fff;
-          border: 1px solid var(--app-border);
-          padding: 8px;
-        }
-
-        .company-apply-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-          gap: 10px;
-        }
-
-        .company-apply-info-block,
-        .company-apply-chip-card {
-          border: 1px solid var(--app-border);
-          border-radius: 16px;
-          padding: 12px 13px;
-          background: var(--app-input-bg);
-        }
-
-        .company-apply-info-block span,
-        .company-apply-chip-card span,
-        .company-apply-muted {
-          color: var(--app-text-soft);
-          font-size: 12px;
-          line-height: 1.7;
-        }
-
-        .company-apply-info-block strong,
-        .company-apply-info-block a,
-        .company-apply-chip-card strong {
-          display: block;
-          margin-top: 5px;
-          color: var(--app-text);
-          font-size: 14px;
-          font-weight: 900;
-          text-decoration: none;
-          overflow-wrap: anywhere;
-        }
-
-        .company-apply-info-block a {
-          color: var(--app-brand);
-        }
-
-        .company-apply-review-section {
-          margin-top: 14px;
-          border: 1px solid var(--app-border);
-          border-radius: 18px;
-          padding: 14px;
-          background: color-mix(in srgb, var(--app-input-bg) 74%, transparent);
-        }
-
-        .company-apply-review-section h3 {
-          margin: 0 0 10px;
-          color: var(--app-brand);
-          font-size: 17px;
-        }
-
-        .company-apply-long-text {
-          margin: 0;
-          color: var(--app-text);
-          line-height: 1.9;
-          white-space: pre-wrap;
-        }
-
-        .company-apply-chip-list {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-          gap: 9px;
-        }
-
-        .company-apply-questions {
-          display: grid;
-          gap: 10px;
-        }
-
-        .company-apply-questions label {
-          display: grid;
-          gap: 8px;
-          color: var(--app-text);
-          font-weight: 900;
-        }
-
-        .company-apply-questions textarea {
-          width: 100%;
-          border: 1px solid var(--app-border);
-          border-radius: 14px;
-          padding: 12px;
-          font-family: inherit;
-          color: var(--app-text);
-          background: var(--app-surface);
-          resize: vertical;
-          box-sizing: border-box;
-          line-height: 1.8;
-        }
-
-        .company-apply-consent {
-          display: flex;
-          gap: 10px;
-          align-items: flex-start;
-          margin: 16px 0;
-          color: var(--app-text);
-          line-height: 1.8;
-          font-weight: 800;
-        }
-
-        .company-apply-consent input {
-          margin-top: 8px;
-          accent-color: var(--app-brand);
-        }
-
-        .company-apply-actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-          align-items: center;
-        }
-
-        .company-apply-actions button,
-        .company-apply-state button,
-        .company-apply-primary-link {
-          border: none;
-          border-radius: 15px;
-          background: var(--app-brand);
-          color: #071814;
-          padding: 13px 18px;
-          font-family: inherit;
-          font-weight: 900;
-          text-decoration: none;
-          cursor: pointer;
-        }
-
-        .company-apply-actions button:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-
-        .company-apply-actions a {
-          color: var(--app-brand);
-          font-weight: 900;
-          text-decoration: none;
-          padding: 12px;
-        }
-
-        .company-apply-state {
-          display: grid;
-          gap: 14px;
-          min-height: 280px;
-          place-items: center;
-          text-align: center;
-          align-content: center;
-        }
-
-        .company-apply-state p {
-          margin: 0;
-          color: var(--app-text-soft);
-          max-width: 520px;
-          line-height: 1.9;
-        }
-
-        .company-apply-missing-list {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: center;
-          gap: 8px;
-        }
-
-        .company-apply-missing-list span,
-        .company-apply-status-pill {
-          border: 1px solid var(--app-border);
-          border-radius: 999px;
-          padding: 8px 11px;
-          color: var(--app-brand);
-          background: var(--app-brand-soft);
-          font-weight: 900;
-          font-size: 13px;
-        }
-
-        .company-apply-error,
-        .company-apply-success {
-          border-radius: 14px;
-          padding: 11px 13px;
-          line-height: 1.8;
-          font-weight: 800;
-        }
-
-        .company-apply-error {
-          color: #fecaca;
-          background: rgba(127, 29, 29, 0.18);
-          border: 1px solid rgba(248, 113, 113, 0.32);
-        }
-
-        .company-apply-success {
-          color: var(--app-brand);
-          background: var(--app-brand-soft);
-          border: 1px solid var(--app-brand-border);
-        }
-
-        @media (max-width: 820px) {
-          .company-apply-shell {
-            grid-template-columns: 1fr;
-          }
-
-          .company-apply-hero {
-            position: static;
-            border-radius: 22px;
-          }
-        }
-
-        @media (max-width: 560px) {
-          .company-apply-page {
-            padding: 14px 10px 28px;
-          }
-
-          .company-apply-hero,
-          .company-apply-card {
-            border-radius: 20px;
-          }
-
-          .company-apply-grid,
-          .company-apply-chip-list {
-            grid-template-columns: 1fr;
-          }
-
-          .company-apply-actions button,
-          .company-apply-primary-link {
-            width: 100%;
-            text-align: center;
-          }
-        }
+        .company-apply-page { min-height: 100vh; padding: clamp(22px, 5vw, 58px) 14px; color: var(--app-text); background: var(--app-bg); font-family: ${pageFont}; }
+        .company-apply-shell { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: minmax(270px, .84fr) minmax(0, 1.16fr); gap: clamp(18px, 4vw, 30px); align-items: start; }
+        .company-apply-hero, .company-apply-card { border: 1px solid var(--app-border); border-radius: 22px; box-shadow: 0 18px 52px var(--app-shadow); }
+        .company-apply-hero { position: sticky; top: 92px; padding: clamp(22px, 3vw, 30px); background: #102a28; color: #fff; }
+        .company-apply-badge { display:inline-flex; padding:6px 11px; border-radius:999px; background:rgba(125,219,205,.16); color:#9ff2e8; font-size:13px; font-weight:900; }
+        .company-apply-logo { display:block; width:70px; height:70px; margin:18px 0 12px; padding:9px; border-radius:16px; object-fit:contain; background:#fff; }
+        .company-apply-hero h1 { margin:0; font-size:clamp(26px,4vw,40px); line-height:1.2; }
+        .company-apply-hero h2 { margin:8px 0 14px; color:#7ddbcd; font-size:18px; }
+        .company-apply-hero > p { margin:0; color:rgba(255,255,255,.78); line-height:1.9; white-space:pre-line; }
+        .company-apply-summary { display:grid; gap:9px; margin-top:22px; }
+        .company-apply-summary div { display:flex; justify-content:space-between; gap:14px; padding:11px 0; border-top:1px solid rgba(255,255,255,.12); font-size:13px; }
+        .company-apply-summary span { color:rgba(255,255,255,.6); } .company-apply-summary strong { text-align:left; color:#fff; }
+        .company-apply-card { min-height:460px; padding:clamp(20px,4vw,34px); background:var(--app-card); }
+        .company-apply-state { display:grid; place-content:center; min-height:370px; text-align:center; color:var(--app-text-soft); line-height:1.8; }
+        .company-apply-state h2 { color:var(--app-text); margin:0 0 8px; } .company-apply-primary-link { display:inline-flex; justify-self:center; margin-top:12px; padding:11px 15px; border-radius:10px; background:var(--app-brand); color:#06201e; font-weight:900; text-decoration:none; }
+        .company-apply-form header span { color:var(--app-brand-strong); font-size:13px; font-weight:900; } .company-apply-form header h2 { margin:5px 0 6px; font-size:clamp(24px,4vw,32px); } .company-apply-form header p { margin:0 0 24px; color:var(--app-text-soft); }
+        .company-apply-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px; }
+        .company-apply-form label { display:grid; gap:7px; color:var(--app-text); font-size:14px; font-weight:800; } .company-apply-form b { color:var(--app-brand-strong); } .company-apply-form small { color:var(--app-text-soft); font-weight:600; }
+        .company-apply-form input, .company-apply-form textarea { width:100%; box-sizing:border-box; border:1px solid var(--app-border); border-radius:10px; padding:11px 12px; background:var(--app-input-bg); color:var(--app-text); font:inherit; font-weight:600; outline:none; }
+        .company-apply-form input:focus, .company-apply-form textarea:focus { border-color:var(--app-brand); box-shadow:0 0 0 3px color-mix(in srgb,var(--app-brand) 18%,transparent); } .company-apply-wide-field { grid-column:1 / -1; }
+        .company-apply-file-field { margin-top:16px; padding:14px; border:1px dashed color-mix(in srgb,var(--app-brand) 55%,var(--app-border)); border-radius:12px; background:color-mix(in srgb,var(--app-brand) 5%,transparent); } .company-apply-file-field input { padding:8px 0; border:0; background:transparent; }
+        .company-apply-questions { display:grid; gap:12px; margin-top:20px; padding-top:18px; border-top:1px solid var(--app-border); } .company-apply-questions h3 { margin:0; font-size:17px; }
+        .company-apply-consent { display:flex !important; grid-template-columns:auto 1fr; align-items:flex-start; gap:10px !important; margin-top:20px; color:var(--app-text-soft) !important; line-height:1.8; } .company-apply-consent input { width:17px; height:17px; margin-top:4px; accent-color:var(--app-brand); }
+        .company-apply-submit { width:100%; margin-top:18px; padding:13px 16px; border:0; border-radius:11px; background:var(--app-brand); color:#06201e; font:inherit; font-weight:900; font-size:16px; cursor:pointer; } .company-apply-submit:disabled { opacity:.62; cursor:wait; }
+        .company-apply-error { margin:0 0 14px; padding:11px 13px; border-radius:10px; color:#fecaca; background:rgba(248,113,113,.12); border:1px solid rgba(248,113,113,.26); line-height:1.7; } .company-apply-error-state { color:#fecaca; }
+        .company-apply-success-overlay { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(3,13,12,.72); backdrop-filter:blur(5px); } .company-apply-success-modal { width:min(100%,420px); padding:30px; border:1px solid var(--app-border); border-radius:20px; background:var(--app-card); text-align:center; box-shadow:0 26px 80px rgba(0,0,0,.35); } .company-apply-success-modal > span { display:grid; place-items:center; width:50px; height:50px; margin:0 auto 14px; border-radius:50%; background:rgba(125,219,205,.14); color:var(--app-brand); font-size:28px; font-weight:900; } .company-apply-success-modal h2 { margin:0 0 10px; } .company-apply-success-modal p { color:var(--app-text-soft); line-height:1.8; } .company-apply-success-modal a, .company-apply-success-modal button { display:block; width:100%; box-sizing:border-box; margin-top:11px; padding:12px; border-radius:10px; font:inherit; font-weight:900; text-decoration:none; cursor:pointer; } .company-apply-success-primary { background:var(--app-brand); color:#06201e; } .company-apply-success-modal button { border:1px solid var(--app-border); background:transparent; color:var(--app-text-soft); }
+        @media (max-width:780px) { .company-apply-page { padding:18px 12px 34px; } .company-apply-shell { grid-template-columns:1fr; } .company-apply-hero { position:static; } .company-apply-card { min-height:0; } }
+        @media (max-width:520px) { .company-apply-fields { grid-template-columns:1fr; } .company-apply-wide-field { grid-column:auto; } .company-apply-hero { padding:22px 19px; } .company-apply-card { padding:22px 17px; } }
       `}</style>
     </main>
   );
