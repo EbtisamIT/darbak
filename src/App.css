@@ -5688,7 +5688,9 @@ body {
 .company-share-controls { display: grid; grid-template-columns: minmax(220px, 1.8fr) minmax(150px, 1fr) minmax(150px, 1fr) auto; gap: 10px; padding: 14px 0; }
 .company-share-controls input, .company-share-controls select { min-height: 44px; padding: 0 12px; background: #101b1a; color: #edf7f5; border: 1px solid #29403b; border-radius: 10px; font: inherit; box-sizing: border-box; }
 .company-share-controls input::placeholder { color: #78918b; }
-.company-share-export, .company-share-cv { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px; border-radius: 10px; box-sizing: border-box; background: #7ddbcd; color: #07100e; text-decoration: none; font-weight: 900; white-space: nowrap; }
+.company-share-export, .company-share-cv { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px; border-radius: 10px; box-sizing: border-box; background: #7ddbcd; color: #07100e; text-decoration: none; font: inherit; font-weight: 900; white-space: nowrap; }
+.company-share-export { border: 0; cursor: pointer; }
+.company-share-export:disabled { cursor: wait; opacity: .7; }
 .company-share-table-wrap { position: relative; overflow: auto; background: #101b1a; border: 1px solid #223531; border-radius: 16px; }
 .company-share-table { width: 100%; min-width: 790px; border-collapse: collapse; text-align: right; }
 .company-share-table th, .company-share-table td { padding: 15px 14px; border-bottom: 1px solid #20332f; vertical-align: middle; }

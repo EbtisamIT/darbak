@@ -12111,6 +12111,13 @@ app.post('/api/company-application-files', companyApplicationFileParser, async (
       return res.status(400).json({ error: "ارفع السيرة الذاتية بصيغة PDF." });
     }
 
+    // MIME type and extension are supplied by the browser, so verify the actual PDF header.
+    if (fileBuffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+      return res.status(400).json({
+        error: "الملف المرفوع ليس PDF صالحًا. صدّره كـ PDF ثم ارفعه مرة أخرى.",
+      });
+    }
+
     if (fileBuffer.length > 10 * 1024 * 1024) {
       return res.status(413).json({ error: "حجم السيرة كبير. الحد الأقصى 10MB." });
     }
@@ -12152,6 +12159,7 @@ app.get('/api/company-application-files/:fileId', async (req, res) => {
     }
 
     res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Length", String(file.size || file.data.length));
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
     res.setHeader(
@@ -12365,17 +12373,17 @@ app.get('/api/company-applications/share/:shareToken/export', async (req, res) =
       ]),
     ];
     const csv = `\ufeff${rows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n")}`;
-    const fileBase = normalizeCompanyApplicationSlug(
-      `${data.campaign.organizationName}-${data.campaign.opportunityTitle}`
-    );
     const date = new Date().toISOString().slice(0, 10);
+    const translatedName = `${data.campaign.organizationName || "Darbak"}-${data.campaign.opportunityTitle || "Applications"}-${date}.csv`;
 
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${fileBase}-applications-${date}.csv"`
+      `attachment; filename="darbak-applications-${date}.csv"; filename*=UTF-8''${encodeURIComponent(
+        translatedName
+      )}`
     );
     res.send(csv);
   } catch (err) {

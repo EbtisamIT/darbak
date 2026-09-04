@@ -38,6 +38,7 @@ const CompanyApplicationsSharePage = () => {
   const [search, setSearch] = useState("");
   const [major, setMajor] = useState("");
   const [university, setUniversity] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const fetchApplications = useCallback(async () => {
     setLoading(true);
@@ -94,6 +95,26 @@ const CompanyApplicationsSharePage = () => {
   const applications = Array.isArray(data?.applications) ? data.applications : [];
   const campaign = data?.campaign || {};
 
+  const downloadCsv = async () => {
+    setExporting(true);
+    setError("");
+    try {
+      const response = await axios.get(exportUrl, { responseType: "blob" });
+      const url = window.URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "darbak-applications.csv";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (requestError) {
+      setError("تعذر إنشاء ملف CSV الآن. حاول مرة أخرى.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <main className="company-share-page" dir="rtl" style={{ fontFamily: pageFont }}>
       <section className="company-share-shell">
@@ -145,7 +166,14 @@ const CompanyApplicationsSharePage = () => {
                   <option key={item} value={item}>{item}</option>
                 ))}
               </select>
-              <a href={exportUrl} className="company-share-export">تصدير CSV</a>
+              <button
+                type="button"
+                className="company-share-export"
+                onClick={downloadCsv}
+                disabled={exporting}
+              >
+                {exporting ? "جار تجهيز الملف..." : "تصدير CSV"}
+              </button>
             </section>
 
             <section className="company-share-table-wrap">
