@@ -10,6 +10,7 @@ const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 const emptyForm = {
   fullName: "",
   email: "",
+  confirmEmail: "",
   phone: "",
   university: "",
   major: "",
@@ -18,6 +19,16 @@ const emptyForm = {
   trainingInfo: "",
   linkedinUrl: "",
 };
+
+const trainingStartOptions = [
+  "الفصل الأول 2026-2027",
+  "الفصل الثاني 2026-2027",
+  "صيف 2027",
+  "الفصل الأول 2027-2028",
+  "الفصل الثاني 2027-2028",
+  "صيف 2028",
+  "لم يُحدد موعد التدريب بعد",
+];
 
 const normalizeQuestion = (item) => ({
   question: String(item?.question ?? "").trim(),
@@ -30,6 +41,21 @@ const isValidSaudiPhone = (value = "") => {
   const digits = String(value).replace(/[^\d+]/g, "");
   return /^(\+9665\d{8}|9665\d{8}|05\d{8}|5\d{8})$/.test(digits);
 };
+
+const toSaudiMobileLocalValue = (value = "") => {
+  const digits = String(value).replace(/[^\d]/g, "");
+  if (digits.startsWith("966")) return digits.slice(3, 12);
+  if (digits.startsWith("0")) return digits.slice(1, 10);
+  return digits.slice(0, 9);
+};
+
+const normalizePhoneInput = (value = "") =>
+  String(value)
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/\D/g, "")
+    .replace(/^0/, "")
+    .slice(0, 9);
 
 const formatDeadline = (value) => {
   if (!value) return "غير محدد";
@@ -93,7 +119,8 @@ const CompanyApplyPage = () => {
         ...current,
         fullName: snapshot.fullName || current.fullName,
         email: snapshot.email || current.email,
-        phone: snapshot.phone || current.phone,
+        confirmEmail: snapshot.email || current.confirmEmail,
+        phone: snapshot.phone ? toSaudiMobileLocalValue(snapshot.phone) : current.phone,
         university: snapshot.university || current.university,
         major: snapshot.major || current.major,
         city: snapshot.city || current.city,
@@ -110,7 +137,11 @@ const CompanyApplyPage = () => {
   }, [companySlug, context]);
 
   const updateField = (field, value) => {
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === "email" && value !== current.email ? { confirmEmail: "" } : {}),
+    }));
   };
 
   const updateAnswer = (index, value) => {
@@ -146,7 +177,10 @@ const CompanyApplyPage = () => {
   const validateForm = () => {
     if (form.fullName.trim().length < 3) return "اكتب الاسم الكامل بشكل واضح.";
     if (!isValidEmail(form.email)) return "اكتب بريدًا إلكترونيًا صحيحًا.";
-    if (!isValidSaudiPhone(form.phone)) return "اكتب رقم جوال سعوديًا صحيحًا.";
+    if (form.email.trim().toLowerCase() !== form.confirmEmail.trim().toLowerCase()) {
+      return "البريدان الإلكترونيان غير متطابقين.";
+    }
+    if (!isValidSaudiPhone(`+966${form.phone}`)) return "اكتب رقم جوال سعوديًا صحيحًا.";
     if (form.university.trim().length < 2) return "اكتب اسم الجامعة.";
     if (form.major.trim().length < 2) return "اكتب التخصص.";
     if (!cvFile) return "ارفع السيرة الذاتية بصيغة PDF.";
@@ -174,6 +208,7 @@ const CompanyApplyPage = () => {
         `${API_BASE_URL}/api/company-applications`,
         {
           ...form,
+          phone: `+966${form.phone}`,
           cvFileId: upload?.id,
           campaignSlug: campaign.slug || companySlug,
           companySlug: campaign.companySlug || companySlug,
@@ -257,11 +292,48 @@ const CompanyApplyPage = () => {
                 </label>
                 <label>
                   البريد الإلكتروني <b>*</b>
-                  <input type="email" value={form.email} onChange={(e) => updateField("email", e.target.value)} autoComplete="email" dir="ltr" required />
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => updateField("email", e.target.value.trim())}
+                    autoComplete="email"
+                    dir="ltr"
+                    placeholder="name@example.com"
+                    required
+                  />
+                </label>
+                <label>
+                  تأكيد البريد الإلكتروني <b>*</b>
+                  <input
+                    type="email"
+                    value={form.confirmEmail}
+                    onChange={(e) => updateField("confirmEmail", e.target.value.trim())}
+                    autoComplete="email"
+                    dir="ltr"
+                    placeholder="أعد كتابة البريد"
+                    required
+                  />
                 </label>
                 <label>
                   رقم الجوال <b>*</b>
-                  <input type="tel" value={form.phone} onChange={(e) => updateField("phone", e.target.value)} placeholder="05xxxxxxxx" autoComplete="tel" dir="ltr" required />
+                  <span className="company-apply-phone-control" dir="ltr">
+                    <span>+966</span>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      value={form.phone}
+                      onChange={(e) =>
+                        updateField(
+                          "phone",
+                          normalizePhoneInput(e.target.value)
+                        )
+                      }
+                      placeholder="5xxxxxxxx"
+                      autoComplete="tel-national"
+                      required
+                    />
+                  </span>
+                  <small>أدخل الرقم بدون الصفر الأول.</small>
                 </label>
                 <label>
                   الجامعة <b>*</b>
@@ -280,8 +352,11 @@ const CompanyApplyPage = () => {
                   <input value={form.gpa} onChange={(e) => updateField("gpa", e.target.value)} placeholder="مثال: 4.60 من 5" />
                 </label>
                 <label>
-                  موعد التدريب أو التخرج <small>اختياري</small>
-                  <input value={form.trainingInfo} onChange={(e) => updateField("trainingInfo", e.target.value)} placeholder="مثال: صيف 2026" />
+                  بداية التدريب المتوقعة <small>اختياري</small>
+                  <select value={form.trainingInfo} onChange={(e) => updateField("trainingInfo", e.target.value)}>
+                    <option value="">اختر الموعد المتوقع</option>
+                    {trainingStartOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
                 </label>
                 <label className="company-apply-wide-field">
                   LinkedIn <small>اختياري</small>
@@ -356,8 +431,12 @@ const CompanyApplyPage = () => {
         .company-apply-form header span { color:var(--app-brand-strong); font-size:13px; font-weight:900; } .company-apply-form header h2 { margin:5px 0 6px; font-size:clamp(24px,4vw,32px); } .company-apply-form header p { margin:0 0 24px; color:var(--app-text-soft); }
         .company-apply-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px; }
         .company-apply-form label { display:grid; gap:7px; color:var(--app-text); font-size:14px; font-weight:800; } .company-apply-form b { color:var(--app-brand-strong); } .company-apply-form small { color:var(--app-text-soft); font-weight:600; }
-        .company-apply-form input, .company-apply-form textarea { width:100%; box-sizing:border-box; border:1px solid var(--app-border); border-radius:10px; padding:11px 12px; background:var(--app-input-bg); color:var(--app-text); font:inherit; font-weight:600; outline:none; }
-        .company-apply-form input:focus, .company-apply-form textarea:focus { border-color:var(--app-brand); box-shadow:0 0 0 3px color-mix(in srgb,var(--app-brand) 18%,transparent); } .company-apply-wide-field { grid-column:1 / -1; }
+        .company-apply-form input, .company-apply-form select, .company-apply-form textarea { width:100%; box-sizing:border-box; border:1px solid var(--app-border); border-radius:10px; padding:11px 12px; background:var(--app-input-bg); color:var(--app-text); font:inherit; font-weight:600; outline:none; }
+        .company-apply-form input:focus, .company-apply-form select:focus, .company-apply-form textarea:focus { border-color:var(--app-brand); box-shadow:0 0 0 3px color-mix(in srgb,var(--app-brand) 18%,transparent); } .company-apply-wide-field { grid-column:1 / -1; }
+        .company-apply-phone-control { display:grid; grid-template-columns:auto minmax(0,1fr); overflow:hidden; border:1px solid var(--app-border); border-radius:10px; background:var(--app-input-bg); direction:ltr; }
+        .company-apply-phone-control:focus-within { border-color:var(--app-brand); box-shadow:0 0 0 3px color-mix(in srgb,var(--app-brand) 18%,transparent); }
+        .company-apply-phone-control > span { display:grid; place-items:center; min-width:59px; padding:0 10px; border-right:1px solid var(--app-border); color:var(--app-text-soft); font-size:14px; font-weight:900; }
+        .company-apply-phone-control input { border:0; border-radius:0; box-shadow:none !important; }
         .company-apply-file-field { margin-top:16px; padding:14px; border:1px dashed color-mix(in srgb,var(--app-brand) 55%,var(--app-border)); border-radius:12px; background:color-mix(in srgb,var(--app-brand) 5%,transparent); } .company-apply-file-field input { padding:8px 0; border:0; background:transparent; }
         .company-apply-questions { display:grid; gap:12px; margin-top:20px; padding-top:18px; border-top:1px solid var(--app-border); } .company-apply-questions h3 { margin:0; font-size:17px; }
         .company-apply-consent { display:flex !important; grid-template-columns:auto 1fr; align-items:flex-start; gap:10px !important; margin-top:20px; color:var(--app-text-soft) !important; line-height:1.8; } .company-apply-consent input { width:17px; height:17px; margin-top:4px; accent-color:var(--app-brand); }
