@@ -1069,6 +1069,8 @@ export default function AdminReviewPage() {
   );
   const [editingCompanyCampaignId, setEditingCompanyCampaignId] = useState(null);
   const [savingCompanyCampaign, setSavingCompanyCampaign] = useState(false);
+  const [publishingCampaignOpportunityId, setPublishingCampaignOpportunityId] =
+    useState("");
   const [opportunities, setOpportunities] = useState([]);
   const [interviewQuestions, setInterviewQuestions] = useState([]);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
@@ -2565,6 +2567,44 @@ export default function AdminReviewPage() {
       setMessage(err.response?.data?.error || "تعذر حفظ الفرصة.");
     } finally {
       setSavingOpportunity(false);
+    }
+  };
+
+  const publishCompanyCampaignAsOpportunity = async (campaign = {}) => {
+    const campaignId = campaign._id || campaign.id;
+    if (!campaignId) return;
+
+    if (!campaign.isOpen) {
+      setMessage("افتحي برنامج التقديم أولًا حتى يظهر للطلاب كفرصة متاحة.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `نشر «${campaign.opportunityTitle || campaign.organizationName}» كفرصة مميزة في صفحة وين أتدرب؟\nسيكون التقديم عبر دربك ومجانيًا للطلاب.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setPublishingCampaignOpportunityId(campaignId);
+      setMessage("");
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/opportunities`,
+        {
+          isDarbakApplication: true,
+          companyApplicationCampaignId: campaignId,
+        },
+        { headers: authHeaders }
+      );
+
+      setOpportunities((previous) => [data, ...previous]);
+      setMessage("تم نشر البرنامج في وين أتدرب كفرصة مميزة بتقديم مجاني عبر دربك.");
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.data?.error || "تعذر نشر البرنامج كفرصة الآن."
+      );
+    } finally {
+      setPublishingCampaignOpportunityId("");
     }
   };
 
@@ -5760,6 +5800,30 @@ export default function AdminReviewPage() {
                     )}
 
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        onClick={() => publishCompanyCampaignAsOpportunity(campaign)}
+                        disabled={publishingCampaignOpportunityId === campaignId}
+                        style={{
+                          background: "transparent",
+                          color: adminColors.brandStrong,
+                          border: `1px solid ${adminColors.brand}`,
+                          borderRadius: 10,
+                          padding: "9px 13px",
+                          cursor:
+                            publishingCampaignOpportunityId === campaignId
+                              ? "wait"
+                              : "pointer",
+                          fontFamily: "inherit",
+                          fontWeight: 900,
+                          opacity:
+                            publishingCampaignOpportunityId === campaignId ? 0.65 : 1,
+                        }}
+                      >
+                        {publishingCampaignOpportunityId === campaignId
+                          ? "جار النشر..."
+                          : "نشر في وين أتدرب"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => startCompanyCampaignEdit(campaign)}
