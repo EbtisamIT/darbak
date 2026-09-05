@@ -50,6 +50,7 @@ const CompanyPortalPage = () => {
         specialties: form.majors.split(",").map((item) => item.trim()).filter(Boolean),
         description: form.description,
         requirements: form.requirements,
+        applicationDeadline: form.endDate,
         endDate: form.endDate,
       }, { params: { access } });
       setNotice("تم إرسال الفرصة للمراجعة. سننشرها بعد الاعتماد.");
@@ -93,7 +94,7 @@ const CompanyPortalPage = () => {
           <table className="company-share-table"><thead><tr><th>البرنامج</th><th>الحالة</th><th>المتقدمون</th><th>إجراءات</th></tr></thead><tbody>
             {programs.map((program) => {
               const overview = `/company/${company.slug}/program/${program.id}?access=${encodeURIComponent(access)}`;
-              return <tr key={program.id}><td><strong>{program.opportunityTitle}</strong><small>{program.city || ""}</small></td><td>{program.status}</td><td>{program.applicationCount}</td><td><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Link className="company-share-cv" to={overview}>عرض</Link><button type="button" className="company-share-linkedin" onClick={() => copy(program.applyUrl)}>نسخ رابط التقديم</button></div></td></tr>;
+              return <tr key={program.id}><td><strong>{program.opportunityTitle}</strong><small>{program.city || ""}</small></td><td>{program.status}</td><td>{program.applicationCount}</td><td><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Link className="company-share-cv" to={overview}>عرض</Link>{program.applicationsShareUrl && <a className="company-share-linkedin" href={program.applicationsShareUrl} target="_blank" rel="noreferrer">عرض المتقدمين</a>}<button type="button" className="company-share-linkedin" onClick={() => copy(program.applyUrl)}>نسخ رابط التقديم</button></div></td></tr>;
             })}
           </tbody></table>
           {!programs.length && <p className="company-share-empty">لا توجد برامج مضافة بعد.</p>}

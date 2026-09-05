@@ -14182,6 +14182,13 @@ app.get('/api/company-portal/:companySlug', async (req, res) => {
   try {
     const company = await getCompanyWithPortalAccess(req.params.companySlug, req.query.access);
     if (!company) return res.status(404).json({ error: "رابط الشركة غير صحيح أو انتهت صلاحيته." });
+    // Compatibility bridge: existing programs used companySlug before Company was
+    // introduced. Attach only matching legacy records to this company on first view.
+    const legacyPrograms = await CompanyApplicationCampaign.find({
+      $or: [{ companyId: null }, { companyId: { $exists: false } }],
+      companySlug: company.slug,
+    }).limit(100).lean();
+    await Promise.all(legacyPrograms.map((program) => ensureCompanyForCampaign(program)));
     const programs = await CompanyApplicationCampaign.find({ companyId: company._id })
       .sort({ updatedAt: -1 })
       .limit(100)
@@ -14217,10 +14224,12 @@ app.get('/api/company-portal/:companySlug/program/:programId', async (req, res) 
     if (!mongoose.Types.ObjectId.isValid(req.params.programId)) {
       return res.status(400).json({ error: "معرّف البرنامج غير صحيح." });
     }
-    const program = await CompanyApplicationCampaign.findOne({
-      _id: req.params.programId,
-      companyId: company._id,
-    }).lean();
+    let program = await CompanyApplicationCampaign.findById(req.params.programId).lean();
+    if (program && (!program.companyId || program.companyId.toString() !== company._id.toString())) {
+      await ensureCompanyForCampaign(program);
+      program = await CompanyApplicationCampaign.findById(req.params.programId).lean();
+    }
+    if (program?.companyId?.toString() !== company._id.toString()) program = null;
     if (!program) return res.status(404).json({ error: "البرنامج غير موجود." });
     const applicationCount = await CompanyApplication.countDocuments({ campaignId: program._id.toString() });
     const lastApplicants = await CompanyApplication.find({ campaignId: program._id.toString() })
