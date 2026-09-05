@@ -12374,16 +12374,13 @@ app.get('/api/company-applications/share/:shareToken/export', async (req, res) =
     ];
     const csv = `\ufeff${rows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n")}`;
     const date = new Date().toISOString().slice(0, 10);
-    const translatedName = `${data.campaign.organizationName || "Darbak"}-${data.campaign.opportunityTitle || "Applications"}-${date}.csv`;
 
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="darbak-applications-${date}.csv"; filename*=UTF-8''${encodeURIComponent(
-        translatedName
-      )}`
+      `attachment; filename="darbak-applications-${date}.csv"`
     );
     res.send(csv);
   } catch (err) {
