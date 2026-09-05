@@ -12302,19 +12302,28 @@ app.get('/api/company-application-files/:fileId', async (req, res) => {
       return res.status(404).send("Not found");
     }
 
-    const file = await CompanyApplicationFile.findById(fileId).lean();
+    // Do not use lean() here: BSON Binary can otherwise be sent as a JSON-like
+    // object instead of the original PDF bytes.
+    const file = await CompanyApplicationFile.findById(fileId);
     if (!file || file.accessToken !== token) {
       return res.status(404).send("Not found");
     }
 
+    const pdfBuffer = Buffer.isBuffer(file.data)
+      ? file.data
+      : Buffer.from(file.data || []);
+    if (pdfBuffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+      return res.status(422).send("The stored file is not a valid PDF.");
+    }
+
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Length", String(file.size || file.data.length));
+    res.setHeader("Content-Length", String(pdfBuffer.length));
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
     // Node refuses Arabic characters in HTTP headers. Keep the original filename
     // in MongoDB, but use an ASCII name for this private PDF response.
     res.setHeader("Content-Disposition", "inline; filename=\"cv.pdf\"");
-    res.send(file.data);
+    res.end(pdfBuffer);
   } catch (err) {
     console.error("❌ Company application file fetch error:", err);
     res.status(404).send("Not found");
