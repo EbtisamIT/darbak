@@ -11,11 +11,12 @@ assert.deepStrictEqual(noDemo.metrics, { total: 0, new: 0, reviewing: 0, shortli
 
 const demo = buildCompanyPortalPresentation({ demoEnabled: true, realApplicants: [] });
 assert.strictEqual(demo.demoMode, true);
-assert.strictEqual(demo.applicants.length, 3);
-assert.strictEqual(demo.metrics.total, 3);
-assert.strictEqual(demo.metrics.new, 1);
+assert.strictEqual(demo.applicants.length, 2);
+assert.strictEqual(demo.metrics.total, 2);
+assert.strictEqual(demo.metrics.new, 0);
 assert.strictEqual(demo.metrics.reviewing, 1);
 assert.strictEqual(demo.metrics.shortlisted, 1);
+assert.strictEqual(demo.applicants[0].fullName, "سارة العتيبي");
 assert.ok(DEMO_APPLICANTS.every((applicant) => applicant.isDemo));
 assert.ok(DEMO_APPLICANTS.every((applicant) => applicant.email.endsWith("@example.com")));
 assert.ok(DEMO_APPLICANTS.every((applicant) => !Object.prototype.hasOwnProperty.call(applicant, "phone")));

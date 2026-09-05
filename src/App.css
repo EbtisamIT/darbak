@@ -5677,6 +5677,7 @@ body {
 .company-share-shell { width: min(1180px, 100%); margin: 0 auto; }
 .company-share-header { display: flex; align-items: center; justify-content: space-between; color: #94aaa5; font-size: 13px; margin-bottom: 22px; }
 .company-share-brand { color: #7ddbcd; font-size: 23px; font-weight: 900; }
+.company-portal-darbak-logo { width: 68px; height: 32px; object-fit: contain; object-position: center; }
 .company-share-hero { display: flex; align-items: center; gap: 16px; padding: 22px; background: #101b1a; border: 1px solid #223531; border-radius: 16px; }
 .company-share-logo { width: 62px; height: 62px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border-radius: 14px; background: #fff; color: #0f766e; font-size: 25px; font-weight: 900; }
 .company-share-logo img { width: 100%; height: 100%; object-fit: contain; padding: 6px; box-sizing: border-box; }
@@ -5720,7 +5721,12 @@ body {
 .company-portal-journey > i { width: 26px; height: 1px; flex: 0 0 auto; background: #2b423d; }
 .company-portal-journey > i.is-complete { background: #69cdbd; }
 .company-portal-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.company-portal-metrics article { padding: 16px; border: 1px solid #223531; border-radius: 14px; background: #101b1a; }
+.company-portal-metrics article { position: relative; padding: 16px; border: 1px solid #223531; border-radius: 14px; background: #101b1a; overflow: hidden; }
+.company-portal-metrics article::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: #7ddbcd; }
+.company-portal-metrics article > i { width: 23px; height: 23px; display: grid; place-items: center; margin-bottom: 9px; border-radius: 7px; color: #9be9dc; background: rgba(125, 219, 205, .11); font-size: 14px; font-style: normal; font-weight: 900; }
+.company-portal-metrics article.is-new::before { background: #60a5fa; }.company-portal-metrics article.is-new > i { color: #93c5fd; background: rgba(59, 130, 246, .14); }
+.company-portal-metrics article.is-reviewing::before { background: #f6bd5f; }.company-portal-metrics article.is-reviewing > i { color: #fde68a; background: rgba(217, 119, 6, .15); }
+.company-portal-metrics article.is-shortlisted::before { background: #b798f4; }.company-portal-metrics article.is-shortlisted > i { color: #d8c8ff; background: rgba(139, 92, 246, .16); }
 .company-portal-metrics strong { display: block; color: #7ddbcd; font-size: 27px; line-height: 1; }
 .company-portal-metrics span { display: block; margin-top: 8px; color: #a9beb9; font-size: 12px; font-weight: 700; }
 .company-portal-section { padding: 18px; border: 1px solid #223531; border-radius: 16px; background: #101b1a; }
@@ -5735,7 +5741,7 @@ body {
 .company-portal-applicants strong { color: #e6f2ef; font-size: 13px; }
 .company-portal-applicants small { margin-top: 3px; color: #91a9a4; font-size: 11px; }
 .company-portal-status, .company-portal-program-status { margin-inline-start: auto; padding: 5px 8px; border-radius: 999px; color: #b8d4ce; background: rgba(118, 143, 136, .12); font-size: 10px; font-style: normal; white-space: nowrap; }
-.company-portal-status.is-new { color: #bae6fd; background: rgba(14, 116, 144, .22); }.company-portal-status.is-reviewing { color: #fde68a; background: rgba(146, 107, 20, .2); }.company-portal-status.is-shortlisted { color: #9cf2dd; background: rgba(20, 123, 98, .2); }
+.company-portal-status.is-new { color: #bae6fd; background: rgba(14, 116, 144, .22); }.company-portal-status.is-reviewing { color: #fde68a; background: rgba(146, 107, 20, .2); }.company-portal-status.is-shortlisted { color: #d8c8ff; background: rgba(139, 92, 246, .2); }.company-portal-status.is-accepted { color: #a7f3d0; background: rgba(5, 150, 105, .2); }.company-portal-status.is-rejected { color: #fdb4b4; background: rgba(185, 28, 28, .18); }
 .company-portal-programs { display: grid; gap: 10px; }
 .company-portal-programs article { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 14px; border: 1px solid #223531; border-radius: 13px; background: #0d1716; }
 .company-portal-programs h3 { margin: 8px 0 4px; color: #e6f2ef; font-size: 15px; }.company-portal-programs p { margin: 0; color: #91a9a4; font-size: 12px; }

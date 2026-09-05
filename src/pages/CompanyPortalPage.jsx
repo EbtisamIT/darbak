@@ -104,16 +104,16 @@ const CompanyPortalPage = () => {
     ["الاختيار", hasSelection],
   ];
   const metricCards = [
-    ["إجمالي المتقدمين", metrics.total],
-    ["جديد", metrics.new],
-    ["قيد المراجعة", metrics.reviewing],
-    ["مرشح", metrics.shortlisted],
+    ["إجمالي المتقدمين", metrics.total, "total", "◎"],
+    ["جديد", metrics.new, "new", "+"],
+    ["قيد المراجعة", metrics.reviewing, "reviewing", "⌕"],
+    ["مرشح", metrics.shortlisted, "shortlisted", "✓"],
   ];
 
   return (
     <main className="company-share-page" dir="rtl" style={{ fontFamily: font }}>
       <section className="company-share-shell company-portal-v2">
-        <header className="company-share-header"><div className="company-share-brand">دربك</div><span>بوابة برامج التدريب</span></header>
+        <header className="company-share-header"><img className="company-portal-darbak-logo" src="/logo.png" alt="دربك" /><span>بوابة برامج التدريب</span></header>
         <section className="company-share-hero company-portal-hero">
           <span className="company-share-logo">{company.logoUrl ? <img src={company.logoUrl} alt={`شعار ${company.name}`} /> : (company.name || "د").charAt(0)}</span>
           <div>
@@ -139,7 +139,7 @@ const CompanyPortalPage = () => {
         </section>
 
         <section className="company-portal-metrics" aria-label="ملخص المتقدمين">
-          {metricCards.map(([label, value]) => <article key={label}><strong>{Number(value || 0)}</strong><span>{label}</span></article>)}
+          {metricCards.map(([label, value, status, icon]) => <article key={label} className={`is-${status}`}><i aria-hidden="true">{icon}</i><strong>{Number(value || 0)}</strong><span>{label}</span></article>)}
         </section>
 
         {formOpen && <form className="company-share-controls company-portal-request" onSubmit={submitRequest}>
@@ -169,7 +169,7 @@ const CompanyPortalPage = () => {
               <div><span className={`company-portal-program-status is-${program.status}`}>{programLabels[program.status] || program.status}</span><h3>{program.opportunityTitle}</h3><p>{program.city || "المدينة غير محددة"} · {Number(program.applicationCount || 0)} متقدم</p></div>
               <div className="company-portal-program-actions"><Link className="company-share-cv" to={overview}>عرض البرنامج</Link>{program.applicationsShareUrl && <a className="company-share-linkedin" href={program.applicationsShareUrl} target="_blank" rel="noreferrer">المتقدمون</a>}<button type="button" className="company-share-linkedin" onClick={() => copy(program.applyUrl)}>نسخ رابط التقديم</button></div>
             </article>;
-          })}</div> : <div className="company-portal-empty"><strong>لا يوجد برنامج منشور بعد</strong><p>أضيفوا فرصة، ثم سيراجعها فريق دربك قبل نشر رابط التقديم.</p><button type="button" className="company-share-export" onClick={() => setFormOpen(true)}>إضافة فرصة</button></div>}
+          })}</div> : <div className="company-portal-empty"><strong>لا يوجد برنامج منشور بعد</strong><p>أضف فرصة جديدة وسيتم مراجعتها من فريق دربك قبل النشر.</p><button type="button" className="company-share-export" onClick={() => setFormOpen(true)}>إضافة فرصة</button></div>}
         </section>
         <p className="company-share-privacy">هذه البوابة مخصصة لإدارة برامج الجهة وطلبات المتقدمين فقط.</p>
       </section>

@@ -1,11 +1,11 @@
 const DEMO_APPLICANTS = Object.freeze([
   {
-    id: "demo-reem-ahmed",
-    fullName: "ريم أحمد",
+    id: "demo-sara-alotaibi",
+    fullName: "سارة العتيبي",
     major: "نظم معلومات",
     university: "جامعة الملك سعود",
-    email: "reem@example.com",
-    status: "new",
+    email: "sara@example.com",
+    status: "reviewing",
     isDemo: true,
   },
   {
@@ -14,15 +14,6 @@ const DEMO_APPLICANTS = Object.freeze([
     major: "علوم حاسب",
     university: "جامعة الإمام محمد بن سعود الإسلامية",
     email: "faisal@example.com",
-    status: "reviewing",
-    isDemo: true,
-  },
-  {
-    id: "demo-noura-mohammed",
-    fullName: "نورة محمد",
-    major: "تقنية معلومات",
-    university: "جامعة الأميرة نورة بنت عبدالرحمن",
-    email: "noura@example.com",
     status: "shortlisted",
     isDemo: true,
   },
