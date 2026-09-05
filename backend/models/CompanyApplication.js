@@ -277,6 +277,9 @@ const companyApplicationSchema = new mongoose.Schema(
       trim: true,
       maxlength: 80,
     },
+    // Demo applicants are never created by the public apply endpoint. Keeping this
+    // field makes any future imported demos explicitly excludable from production data.
+    isDemo: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );

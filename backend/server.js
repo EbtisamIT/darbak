@@ -22,6 +22,10 @@ const {
   getPdfIntegrity,
   matchesStoredPdfIntegrity,
 } = require("./services/companyApplicationFileIntegrity");
+const {
+  buildCompanyPortalPresentation,
+  normalizePortalStatus,
+} = require("./services/companyPortalDemo");
 const ResumeProfile = require('./models/ResumeProfile');
 const ResumeAgentSession = require('./models/ResumeAgentSession');
 const ResumePendingDraft = require('./models/ResumePendingDraft');
@@ -2467,6 +2471,8 @@ const sanitizeCompanyPayload = (body = {}) => {
     status: ["trial", "active", "inactive"].includes(body.status)
       ? body.status
       : "trial",
+    demoPortalEnabled:
+      body.demoPortalEnabled === true || body.demoPortalEnabled === "true",
   };
 };
 
@@ -2485,6 +2491,7 @@ const serializeCompany = (company = {}, extra = {}) => {
     contactName: company.contactName || "",
     contactEmail: company.contactEmail || "",
     status: company.status || "trial",
+    demoPortalEnabled: Boolean(company.demoPortalEnabled),
     programCount: Number(extra.programCount || 0),
     pendingRequestCount: Number(extra.pendingRequestCount || 0),
     ...(extra.includePortalUrl && portalAccessToken
@@ -12423,7 +12430,7 @@ const getCompanyShareApplications = async ({ shareToken = "", query = {} } = {})
   const search = (query.search || "").toString().trim().slice(0, 100);
   const major = (query.major || "").toString().trim().slice(0, 140);
   const university = (query.university || "").toString().trim().slice(0, 140);
-  const filters = [{ campaignId: campaign._id.toString() }];
+  const filters = [{ campaignId: campaign._id.toString() }, { isDemo: { $ne: true } }];
 
   if (major) filters.push({ major });
   if (university) filters.push({ university });
@@ -12447,7 +12454,7 @@ const getCompanyShareApplications = async ({ shareToken = "", query = {} } = {})
       .limit(1500)
       .lean(),
     CompanyApplication.aggregate([
-      { $match: { campaignId: campaign._id.toString() } },
+      { $match: { campaignId: campaign._id.toString(), isDemo: { $ne: true } } },
       {
         $facet: {
           majors: [
@@ -12472,6 +12479,7 @@ const getCompanyShareApplications = async ({ shareToken = "", query = {} } = {})
     applications,
     totalCount: await CompanyApplication.countDocuments({
       campaignId: campaign._id.toString(),
+      isDemo: { $ne: true },
     }),
     filters: {
       majors: (facets[0]?.majors || []).map((item) => item._id),
@@ -12758,6 +12766,7 @@ app.post('/api/company-applications', async (req, res) => {
     };
     const application = await CompanyApplication.create({
       ...payload,
+      isDemo: false,
       cvUrl: getCompanyApplicationFileUrl(req, cvFile),
       cvFilename: cvFile.filename,
       cvOriginalName: cvFile.originalFilename || cvFile.filename,
@@ -12782,6 +12791,7 @@ app.post('/api/company-applications', async (req, res) => {
     );
     const applicationCount = await CompanyApplication.countDocuments({
       campaignId: payload.campaignId,
+      isDemo: { $ne: true },
     });
     if (isValidEmail(notificationCampaign.applicationNotificationEmail || "")) {
       sendCompanyApplicationReceivedEmail({
@@ -14214,16 +14224,56 @@ app.get('/api/company-portal/:companySlug', async (req, res) => {
       .limit(100)
       .lean();
     const ids = programs.map((program) => program._id.toString());
-    const counts = ids.length
-      ? await CompanyApplication.aggregate([
-          { $match: { campaignId: { $in: ids } } },
-          { $group: { _id: "$campaignId", count: { $sum: 1 } } },
+    const realApplicationFilter = { campaignId: { $in: ids }, isDemo: { $ne: true } };
+    const [counts, statusCounts, latestRealApplications] = ids.length
+      ? await Promise.all([
+          CompanyApplication.aggregate([
+            { $match: realApplicationFilter },
+            { $group: { _id: "$campaignId", count: { $sum: 1 } } },
+          ]),
+          CompanyApplication.aggregate([
+            { $match: realApplicationFilter },
+            { $group: { _id: "$status", count: { $sum: 1 } } },
+          ]),
+          CompanyApplication.find(realApplicationFilter)
+            .sort({ submittedAt: -1, createdAt: -1 })
+            .limit(4)
+            .select("fullName major university status submittedAt createdAt")
+            .lean(),
         ])
-      : [];
+      : [[], [], []];
     const countsById = new Map(counts.map((item) => [item._id, item.count]));
+    const realMetrics = statusCounts.reduce(
+      (metrics, item) => {
+        const status = normalizePortalStatus(item._id);
+        metrics.total += item.count;
+        if (status === "new") metrics.new += item.count;
+        if (status === "reviewing") metrics.reviewing += item.count;
+        if (status === "shortlisted") metrics.shortlisted += item.count;
+        return metrics;
+      },
+      { total: 0, new: 0, reviewing: 0, shortlisted: 0 }
+    );
+    const portalPresentation = buildCompanyPortalPresentation({
+      demoEnabled: company.demoPortalEnabled,
+      realApplicantCount: realMetrics.total,
+      realMetrics,
+      realApplicants: latestRealApplications.map((application) => ({
+        id: application._id.toString(),
+        fullName: application.fullName,
+        major: application.major,
+        university: application.university,
+        status: normalizePortalStatus(application.status),
+        submittedAt: application.submittedAt || application.createdAt,
+      })),
+    });
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
     res.json({
       company: serializeCompany(company),
+      demoMode: portalPresentation.demoMode,
+      hasRealApplicants: portalPresentation.hasRealApplicants,
+      metrics: portalPresentation.metrics,
+      latestApplicants: portalPresentation.applicants,
       programs: programs.map((program) =>
         serializeCompanyApplicationCampaign(program, {
           applicationCount: countsById.get(program._id.toString()) || 0,
@@ -14251,8 +14301,8 @@ app.get('/api/company-portal/:companySlug/program/:programId', async (req, res) 
     }
     if (program?.companyId?.toString() !== company._id.toString()) program = null;
     if (!program) return res.status(404).json({ error: "البرنامج غير موجود." });
-    const applicationCount = await CompanyApplication.countDocuments({ campaignId: program._id.toString() });
-    const lastApplicants = await CompanyApplication.find({ campaignId: program._id.toString() })
+    const applicationCount = await CompanyApplication.countDocuments({ campaignId: program._id.toString(), isDemo: { $ne: true } });
+    const lastApplicants = await CompanyApplication.find({ campaignId: program._id.toString(), isDemo: { $ne: true } })
       .sort({ submittedAt: -1 })
       .limit(5)
       .select("fullName major university submittedAt")
@@ -14313,7 +14363,7 @@ app.get('/api/admin/company-applications', requireAdmin, async (req, res) => {
     const status =
       typeof req.query.status === "string" ? req.query.status : "submitted";
     const search = normalizeSearchText(req.query.search || "");
-    const filter = {};
+    const filter = { isDemo: { $ne: true } };
 
     if (status && status !== "all") {
       filter.status = { $in: getCompanyApplicationStatusFilterValues(status) };

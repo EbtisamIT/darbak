@@ -24,6 +24,7 @@ const companySchema = new mongoose.Schema(
       default: "trial",
       index: true,
     },
+    demoPortalEnabled: { type: Boolean, default: false },
     portalAccessToken: {
       type: String,
       default: undefined,
