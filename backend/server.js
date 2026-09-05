@@ -12311,11 +12311,9 @@ app.get('/api/company-application-files/:fileId', async (req, res) => {
     res.setHeader("Content-Length", String(file.size || file.data.length));
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="${(file.originalFilename || file.filename)
-        .replace(/[\\\"\\r\\n]/g, "") || "cv.pdf"}"`
-    );
+    // Node refuses Arabic characters in HTTP headers. Keep the original filename
+    // in MongoDB, but use an ASCII name for this private PDF response.
+    res.setHeader("Content-Disposition", "inline; filename=\"cv.pdf\"");
     res.send(file.data);
   } catch (err) {
     console.error("❌ Company application file fetch error:", err);
