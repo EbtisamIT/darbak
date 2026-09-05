@@ -51,6 +51,8 @@ const companyApplicationStatusLabels = {
 const companyCampaignStatusOptions = [
   ["", "كل البرامج النشطة"],
   ["draft", "مسودة"],
+  ["pending_review", "بانتظار المراجعة"],
+  ["changes_requested", "تحتاج تعديل"],
   ["open", "مفتوح"],
   ["closed", "مغلق"],
   ["archived", "مؤرشف"],
@@ -58,26 +60,45 @@ const companyCampaignStatusOptions = [
 
 const companyCampaignStatusLabels = {
   draft: "مسودة",
+  pending_review: "بانتظار المراجعة",
+  changes_requested: "تحتاج تعديل",
   open: "مفتوح",
   closed: "مغلق",
   archived: "مؤرشف",
 };
 
 const defaultCompanyCampaignForm = {
+  companyId: "",
   organizationName: "",
   organizationLogoUrl: "",
   applicationNotificationEmail: "",
   opportunityTitle: "",
+  programType: "",
   slug: "",
   city: "",
   cities: [],
   majorCategories: [],
   specialties: ["__all_specialties__"],
   description: "",
+  requirements: "",
   customQuestions: "",
   applicationDeadline: "",
+  startDate: "",
+  endDate: "",
   status: "draft",
   allowDuplicateApplications: false,
+};
+
+const defaultCompanyForm = {
+  name: "",
+  slug: "",
+  logoUrl: "",
+  shortDescription: "",
+  city: "",
+  website: "",
+  contactName: "",
+  contactEmail: "",
+  status: "trial",
 };
 
 const defaultRejectionReason =
@@ -1063,6 +1084,11 @@ export default function AdminReviewPage() {
   const [companyApplicationSearch, setCompanyApplicationSearch] = useState("");
   const [companyApplicationMessages, setCompanyApplicationMessages] = useState({});
   const [companyCampaigns, setCompanyCampaigns] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [companyRequests, setCompanyRequests] = useState([]);
+  const [companyForm, setCompanyForm] = useState(defaultCompanyForm);
+  const [editingCompanyId, setEditingCompanyId] = useState("");
+  const [savingCompany, setSavingCompany] = useState(false);
   const [companyCampaignStatus, setCompanyCampaignStatus] = useState("");
   const [companyCampaignSearch, setCompanyCampaignSearch] = useState("");
   const [companyCampaignForm, setCompanyCampaignForm] = useState(
@@ -1336,6 +1362,12 @@ export default function AdminReviewPage() {
       );
 
       setCompanyCampaigns(Array.isArray(data.data) ? data.data : []);
+      if (!companies.length) {
+        const companiesResponse = await axios.get(`${API_BASE_URL}/api/admin/companies`, {
+          headers: authHeaders,
+        });
+        setCompanies(Array.isArray(companiesResponse.data.data) ? companiesResponse.data.data : []);
+      }
     } catch (err) {
       console.error(err);
       setMessage(
@@ -1346,6 +1378,28 @@ export default function AdminReviewPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchCompanies = async () => {
+    try {
+      setLoading(true);
+      const { data } = await axios.get(`${API_BASE_URL}/api/admin/companies`, { headers: authHeaders });
+      setCompanies(Array.isArray(data.data) ? data.data : []);
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.status === 401 ? "كلمة المرور غير صحيحة." : "تعذر تحميل الشركات.");
+    } finally { setLoading(false); }
+  };
+
+  const fetchCompanyRequests = async () => {
+    try {
+      setLoading(true);
+      const { data } = await axios.get(`${API_BASE_URL}/api/admin/company-requests`, { headers: authHeaders });
+      setCompanyRequests(Array.isArray(data.data) ? data.data : []);
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.status === 401 ? "كلمة المرور غير صحيحة." : "تعذر تحميل طلبات الشركات.");
+    } finally { setLoading(false); }
   };
 
   const fetchOpportunities = async () => {
@@ -1570,6 +1624,10 @@ export default function AdminReviewPage() {
       fetchCompanyApplications();
     } else if (adminView === "companyCampaigns") {
       fetchCompanyCampaigns();
+    } else if (adminView === "companies") {
+      fetchCompanies();
+    } else if (adminView === "companyRequests") {
+      fetchCompanyRequests();
     } else if (adminView === "interviewQuestions") {
       fetchInterviewQuestions();
     } else if (adminView === "opportunities") {
@@ -1619,6 +1677,8 @@ export default function AdminReviewPage() {
       fetchCompanyCampaigns();
       return;
     }
+    if (adminView === "companies") { fetchCompanies(); return; }
+    if (adminView === "companyRequests") { fetchCompanyRequests(); return; }
 
     if (adminView === "opportunities") {
       fetchOpportunities();
@@ -2101,7 +2161,54 @@ export default function AdminReviewPage() {
     }
   };
 
+  const saveCompany = async (event) => {
+    event.preventDefault();
+    if (!companyForm.name.trim()) { setMessage("اسم الشركة مطلوب."); return; }
+    try {
+      setSavingCompany(true);
+      const request = editingCompanyId
+        ? axios.patch(`${API_BASE_URL}/api/admin/companies/${editingCompanyId}`, companyForm, { headers: authHeaders })
+        : axios.post(`${API_BASE_URL}/api/admin/companies`, companyForm, { headers: authHeaders });
+      const { data } = await request;
+      setCompanies((prev) => editingCompanyId ? prev.map((item) => (item.id || item._id) === editingCompanyId ? data : item) : [data, ...prev]);
+      setCompanyForm(defaultCompanyForm);
+      setEditingCompanyId("");
+      setMessage(editingCompanyId ? "تم حفظ تعديل الشركة." : "تمت إضافة الشركة.");
+    } catch (err) {
+      setMessage(err.response?.data?.error || "تعذر حفظ الشركة.");
+    } finally { setSavingCompany(false); }
+  };
+
+  const editCompany = (company) => {
+    setEditingCompanyId(company.id || company._id);
+    setCompanyForm({
+      name: company.name || "", slug: company.slug || "", logoUrl: company.logoUrl || "",
+      shortDescription: company.shortDescription || "", city: company.city || "", website: company.website || "",
+      contactName: company.contactName || "", contactEmail: company.contactEmail || "", status: company.status || "trial",
+    });
+  };
+
+  const addProgramForCompany = (company) => {
+    setCompanyCampaignForm({ ...defaultCompanyCampaignForm, companyId: company.id || company._id, organizationName: company.name || "", organizationLogoUrl: company.logoUrl || "", applicationNotificationEmail: company.contactEmail || "", city: company.city || "", cities: company.city ? [company.city] : [] });
+    setEditingCompanyCampaignId(null);
+    setAdminView("companyCampaigns");
+  };
+
+  const reviewCompanyRequest = async (id, action) => {
+    const reviewMessage = action === "request_changes" ? window.prompt("ما المطلوب تعديله؟") || "" : "";
+    try {
+      await axios.patch(`${API_BASE_URL}/api/admin/company-requests/${id}/review`, { action, reviewMessage }, { headers: authHeaders });
+      setCompanyRequests((prev) => prev.filter((item) => (item.id || item._id) !== id));
+      setMessage(action === "approve" ? "تم اعتماد البرنامج وفتحه للتقديم." : "تم تحديث طلب الشركة.");
+    } catch (err) { setMessage(err.response?.data?.error || "تعذر تحديث طلب الشركة."); }
+  };
+
   const updateCompanyCampaignField = (field, value) => {
+    if (field === "companyId") {
+      const company = companies.find((item) => (item.id || item._id) === value);
+      setCompanyCampaignForm((prev) => ({ ...prev, companyId: value, ...(company ? { organizationName: company.name, organizationLogoUrl: company.logoUrl || "", applicationNotificationEmail: company.contactEmail || "", city: company.city || "", cities: company.city ? [company.city] : prev.cities } : {}) }));
+      return;
+    }
     if (field === "specialties") {
       setCompanyCampaignForm((prev) => {
         const selectedSpecialties = normalizeFormArray(value);
@@ -2148,10 +2255,12 @@ export default function AdminReviewPage() {
   const startCompanyCampaignEdit = (campaign) => {
     setEditingCompanyCampaignId(campaign._id || campaign.id);
     setCompanyCampaignForm({
+      companyId: campaign.companyId || "",
       organizationName: campaign.organizationName || "",
       organizationLogoUrl: campaign.organizationLogoUrl || "",
       applicationNotificationEmail: campaign.applicationNotificationEmail || "",
       opportunityTitle: campaign.opportunityTitle || "",
+      programType: campaign.programType || "",
       slug: campaign.slug || "",
       city: campaign.city || "",
       cities: normalizeFormArray(campaign.cities),
@@ -2160,10 +2269,13 @@ export default function AdminReviewPage() {
         ? normalizeFormArray(campaign.specialties)
         : [ALL_SPECIALTIES_VALUE],
       description: campaign.description || "",
+      requirements: campaign.requirements || "",
       customQuestions: Array.isArray(campaign.customQuestions)
         ? campaign.customQuestions.map((item) => item.question).join("\n")
         : "",
       applicationDeadline: formatDateForInput(campaign.applicationDeadline),
+      startDate: formatDateForInput(campaign.startDate),
+      endDate: formatDateForInput(campaign.endDate),
       status: campaign.status || "draft",
       allowDuplicateApplications: Boolean(campaign.allowDuplicateApplications),
     });
@@ -4586,8 +4698,10 @@ export default function AdminReviewPage() {
           <option value="experiences">التجارب</option>
           <option value="suggestions">الاقتراحات</option>
           <option value="contactMessages">رسائل التواصل</option>
+          <option value="companies">الشركات</option>
           <option value="companyCampaigns">برامج التقديم</option>
-          <option value="companyApplications">طلبات الشركات</option>
+          <option value="companyRequests">طلبات الشركات</option>
+          <option value="companyApplications">طلبات المتقدمين</option>
           <option value="opportunities">الفرص</option>
           <option value="interviewQuestions">أسئلة المقابلات</option>
           <option value="telegramContent">محتوى قناة التليجرام</option>
@@ -5438,6 +5552,23 @@ export default function AdminReviewPage() {
             ))
           )}
         </div>
+      ) : adminView === "companies" ? (
+        <div style={{ display: "grid", gap: "14px" }}>
+          <form onSubmit={saveCompany} style={{ ...cardStyle, display: "grid", gap: 12 }}>
+            <div><h2 style={{ color: adminColors.brand, margin: "0 0 6px" }}>{editingCompanyId ? "تعديل الشركة" : "إضافة شركة"}</h2><p style={{ color: adminColors.muted, margin: 0 }}>الشركة تجمع برامجها وروابط مراجعة المتقدمين في بوابة واحدة خاصة.</p></div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
+              {[["name","اسم الشركة"],["slug","الرابط المختصر"],["logoUrl","رابط الشعار"],["city","المدينة"],["website","الموقع الإلكتروني"],["contactName","اسم مسؤول التواصل"],["contactEmail","بريد إشعارات الطلبات"]].map(([field,label]) => <label key={field} style={{ color: adminColors.textSoft, fontSize: 13 }}>{label}<input value={companyForm[field]} onChange={(event) => setCompanyForm((prev) => ({ ...prev, [field]: event.target.value }))} style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit", boxSizing: "border-box" }} /></label>)}
+              <label style={{ color: adminColors.textSoft, fontSize: 13 }}>الحالة<select value={companyForm.status} onChange={(event) => setCompanyForm((prev) => ({ ...prev, status: event.target.value }))} style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit" }}><option value="trial">تجربة</option><option value="active">نشطة</option><option value="inactive">غير نشطة</option></select></label>
+            </div>
+            <label style={{ color: adminColors.textSoft, fontSize: 13 }}>وصف مختصر<textarea value={companyForm.shortDescription} onChange={(event) => setCompanyForm((prev) => ({ ...prev, shortDescription: event.target.value }))} rows={2} style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit", boxSizing: "border-box" }} /></label>
+            <div style={{ display: "flex", gap: 8 }}><button type="submit" disabled={savingCompany} style={{ background: adminColors.brand, color: "#07100e", border: "none", borderRadius: 10, padding: "10px 16px", cursor: "pointer", fontFamily: "inherit", fontWeight: 900 }}>{savingCompany ? "جار الحفظ..." : editingCompanyId ? "حفظ التعديل" : "إضافة الشركة"}</button>{editingCompanyId && <button type="button" onClick={() => { setEditingCompanyId(""); setCompanyForm(defaultCompanyForm); }} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, padding: "10px 16px", cursor: "pointer", fontFamily: "inherit" }}>إلغاء</button>}</div>
+          </form>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 12 }}>
+            {companies.map((company) => <article key={company.id || company._id} style={cardStyle}><div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><div><h3 style={{ color: adminColors.brand, margin: "0 0 5px" }}>{company.name}</h3><p style={{ color: adminColors.muted, margin: 0 }}>{company.city || "بدون مدينة"}</p></div><strong style={{ color: adminColors.textSoft }}>{company.programCount || 0} برامج</strong></div><p style={{ color: adminColors.textSoft, minHeight: 35 }}>{company.shortDescription || "لا يوجد وصف مختصر."}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button type="button" onClick={() => addProgramForCompany(company)} style={{ background: adminColors.brand, color: "#07100e", border: "none", borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 800 }}>إضافة برنامج</button><button type="button" onClick={() => editCompany(company)} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>تعديل</button><button type="button" onClick={() => navigator.clipboard?.writeText(company.portalUrl || "").then(() => setMessage("تم نسخ رابط بوابة الشركة."))} style={{ background: "transparent", color: adminColors.brand, border: `1px solid ${adminColors.brand}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>نسخ بوابة الشركة</button></div></article>)}
+          </div>
+        </div>
+      ) : adminView === "companyRequests" ? (
+        <div style={{ display: "grid", gap: 12 }}>{companyRequests.length === 0 ? <div style={{ ...cardStyle, color: adminColors.muted }}>لا توجد طلبات فرص بانتظار المراجعة.</div> : companyRequests.map((request) => <article key={request.id || request._id} style={cardStyle}><h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>{request.organizationName}</h3><p style={{ margin: 0, color: adminColors.text }}>{request.opportunityTitle}</p><p style={{ color: adminColors.muted, fontSize: 13 }}>{request.city || ""} · {request.status}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button type="button" onClick={() => reviewCompanyRequest(request.id || request._id, "approve")} style={{ background: adminColors.brand, color: "#07100e", border: 0, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 800 }}>اعتماد ونشر</button><button type="button" onClick={() => { startCompanyCampaignEdit(request); setAdminView("companyCampaigns"); }} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>تعديل</button><button type="button" onClick={() => reviewCompanyRequest(request.id || request._id, "request_changes")} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>طلب تعديل</button><button type="button" onClick={() => reviewCompanyRequest(request.id || request._id, "reject")} style={{ background: "rgba(127,29,29,.2)", color: "#fecaca", border: "1px solid rgba(248,113,113,.35)", borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>رفض</button></div></article>)}</div>
       ) : adminView === "companyCampaigns" ? (
         <div style={{ display: "grid", gap: "14px" }}>
           <form
@@ -5468,11 +5599,19 @@ export default function AdminReviewPage() {
                 gap: "10px",
               }}
             >
+              <label style={{ color: adminColors.textSoft, fontSize: 13 }}>
+                الشركة
+                <select value={companyCampaignForm.companyId || ""} onChange={(e) => updateCompanyCampaignField("companyId", e.target.value)} style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit", boxSizing: "border-box" }}>
+                  <option value="">برنامج قديم بدون شركة مرتبطة</option>
+                  {companies.map((company) => <option key={company.id || company._id} value={company.id || company._id}>{company.name}</option>)}
+                </select>
+              </label>
               {[
                 ["organizationName", "اسم الجهة", "مثال: STC"],
                 ["opportunityTitle", "اسم البرنامج", "مثال: برنامج التدريب التعاوني"],
                 ["slug", "الرابط المختصر", "مثال: stc-coop-2026"],
                 ["organizationLogoUrl", "رابط شعار الجهة", "اختياري"],
+                ["programType", "نوع البرنامج", "مثال: تدريب تعاوني"],
                 [
                   "applicationNotificationEmail",
                   "بريد إشعار الطلبات",
@@ -5621,6 +5760,17 @@ export default function AdminReviewPage() {
                   lineHeight: 1.8,
                   boxSizing: "border-box",
                 }}
+              />
+            </label>
+
+            <label style={{ color: adminColors.textSoft, fontSize: 13 }}>
+              المتطلبات
+              <textarea
+                value={companyCampaignForm.requirements || ""}
+                onChange={(e) => updateCompanyCampaignField("requirements", e.target.value)}
+                rows={3}
+                placeholder="المتطلبات أو الشروط الأساسية"
+                style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit", resize: "vertical", lineHeight: 1.8, boxSizing: "border-box" }}
               />
             </label>
 

@@ -1,9 +1,23 @@
 const mongoose = require("mongoose");
 
-const campaignStatusValues = ["draft", "open", "closed", "archived"];
+const campaignStatusValues = [
+  "draft",
+  "pending_review",
+  "changes_requested",
+  "open",
+  "closed",
+  "rejected",
+  "archived",
+];
 
 const customQuestionSchema = new mongoose.Schema(
   {
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "companies",
+      default: null,
+      index: true,
+    },
     question: {
       type: String,
       required: true,
@@ -73,6 +87,7 @@ const companyApplicationCampaignSchema = new mongoose.Schema(
       trim: true,
       maxlength: 180,
     },
+    programType: { type: String, default: "", trim: true, maxlength: 100 },
     city: {
       type: String,
       default: "",
@@ -97,6 +112,10 @@ const companyApplicationCampaignSchema = new mongoose.Schema(
       trim: true,
       maxlength: 1600,
     },
+    requirements: { type: String, default: "", trim: true, maxlength: 1600 },
+    startDate: { type: Date, default: null },
+    endDate: { type: Date, default: null },
+    reviewMessage: { type: String, default: "", trim: true, maxlength: 800 },
     customQuestions: {
       type: [customQuestionSchema],
       default: [],
@@ -141,6 +160,7 @@ companyApplicationCampaignSchema.index({
   applicationDeadline: 1,
   updatedAt: -1,
 });
+companyApplicationCampaignSchema.index({ companyId: 1, status: 1, updatedAt: -1 });
 
 module.exports = mongoose.model(
   "company_application_campaigns",

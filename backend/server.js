@@ -9,6 +9,7 @@ const Suggestion = require('./models/Suggestion');
 const ContactMessage = require('./models/ContactMessage');
 const CompanyApplication = require('./models/CompanyApplication');
 const CompanyApplicationCampaign = require('./models/CompanyApplicationCampaign');
+const Company = require('./models/Company');
 const Opportunity = require('./models/Opportunity');
 const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
@@ -2315,6 +2316,9 @@ const sanitizeCompanyApplicationCampaignPayload = (body = {}) => {
     body.slug || `${companySlug}-${opportunityTitle || "training"}`
   );
   const requestedStatus = (body.status || "draft").toString().trim();
+  const companyId = mongoose.Types.ObjectId.isValid(body.companyId)
+    ? body.companyId.toString()
+    : null;
   const applicationDeadline = body.applicationDeadline
     ? new Date(body.applicationDeadline)
     : body.deadline
@@ -2331,6 +2335,7 @@ const sanitizeCompanyApplicationCampaignPayload = (body = {}) => {
     specialties.some(isGeneralSpecialtyValue);
 
   return {
+    companyId,
     slug,
     companySlug,
     organizationName,
@@ -2343,6 +2348,7 @@ const sanitizeCompanyApplicationCampaignPayload = (body = {}) => {
       ? normalizeEmail(body.applicationNotificationEmail || body.contactEmail)
       : "",
     opportunityTitle,
+    programType: (body.programType || body.type || "").toString().trim().slice(0, 100),
     city,
     cities: cities.length ? cities : city ? [city] : [],
     majorCategories: appliesToAllSpecialties ? [] : majorCategories,
@@ -2353,16 +2359,27 @@ const sanitizeCompanyApplicationCampaignPayload = (body = {}) => {
       .replace(/\r\n/g, "\n")
       .replace(/\n{3,}/g, "\n\n")
       .slice(0, 1600),
+    requirements: (body.requirements || "")
+      .toString()
+      .trim()
+      .replace(/\r\n/g, "\n")
+      .slice(0, 1600),
     customQuestions: sanitizeCompanyApplicationCampaignQuestions(
       body.customQuestions || body.questions || []
     ),
-    status: ["draft", "open", "closed", "archived"].includes(requestedStatus)
+    status: ["draft", "pending_review", "changes_requested", "open", "closed", "rejected", "archived"].includes(requestedStatus)
       ? requestedStatus
       : "draft",
     allowDuplicateApplications: Boolean(body.allowDuplicateApplications),
     ...(hasValidDeadline
       ? { applicationDeadline }
       : { applicationDeadline: null }),
+    startDate: body.startDate && !Number.isNaN(new Date(body.startDate).getTime())
+      ? new Date(body.startDate)
+      : null,
+    endDate: body.endDate && !Number.isNaN(new Date(body.endDate).getTime())
+      ? new Date(body.endDate)
+      : null,
   };
 };
 
@@ -2384,6 +2401,7 @@ const serializeCompanyApplicationCampaign = (campaign = {}, extra = {}) => {
     id,
     _id: id,
     campaignId: id,
+    companyId: campaign.companyId?.toString?.() || campaign.companyId || "",
     slug: campaign.slug || "",
     companySlug: campaign.companySlug || campaign.slug || "",
     organizationName: campaign.organizationName || "",
@@ -2392,6 +2410,7 @@ const serializeCompanyApplicationCampaign = (campaign = {}, extra = {}) => {
       ? { applicationNotificationEmail: campaign.applicationNotificationEmail || "" }
       : {}),
     opportunityTitle: campaign.opportunityTitle || "",
+    programType: campaign.programType || "",
     city: campaign.city || "",
     cities: Array.isArray(campaign.cities) ? campaign.cities : [],
     majorCategories: Array.isArray(campaign.majorCategories)
@@ -2399,10 +2418,14 @@ const serializeCompanyApplicationCampaign = (campaign = {}, extra = {}) => {
       : [],
     specialties: Array.isArray(campaign.specialties) ? campaign.specialties : [],
     description: campaign.description || "",
+    requirements: campaign.requirements || "",
     customQuestions: Array.isArray(campaign.customQuestions)
       ? campaign.customQuestions
       : [],
     applicationDeadline: campaign.applicationDeadline || null,
+    startDate: campaign.startDate || null,
+    endDate: campaign.endDate || null,
+    reviewMessage: campaign.reviewMessage || "",
     status: isOpen ? campaign.status || "open" : campaign.status || "draft",
     isOpen,
     allowDuplicateApplications: Boolean(campaign.allowDuplicateApplications),
@@ -2421,6 +2444,132 @@ const serializeCompanyApplicationCampaign = (campaign = {}, extra = {}) => {
 
 const createCompanyApplicationShareToken = () =>
   crypto.randomBytes(32).toString("hex");
+
+const createCompanyPortalAccessToken = () => crypto.randomBytes(32).toString("hex");
+
+const sanitizeCompanyPayload = (body = {}) => {
+  const name = (body.name || "").toString().trim().replace(/\s+/g, " ").slice(0, 180);
+  return {
+    name,
+    slug: normalizeCompanyApplicationSlug(body.slug || name),
+    logoUrl: sanitizeExternalUrl(body.logoUrl || body.organizationLogoUrl || ""),
+    shortDescription: (body.shortDescription || "").toString().trim().slice(0, 600),
+    city: (body.city || "").toString().trim().slice(0, 120),
+    website: sanitizeExternalUrl(body.website || ""),
+    contactName: (body.contactName || "").toString().trim().slice(0, 160),
+    contactEmail: isValidEmail(body.contactEmail || "")
+      ? normalizeEmail(body.contactEmail)
+      : "",
+    status: ["trial", "active", "inactive"].includes(body.status)
+      ? body.status
+      : "trial",
+  };
+};
+
+const serializeCompany = (company = {}, extra = {}) => {
+  const id = company._id?.toString?.() || company.id || "";
+  const portalAccessToken = company.portalAccessToken || "";
+  return {
+    id,
+    _id: id,
+    name: company.name || "",
+    slug: company.slug || "",
+    logoUrl: company.logoUrl || "",
+    shortDescription: company.shortDescription || "",
+    city: company.city || "",
+    website: company.website || "",
+    contactName: company.contactName || "",
+    contactEmail: company.contactEmail || "",
+    status: company.status || "trial",
+    programCount: Number(extra.programCount || 0),
+    pendingRequestCount: Number(extra.pendingRequestCount || 0),
+    ...(extra.includePortalUrl && portalAccessToken
+      ? { portalUrl: `${getFrontendUrl()}/company/${company.slug}?access=${portalAccessToken}` }
+      : {}),
+    createdAt: company.createdAt,
+    updatedAt: company.updatedAt,
+  };
+};
+
+const ensureCompanyPortalAccessToken = async (company = {}) => {
+  if (company.portalAccessToken) return company;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const updated = await Company.findOneAndUpdate(
+        {
+          _id: company._id,
+          $or: [
+            { portalAccessToken: "" },
+            { portalAccessToken: { $exists: false } },
+            { portalAccessToken: null },
+          ],
+        },
+        { $set: { portalAccessToken: createCompanyPortalAccessToken() } },
+        { new: true }
+      ).lean();
+      if (updated) return updated;
+      const current = await Company.findById(company._id).lean();
+      if (current?.portalAccessToken) return current;
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
+    }
+  }
+  throw new Error("تعذر إنشاء رابط آمن للشركة.");
+};
+
+const ensureCompanyForCampaign = async (campaign = {}) => {
+  if (campaign.companyId && mongoose.Types.ObjectId.isValid(campaign.companyId)) {
+    const existing = await Company.findById(campaign.companyId).lean();
+    if (existing) return existing;
+  }
+
+  const slug = normalizeCompanyApplicationSlug(campaign.companySlug || campaign.organizationName);
+  if (!slug) return null;
+  let company = await Company.findOne({ slug }).lean();
+  if (!company) {
+    company = await Company.create({
+      name: campaign.organizationName || slug.replace(/-/g, " "),
+      slug,
+      logoUrl: campaign.organizationLogoUrl || "",
+      city: campaign.city || "",
+      contactEmail: campaign.applicationNotificationEmail || "",
+      status: "trial",
+      portalAccessToken: createCompanyPortalAccessToken(),
+    });
+    company = company.toObject();
+  }
+  await CompanyApplicationCampaign.updateOne(
+    { _id: campaign._id, companyId: null },
+    { $set: { companyId: company._id } }
+  );
+  return company;
+};
+
+const getCompanyWithPortalAccess = async (companySlug = "", accessToken = "") => {
+  const slug = normalizeCompanyApplicationSlug(companySlug);
+  const token = accessToken.toString().trim();
+  if (!slug || !/^[a-f0-9]{64}$/i.test(token)) return null;
+  return Company.findOne({ slug, portalAccessToken: token }).lean();
+};
+
+const hydrateCampaignCompany = async (payload = {}) => {
+  if (!payload.companyId) return payload;
+  const company = await Company.findById(payload.companyId).lean();
+  if (!company) {
+    const error = new Error("الشركة المختارة غير موجودة.");
+    error.status = 400;
+    throw error;
+  }
+  return {
+    ...payload,
+    companySlug: company.slug,
+    organizationName: company.name,
+    organizationLogoUrl: company.logoUrl || payload.organizationLogoUrl || "",
+    applicationNotificationEmail:
+      company.contactEmail || payload.applicationNotificationEmail || "",
+    city: payload.city || company.city || "",
+  };
+};
 
 const ensureCompanyApplicationShareToken = async (campaign = {}) => {
   if (campaign.applicationShareToken) return campaign;
@@ -14022,6 +14171,103 @@ app.get('/api/admin/contact-messages', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/company-portal/:companySlug', async (req, res) => {
+  try {
+    const company = await getCompanyWithPortalAccess(req.params.companySlug, req.query.access);
+    if (!company) return res.status(404).json({ error: "رابط الشركة غير صحيح أو انتهت صلاحيته." });
+    const programs = await CompanyApplicationCampaign.find({ companyId: company._id })
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean();
+    const ids = programs.map((program) => program._id.toString());
+    const counts = ids.length
+      ? await CompanyApplication.aggregate([
+          { $match: { campaignId: { $in: ids } } },
+          { $group: { _id: "$campaignId", count: { $sum: 1 } } },
+        ])
+      : [];
+    const countsById = new Map(counts.map((item) => [item._id, item.count]));
+    res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+    res.json({
+      company: serializeCompany(company),
+      programs: programs.map((program) =>
+        serializeCompanyApplicationCampaign(program, {
+          applicationCount: countsById.get(program._id.toString()) || 0,
+          includeShareUrl: true,
+        })
+      ),
+    });
+  } catch (err) {
+    console.error("❌ Company portal fetch error:", err);
+    res.status(500).json({ error: "تعذر تحميل برامج الشركة." });
+  }
+});
+
+app.get('/api/company-portal/:companySlug/program/:programId', async (req, res) => {
+  try {
+    const company = await getCompanyWithPortalAccess(req.params.companySlug, req.query.access);
+    if (!company) return res.status(404).json({ error: "رابط الشركة غير صحيح أو انتهت صلاحيته." });
+    if (!mongoose.Types.ObjectId.isValid(req.params.programId)) {
+      return res.status(400).json({ error: "معرّف البرنامج غير صحيح." });
+    }
+    const program = await CompanyApplicationCampaign.findOne({
+      _id: req.params.programId,
+      companyId: company._id,
+    }).lean();
+    if (!program) return res.status(404).json({ error: "البرنامج غير موجود." });
+    const applicationCount = await CompanyApplication.countDocuments({ campaignId: program._id.toString() });
+    const lastApplicants = await CompanyApplication.find({ campaignId: program._id.toString() })
+      .sort({ submittedAt: -1 })
+      .limit(5)
+      .select("fullName major university submittedAt")
+      .lean();
+    res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+    res.json({
+      company: serializeCompany(company),
+      program: serializeCompanyApplicationCampaign(program, {
+        applicationCount,
+        includeShareUrl: true,
+      }),
+      lastApplicants: lastApplicants.map((item) => ({
+        fullName: item.fullName,
+        major: item.major,
+        university: item.university,
+        submittedAt: item.submittedAt,
+      })),
+    });
+  } catch (err) {
+    console.error("❌ Company program overview error:", err);
+    res.status(500).json({ error: "تعذر تحميل البرنامج." });
+  }
+});
+
+app.post('/api/company-portal/:companySlug/requests', async (req, res) => {
+  try {
+    const company = await getCompanyWithPortalAccess(req.params.companySlug, req.query.access);
+    if (!company) return res.status(404).json({ error: "رابط الشركة غير صحيح أو انتهت صلاحيته." });
+    const payload = await hydrateCampaignCompany({
+      ...sanitizeCompanyApplicationCampaignPayload({ ...req.body, companyId: company._id }),
+      companyId: company._id.toString(),
+      status: "pending_review",
+    });
+    if (!payload.opportunityTitle) {
+      return res.status(400).json({ error: "عنوان الفرصة مطلوب." });
+    }
+    const existing = await CompanyApplicationCampaign.exists({ slug: payload.slug });
+    if (existing) return res.status(409).json({ error: "رابط البرنامج مستخدم مسبقًا." });
+    const program = await CompanyApplicationCampaign.create({
+      ...payload,
+      applicationShareToken: createCompanyApplicationShareToken(),
+      createdBy: "company",
+      updatedBy: "company",
+    });
+    res.status(201).json({ success: true, data: serializeCompanyApplicationCampaign(program.toObject()) });
+  } catch (err) {
+    console.error("❌ Company opportunity request error:", err);
+    res.status(err.status || 500).json({ error: err.message || "تعذر إرسال طلب الفرصة." });
+  }
+});
+
 app.get('/api/admin/company-applications', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -14064,13 +14310,135 @@ app.get('/api/admin/company-applications', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/companies', requireAdmin, async (req, res) => {
+  try {
+    const legacyCampaigns = await CompanyApplicationCampaign.find({
+      $or: [{ companyId: null }, { companyId: { $exists: false } }],
+    }).limit(300).lean();
+    await Promise.all(legacyCampaigns.map((campaign) => ensureCompanyForCampaign(campaign)));
+
+    const companies = await Company.find({}).sort({ updatedAt: -1 }).limit(300).lean();
+    const companyIds = companies.map((company) => company._id);
+    const counts = companyIds.length
+      ? await CompanyApplicationCampaign.aggregate([
+          { $match: { companyId: { $in: companyIds } } },
+          {
+            $group: {
+              _id: "$companyId",
+              programCount: { $sum: 1 },
+              pendingRequestCount: {
+                $sum: { $cond: [{ $eq: ["$status", "pending_review"] }, 1, 0] },
+              },
+            },
+          },
+        ])
+      : [];
+    const countsById = new Map(counts.map((item) => [item._id.toString(), item]));
+    const securedCompanies = await Promise.all(
+      companies.map((company) => ensureCompanyPortalAccessToken(company))
+    );
+    res.json({
+      data: securedCompanies.map((company) => {
+        const item = countsById.get(company._id.toString()) || {};
+        return serializeCompany(company, { ...item, includePortalUrl: true });
+      }),
+    });
+  } catch (err) {
+    console.error("❌ Admin companies fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/companies', requireAdmin, async (req, res) => {
+  try {
+    const payload = sanitizeCompanyPayload(req.body || {});
+    if (!payload.name || !payload.slug) {
+      return res.status(400).json({ error: "اسم الشركة والرابط المختصر مطلوبان." });
+    }
+    const company = await Company.create({
+      ...payload,
+      portalAccessToken: createCompanyPortalAccessToken(),
+    });
+    res.status(201).json(serializeCompany(company.toObject(), { includePortalUrl: true }));
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ error: "الرابط المختصر للشركة مستخدم مسبقًا." });
+    }
+    console.error("❌ Admin company create error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/companies/:id', requireAdmin, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "معرّف الشركة غير صحيح." });
+    }
+    const payload = sanitizeCompanyPayload(req.body || {});
+    if (!payload.name || !payload.slug) {
+      return res.status(400).json({ error: "اسم الشركة والرابط المختصر مطلوبان." });
+    }
+    const company = await Company.findByIdAndUpdate(
+      req.params.id,
+      { $set: payload },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!company) return res.status(404).json({ error: "الشركة غير موجودة." });
+    const secured = await ensureCompanyPortalAccessToken(company);
+    res.json(serializeCompany(secured, { includePortalUrl: true }));
+  } catch (err) {
+    if (err?.code === 11000) return res.status(409).json({ error: "الرابط المختصر للشركة مستخدم مسبقًا." });
+    console.error("❌ Admin company edit error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/company-requests', requireAdmin, async (req, res) => {
+  try {
+    const campaigns = await CompanyApplicationCampaign.find({
+      status: { $in: ["pending_review", "changes_requested", "rejected"] },
+    }).sort({ updatedAt: -1 }).limit(200).lean();
+    res.json({ data: campaigns.map((campaign) => serializeCompanyApplicationCampaign(campaign)) });
+  } catch (err) {
+    console.error("❌ Admin company requests fetch error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/company-requests/:id/review', requireAdmin, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "معرّف الطلب غير صحيح." });
+    }
+    const action = (req.body?.action || "").toString();
+    const statusByAction = { approve: "open", request_changes: "changes_requested", reject: "rejected" };
+    if (!statusByAction[action]) {
+      return res.status(400).json({ error: "إجراء المراجعة غير صحيح." });
+    }
+    const reviewMessage = (req.body?.reviewMessage || "").toString().trim().slice(0, 800);
+    const campaign = await CompanyApplicationCampaign.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: statusByAction[action], reviewMessage, updatedBy: "admin" } },
+      { new: true }
+    ).lean();
+    if (!campaign) return res.status(404).json({ error: "طلب الشركة غير موجود." });
+    const withToken = action === "approve"
+      ? await ensureCompanyApplicationShareToken(campaign)
+      : campaign;
+    res.json(serializeCompanyApplicationCampaign(withToken, { includeShareUrl: true }));
+  } catch (err) {
+    console.error("❌ Admin company request review error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/company-application-campaigns', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const status = ["draft", "open", "closed", "archived"].includes(
+    const status = ["draft", "pending_review", "changes_requested", "open", "closed", "rejected", "archived"].includes(
       req.query.status
     )
       ? req.query.status
@@ -14140,7 +14508,9 @@ app.post('/api/admin/company-application-campaigns', requireAdmin, async (req, r
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const payload = sanitizeCompanyApplicationCampaignPayload(req.body || {});
+    const payload = await hydrateCampaignCompany(
+      sanitizeCompanyApplicationCampaignPayload(req.body || {})
+    );
 
     if (!payload.organizationName || !payload.opportunityTitle) {
       return res.status(400).json({
@@ -14203,7 +14573,9 @@ app.patch('/api/admin/company-application-campaigns/:id', requireAdmin, async (r
       return res.status(400).json({ error: "Invalid campaign id" });
     }
 
-    const payload = sanitizeCompanyApplicationCampaignPayload(req.body || {});
+    const payload = await hydrateCampaignCompany(
+      sanitizeCompanyApplicationCampaignPayload(req.body || {})
+    );
 
     if (!payload.organizationName || !payload.opportunityTitle) {
       return res.status(400).json({

@@ -41,6 +41,8 @@ const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
 const PortfolioBuilderPage = lazy(() => import("./pages/PortfolioBuilderPage"));
 const CompanyApplyPage = lazy(() => import("./pages/CompanyApplyPage"));
 const CompanyApplicationsSharePage = lazy(() => import("./pages/CompanyApplicationsSharePage"));
+const CompanyPortalPage = lazy(() => import("./pages/CompanyPortalPage"));
+const CompanyProgramOverviewPage = lazy(() => import("./pages/CompanyProgramOverviewPage"));
 const MyApplicationsPage = lazy(() => import("./pages/MyApplicationsPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
 const MyResumePage = lazy(() => import("./pages/MyResumePage"));
@@ -1197,6 +1199,7 @@ function AppLayout({ theme, setTheme }) {
   const isCompanyApplicationsSharePage = location.pathname.startsWith(
     "/company-applications/"
   );
+  const isCompanyPortalPage = location.pathname.startsWith("/company/");
   const isHomePage = location.pathname === "/";
   const appStyle = {
     minHeight: "100vh",
@@ -1348,11 +1351,11 @@ function AppLayout({ theme, setTheme }) {
 
   return (
     <div style={appStyle}>
-      {!isCompanyApplicationsSharePage && <Navbar theme={theme} setTheme={setTheme} />}
+      {!isCompanyApplicationsSharePage && !isCompanyPortalPage && <Navbar theme={theme} setTheme={setTheme} />}
 
       <PageBanner />
-      {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && <PlatformUpdateNotice />}
-      {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && (
+      {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && !isCompanyPortalPage && <PlatformUpdateNotice />}
+      {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && !isCompanyPortalPage && (
         <Suspense fallback={null}>
           <PremiumAccessGate />
           <AccountModal />
@@ -1412,6 +1415,8 @@ function AppLayout({ theme, setTheme }) {
                 path="/company-applications/:shareToken"
                 element={<CompanyApplicationsSharePage />}
               />
+              <Route path="/company/:companySlug" element={<CompanyPortalPage />} />
+              <Route path="/company/:companySlug/program/:programId" element={<CompanyProgramOverviewPage />} />
               <Route path="/p/:slug" element={<PortfolioPage />} />
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/terms" element={<LegalPage />} />
@@ -1423,7 +1428,7 @@ function AppLayout({ theme, setTheme }) {
         </div>
       </div>
 
-      {!isCompanyApplicationsSharePage && <Footer />}
+      {!isCompanyApplicationsSharePage && !isCompanyPortalPage && <Footer />}
     </div>
   );
 }
