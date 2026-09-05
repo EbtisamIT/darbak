@@ -18,6 +18,10 @@ const User = require('./models/User');
 const Portfolio = require('./models/Portfolio');
 const PortfolioAsset = require('./models/PortfolioAsset');
 const CompanyApplicationFile = require('./models/CompanyApplicationFile');
+const {
+  getPdfIntegrity,
+  matchesStoredPdfIntegrity,
+} = require("./services/companyApplicationFileIntegrity");
 const ResumeProfile = require('./models/ResumeProfile');
 const ResumeAgentSession = require('./models/ResumeAgentSession');
 const ResumePendingDraft = require('./models/ResumePendingDraft');
@@ -12260,8 +12264,9 @@ app.post('/api/company-application-files', companyApplicationFileParser, async (
       return res.status(400).json({ error: "ارفع السيرة الذاتية بصيغة PDF." });
     }
 
-    // MIME type and extension are supplied by the browser, so verify the actual PDF header.
-    if (fileBuffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+    // MIME type and extension are supplied by the browser, so verify the actual file.
+    const integrity = getPdfIntegrity(fileBuffer);
+    if (!integrity.isPdf) {
       return res.status(400).json({
         error: "الملف المرفوع ليس PDF صالحًا. صدّره كـ PDF ثم ارفعه مرة أخرى.",
       });
@@ -12276,9 +12281,22 @@ app.post('/api/company-application-files', companyApplicationFileParser, async (
       originalFilename,
       contentType,
       size: fileBuffer.length,
+      sha256: integrity.sha256,
+      verifiedAt: new Date(),
       data: fileBuffer,
       accessToken: crypto.randomBytes(24).toString("hex"),
     });
+
+    // Re-read after Mongo writes the BLOB: success is only returned after the
+    // stored bytes match the uploaded bytes exactly.
+    const storedFile = await CompanyApplicationFile.findById(file._id);
+    const storedIntegrity = matchesStoredPdfIntegrity(storedFile?.data, storedFile);
+    if (!storedIntegrity.valid) {
+      await CompanyApplicationFile.deleteOne({ _id: file._id });
+      return res.status(500).json({
+        error: "تعذر التحقق من حفظ السيرة. لم يُرسل الطلب، ارفع الملف مرة أخرى.",
+      });
+    }
 
     res.json({
       status: "ok",
@@ -12286,6 +12304,7 @@ app.post('/api/company-application-files', companyApplicationFileParser, async (
         id: file._id.toString(),
         filename: file.originalFilename || file.filename,
         url: getCompanyApplicationFileUrl(req, file),
+        verified: true,
       },
     });
   } catch (err) {
@@ -12312,7 +12331,8 @@ app.get('/api/company-application-files/:fileId', async (req, res) => {
     const pdfBuffer = Buffer.isBuffer(file.data)
       ? file.data
       : Buffer.from(file.data || []);
-    if (pdfBuffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+    const integrity = matchesStoredPdfIntegrity(pdfBuffer, file);
+    if (!integrity.valid) {
       return res.status(422).send("The stored file is not a valid PDF.");
     }
 

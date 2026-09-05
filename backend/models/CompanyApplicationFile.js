@@ -31,6 +31,18 @@ const companyApplicationFileSchema = new mongoose.Schema(
       min: 1,
       max: 10 * 1024 * 1024,
     },
+    sha256: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 64,
+      maxlength: 64,
+      index: true,
+    },
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
     data: {
       type: Buffer,
       required: true,
