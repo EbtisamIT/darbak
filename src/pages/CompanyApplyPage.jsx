@@ -131,6 +131,7 @@ const CompanyApplyPage = () => {
   const [form, setForm] = useState(emptyForm);
   const [customAnswers, setCustomAnswers] = useState([]);
   const [cvFile, setCvFile] = useState(null);
+  const [cvMessage, setCvMessage] = useState("");
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -141,6 +142,7 @@ const CompanyApplyPage = () => {
     loading: false,
   });
   const didPrefill = useRef(false);
+  const cvInputRef = useRef(null);
 
   const fetchContext = useCallback(async () => {
     setLoading(true);
@@ -272,17 +274,41 @@ const CompanyApplyPage = () => {
       throw new Error("حجم السيرة كبير. الحد الأقصى 10MB.");
     }
 
-    const { data } = await axios.post(
-      `${API_BASE_URL}/api/company-application-files`,
-      cvFile,
-      {
-        headers: {
-          "Content-Type": "application/pdf",
-          "X-File-Name": encodeURIComponent(cvFile.name),
-        },
+    try {
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/company-application-files`,
+        cvFile,
+        {
+          headers: {
+            "Content-Type": "application/pdf",
+            "X-File-Name": encodeURIComponent(cvFile.name),
+          },
+        }
+      );
+      if (!data?.data?.verified) {
+        throw new Error("لم يكتمل التحقق من السيرة. اختر ملف PDF آخر.");
       }
-    );
-    return data?.data;
+      return data.data;
+    } catch (error) {
+      const message = error.response?.data?.error || error.message || "تعذر التحقق من السيرة.";
+      const cvError = new Error(message);
+      cvError.isCvVerificationError = true;
+      throw cvError;
+    }
+  };
+
+  const handleCvChange = (event) => {
+    const selected = event.target.files?.[0] || null;
+    setCvMessage("");
+    if (!selected) { setCvFile(null); return; }
+    if ((selected.type !== "application/pdf" && !selected.name.toLowerCase().endsWith(".pdf")) || selected.size > 10 * 1024 * 1024) {
+      setCvFile(null);
+      setCvMessage(selected.size > 10 * 1024 * 1024 ? "حجم السيرة أكبر من 10MB. اختر ملفًا أصغر." : "هذا الملف ليس PDF. اختر السيرة بصيغة PDF.");
+      event.target.value = "";
+      return;
+    }
+    setCvFile(selected);
+    setCvMessage("سيتم التحقق من سلامة السيرة قبل إرسال طلبك.");
   };
 
   const validateForm = () => {
@@ -344,6 +370,11 @@ const CompanyApplyPage = () => {
       });
       setSuccessApplication(data?.data || { organizationName: campaign.organizationName });
     } catch (err) {
+      if (err.isCvVerificationError) {
+        setCvFile(null);
+        if (cvInputRef.current) cvInputRef.current.value = "";
+        setCvMessage(`تعذر قبول السيرة: ${err.message} اختر ملف PDF سليمًا ثم أرسله مرة أخرى.`);
+      }
       setErrorMessage(
         err.response?.data?.error || err.message || "تعذر إرسال الطلب الآن. حاول مرة أخرى."
       );
@@ -560,12 +591,20 @@ const CompanyApplyPage = () => {
               <label className="company-apply-file-field">
                 <span>رفع السيرة الذاتية PDF <b>*</b></span>
                 <input
+                  ref={cvInputRef}
                   type="file"
                   accept="application/pdf,.pdf"
-                  onChange={(event) => setCvFile(event.target.files?.[0] || null)}
+                  onChange={handleCvChange}
                   required
                 />
-                <small>{cvFile ? `تم اختيار: ${cvFile.name}` : "الحد الأقصى 10MB"}</small>
+                <small style={{ color: cvMessage.startsWith("تعذر") || cvMessage.includes("ليس PDF") || cvMessage.includes("أكبر") ? "#b91c1c" : undefined }}>
+                  {cvMessage || (cvFile ? `تم اختيار: ${cvFile.name}` : "الحد الأقصى 10MB")}
+                </small>
+                {cvMessage.startsWith("تعذر") && (
+                  <button type="button" onClick={() => cvInputRef.current?.click()} className="company-apply-secondary-button">
+                    اختيار ملف آخر
+                  </button>
+                )}
               </label>
 
               {customAnswers.length > 0 && (
