@@ -152,25 +152,27 @@ const CompanyPortalPage = () => {
           <button className="company-share-export" disabled={saving}>{saving ? "جار الإرسال..." : "إرسال للمراجعة"}</button>
         </form>}
 
-        <section className="company-portal-section">
-          <div className="company-portal-section-head"><div><p>المتقدمون</p><h2>آخر المتقدمين</h2></div>{primaryProgram?.applicationsShareUrl && <a href={primaryProgram.applicationsShareUrl} target="_blank" rel="noreferrer">عرض جميع المتقدمين</a>}</div>
-          {latestApplicants.length ? <div className="company-portal-applicants">{latestApplicants.slice(0, 4).map((applicant) => <article key={applicant.id}>
-            <span className="company-portal-avatar">{(applicant.fullName || "م").charAt(0)}</span>
-            <div><strong>{applicant.fullName}</strong><small>{applicant.major || "تخصص غير محدد"} {applicant.university ? `· ${applicant.university}` : ""}</small></div>
-            <em className={`company-portal-status is-${applicant.status}`}>{statusLabels[applicant.status] || "جديد"}</em>
-          </article>)}</div> : <div className="company-portal-empty">ستظهر آخر الطلبات هنا فور وصولها.</div>}
-        </section>
+        <div className="company-portal-content-grid">
+          <section className="company-portal-section company-portal-latest-section">
+            <div className="company-portal-section-head"><div><p>المتقدمون</p><h2>آخر المتقدمين</h2></div>{primaryProgram?.applicationsShareUrl && <a href={primaryProgram.applicationsShareUrl} target="_blank" rel="noreferrer">عرض الكل</a>}</div>
+            {latestApplicants.length ? <div className="company-portal-applicants">{latestApplicants.slice(0, 4).map((applicant) => <article key={applicant.id}>
+              <span className="company-portal-avatar">{(applicant.fullName || "م").charAt(0)}</span>
+              <div><strong>{applicant.fullName}</strong><small>{applicant.major || "تخصص غير محدد"} {applicant.university ? `· ${applicant.university}` : ""}</small></div>
+              <em className={`company-portal-status is-${applicant.status}`}>{statusLabels[applicant.status] || "جديد"}</em>
+            </article>)}</div> : <div className="company-portal-empty">ستظهر آخر الطلبات هنا فور وصولها.</div>}
+          </section>
 
-        <section className="company-portal-section">
-          <div className="company-portal-section-head"><div><p>البرامج</p><h2>برامج الشركة</h2></div><button type="button" className="company-share-linkedin" onClick={() => setFormOpen(true)}>إضافة فرصة</button></div>
-          {programs.length ? <div className="company-portal-programs">{programs.map((program) => {
-            const overview = `/company/${company.slug}/program/${program.id}?access=${encodeURIComponent(access)}`;
-            return <article key={program.id}>
-              <div><span className={`company-portal-program-status is-${program.status}`}>{programLabels[program.status] || program.status}</span><h3>{program.opportunityTitle}</h3><p>{program.city || "المدينة غير محددة"} · {Number(program.applicationCount || 0)} متقدم</p></div>
-              <div className="company-portal-program-actions"><Link className="company-share-cv" to={overview}>عرض البرنامج</Link>{program.applicationsShareUrl && <a className="company-share-linkedin" href={program.applicationsShareUrl} target="_blank" rel="noreferrer">المتقدمون</a>}<button type="button" className="company-share-linkedin" onClick={() => copy(program.applyUrl)}>نسخ رابط التقديم</button></div>
-            </article>;
-          })}</div> : <div className="company-portal-empty"><strong>لا يوجد برنامج منشور بعد</strong><p>أضف فرصة جديدة وسيتم مراجعتها من فريق دربك قبل النشر.</p><button type="button" className="company-share-export" onClick={() => setFormOpen(true)}>إضافة فرصة</button></div>}
-        </section>
+          <section className="company-portal-section company-portal-programs-section">
+            <div className="company-portal-section-head"><div><p>البرامج</p><h2>برامج الشركة</h2></div><button type="button" className="company-share-linkedin" onClick={() => setFormOpen(true)}>إضافة فرصة</button></div>
+            {programs.length ? <div className="company-portal-programs">{programs.map((program) => {
+              const overview = `/company/${company.slug}/program/${program.id}?access=${encodeURIComponent(access)}`;
+              return <article key={program.id}>
+                <div><span className={`company-portal-program-status is-${program.status}`}>{programLabels[program.status] || program.status}</span><h3>{program.opportunityTitle}</h3><p>{program.city || "المدينة غير محددة"} · {Number(program.applicationCount || 0)} متقدم</p></div>
+                <div className="company-portal-program-actions"><Link className="company-share-cv" to={overview}>عرض البرنامج</Link>{program.applicationsShareUrl && <a className="company-share-linkedin" href={program.applicationsShareUrl} target="_blank" rel="noreferrer">المتقدمون</a>}<button type="button" className="company-share-linkedin" onClick={() => copy(program.applyUrl)}>نسخ رابط التقديم</button></div>
+              </article>;
+            })}</div> : <div className="company-portal-empty"><strong>لا يوجد برنامج منشور بعد</strong><p>أضف فرصة جديدة وسيتم مراجعتها من فريق دربك قبل النشر.</p><button type="button" className="company-share-export" onClick={() => setFormOpen(true)}>إضافة فرصة</button></div>}
+          </section>
+        </div>
         <p className="company-share-privacy">هذه البوابة مخصصة لإدارة برامج الجهة وطلبات المتقدمين فقط.</p>
       </section>
     </main>

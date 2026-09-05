@@ -5674,7 +5674,7 @@ body {
 
 /* Private, token-protected company applications view. */
 .company-share-page { min-height: 100vh; padding: 28px 16px 42px; background: #08100f; color: #edf7f5; box-sizing: border-box; }
-.company-share-shell { width: min(1180px, 100%); margin: 0 auto; }
+.company-share-shell { width: min(1280px, 100%); margin: 0 auto; }
 .company-share-header { display: flex; align-items: center; justify-content: space-between; color: #94aaa5; font-size: 13px; margin-bottom: 22px; }
 .company-share-brand { color: #7ddbcd; font-size: 23px; font-weight: 900; }
 .company-portal-darbak-logo { width: 68px; height: 32px; object-fit: contain; object-position: center; }
@@ -5730,6 +5730,9 @@ body {
 .company-portal-metrics strong { display: block; color: #7ddbcd; font-size: 27px; line-height: 1; }
 .company-portal-metrics span { display: block; margin-top: 8px; color: #a9beb9; font-size: 12px; font-weight: 700; }
 .company-portal-section { padding: 18px; border: 1px solid #223531; border-radius: 16px; background: #101b1a; }
+.company-portal-content-grid { display: grid; grid-template-columns: minmax(300px, .78fr) minmax(0, 1.22fr); gap: 18px; align-items: start; }
+.company-portal-latest-section { min-height: 100%; }
+.company-portal-programs-section { min-width: 0; }
 .company-portal-section-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 14px; }
 .company-portal-section-head p { margin: 0 0 4px; color: #7ddbcd; font-size: 12px; font-weight: 800; }
 .company-portal-section-head h2 { margin: 0; font-size: 19px; }
@@ -5763,6 +5766,7 @@ body {
   .company-portal-actions { width: 100%; margin-inline-start: 0; }
   .company-portal-actions .company-share-export { grid-column: auto; }
   .company-portal-metrics { grid-template-columns: repeat(2, 1fr); }
+  .company-portal-content-grid { grid-template-columns: 1fr; }
   .company-portal-applicants { grid-template-columns: 1fr; }
   .company-portal-programs article { align-items: start; flex-direction: column; }
   .company-portal-program-actions { justify-content: start; }
