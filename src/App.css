@@ -5677,7 +5677,7 @@ body {
 .company-share-shell { width: min(1280px, 100%); margin: 0 auto; }
 .company-share-header { display: flex; align-items: center; justify-content: space-between; color: #94aaa5; font-size: 13px; margin-bottom: 22px; }
 .company-share-brand { color: #7ddbcd; font-size: 23px; font-weight: 900; }
-.company-portal-darbak-logo { width: 68px; height: 32px; object-fit: contain; object-position: center; }
+.company-portal-darbak-logo { width: 76px; height: 34px; object-fit: cover; object-position: center; }
 .company-share-hero { display: flex; align-items: center; gap: 16px; padding: 22px; background: #101b1a; border: 1px solid #223531; border-radius: 16px; }
 .company-share-logo { width: 62px; height: 62px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; border-radius: 14px; background: #fff; color: #0f766e; font-size: 25px; font-weight: 900; }
 .company-share-logo img { width: 100%; height: 100%; object-fit: contain; padding: 6px; box-sizing: border-box; }
@@ -5710,7 +5710,7 @@ body {
 .company-portal-v2 { display: grid; gap: 18px; }
 .company-portal-v2 .company-share-header { margin-bottom: 0; }
 .company-portal-hero { flex-wrap: wrap; }
-.company-portal-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-inline-start: auto; }
+.company-portal-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .company-portal-actions .company-share-cv { border: 1px solid #39544e; background: transparent; color: #c9dfda; }
 .company-portal-demo-badge { justify-self: start; padding: 7px 11px; border: 1px solid rgba(249, 184, 84, .4); border-radius: 999px; color: #f8d28d; background: rgba(147, 92, 20, .16); font-size: 12px; font-weight: 800; }
 .company-portal-journey { display: flex; align-items: center; gap: 8px; padding: 14px; overflow-x: auto; border: 1px solid #223531; border-radius: 15px; background: #0d1716; }
@@ -5730,8 +5730,8 @@ body {
 .company-portal-metrics strong { display: block; color: #7ddbcd; font-size: 27px; line-height: 1; }
 .company-portal-metrics span { display: block; margin-top: 8px; color: #a9beb9; font-size: 12px; font-weight: 700; }
 .company-portal-section { padding: 18px; border: 1px solid #223531; border-radius: 16px; background: #101b1a; }
-.company-portal-content-grid { display: grid; grid-template-columns: minmax(300px, .78fr) minmax(0, 1.22fr); gap: 18px; align-items: start; }
-.company-portal-latest-section { min-height: 100%; }
+.company-portal-content-grid { display: grid; grid-template-columns: minmax(300px, .82fr) minmax(0, 1.18fr); gap: 18px; align-items: start; }
+.company-portal-latest-section { min-height: 0; align-self: start; }
 .company-portal-programs-section { min-width: 0; }
 .company-portal-section-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 14px; }
 .company-portal-section-head p { margin: 0 0 4px; color: #7ddbcd; font-size: 12px; font-weight: 800; }
@@ -5750,7 +5750,7 @@ body {
 .company-portal-programs h3 { margin: 8px 0 4px; color: #e6f2ef; font-size: 15px; }.company-portal-programs p { margin: 0; color: #91a9a4; font-size: 12px; }
 .company-portal-program-status { margin: 0; }.company-portal-program-status.is-open { color: #9cf2dd; background: rgba(20, 123, 98, .2); }.company-portal-program-status.is-pending_review { color: #fde68a; background: rgba(146, 107, 20, .2); }
 .company-portal-program-actions { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; justify-content: end; }.company-portal-program-actions .company-share-linkedin { margin: 0; border: 0; background: transparent; cursor: pointer; font-family: inherit; }
-.company-portal-empty { padding: 24px 14px; text-align: center; color: #9cb1ac; border: 1px dashed #38514b; border-radius: 12px; }.company-portal-empty strong { color: #dcebe7; }.company-portal-empty p { margin: 8px auto 14px; max-width: 520px; font-size: 13px; }
+.company-portal-empty { padding: 18px 14px; text-align: center; color: #9cb1ac; border: 1px dashed #38514b; border-radius: 12px; }.company-portal-empty strong { color: #dcebe7; }.company-portal-empty p { margin: 8px auto 14px; max-width: 520px; font-size: 13px; }
 .company-portal-request { background: #101b1a; border: 1px solid #31514a; border-radius: 16px; padding: 16px; }.company-portal-request h2 { grid-column: 1 / -1; margin: 0; color: #e9f6f2; font-size: 18px; }.company-portal-request p { grid-column: 1 / -1; margin: -4px 0 4px; color: #9cb1ac; font-size: 12px; }.company-portal-request textarea { min-height: 82px; padding: 10px 12px; background: #0d1716; color: #edf7f5; border: 1px solid #29403b; border-radius: 10px; font: inherit; resize: vertical; }
 @media (max-width: 720px) {
   .company-share-page { padding: 16px 11px 30px; }
