@@ -11,6 +11,7 @@ const CompanyApplication = require('./models/CompanyApplication');
 const CompanyApplicationCampaign = require('./models/CompanyApplicationCampaign');
 const Company = require('./models/Company');
 const Opportunity = require('./models/Opportunity');
+const { rankOpportunitySearchResults } = require('./services/opportunitySearch');
 const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
 const Subscription = require('./models/Subscription');
@@ -87,6 +88,9 @@ const INTERACTION_STATS_CACHE_TTL_MS = Number(
 const EXPIRED_OPPORTUNITY_SWEEP_INTERVAL_MS = Number(
   process.env.EXPIRED_OPPORTUNITY_SWEEP_INTERVAL_MS || 15 * 60 * 1000
 );
+const COMPANY_PROGRAM_SYNC_INTERVAL_MS = Number(
+  process.env.COMPANY_PROGRAM_SYNC_INTERVAL_MS || 5 * 60 * 1000
+);
 const HOME_STATS_CACHE_TTL_MS = Number(
   process.env.HOME_STATS_CACHE_TTL_MS || 48 * 60 * 60 * 1000
 );
@@ -101,6 +105,7 @@ const readCache = new Map();
 const resumeAiRateLimits = new Map();
 const resumeAiIdempotencyCache = new Map();
 let lastExpiredOpportunitySweepAt = 0;
+let lastCompanyProgramSyncAt = 0;
 const EXPERIENCE_PUBLIC_FIELDS =
   "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl ambassadorDisplayName featuredAmbassadorLogoUrl featuredAmbassadorCardTitle featuredAmbassadorCardSummary featuredAmbassadorCardTags featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
 const OPPORTUNITY_PUBLIC_FIELDS =
@@ -1889,6 +1894,7 @@ const sanitizeOpportunityPayload = (body = {}) => {
     cities,
     majorCategories: appliesToAllSpecialties ? [] : normalizedMajorCategories,
     specialties: appliesToAllSpecialties ? [] : normalizedSpecialties,
+    keywords: normalizeArrayField(body.keywords || body.skills || []),
     trainingEnvironment: ["mixed", "women", "men", ""].includes(
       body.trainingEnvironment
     )
@@ -2678,6 +2684,7 @@ const hydrateDarbakOpportunityFromCampaign = async (payload = {}) => {
     cities: serialized.cities,
     majorCategories: serialized.majorCategories,
     specialties: serialized.specialties,
+    keywords: [serialized.programType, serialized.requirements].filter(Boolean),
     logoUrl: serialized.organizationLogoUrl,
     applicationUrl: serialized.applyUrl,
     applicationMethod: "darbak",
@@ -2686,7 +2693,7 @@ const hydrateDarbakOpportunityFromCampaign = async (payload = {}) => {
     deadline,
     status: serialized.isOpen
       ? "active"
-      : deadline && isClosedByDeadline(deadline)
+      : campaign.status === "open" && deadline && isClosedByDeadline(deadline)
       ? "expired"
       : "draft",
     sourceType: "admin",
@@ -2694,6 +2701,56 @@ const hydrateDarbakOpportunityFromCampaign = async (payload = {}) => {
     isDarbakApplication: true,
     companyApplicationCampaignId: serialized.id,
   };
+};
+
+const syncCompanyCampaignOpportunity = async (campaign = {}) => {
+  const campaignId = campaign._id?.toString?.() || campaign.id || "";
+  if (!campaignId) return null;
+
+  const serialized = serializeCompanyApplicationCampaign(campaign);
+  const existing = await Opportunity.findOne({
+    isDarbakApplication: true,
+    companyApplicationCampaignId: campaignId,
+  }).lean();
+
+  if (!serialized.isOpen && !existing) return null;
+  if (campaign.status === "archived") {
+    return Opportunity.findOneAndUpdate(
+      {
+        isDarbakApplication: true,
+        companyApplicationCampaignId: campaignId,
+      },
+      { $set: { status: "draft" } },
+      { new: true }
+    ).lean();
+  }
+
+  const payload = await hydrateDarbakOpportunityFromCampaign({
+    isDarbakApplication: true,
+    companyApplicationCampaignId: campaignId,
+  });
+  const result = await Opportunity.findOneAndUpdate(
+    {
+      isDarbakApplication: true,
+      companyApplicationCampaignId: campaignId,
+    },
+    { $set: payload },
+    { new: true, upsert: serialized.isOpen, setDefaultsOnInsert: true }
+  ).lean();
+
+  return result;
+};
+
+const syncOpenCompanyProgramsToOpportunities = async () => {
+  const now = Date.now();
+  if (now - lastCompanyProgramSyncAt < COMPANY_PROGRAM_SYNC_INTERVAL_MS) return;
+  lastCompanyProgramSyncAt = now;
+  const campaigns = await CompanyApplicationCampaign.find({ status: "open" })
+    .select("_id status applicationDeadline")
+    .limit(300)
+    .lean();
+
+  await Promise.all(campaigns.map((campaign) => syncCompanyCampaignOpportunity(campaign)));
 };
 
 const getPortfolioEmailForApplication = (portfolio = {}, contact = "") => {
@@ -13319,6 +13376,9 @@ app.get('/api/opportunities', async (req, res) => {
     }
 
     await markExpiredOpportunities();
+    // Programs published by companies are materialized as normal Opportunity
+    // documents so the student sees one searchable list and one detail route.
+    await syncOpenCompanyProgramsToOpportunities();
 
     const major = (req.query.major || "").trim();
     const majorCategory = (req.query.majorCategory || "").trim();
@@ -13338,6 +13398,7 @@ app.get('/api/opportunities', async (req, res) => {
       req.query.company ||
       ""
     ).trim();
+    const search = (req.query.search || req.query.q || "").toString().trim().slice(0, 160);
 
     const andFilters = [{ status: { $in: ["active", "expired"] } }];
 
@@ -13365,7 +13426,7 @@ app.get('/api/opportunities', async (req, res) => {
       });
     }
 
-    if (organization) {
+    if (organization && !search) {
       const organizationRegexes = getOrganizationSearchTerms(organization).map(
         (term) => new RegExp(escapeRegex(term), "i")
       );
@@ -13384,11 +13445,11 @@ app.get('/api/opportunities', async (req, res) => {
     }
 
     const opportunities = await Opportunity.find({ $and: andFilters })
-      .select(`${OPPORTUNITY_PUBLIC_FIELDS} applicationUrl`)
+      .select(`${OPPORTUNITY_PUBLIC_FIELDS} applicationUrl note keywords`)
       .sort({ featured: -1, createdAt: -1 })
       .lean();
 
-    const sortedOpportunities = opportunities
+    const baseSortedOpportunities = opportunities
       .sort((a, b) => {
         const aClosed = a.status === "expired" || isClosedByDeadline(a.deadline);
         const bClosed = b.status === "expired" || isClosedByDeadline(b.deadline);
@@ -13407,6 +13468,9 @@ app.get('/api/opportunities', async (req, res) => {
         const bDeadline = b.deadline ? new Date(b.deadline).getTime() : Infinity;
         return aDeadline - bDeadline;
       });
+    const sortedOpportunities = search
+      ? rankOpportunitySearchResults(baseSortedOpportunities, search, { city })
+      : baseSortedOpportunities;
 
     const opportunitiesWithCounts = await attachItemInteractionCounts(
       "opportunity",
@@ -13415,7 +13479,7 @@ app.get('/api/opportunities', async (req, res) => {
 
     const payload = {
       data: opportunitiesWithCounts.map((opportunity = {}) => {
-        const { applicationUrl, sourceUrl, note, ...publicOpportunity } =
+        const { applicationUrl, sourceUrl, note, keywords, ...publicOpportunity } =
           opportunity;
 
         return {
@@ -14511,6 +14575,9 @@ app.patch('/api/admin/company-requests/:id/review', requireAdmin, async (req, re
     const withToken = action === "approve"
       ? await ensureCompanyApplicationShareToken(campaign)
       : campaign;
+    if (action === "approve") {
+      await syncCompanyCampaignOpportunity(withToken);
+    }
     res.json(serializeCompanyApplicationCampaign(withToken, { includeShareUrl: true }));
   } catch (err) {
     console.error("❌ Admin company request review error:", err);
@@ -14637,6 +14704,9 @@ app.post('/api/admin/company-application-campaigns', requireAdmin, async (req, r
       createdBy: "admin",
       updatedBy: "admin",
     });
+    if (campaign.status === "open") {
+      await syncCompanyCampaignOpportunity(campaign.toObject());
+    }
 
     res.json(
       serializeCompanyApplicationCampaign(campaign.toObject(), {
@@ -14706,6 +14776,7 @@ app.patch('/api/admin/company-application-campaigns/:id', requireAdmin, async (r
     if (!updated) {
       return res.status(404).json({ error: "Campaign not found" });
     }
+    await syncCompanyCampaignOpportunity(updated);
 
     const applicationCount = await CompanyApplication.countDocuments({
       campaignId: updated._id.toString(),
@@ -14742,6 +14813,7 @@ app.delete('/api/admin/company-application-campaigns/:id', requireAdmin, async (
     if (!updated) {
       return res.status(404).json({ error: "Campaign not found" });
     }
+    await syncCompanyCampaignOpportunity(updated);
 
     res.json({ success: true, id: req.params.id });
   } catch (err) {

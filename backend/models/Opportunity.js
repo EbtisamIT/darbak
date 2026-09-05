@@ -29,6 +29,10 @@ const opportunitySchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    keywords: {
+      type: [String],
+      default: [],
+    },
     trainingEnvironment: {
       type: String,
       enum: ["mixed", "women", "men", ""],
@@ -120,6 +124,7 @@ opportunitySchema.index({ status: 1, city: 1, createdAt: -1 });
 opportunitySchema.index({ status: 1, cities: 1, createdAt: -1 });
 opportunitySchema.index({ status: 1, specialties: 1, createdAt: -1 });
 opportunitySchema.index({ status: 1, majorCategories: 1, createdAt: -1 });
+opportunitySchema.index({ status: 1, keywords: 1, createdAt: -1 });
 opportunitySchema.index({ organizationName: 1 });
 opportunitySchema.index({ companyApplicationCampaignId: 1, isDarbakApplication: 1 });
 

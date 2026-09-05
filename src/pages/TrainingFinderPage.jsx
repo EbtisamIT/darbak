@@ -2092,6 +2092,7 @@ export default function TrainingFinderPage() {
         majorCategories: majorCategories.join(","),
         city: cityValue,
         organization: resolvedOrganizationQuery,
+        search: resolvedOrganizationQuery,
       };
       const shouldFetchTrainingTargets = Boolean(
         resolvedSpecialtyValue ||
@@ -3344,14 +3345,14 @@ export default function TrainingFinderPage() {
             className="training-search-field"
             style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}
           >
-            اسم الجهة
+            ابحث عن تخصص، مجال، شركة أو مدينة
             <input
               value={organizationQuery}
               onChange={(event) => {
                 setOrganizationQuery(event.target.value);
                 setShowSearchInsightModal(false);
               }}
-              placeholder="مثال: STC، علم، أرامكو"
+              placeholder="مثال: تدريب تسويق، محاسبة الرياض، STC"
               style={{
                 width: "100%",
                 padding: "12px",
@@ -3380,7 +3381,7 @@ export default function TrainingFinderPage() {
               boxShadow: "0 0 14px var(--app-brand-border)",
             }}
           >
-            {loading ? "جاري البحث..." : "اعرض الجهات"}
+            {loading ? "جاري البحث..." : "ابحث"}
           </button>
         </form>
 
@@ -3532,7 +3533,7 @@ export default function TrainingFinderPage() {
                   padding: "12px",
                 }}
               >
-                لا توجد فرص معلنة مطابقة حاليًا.
+                ما لقينا فرصة مطابقة تمامًا، جرّب كلمة أقصر أو تخصص قريب.
                 {hasActiveOpportunityFilters
                   ? " جرّب تخفيف الفلاتر أو اختيار مدينة أوسع."
                   : ""}
