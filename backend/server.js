@@ -14322,6 +14322,7 @@ app.get('/api/company-portal/:companySlug', async (req, res) => {
       demoEnabled: company.demoPortalEnabled,
       realApplicantCount: realMetrics.total,
       realMetrics,
+      realProgramCount: programs.length,
       realApplicants: latestRealApplications.map((application) => ({
         id: application._id.toString(),
         fullName: application.fullName,
@@ -14338,6 +14339,7 @@ app.get('/api/company-portal/:companySlug', async (req, res) => {
       hasRealApplicants: portalPresentation.hasRealApplicants,
       metrics: portalPresentation.metrics,
       latestApplicants: portalPresentation.applicants,
+      demoPrograms: portalPresentation.programs,
       programs: programs.map((program) =>
         serializeCompanyApplicationCampaign(program, {
           applicationCount: countsById.get(program._id.toString()) || 0,
@@ -14348,6 +14350,22 @@ app.get('/api/company-portal/:companySlug', async (req, res) => {
   } catch (err) {
     console.error("❌ Company portal fetch error:", err);
     res.status(500).json({ error: "تعذر تحميل برامج الشركة." });
+  }
+});
+
+app.post('/api/company-portal/:companySlug/demo/end', async (req, res) => {
+  try {
+    const company = await getCompanyWithPortalAccess(req.params.companySlug, req.query.access);
+    if (!company) return res.status(404).json({ error: "رابط الشركة غير صحيح أو انتهت صلاحيته." });
+    if (!company.demoPortalEnabled) {
+      return res.json({ success: true, demoPortalEnabled: false });
+    }
+
+    await Company.updateOne({ _id: company._id }, { $set: { demoPortalEnabled: false } });
+    res.json({ success: true, demoPortalEnabled: false });
+  } catch (err) {
+    console.error("❌ Company portal demo end error:", err);
+    res.status(500).json({ error: "تعذر إنهاء العرض التجريبي." });
   }
 });
 

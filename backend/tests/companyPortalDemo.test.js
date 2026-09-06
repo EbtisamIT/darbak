@@ -1,5 +1,6 @@
 const assert = require("assert");
 const {
+  DEMO_PROGRAM,
   DEMO_APPLICANTS,
   buildCompanyPortalPresentation,
 } = require("../services/companyPortalDemo");
@@ -11,11 +12,13 @@ assert.deepStrictEqual(noDemo.metrics, { total: 0, new: 0, reviewing: 0, shortli
 
 const demo = buildCompanyPortalPresentation({ demoEnabled: true, realApplicants: [] });
 assert.strictEqual(demo.demoMode, true);
-assert.strictEqual(demo.applicants.length, 2);
-assert.strictEqual(demo.metrics.total, 2);
-assert.strictEqual(demo.metrics.new, 0);
-assert.strictEqual(demo.metrics.reviewing, 1);
-assert.strictEqual(demo.metrics.shortlisted, 1);
+assert.strictEqual(demo.applicants.length, 1);
+assert.strictEqual(demo.programs.length, 1);
+assert.strictEqual(demo.programs[0].id, DEMO_PROGRAM.id);
+assert.strictEqual(demo.metrics.total, 1);
+assert.strictEqual(demo.metrics.new, 1);
+assert.strictEqual(demo.metrics.reviewing, 0);
+assert.strictEqual(demo.metrics.shortlisted, 0);
 assert.strictEqual(demo.applicants[0].fullName, "سارة العتيبي");
 assert.ok(DEMO_APPLICANTS.every((applicant) => applicant.isDemo));
 assert.ok(DEMO_APPLICANTS.every((applicant) => applicant.email.endsWith("@example.com")));
@@ -31,6 +34,14 @@ assert.strictEqual(real.applicants.length, 1);
 assert.strictEqual(real.applicants[0].isDemo, false);
 assert.strictEqual(real.metrics.total, 1);
 assert.strictEqual(real.metrics.new, 1);
+
+const realProgram = buildCompanyPortalPresentation({
+  demoEnabled: true,
+  realApplicants: [],
+  realProgramCount: 1,
+});
+assert.strictEqual(realProgram.demoMode, false);
+assert.strictEqual(realProgram.programs.length, 0);
 
 const preciseMetrics = buildCompanyPortalPresentation({
   demoEnabled: true,

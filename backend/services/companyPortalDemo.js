@@ -1,20 +1,29 @@
+const DEMO_PROGRAM = Object.freeze({
+  id: "demo-coop-program",
+  opportunityTitle: "برنامج التدريب التعاوني — تجريبي",
+  programType: "تدريب تعاوني",
+  city: "الرياض",
+  specialties: ["نظم المعلومات"],
+  status: "demo",
+  isDemo: true,
+  applicationCount: 1,
+});
+
 const DEMO_APPLICANTS = Object.freeze([
   {
     id: "demo-sara-alotaibi",
     fullName: "سارة العتيبي",
-    major: "نظم معلومات",
+    major: "نظم المعلومات",
     university: "جامعة الملك سعود",
+    city: "الرياض",
     email: "sara@example.com",
-    status: "reviewing",
-    isDemo: true,
-  },
-  {
-    id: "demo-faisal-khaled",
-    fullName: "فيصل خالد",
-    major: "علوم حاسب",
-    university: "جامعة الإمام محمد بن سعود الإسلامية",
-    email: "faisal@example.com",
-    status: "shortlisted",
+    status: "new",
+    submittedAt: "2026-01-15T09:30:00.000Z",
+    answers: [
+      { label: "الفصل التدريبي المتوقع", value: "صيف 2026" },
+      { label: "سبب الاهتمام بالبرنامج", value: "أرغب بتطبيق مهارات نظم المعلومات في بيئة عمل فعلية." },
+    ],
+    internalNote: "مثال توضيحي فقط لرحلة مراجعة الطلبات داخل البوابة.",
     isDemo: true,
   },
 ]);
@@ -46,12 +55,14 @@ const buildCompanyPortalPresentation = ({
   realApplicants = [],
   realApplicantCount,
   realMetrics,
+  realProgramCount = 0,
 } = {}) => {
   const real = Array.isArray(realApplicants) ? realApplicants : [];
   const hasRealApplicants = Number.isFinite(realApplicantCount)
     ? realApplicantCount > 0
     : real.length > 0;
-  const demoMode = Boolean(demoEnabled) && !hasRealApplicants;
+  const hasRealPrograms = Number(realProgramCount) > 0;
+  const demoMode = Boolean(demoEnabled) && !hasRealApplicants && !hasRealPrograms;
   const applicants = demoMode
     ? DEMO_APPLICANTS.map((applicant) => ({ ...applicant }))
     : real.map((applicant) => ({ ...applicant, isDemo: false }));
@@ -59,12 +70,15 @@ const buildCompanyPortalPresentation = ({
   return {
     demoMode,
     hasRealApplicants,
+    hasRealPrograms,
     applicants,
+    programs: demoMode ? [{ ...DEMO_PROGRAM }] : [],
     metrics: demoMode ? getPortalMetrics(applicants) : realMetrics || getPortalMetrics(applicants),
   };
 };
 
 module.exports = {
+  DEMO_PROGRAM,
   DEMO_APPLICANTS,
   buildCompanyPortalPresentation,
   getPortalMetrics,
