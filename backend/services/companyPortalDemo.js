@@ -55,6 +55,10 @@ const getPortalMetrics = (applicants = []) =>
     { total: 0, new: 0, reviewing: 0, shortlisted: 0 }
   );
 
+const shouldShowCompanyPortalDemo = (company = {}) =>
+  Boolean(company.demoPortalEnabled) ||
+  (company.status === "trial" && !company.demoPortalDismissedAt);
+
 const buildCompanyPortalPresentation = ({
   demoEnabled = false,
   realApplicants = [],
@@ -88,4 +92,5 @@ module.exports = {
   buildCompanyPortalPresentation,
   getPortalMetrics,
   normalizePortalStatus,
+  shouldShowCompanyPortalDemo,
 };

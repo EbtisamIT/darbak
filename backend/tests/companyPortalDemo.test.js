@@ -3,7 +3,12 @@ const {
   DEMO_PROGRAM,
   DEMO_APPLICANTS,
   buildCompanyPortalPresentation,
+  shouldShowCompanyPortalDemo,
 } = require("../services/companyPortalDemo");
+
+assert.strictEqual(shouldShowCompanyPortalDemo({ status: "trial" }), true);
+assert.strictEqual(shouldShowCompanyPortalDemo({ status: "trial", demoPortalDismissedAt: new Date() }), false);
+assert.strictEqual(shouldShowCompanyPortalDemo({ status: "active", demoPortalEnabled: true }), true);
 
 const noDemo = buildCompanyPortalPresentation({ demoEnabled: false, realApplicants: [] });
 assert.strictEqual(noDemo.demoMode, false);

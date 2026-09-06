@@ -26,6 +26,7 @@ const {
 const {
   buildCompanyPortalPresentation,
   normalizePortalStatus,
+  shouldShowCompanyPortalDemo,
 } = require("./services/companyPortalDemo");
 const ResumeProfile = require('./models/ResumeProfile');
 const ResumeAgentSession = require('./models/ResumeAgentSession');
@@ -14319,7 +14320,7 @@ app.get('/api/company-portal/:companySlug', async (req, res) => {
       { total: 0, new: 0, reviewing: 0, shortlisted: 0 }
     );
     const portalPresentation = buildCompanyPortalPresentation({
-      demoEnabled: company.demoPortalEnabled,
+      demoEnabled: shouldShowCompanyPortalDemo(company),
       realApplicantCount: realMetrics.total,
       realMetrics,
       realProgramCount: programs.length,
@@ -14357,11 +14358,14 @@ app.post('/api/company-portal/:companySlug/demo/end', async (req, res) => {
   try {
     const company = await getCompanyWithPortalAccess(req.params.companySlug, req.query.access);
     if (!company) return res.status(404).json({ error: "رابط الشركة غير صحيح أو انتهت صلاحيته." });
-    if (!company.demoPortalEnabled) {
+    if (company.demoPortalDismissedAt) {
       return res.json({ success: true, demoPortalEnabled: false });
     }
 
-    await Company.updateOne({ _id: company._id }, { $set: { demoPortalEnabled: false } });
+    await Company.updateOne(
+      { _id: company._id },
+      { $set: { demoPortalEnabled: false, demoPortalDismissedAt: new Date() } }
+    );
     res.json({ success: true, demoPortalEnabled: false });
   } catch (err) {
     console.error("❌ Company portal demo end error:", err);
@@ -14548,7 +14552,10 @@ app.patch('/api/admin/companies/:id', requireAdmin, async (req, res) => {
     }
     const company = await Company.findByIdAndUpdate(
       req.params.id,
-      { $set: payload },
+      {
+        $set: payload,
+        ...(payload.demoPortalEnabled ? { $unset: { demoPortalDismissedAt: 1 } } : {}),
+      },
       { new: true, runValidators: true }
     ).lean();
     if (!company) return res.status(404).json({ error: "الشركة غير موجودة." });

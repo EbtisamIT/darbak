@@ -25,6 +25,7 @@ const companySchema = new mongoose.Schema(
       index: true,
     },
     demoPortalEnabled: { type: Boolean, default: false },
+    demoPortalDismissedAt: { type: Date, default: null },
     portalAccessToken: {
       type: String,
       default: undefined,
