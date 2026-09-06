@@ -16,7 +16,7 @@ const statusLabels = {
 };
 
 const programLabels = {
-  demo: "تجريبي - للعرض فقط",
+  demo: "مفتوح - تجريبي",
   draft: "مسودة",
   pending_review: "بانتظار مراجعة دربك",
   changes_requested: "مطلوب تعديل",
@@ -183,7 +183,7 @@ const CompanyPortalPage = ({ theme, setTheme }) => {
           </div>
         </section>
 
-        {data?.demoMode && <div className="company-portal-demo-row"><div className="company-portal-demo-badge">بيانات تجريبية - للعرض فقط</div><button type="button" className="company-portal-demo-end" onClick={endDemo} disabled={endingDemo}>{endingDemo ? "جار الإنهاء..." : "إنهاء العرض التجريبي"}</button></div>}
+        {data?.demoMode && <div className="company-portal-demo-row"><div className="company-portal-demo-badge"><strong>وضع العرض التجريبي</strong><span>جرّب مراجعة طلب وتحديث حالته قبل استقبال الطلبات الفعلية.</span></div><button type="button" className="company-portal-demo-end" onClick={endDemo} disabled={endingDemo}>{endingDemo ? "جار الإنهاء..." : "إنهاء التجربة"}</button></div>}
         {notice && <p className="company-share-privacy">{notice}</p>}
 
         {(activeTab === "overview" || activeTab === "") && <>
@@ -212,7 +212,7 @@ const CompanyPortalPage = ({ theme, setTheme }) => {
             <div className="company-portal-section-head"><div><p>المتقدمون</p><h2>آخر المتقدمين</h2></div>{primaryProgram?.applicationsShareUrl && !primaryProgram?.isDemo ? <a href={primaryProgram.applicationsShareUrl} target="_blank" rel="noreferrer">عرض الكل</a> : null}</div>
             {latestApplicants.length ? <div className="company-portal-applicants">{latestApplicants.slice(0, 4).map((applicant) => <article key={applicant.id} className={applicant.isDemo ? "is-demo" : ""}>
               <span className="company-portal-avatar">{(applicant.fullName || "م").charAt(0)}</span>
-              <div><strong>{applicant.fullName}</strong><small>{applicant.major || "تخصص غير محدد"} {applicant.university ? `· ${applicant.university}` : ""}</small>{applicant.isDemo && <b>طلب تجريبي - ليس متقدمًا حقيقيًا</b>}</div>
+              <div><strong>{applicant.fullName}</strong><small>{applicant.major || "تخصص غير محدد"} {applicant.university ? `· ${applicant.university}` : ""}{applicant.city ? ` · ${applicant.city}` : ""}</small>{applicant.isDemo && <b>طلب تجريبي</b>}</div>
               <em className={`company-portal-status is-${applicant.status}`}>{statusLabels[applicant.status] || "جديد"}</em>
               {applicant.isDemo && <button type="button" className="company-portal-view-demo" onClick={() => setSelectedDemoApplicant(applicant)}>عرض الطلب</button>}
             </article>)}</div> : <div className="company-portal-empty">ستظهر آخر الطلبات هنا فور وصولها.</div>}
@@ -223,7 +223,7 @@ const CompanyPortalPage = ({ theme, setTheme }) => {
             {programs.length ? <div className="company-portal-programs">{programs.map((program) => {
               const overview = `/company/${company.slug}/program/${program.id}?access=${encodeURIComponent(access)}`;
               return <article key={program.id} className={program.isDemo ? "is-demo" : ""}>
-                <div><span className={`company-portal-program-status is-${program.status}`}>{programLabels[program.status] || program.status}</span><h3>{program.opportunityTitle}</h3><p>{program.city || "المدينة غير محددة"} · {Number(program.applicationCount || 0)} متقدم</p>{program.isDemo && <b>برنامج تجريبي - لا يظهر للطلاب</b>}</div>
+                <div><span className={`company-portal-program-status is-${program.status}`}>{programLabels[program.status] || program.status}</span><h3>{program.opportunityTitle}</h3><p>{program.city || "المدينة غير محددة"} · {Number(program.applicationCount || 0)} متقدم</p>{program.isDemo && <b>للعرض فقط</b>}</div>
                 <div className="company-portal-program-actions">{program.isDemo ? <button type="button" className="company-share-cv" onClick={() => setPortalTab("applicants")}>عرض الطلب التجريبي</button> : <><Link className="company-share-cv" to={overview}>عرض البرنامج</Link>{program.applicationsShareUrl && <a className="company-share-linkedin" href={program.applicationsShareUrl} target="_blank" rel="noreferrer">المتقدمون</a>}<button type="button" className="company-share-linkedin" onClick={() => copy(program.applyUrl)}>نسخ رابط التقديم</button></>}</div>
               </article>;
             })}</div> : <div className="company-portal-empty"><strong>لا يوجد برنامج منشور بعد</strong><p>أضف فرصة جديدة وسيتم مراجعتها من فريق دربك قبل النشر.</p><button type="button" className="company-share-export" onClick={() => setPortalTab("request")}>إضافة فرصة</button></div>}
@@ -237,6 +237,7 @@ const CompanyPortalPage = ({ theme, setTheme }) => {
           <div className="company-demo-modal-head"><div><span>بيانات تجريبية</span><h2 id="demo-applicant-title">طلب {selectedDemoApplicant.fullName}</h2></div><button type="button" aria-label="إغلاق" onClick={() => setSelectedDemoApplicant(null)}>×</button></div>
           <p className="company-demo-modal-note">طلب تجريبي - ليس متقدمًا حقيقيًا. يمكنك تجربة تغيير الحالة بأمان.</p>
           <div className="company-demo-details"><div><small>التخصص</small><strong>{selectedDemoApplicant.major}</strong></div><div><small>الجامعة</small><strong>{selectedDemoApplicant.university}</strong></div><div><small>المدينة</small><strong>{selectedDemoApplicant.city}</strong></div><div><small>تاريخ التقديم</small><strong>{new Date(selectedDemoApplicant.submittedAt).toLocaleDateString("ar-SA")}</strong></div></div>
+          {selectedDemoApplicant.demoResume && <section className="company-demo-block"><h3>{selectedDemoApplicant.demoResume.title}</h3><p>{selectedDemoApplicant.demoResume.summary}</p><div className="company-demo-skills">{selectedDemoApplicant.demoResume.skills.map((skill) => <span key={skill}>{skill}</span>)}</div></section>}
           <section className="company-demo-block"><h3>إجابات الطلب</h3>{(selectedDemoApplicant.answers || []).map((answer) => <p key={answer.label}><strong>{answer.label}</strong>{answer.value}</p>)}</section>
           <section className="company-demo-block"><h3>ملاحظة داخلية</h3><p>{selectedDemoApplicant.internalNote}</p></section>
           <section className="company-demo-block"><h3>حالة الطلب</h3><div className="company-demo-statuses">{demoStatuses.map((status) => <button type="button" key={status} className={demoStatus === status ? "is-active" : ""} onClick={() => setDemoStatus(status)}>{statusLabels[status]}</button>)}</div></section>
