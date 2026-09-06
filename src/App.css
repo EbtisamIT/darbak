@@ -5950,6 +5950,74 @@ body {
   .resume-design-pane .resume-settings-card { margin: 0; }
 }
 
+/* Must remain after the legacy portal rules so light mode cannot be overwritten. */
+:root[data-theme="light"] .company-share-page {
+  background: var(--app-bg);
+  color: var(--app-text-soft);
+}
+:root[data-theme="light"] .company-share-header,
+:root[data-theme="light"] .company-share-empty,
+:root[data-theme="light"] .company-share-privacy,
+:root[data-theme="light"] .company-portal-empty,
+:root[data-theme="light"] .company-portal-request p,
+:root[data-theme="light"] .company-demo-details small,
+:root[data-theme="light"] .company-demo-block p { color: var(--app-muted); }
+:root[data-theme="light"] .company-share-brand,
+:root[data-theme="light"] .company-share-hero p,
+:root[data-theme="light"] .company-share-count,
+:root[data-theme="light"] .company-share-linkedin,
+:root[data-theme="light"] .company-portal-section-head p { color: var(--app-brand); }
+:root[data-theme="light"] .company-share-hero,
+:root[data-theme="light"] .company-share-table-wrap,
+:root[data-theme="light"] .company-share-state,
+:root[data-theme="light"] .company-portal-metrics article,
+:root[data-theme="light"] .company-portal-section,
+:root[data-theme="light"] .company-portal-request,
+:root[data-theme="light"] .company-demo-modal { background: var(--app-surface); border-color: var(--app-border); color: var(--app-text); }
+:root[data-theme="light"] .company-portal-menu,
+:root[data-theme="light"] .company-portal-journey,
+:root[data-theme="light"] .company-share-table th,
+:root[data-theme="light"] .company-portal-applicants article,
+:root[data-theme="light"] .company-portal-programs article,
+:root[data-theme="light"] .company-demo-details div,
+:root[data-theme="light"] .company-demo-block { background: var(--app-surface-2); border-color: var(--app-border); }
+:root[data-theme="light"] .company-share-controls input,
+:root[data-theme="light"] .company-share-controls select,
+:root[data-theme="light"] .company-portal-request textarea { background: var(--app-input-bg); color: var(--app-text); border-color: var(--app-border); }
+:root[data-theme="light"] .company-share-controls input::placeholder { color: var(--app-muted); }
+:root[data-theme="light"] .company-share-hero h1,
+:root[data-theme="light"] .company-share-hero h2,
+:root[data-theme="light"] .company-share-count small,
+:root[data-theme="light"] .company-share-table th,
+:root[data-theme="light"] .company-share-table td,
+:root[data-theme="light"] .company-share-table td small,
+:root[data-theme="light"] .company-portal-metrics span,
+:root[data-theme="light"] .company-portal-applicants strong,
+:root[data-theme="light"] .company-portal-applicants small,
+:root[data-theme="light"] .company-portal-programs h3,
+:root[data-theme="light"] .company-portal-programs p,
+:root[data-theme="light"] .company-portal-empty strong,
+:root[data-theme="light"] .company-portal-request h2,
+:root[data-theme="light"] .company-demo-details strong,
+:root[data-theme="light"] .company-demo-block p strong { color: var(--app-text-soft); }
+:root[data-theme="light"] .company-share-table th,
+:root[data-theme="light"] .company-share-table td { border-color: var(--app-border); }
+:root[data-theme="light"] .company-portal-actions .company-share-cv,
+:root[data-theme="light"] .company-portal-view-demo,
+:root[data-theme="light"] .company-demo-modal-head > button,
+:root[data-theme="light"] .company-demo-statuses button { border-color: var(--app-border); color: var(--app-text-soft); }
+:root[data-theme="light"] .company-share-table-loading,
+:root[data-theme="light"] .company-demo-modal-backdrop { background: var(--app-overlay); }
+:root[data-theme="light"] .company-portal-menu { border-color: var(--app-border); }
+:root[data-theme="light"] .company-portal-menu button { color: var(--app-muted); }
+:root[data-theme="light"] .company-portal-menu button:hover,
+:root[data-theme="light"] .company-portal-menu button.is-active { border-color: var(--app-brand-border); background: var(--app-brand-soft); color: var(--app-brand); }
+:root[data-theme="light"] .company-portal-journey > i { background: var(--app-border); }
+:root[data-theme="light"] .company-portal-step { color: var(--app-muted); }
+:root[data-theme="light"] .company-portal-step span { border-color: var(--app-border); }
+:root[data-theme="light"] .company-portal-step.is-complete { color: var(--app-text-soft); }
+:root[data-theme="light"] .company-portal-empty { border-color: var(--app-border); }
+
 .resume-service-promo {
   width: min(920px, calc(100% - 28px));
   margin: 22px auto;
@@ -9094,3 +9162,68 @@ body {
   .resume-design-pane.is-hidden-mobile { display: none; }
   .resume-design-pane .resume-settings-card { margin: 0; }
 }
+
+/* Final light-mode precedence for the private company portal. */
+:root[data-theme="light"] .company-share-page { background: var(--app-bg); color: var(--app-text-soft); }
+:root[data-theme="light"] .company-share-header,
+:root[data-theme="light"] .company-share-empty,
+:root[data-theme="light"] .company-share-privacy,
+:root[data-theme="light"] .company-portal-empty,
+:root[data-theme="light"] .company-portal-request p,
+:root[data-theme="light"] .company-demo-details small,
+:root[data-theme="light"] .company-demo-block p { color: var(--app-muted); }
+:root[data-theme="light"] .company-share-brand,
+:root[data-theme="light"] .company-share-hero p,
+:root[data-theme="light"] .company-share-count,
+:root[data-theme="light"] .company-share-linkedin,
+:root[data-theme="light"] .company-portal-section-head p { color: var(--app-brand); }
+:root[data-theme="light"] .company-share-hero,
+:root[data-theme="light"] .company-share-table-wrap,
+:root[data-theme="light"] .company-share-state,
+:root[data-theme="light"] .company-portal-metrics article,
+:root[data-theme="light"] .company-portal-section,
+:root[data-theme="light"] .company-portal-request,
+:root[data-theme="light"] .company-demo-modal { background: var(--app-surface); border-color: var(--app-border); color: var(--app-text); }
+:root[data-theme="light"] .company-portal-menu,
+:root[data-theme="light"] .company-portal-journey,
+:root[data-theme="light"] .company-share-table th,
+:root[data-theme="light"] .company-portal-applicants article,
+:root[data-theme="light"] .company-portal-programs article,
+:root[data-theme="light"] .company-demo-details div,
+:root[data-theme="light"] .company-demo-block { background: var(--app-surface-2); border-color: var(--app-border); }
+:root[data-theme="light"] .company-share-controls input,
+:root[data-theme="light"] .company-share-controls select,
+:root[data-theme="light"] .company-portal-request textarea { background: var(--app-input-bg); color: var(--app-text); border-color: var(--app-border); }
+:root[data-theme="light"] .company-share-controls input::placeholder { color: var(--app-muted); }
+:root[data-theme="light"] .company-share-hero h1,
+:root[data-theme="light"] .company-share-hero h2,
+:root[data-theme="light"] .company-share-count small,
+:root[data-theme="light"] .company-share-table th,
+:root[data-theme="light"] .company-share-table td,
+:root[data-theme="light"] .company-share-table td small,
+:root[data-theme="light"] .company-portal-metrics span,
+:root[data-theme="light"] .company-portal-applicants strong,
+:root[data-theme="light"] .company-portal-applicants small,
+:root[data-theme="light"] .company-portal-programs h3,
+:root[data-theme="light"] .company-portal-programs p,
+:root[data-theme="light"] .company-portal-empty strong,
+:root[data-theme="light"] .company-portal-request h2,
+:root[data-theme="light"] .company-demo-details strong,
+:root[data-theme="light"] .company-demo-block p strong { color: var(--app-text-soft); }
+:root[data-theme="light"] .company-share-table th,
+:root[data-theme="light"] .company-share-table td { border-color: var(--app-border); }
+:root[data-theme="light"] .company-portal-actions .company-share-cv,
+:root[data-theme="light"] .company-portal-view-demo,
+:root[data-theme="light"] .company-demo-modal-head > button,
+:root[data-theme="light"] .company-demo-statuses button { border-color: var(--app-border); color: var(--app-text-soft); }
+:root[data-theme="light"] .company-share-table-loading,
+:root[data-theme="light"] .company-demo-modal-backdrop { background: var(--app-overlay); }
+:root[data-theme="light"] .company-portal-menu { border-color: var(--app-border); }
+:root[data-theme="light"] .company-portal-menu button { color: var(--app-muted); }
+:root[data-theme="light"] .company-portal-menu button:hover,
+:root[data-theme="light"] .company-portal-menu button.is-active { border-color: var(--app-brand-border); background: var(--app-brand-soft); color: var(--app-brand); }
+:root[data-theme="light"] .company-portal-journey > i { background: var(--app-border); }
+:root[data-theme="light"] .company-portal-step { color: var(--app-muted); }
+:root[data-theme="light"] .company-portal-step span { border-color: var(--app-border); }
+:root[data-theme="light"] .company-portal-step.is-complete { color: var(--app-text-soft); }
+:root[data-theme="light"] .company-portal-empty { border-color: var(--app-border); }
