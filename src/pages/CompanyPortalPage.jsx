@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import API_BASE_URL from "../config/api";
+import CompanyPortalThemeToggle from "../components/CompanyPortalThemeToggle";
 
 const font = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 
@@ -26,7 +27,7 @@ const programLabels = {
 
 const demoStatuses = ["new", "reviewing", "shortlisted", "interview", "accepted", "rejected"];
 
-const CompanyPortalPage = () => {
+const CompanyPortalPage = ({ theme, setTheme }) => {
   const { companySlug = "" } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -166,7 +167,7 @@ const CompanyPortalPage = () => {
   return (
     <main className="company-share-page" dir="rtl" style={{ fontFamily: font }}>
       <section className="company-share-shell company-portal-v2">
-        <header className="company-share-header"><img className="company-portal-darbak-logo" src="/logo.png" alt="دربك" /><span>بوابة برامج التدريب</span></header>
+        <header className="company-share-header"><img className="company-portal-darbak-logo" src="/logo.png" alt="دربك" /><div className="company-portal-header-actions"><CompanyPortalThemeToggle theme={theme} setTheme={setTheme} /><span>بوابة برامج التدريب</span></div></header>
         <nav className="company-portal-menu" aria-label="تنقل بوابة الشركة">
           {[['overview', 'نظرة عامة'], ['programs', 'البرامج'], ['applicants', 'المتقدمون'], ['request', 'إضافة فرصة']].map(([tab, label]) => (
             <button key={tab} type="button" className={activeTab === tab || (tab === "overview" && activeTab === "") ? "is-active" : ""} onClick={() => setPortalTab(tab)}>{label}</button>

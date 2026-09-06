@@ -1415,8 +1415,8 @@ function AppLayout({ theme, setTheme }) {
                 path="/company-applications/:shareToken"
                 element={<CompanyApplicationsSharePage />}
               />
-              <Route path="/company/:companySlug" element={<CompanyPortalPage />} />
-              <Route path="/company/:companySlug/program/:programId" element={<CompanyProgramOverviewPage />} />
+              <Route path="/company/:companySlug" element={<CompanyPortalPage theme={theme} setTheme={setTheme} />} />
+              <Route path="/company/:companySlug/program/:programId" element={<CompanyProgramOverviewPage theme={theme} setTheme={setTheme} />} />
               <Route path="/p/:slug" element={<PortfolioPage />} />
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/terms" element={<LegalPage />} />

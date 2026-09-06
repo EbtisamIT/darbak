@@ -5566,6 +5566,83 @@ body {
   line-height: 1.6;
 }
 
+/* Company portal shares Darbak's saved light/dark theme instead of a separate palette. */
+.company-share-page {
+  background: var(--app-bg);
+  color: var(--app-text-soft);
+}
+.company-share-header,
+.company-share-empty,
+.company-share-privacy,
+.company-portal-empty,
+.company-portal-request p,
+.company-demo-details small,
+.company-demo-block p { color: var(--app-muted); }
+.company-share-brand,
+.company-share-hero p,
+.company-share-count,
+.company-share-linkedin,
+.company-portal-section-head p { color: var(--app-brand); }
+.company-share-hero,
+.company-share-table-wrap,
+.company-share-state,
+.company-portal-metrics article,
+.company-portal-section,
+.company-portal-request,
+.company-demo-modal { background: var(--app-surface); border-color: var(--app-border); color: var(--app-text); }
+.company-portal-menu,
+.company-portal-journey,
+.company-share-table th,
+.company-portal-applicants article,
+.company-portal-programs article,
+.company-demo-details div,
+.company-demo-block { background: var(--app-surface-2); border-color: var(--app-border); }
+.company-share-controls input,
+.company-share-controls select,
+.company-portal-request textarea { background: var(--app-input-bg); color: var(--app-text); border-color: var(--app-border); }
+.company-share-controls input::placeholder { color: var(--app-muted); }
+.company-share-table th,
+.company-share-table td,
+.company-share-table td small,
+.company-share-hero h2,
+.company-share-count small,
+.company-portal-metrics span,
+.company-portal-applicants strong,
+.company-portal-applicants small,
+.company-portal-programs h3,
+.company-portal-programs p,
+.company-portal-empty strong,
+.company-portal-request h2,
+.company-demo-details strong,
+.company-demo-block p strong { color: var(--app-text-soft); }
+.company-share-table th,
+.company-share-table td { border-color: var(--app-border); }
+.company-portal-actions .company-share-cv,
+.company-portal-view-demo,
+.company-demo-modal-head > button,
+.company-demo-statuses button { border-color: var(--app-border); color: var(--app-text-soft); }
+.company-share-table-loading,
+.company-demo-modal-backdrop { background: var(--app-overlay); }
+.company-portal-menu { border-color: var(--app-border); }
+.company-portal-menu button { color: var(--app-muted); }
+.company-portal-menu button:hover,
+.company-portal-menu button.is-active { border-color: var(--app-brand-border); background: var(--app-brand-soft); color: var(--app-brand); }
+.company-portal-journey > i { background: var(--app-border); }
+.company-portal-step { color: var(--app-muted); }
+.company-portal-step span { border-color: var(--app-border); }
+.company-portal-step.is-complete { color: var(--app-text-soft); }
+.company-portal-empty { border-color: var(--app-border); }
+.company-portal-header-actions { display: inline-flex; align-items: center; gap: 10px; }
+.company-portal-theme-toggle { position: relative; width: 58px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: space-between; overflow: hidden; border: 1px solid var(--app-border); border-radius: 999px; background: var(--app-input-bg); box-shadow: inset 0 0 0 1px var(--app-border-soft); color: var(--app-text); cursor: pointer; transition: background-color .25s ease, border-color .25s ease; }
+.company-portal-theme-toggle span { width: 50%; z-index: 2; display: grid; place-items: center; font-size: 13px; }
+.company-portal-theme-toggle span:first-child { color: var(--app-muted); }
+.company-portal-theme-toggle span:nth-child(2) { color: #07100e; }
+:root[data-theme="light"] .company-portal-theme-toggle span:first-child { color: #07100e; }
+:root[data-theme="light"] .company-portal-theme-toggle span:nth-child(2) { color: var(--app-muted); }
+.company-portal-theme-toggle i { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--app-brand); box-shadow: 0 4px 12px var(--app-brand-border); transition: right .25s ease; }
+.company-portal-theme-toggle i.is-dark { right: 31px; }
+.company-portal-theme-toggle:focus-visible { outline: 3px solid var(--app-brand-border); outline-offset: 3px; }
+
 @media (max-width: 720px) {
   .premium-inline-notice {
     grid-template-columns: 1fr;
