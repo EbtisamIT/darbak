@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
 import majors from "../majors";
+import SubscriptionDashboard from "../components/SubscriptionDashboard";
 
 const adminColors = {
   brand: "#66d0c3",
@@ -1101,7 +1102,8 @@ export default function AdminReviewPage() {
     useState("");
   const [opportunities, setOpportunities] = useState([]);
   const [interviewQuestions, setInterviewQuestions] = useState([]);
-  const [analytics, setAnalytics] = useState(emptyAnalytics);
+  const [analytics] = useState(emptyAnalytics);
+  const [subscriptionDashboard, setSubscriptionDashboard] = useState(null);
   const [telegramContent, setTelegramContent] = useState(emptyTelegramContent);
   const [copiedTelegramCardId, setCopiedTelegramCardId] = useState("");
   const [telegramDraftType, setTelegramDraftType] = useState("opportunity");
@@ -1181,7 +1183,7 @@ export default function AdminReviewPage() {
       : adminView === "telegramContent"
       ? (telegramContent.posts || []).length
       : adminView === "analytics"
-      ? analytics.totalEvents
+      ? subscriptionDashboard?.subscriptions?.active || 0
       : adminView === "users"
       ? isUserManagementFiltered
         ? userManagementSummary.filteredUsers ||
@@ -1207,7 +1209,7 @@ export default function AdminReviewPage() {
       : adminView === "telegramContent"
       ? "منشور جاهز"
       : adminView === "analytics"
-      ? "حدث"
+      ? "مشترك نشط"
       : adminView === "users"
       ? "زائر/مستخدم"
       : "تجربة";
@@ -1495,23 +1497,11 @@ export default function AdminReviewPage() {
       setMessage("");
       sessionStorage.setItem("darbak_admin_password", password);
 
-      const { data } = await axios.get(`${API_BASE_URL}/api/admin/analytics`, {
+      const { data } = await axios.get(`${API_BASE_URL}/api/admin/subscription-dashboard`, {
         params: { days: analyticsDays },
         headers: authHeaders,
       });
-
-      setAnalytics({
-        ...emptyAnalytics,
-        ...data,
-        premiumFunnelSummary: {
-          ...emptyAnalytics.premiumFunnelSummary,
-          ...(data.premiumFunnelSummary || {}),
-        },
-        portfolioSummary: {
-          ...emptyAnalytics.portfolioSummary,
-          ...(data.portfolioSummary || {}),
-        },
-      });
+      setSubscriptionDashboard(data || null);
     } catch (err) {
       console.error(err);
       setMessage(
@@ -4580,6 +4570,15 @@ export default function AdminReviewPage() {
     );
   };
 
+  const renderSubscriptionDashboard = () => (
+    <SubscriptionDashboard
+      data={subscriptionDashboard}
+      loading={loading}
+      onRefresh={fetchAnalytics}
+      onOpenUsers={() => setAdminView("users")}
+    />
+  );
+
   return (
     <main
       style={{
@@ -4956,7 +4955,7 @@ export default function AdminReviewPage() {
         </p>
       )}
 
-      {adminView === "analytics" ? (
+      {adminView === "analytics" ? renderSubscriptionDashboard() : adminView === "legacyAnalytics" ? (
         <div style={{ display: "grid", gap: "12px" }}>
           <section
             style={{

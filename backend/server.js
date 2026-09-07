@@ -12,6 +12,7 @@ const CompanyApplicationCampaign = require('./models/CompanyApplicationCampaign'
 const Company = require('./models/Company');
 const Opportunity = require('./models/Opportunity');
 const { rankOpportunitySearchResults } = require('./services/opportunitySearch');
+const { buildSubscriptionDashboard } = require("./services/subscriptionDashboard");
 const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
 const Subscription = require('./models/Subscription');
@@ -97,6 +98,9 @@ const HOME_STATS_CACHE_TTL_MS = Number(
 );
 const ADMIN_ANALYTICS_CACHE_TTL_MS = Number(
   process.env.ADMIN_ANALYTICS_CACHE_TTL_MS || 10 * 60 * 1000
+);
+const SUBSCRIPTION_DASHBOARD_CACHE_TTL_MS = Number(
+  process.env.SUBSCRIPTION_DASHBOARD_CACHE_TTL_MS || 60 * 1000
 );
 const RESUME_AI_RATE_LIMIT_WINDOW_MS = Number(
   process.env.RESUME_AI_RATE_LIMIT_WINDOW_MS || 10 * 60 * 1000
@@ -1342,6 +1346,21 @@ const evaluateContentAccess = async ({
           aiResumeUsageLimit: Number(user.aiResumeUsageLimit || 0),
           aiResumeUsageResetAt: user.aiResumeUsageResetAt || null,
         };
+
+    const premiumItemType = getAccessItemType(itemKey);
+    if (premiumItemType === "experience" || premiumItemType === "opportunity") {
+      recordAnalyticsEventAsync({
+        eventName:
+          premiumItemType === "experience"
+            ? "premium_experience_viewed"
+            : "premium_opportunity_viewed",
+        visitorId,
+        actorId: user?._id?.toString?.() || "",
+        page: premiumItemType === "experience" ? "/experiences" : "/where-to-train",
+        deviceType: "unknown",
+        metadata: sanitizeAnalyticsMetadata({ itemKey }),
+      });
+    }
 
     return {
       granted: true,
@@ -2972,6 +2991,19 @@ const recordAnalyticsEventAsync = (event = {}) => {
   });
 };
 
+const getSubscriptionAnalyticsActorId = async (subscription = {}) => {
+  if (!subscription?.email || !subscription?.accessCodeHash) return "";
+
+  const user = await User.findOne({
+    contact: normalizeSubscriberContact(subscription.email),
+    accessCodeHash: subscription.accessCodeHash,
+  })
+    .select("_id")
+    .lean();
+
+  return user?._id?.toString?.() || "";
+};
+
 const recordPremiumAccessVerifiedEvent = async ({
   subscription,
   visitorId = "",
@@ -2989,6 +3021,7 @@ const recordPremiumAccessVerifiedEvent = async ({
   }
 
   const cleanVisitorId = sanitizeAnalyticsText(visitorId, 90);
+  const actorId = await getSubscriptionAnalyticsActorId(subscription);
   const metadata = sanitizeAnalyticsMetadata({
     provider: "moyasar",
     providerPaymentId,
@@ -3005,8 +3038,9 @@ const recordPremiumAccessVerifiedEvent = async ({
   });
 
   if (existingEvent) {
-    if (cleanVisitorId && !existingEvent.visitorId) {
-      existingEvent.visitorId = cleanVisitorId;
+    if ((cleanVisitorId && !existingEvent.visitorId) || (actorId && !existingEvent.actorId)) {
+      existingEvent.visitorId = existingEvent.visitorId || cleanVisitorId;
+      existingEvent.actorId = existingEvent.actorId || actorId;
       existingEvent.metadata = {
         ...(existingEvent.metadata || {}),
         source: source || existingEvent.metadata?.source || "",
@@ -3017,6 +3051,7 @@ const recordPremiumAccessVerifiedEvent = async ({
     await AnalyticsEvent.create({
       eventName: "premium_access_verified",
       visitorId: cleanVisitorId,
+      actorId,
       page: "/subscriptions/moyasar",
       deviceType: "unknown",
       metadata,
@@ -3029,8 +3064,12 @@ const recordPremiumAccessVerifiedEvent = async ({
   });
 
   if (existingCompletedEvent) {
-    if (cleanVisitorId && !existingCompletedEvent.visitorId) {
-      existingCompletedEvent.visitorId = cleanVisitorId;
+    if (
+      (cleanVisitorId && !existingCompletedEvent.visitorId) ||
+      (actorId && !existingCompletedEvent.actorId)
+    ) {
+      existingCompletedEvent.visitorId = existingCompletedEvent.visitorId || cleanVisitorId;
+      existingCompletedEvent.actorId = existingCompletedEvent.actorId || actorId;
       existingCompletedEvent.metadata = {
         ...(existingCompletedEvent.metadata || {}),
         source: source || existingCompletedEvent.metadata?.source || "",
@@ -3041,12 +3080,44 @@ const recordPremiumAccessVerifiedEvent = async ({
     return existingCompletedEvent;
   }
 
+  // A paid transaction is considered a renewal only when a previous verified
+  // Moyasar transaction is known for the same internal account. Older events
+  // without actorId remain visible as historical revenue but are not guessed.
+  const hasPriorMoyasarPayment = actorId
+    ? await AnalyticsEvent.exists({
+        eventName: "subscription_completed",
+        actorId,
+        "metadata.provider": "moyasar",
+      })
+    : false;
+  const paymentKind =
+    subscription.isUpgrade || hasPriorMoyasarPayment
+      ? "renewal"
+      : "new_subscription";
+
   const completedEvent = await AnalyticsEvent.create({
     eventName: "subscription_completed",
     visitorId: cleanVisitorId,
+    actorId,
     page: "/subscriptions/moyasar",
     deviceType: "unknown",
-    metadata,
+    metadata: {
+      ...metadata,
+      paymentKind,
+    },
+  });
+
+  recordAnalyticsEventAsync({
+    eventName:
+      paymentKind === "renewal" ? "subscription_renewed" : "subscription_created",
+    visitorId: cleanVisitorId,
+    actorId,
+    page: "/subscriptions/moyasar",
+    deviceType: "unknown",
+    metadata: {
+      ...metadata,
+      paymentKind,
+    },
   });
 
   if (getSubscriptionPlanKey(subscription) === RESUME_PLAN_KEY) {
@@ -3908,6 +3979,8 @@ const providerPaymentTrackedPremiumEvents = [
   "premium_payment_returned",
   "premium_access_verified",
   "subscription_completed",
+  "subscription_created",
+  "subscription_renewed",
 ];
 
 const getPremiumEventAnalytics = (match, premiumEventNames = []) =>
@@ -6286,23 +6359,53 @@ app.get('/api/home-stats', async (req, res) => {
   }
 });
 
+const SERVER_ONLY_ANALYTICS_EVENTS = new Set([
+  "subscription_completed",
+  "premium_access_verified",
+  "experience_reward_granted",
+]);
+
+const getAnalyticsActorIdFromIdentity = async (req = {}) => {
+  const queuedEvent = Array.isArray(req.body?.events) ? req.body.events[0] || {} : {};
+  const identity = getAccessIdentityFromRequest(req);
+  const rawContact = identity.contact || queuedEvent.contact || queuedEvent.email || "";
+  const rawAccessCode = identity.accessCode || queuedEvent.accessCode || "";
+  const contact = normalizeSubscriberContact(rawContact);
+  const accessCode = normalizeAccessCode(rawAccessCode);
+
+  if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+    return "";
+  }
+
+  const user = await User.findOne({
+    contact,
+    accessCodeHash: hashAccessCode(contact, accessCode),
+  })
+    .select("_id")
+    .lean();
+
+  return user?._id?.toString?.() || "";
+};
+
 app.post('/api/analytics-events', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
+    const actorId = await getAnalyticsActorIdFromIdentity(req);
     const rawEvents = Array.isArray(req.body?.events)
       ? req.body.events.slice(0, 30)
       : [req.body];
     const events = rawEvents
       .map((rawEvent = {}) => {
         const eventName = sanitizeAnalyticsText(rawEvent.eventName, 80);
-        if (!eventName) return null;
+        if (!eventName || SERVER_ONLY_ANALYTICS_EVENTS.has(eventName)) return null;
 
         return {
           eventName,
           visitorId: sanitizeAnalyticsText(rawEvent.visitorId, 90),
+          actorId,
           page: sanitizeAnalyticsText(rawEvent.page, 160),
           deviceType: ["mobile", "tablet", "desktop", "unknown"].includes(
             rawEvent.deviceType
@@ -11789,6 +11892,34 @@ app.get('/api/admin/resume-agent/env-check', requireAdmin, (req, res) => {
     maxTurns: maxTurns || "6",
     nodeVersion: process.version,
   });
+});
+
+app.get('/api/admin/subscription-dashboard', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const days = ["7", "30", "90"].includes(String(req.query.days))
+      ? String(req.query.days)
+      : "30";
+    const cacheKey = `subscription-dashboard:v1:${days}`;
+    const cached = getReadCache(cacheKey);
+    if (cached) return res.json(cached);
+
+    const payload = await buildSubscriptionDashboard({
+      AnalyticsEvent,
+      Subscription,
+      User,
+      days,
+    });
+    res.json(
+      setReadCache(cacheKey, payload, SUBSCRIPTION_DASHBOARD_CACHE_TTL_MS)
+    );
+  } catch (err) {
+    console.error("❌ Subscription dashboard error:", err);
+    res.status(500).json({ error: "تعذر تحميل لوحة الاشتراكات الآن." });
+  }
 });
 
 app.get('/api/admin/analytics', requireAdmin, async (req, res) => {

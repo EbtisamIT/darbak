@@ -1234,46 +1234,69 @@ function AppLayout({ theme, setTheme }) {
   }, [isAdminPage, location.pathname, location.search]);
 
   const sessionStartedAtRef = useRef(null);
-  const lastDurationSentRef = useRef(0);
+  const activeStartedAtRef = useRef(null);
+  const activeDurationRef = useRef(0);
+  const lastActivityAtRef = useRef(0);
+  const sessionFlushedRef = useRef(false);
 
   useEffect(() => {
     if (isAdminPage || typeof window === "undefined") return undefined;
 
-    sessionStartedAtRef.current = Date.now();
-    lastDurationSentRef.current = 0;
+    const now = Date.now();
+    sessionStartedAtRef.current = now;
+    activeStartedAtRef.current = now;
+    activeDurationRef.current = 0;
+    lastActivityAtRef.current = now;
+    sessionFlushedRef.current = false;
 
-    const sendSessionDuration = (reason = "interval") => {
-      if (!sessionStartedAtRef.current) return;
-
-      const durationSeconds = Math.round(
-        (Date.now() - sessionStartedAtRef.current) / 1000
-      );
-
-      if (durationSeconds < 5) return;
-      if (durationSeconds - lastDurationSentRef.current < 15 && reason !== "exit") {
-        return;
+    const pauseActiveTime = () => {
+      if (!activeStartedAtRef.current) return;
+      const elapsed = Date.now() - activeStartedAtRef.current;
+      // Five idle minutes end the active segment instead of inflating time.
+      if (elapsed <= 5 * 60 * 1000) {
+        activeDurationRef.current += elapsed;
       }
-
-      const cappedDurationSeconds = Math.min(durationSeconds, 3 * 60 * 60);
-      lastDurationSentRef.current = durationSeconds;
-
-      trackEvent("session_duration", {
-        resultsCount: cappedDurationSeconds,
-        metadata: {
-          durationSeconds: cappedDurationSeconds,
-          reason,
-        },
-      });
+      activeStartedAtRef.current = null;
     };
 
-    const intervalId = window.setInterval(
-      () => sendSessionDuration("interval"),
-      60 * 1000
-    );
+    const markActivity = () => {
+      if (document.visibilityState !== "visible") return;
+      const activityNow = Date.now();
+      if (sessionFlushedRef.current) {
+        sessionStartedAtRef.current = activityNow;
+        activeDurationRef.current = 0;
+        sessionFlushedRef.current = false;
+        activeStartedAtRef.current = activityNow;
+      }
+      if (activityNow - lastActivityAtRef.current > 5 * 60 * 1000) {
+        activeStartedAtRef.current = activityNow;
+      } else if (!activeStartedAtRef.current) {
+        activeStartedAtRef.current = activityNow;
+      }
+      lastActivityAtRef.current = activityNow;
+    };
+
+    const sendSessionDuration = (reason = "exit") => {
+      if (sessionFlushedRef.current) return;
+      pauseActiveTime();
+      const durationSeconds = Math.min(
+        Math.round(activeDurationRef.current / 1000),
+        3 * 60 * 60
+      );
+      if (durationSeconds < 5) return;
+
+      sessionFlushedRef.current = true;
+      trackEvent("user_session", {
+        resultsCount: durationSeconds,
+        metadata: { durationSeconds, reason },
+      });
+    };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         sendSessionDuration("hidden");
+      } else {
+        markActivity();
       }
     };
 
@@ -1284,43 +1307,20 @@ function AppLayout({ theme, setTheme }) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handlePageHide);
     window.addEventListener("beforeunload", handlePageHide);
+    ["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) =>
+      window.addEventListener(eventName, markActivity, { passive: true })
+    );
 
     return () => {
       sendSessionDuration("exit");
-      window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handlePageHide);
+      ["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) =>
+        window.removeEventListener(eventName, markActivity)
+      );
     };
   }, [isAdminPage]);
-
-  useEffect(() => {
-    if (isAdminPage || typeof document === "undefined") return undefined;
-
-    const sendSessionPing = () => {
-      if (document.visibilityState !== "visible") return;
-
-      trackEvent("session_ping", {
-        page: location.pathname,
-      });
-    };
-
-    sendSessionPing();
-    const intervalId = window.setInterval(sendSessionPing, 60 * 1000);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        sendSessionPing();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [isAdminPage, location.pathname]);
 
   if (isAdminPage) {
     return (

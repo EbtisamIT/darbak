@@ -3,6 +3,7 @@ import API_BASE_URL from "../config/api";
 const VISITOR_ID_KEY = "darbak_visitor_id_v1";
 const SESSION_ID_KEY = "darbak_session_id_v1";
 const LOCAL_DEDUPE_KEY = "darbak_analytics_dedupe_v1";
+const ACCESS_IDENTITY_KEY = "darbak_access_identity_v1";
 const ANALYTICS_BATCH_SIZE = 8;
 const ANALYTICS_FLUSH_DELAY_MS = 1800;
 const URGENT_ANALYTICS_EVENTS = new Set([
@@ -58,6 +59,22 @@ const getSessionId = () => {
     return randomId;
   } catch {
     return "";
+  }
+};
+
+const getAnalyticsIdentity = () => {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const identity = JSON.parse(
+      window.localStorage.getItem(ACCESS_IDENTITY_KEY) || "{}"
+    );
+    return {
+      contact: (identity?.contact || identity?.email || "").toString().trim(),
+      accessCode: (identity?.accessCode || "").toString().trim(),
+    };
+  } catch {
+    return {};
   }
 };
 
@@ -149,6 +166,7 @@ export const trackEvent = (eventName, payload = {}) => {
       ...(payload.metadata || {}),
       ...(sessionId ? { sessionId } : {}),
     },
+    ...getAnalyticsIdentity(),
   };
 
   queueAnalyticsEvent(eventName, body);
