@@ -1,4 +1,5 @@
 const OpenAI = require("openai");
+const crypto = require("crypto");
 const { zodTextFormat } = require("openai/helpers/zod");
 const { z } = require("zod");
 const { normalizeResumeSkills } = require("./resumeSkillNormalization");
@@ -416,6 +417,9 @@ const tailorResumeToOpportunity = async ({ resume, opportunity, language, userKe
 
 const cloneResumePayload = (resume = {}) => JSON.parse(JSON.stringify(resume || {}));
 
+const translationSourceHash = (value = "") =>
+  crypto.createHash("sha256").update(String(value || "").trim()).digest("hex").slice(0, 16);
+
 const getResumeEntries = (resume = {}, section) => {
   if (section === "experience") {
     if (Array.isArray(resume.experience) && resume.experience.length) return resume.experience;
@@ -487,6 +491,55 @@ const collectResumeTextForTranslation = (resume = {}) => {
   );
 
   return items;
+};
+
+const readTranslatedItemValue = (resume = {}, item = {}) => {
+  const target = item.target || {};
+  const entries = getResumeEntries(resume, target.section);
+  const entry = entries.find((candidate) => candidate?.id === target.entryId);
+  const entryKey = `${target.section}:${target.entryId}`;
+
+  if (target.kind === "root") return resume[target.key] || "";
+  if (target.kind === "personalList") return resume.localizedDisplay?.personalInfo?.[target.key]?.[target.index] || "";
+  if (target.kind === "localizedEntry") return resume.localizedDisplay?.entries?.[entryKey]?.[target.key] || "";
+  if (target.kind === "entry") return entry?.[target.key] || (target.key === "description" ? entry?.details : "") || "";
+  if (target.kind === "achievement") {
+    return (entry?.achievements || []).find(
+      (candidate, index) => (candidate?.id || `${index}`) === target.bulletId,
+    )?.text || "";
+  }
+  return "";
+};
+
+const buildResumeTranslationUpdatePlan = ({ resume = {}, existingEnglishResume = {} } = {}) => {
+  const items = collectResumeTextForTranslation(resume);
+  const previousHashes = existingEnglishResume?.localizedDisplay?.sourceHashes || {};
+  const reusable = [];
+  const changed = [];
+  const sourceHashes = {};
+
+  items.forEach((item) => {
+    const sourceHash = translationSourceHash(item.text);
+    sourceHashes[item.id] = sourceHash;
+    const existingValue = String(readTranslatedItemValue(existingEnglishResume, item) || "").trim();
+    if (previousHashes[item.id] === sourceHash && existingValue && !/[\u0600-\u06FF]/.test(existingValue)) {
+      reusable.push({ ...item, translatedValue: existingValue });
+    } else {
+      changed.push(item);
+    }
+  });
+
+  const seed = cloneResumePayload(resume);
+  if (reusable.length) {
+    const reused = applyResumeTranslations(
+      seed,
+      reusable,
+      reusable.map((item) => ({ id: item.id, text: item.translatedValue })),
+    );
+    return { resume: reused.resume, changedItems: changed, reusedItems: reusable, sourceHashes };
+  }
+
+  return { resume: seed, changedItems: changed, reusedItems: reusable, sourceHashes };
 };
 
 const translationStructure = (resume = {}) => ({
@@ -618,8 +671,10 @@ const applyResumeTranslations = (resume, items, translations) => {
   return { resume: translatedResume, appliedCount };
 };
 
-const translateResumeToEnglish = async ({ resume, userKey }) => {
-  const translationItems = collectResumeTextForTranslation(resume);
+const translateResumeToEnglish = async ({ resume, userKey, translationItems: requestedItems }) => {
+  const translationItems = Array.isArray(requestedItems)
+    ? requestedItems
+    : collectResumeTextForTranslation(resume);
   if (!translationItems.length) {
     const error = new Error("أضف بعض محتوى السيرة أولًا حتى نجهز النسخة الإنجليزية.");
     error.code = "RESUME_TRANSLATION_EMPTY";
@@ -986,6 +1041,7 @@ module.exports = {
   tailorResumeToOpportunity,
   translateResumeToEnglish,
   collectResumeTextForTranslation,
+  buildResumeTranslationUpdatePlan,
   applyResumeTranslations,
   assertTranslationIntegrity,
   assertEnglishSummaryIntegrity,

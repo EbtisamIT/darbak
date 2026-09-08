@@ -56,6 +56,26 @@ assert.deepStrictEqual(
 assert.strictEqual(
   buildEnglishSummaryFreshness({
     masterProvenance: {},
+    englishProvenance: { sourceMasterUpdatedAt: "2026-09-03T10:00:00.000Z" },
+    masterUpdatedAt: "2026-09-03T12:00:00.000Z",
+  }).needsLocalizationRefresh,
+  true,
+  "A changed master resume is stale even when its summary timestamp did not change"
+);
+
+assert.strictEqual(
+  buildEnglishSummaryFreshness({
+    masterProvenance: {},
+    englishProvenance: { sourceMasterUpdatedAt: "2026-09-03T12:00:00.000Z" },
+    masterUpdatedAt: "2026-09-03T12:00:00.000Z",
+  }).needsLocalizationRefresh,
+  false,
+  "A version saved from the latest master resume is immediately current"
+);
+
+assert.strictEqual(
+  buildEnglishSummaryFreshness({
+    masterProvenance: {},
     englishProvenance: {},
   }).needsLocalizationRefresh,
   false,

@@ -58,6 +58,7 @@ const {
   rewriteResumeSection,
   tailorResumeToOpportunity,
   translateResumeToEnglish,
+  buildResumeTranslationUpdatePlan,
   tailoredResumeDraftSchema,
 } = require("./services/resumeAiService");
 const {
@@ -9256,7 +9257,7 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
       ResumeProfile.findOne({
         contact: req.darbakAccess.contact,
         accessCodeHash: req.darbakAccess.accessCodeHash,
-      }).select("summaryProvenance").lean(),
+      }).select("summaryProvenance updatedAt").lean(),
     ]);
 
     return res.json({
@@ -9267,6 +9268,7 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
           ? buildEnglishSummaryFreshness({
               masterProvenance: masterResume?.summaryProvenance || {},
               englishProvenance: version.resumePayload?.summaryProvenance || {},
+              masterUpdatedAt: masterResume?.updatedAt || "",
             })
           : {};
         return ({
@@ -9321,7 +9323,7 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
       ResumeProfile.findOne({
         contact: req.darbakAccess.contact,
         accessCodeHash: req.darbakAccess.accessCodeHash,
-      }).select("summaryProvenance").lean(),
+      }).select("summaryProvenance updatedAt").lean(),
     ]);
     // Versions own presentation only. Recompose immutable facts from Portfolio
     // for both translations and tailored versions before anything reaches UI.
@@ -9360,6 +9362,7 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
           ? buildEnglishSummaryFreshness({
               masterProvenance: masterResume?.summaryProvenance || {},
               englishProvenance: version.resumePayload?.summaryProvenance || {},
+              masterUpdatedAt: masterResume?.updatedAt || "",
             })
           : {}),
       },
@@ -9890,14 +9893,32 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       language: "ar",
     });
 
-    // Translate a complete, normalized copy of the master resume. The resulting
-    // payload intentionally has the exact shape consumed by the builder and preview.
     const basePayload = sanitizeResumePayload(baseResume);
-
-    const result = await translateResumeToEnglish({
+    // A returning student updates the one saved English version.  Reuse every
+    // localized value whose Arabic source is unchanged, and translate only the
+    // missing or changed fields on this explicit update action.
+    const existingEnglishVersion = await ResumeTailoredVersion.findOne({
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+      variantType: "translation",
+      language: "en",
+      status: "approved",
+    }).lean();
+    const updatePlan = buildResumeTranslationUpdatePlan({
       resume: basePayload,
-      userKey: req.darbakAccess.user?._id?.toString?.() || req.darbakAccess.contact,
+      existingEnglishResume: existingEnglishVersion?.resumePayload || {},
     });
+    const result = updatePlan.changedItems.length
+      ? await translateResumeToEnglish({
+          resume: updatePlan.resume,
+          translationItems: updatePlan.changedItems,
+          userKey: req.darbakAccess.user?._id?.toString?.() || req.darbakAccess.contact,
+        })
+      : {
+          data: updatePlan.resume,
+          usage: {},
+          translatedCount: 0,
+        };
     const translatedPresentation = sanitizeResumePayload({
       ...result.data,
       settings: {
@@ -9913,6 +9934,17 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
     }));
     const generatedLocalizedDisplay = buildEnglishLocalizedDisplay(translatedPayload, translatedPresentation);
     const savedLocalizedDisplay = translatedPresentation.localizedDisplay || {};
+    const existingReview = existingEnglishVersion?.resumePayload?.localizedDisplay?.review || {};
+    const currentSourceHashes = new Set(Object.values(updatePlan.sourceHashes));
+    const retainedReview = Object.fromEntries(
+      Object.entries(existingReview).filter(([, review]) => {
+        if (review?.source) return currentSourceHashes.has(crypto.createHash("sha256").update(String(review.source).trim()).digest("hex").slice(0, 16));
+        if (Array.isArray(review?.items)) {
+          return review.items.every((item) => currentSourceHashes.has(crypto.createHash("sha256").update(String(item?.value || "").trim()).digest("hex").slice(0, 16)));
+        }
+        return false;
+      }),
+    );
     const {
       headline: _savedHeadline,
       major: _savedMajor,
@@ -9943,21 +9975,24 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
         ...(generatedLocalizedDisplay.achievements || {}),
         ...(savedLocalizedDisplay.achievements || {}),
       },
+      sourceHashes: updatePlan.sourceHashes,
+      review: retainedReview,
     };
     const summaryFreshness = buildEnglishSummaryFreshness({
       masterProvenance: storedResume.summaryProvenance || {},
+      masterUpdatedAt: storedResume.updatedAt || "",
     });
     translatedPayload.summaryProvenance = {
       ...(translatedPayload.summaryProvenance || {}),
       sourceSummaryUpdatedAt: summaryFreshness.masterSummaryUpdatedAt,
       sourceSummaryVersion: summaryFreshness.masterSummaryVersion,
+      sourceMasterUpdatedAt: storedResume.updatedAt?.toISOString?.() || storedResume.updatedAt || "",
       needsLocalizationRefresh: false,
     };
     const version = await ResumeTailoredVersion.findOneAndUpdate(
       {
         contact: req.darbakAccess.contact,
         accessCodeHash: req.darbakAccess.accessCodeHash,
-        baseResumeId: baseResume._id,
         variantType: "translation",
         language: "en",
       },
@@ -9972,6 +10007,7 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
             language: "en",
           },
           sourceLanguage: basePayload.settings?.language || "ar",
+          baseResumeId: storedResume._id || null,
           language: "en",
           status: "approved",
           approvedAt: new Date(),
@@ -9979,7 +10015,7 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
         $setOnInsert: {
           contact: req.darbakAccess.contact,
           accessCodeHash: req.darbakAccess.accessCodeHash,
-          baseResumeId: baseResume._id,
+          baseResumeId: storedResume._id || null,
           variantType: "translation",
         },
       },
@@ -9988,6 +10024,22 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
 
     // Translation is a separate resume representation, not a job customization.
     const usage = getResumeUsageSnapshot(req.darbakAccess);
+    const diagnostics = {
+      englishSourceVersion: translatedPayload.summaryProvenance?.sourceSummaryVersion || "",
+      currentMasterVersion: storedResume.updatedAt?.toISOString?.() || storedResume.updatedAt || "",
+      needsEnglishRefreshBefore: Boolean(existingEnglishVersion && buildEnglishSummaryFreshness({
+        masterProvenance: storedResume.summaryProvenance || {},
+        englishProvenance: existingEnglishVersion.resumePayload?.summaryProvenance || {},
+        masterUpdatedAt: storedResume.updatedAt || "",
+      }).needsLocalizationRefresh),
+      fieldsLocalized: updatePlan.changedItems.length,
+      fieldsReused: updatePlan.reusedItems.length,
+      reviewItemsBefore: Object.keys(existingReview).length,
+      reviewItemsAfter: Object.keys(retainedReview).length,
+      englishSaveSucceeded: Boolean(version?._id),
+      needsEnglishRefreshAfter: false,
+    };
+    console.info("Resume English update diagnostics:", diagnostics);
 
     await AnalyticsEvent.create({
       eventName: "resume_translated_to_english",
@@ -10017,6 +10069,7 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       },
       usage,
       aiUsage: result.usage,
+      diagnostics,
       message: "تم تجهيز نسخة إنجليزية رسمية للمراجعة. راجعها ثم احفظها عندما تكون جاهزة.",
     };
     setResumeAiCachedResponse(idempotencyKey, responsePayload);

@@ -23,16 +23,26 @@ const mergeMasterSummaryProvenance = ({
   return merged;
 };
 
-const buildEnglishSummaryFreshness = ({ masterProvenance = {}, englishProvenance = {} } = {}) => {
+const buildEnglishSummaryFreshness = ({
+  masterProvenance = {},
+  englishProvenance = {},
+  masterUpdatedAt = "",
+} = {}) => {
   const masterSummaryUpdatedAt = safeText(masterProvenance.summaryUpdatedAt);
   const sourceSummaryUpdatedAt = safeText(englishProvenance.sourceSummaryUpdatedAt);
   const sourceSummaryVersion = safeText(englishProvenance.sourceSummaryVersion);
   const masterSummaryVersion = safeText(masterProvenance.summaryWriterVersion);
+  const sourceMasterUpdatedAt = safeText(englishProvenance.sourceMasterUpdatedAt);
+  const currentMasterUpdatedAt = safeText(masterUpdatedAt);
   const needsLocalizationRefresh = Boolean(
-    masterSummaryUpdatedAt && (
+    (masterSummaryUpdatedAt && (
       !sourceSummaryUpdatedAt ||
       toTimestamp(masterSummaryUpdatedAt) > toTimestamp(sourceSummaryUpdatedAt)
-    )
+    )) ||
+    (currentMasterUpdatedAt && (
+      !sourceMasterUpdatedAt ||
+      toTimestamp(currentMasterUpdatedAt) > toTimestamp(sourceMasterUpdatedAt)
+    ))
   );
 
   return {
@@ -40,6 +50,8 @@ const buildEnglishSummaryFreshness = ({ masterProvenance = {}, englishProvenance
     masterSummaryVersion,
     sourceSummaryUpdatedAt,
     sourceSummaryVersion,
+    sourceMasterUpdatedAt,
+    currentMasterUpdatedAt,
     needsLocalizationRefresh,
   };
 };
