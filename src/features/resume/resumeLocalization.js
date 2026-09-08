@@ -1,5 +1,24 @@
 const arabicPattern = /[\u0600-\u06FF]/;
 
+const isArabicPresentation = (value = "") => arabicPattern.test(String(value));
+
+const getArabicPresentation = (presentationValue = "", verifiedValue = "") => {
+  const presentation = String(presentationValue || "").trim();
+  const verified = String(verifiedValue || "").trim();
+  if (!presentation) return verified;
+  if (!verified || !isArabicPresentation(verified) || isArabicPresentation(presentation)) return presentation;
+  return verified;
+};
+
+const getArabicAchievements = (presentation = [], verified = []) => {
+  if (!Array.isArray(presentation) || !presentation.length) return verified;
+  const presentationText = presentation.map((item) => item?.text || item?.html || "").join(" ");
+  const verifiedText = (Array.isArray(verified) ? verified : []).map((item) => item?.text || item?.html || "").join(" ");
+  return verifiedText && isArabicPresentation(verifiedText) && !isArabicPresentation(presentationText)
+    ? verified
+    : presentation;
+};
+
 const normalizeLookupValue = (value = "") =>
   value
     .toString()
@@ -374,14 +393,17 @@ export const applyVerifiedResumeFacts = (resume = {}) => {
     const current = new Map((resume[section] || []).map((entry) => [entry?.id, entry]));
     return verified.map((fact) => {
       const presentation = current.get(fact.id) || {};
+      const presentationDescription = presentation.description || presentation.details || "";
       const description = language === "en"
-        ? presentation.description || presentation.details || fact.description
-        : fact.description;
+        ? presentationDescription || fact.description
+        : getArabicPresentation(presentationDescription, fact.description);
       return {
         ...fact,
         description,
         details: description,
-        achievements: presentation.achievements?.length ? presentation.achievements : fact.achievements,
+        achievements: language === "en"
+          ? (presentation.achievements?.length ? presentation.achievements : fact.achievements)
+          : getArabicAchievements(presentation.achievements, fact.achievements),
       };
     });
   };
@@ -389,6 +411,9 @@ export const applyVerifiedResumeFacts = (resume = {}) => {
   return {
     ...resume,
     personalInfo,
+    summary: language === "en"
+      ? resume.summary
+      : getArabicPresentation(resume.summary, facts.professionalContext || ""),
     education: composeEntries("education"),
     experiences,
     experience: experiences,

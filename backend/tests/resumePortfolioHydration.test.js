@@ -180,7 +180,7 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(composed.personalInfo.city, "Jeddah");
   assert.strictEqual(composed.personalInfo.studentStatus, "graduate");
   assert.strictEqual(composed.personalInfo.headline, "خريج/ة Business Administration");
-  assert.strictEqual(composed.summary, "Presentation text stays editable.");
+  assert.strictEqual(composed.summary, nouraPortfolio.bio);
   assert.strictEqual(composed.projects[0].description, "Analyzed customer satisfaction feedback.");
 }
 
@@ -349,24 +349,55 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   const verified = buildVerifiedResumeFacts({ ...portfolio, _id: "approved-draft-portfolio" }, portfolio.email);
   const master = {
     personalInfo: verified.personalInfo,
-    summary: "Reviewed Agent summary marker.",
+    summary: "نبذة وكيل معتمدة.",
     experiences: [{
       id: verified.experiences[0].id,
       title: verified.experiences[0].title,
-      achievements: [{ id: "approved-exp-bullet", text: "Reviewed experience bullet marker." }],
+      achievements: [{ id: "approved-exp-bullet", text: "نقطة خبرة معتمدة." }],
     }],
     projects: [{
       id: verified.projects[0].id,
       title: verified.projects[0].title,
-      achievements: [{ id: "approved-project-bullet", text: "Reviewed project bullet marker." }],
+      achievements: [{ id: "approved-project-bullet", text: "نقطة مشروع معتمدة." }],
     }],
     settings: { language: "ar" },
   };
   const reopened = composeCanonicalResume(master, { ...portfolio, _id: "approved-draft-portfolio" }, portfolio.email);
-  assert.strictEqual(reopened.summary, "Reviewed Agent summary marker.");
-  assert.deepStrictEqual(reopened.experiences[0].achievements.map((item) => item.text), ["Reviewed experience bullet marker."]);
-  assert.deepStrictEqual(reopened.projects[0].achievements.map((item) => item.text), ["Reviewed project bullet marker."]);
+  assert.strictEqual(reopened.summary, "نبذة وكيل معتمدة.");
+  assert.deepStrictEqual(reopened.experiences[0].achievements.map((item) => item.text), ["نقطة خبرة معتمدة."]);
+  assert.deepStrictEqual(reopened.projects[0].achievements.map((item) => item.text), ["نقطة مشروع معتمدة."]);
   assert.strictEqual(reopened.projects[0].description, "منصة لرحلة التدريب");
+}
+
+// An English translation must never become the presentation source for the
+// Arabic master, even if a legacy client previously saved it into ResumeProfile.
+{
+  const verified = buildVerifiedResumeFacts({ ...portfolio, _id: "arabic-master-presentation" }, portfolio.email);
+  const master = {
+    personalInfo: verified.personalInfo,
+    summary: "English translation summary marker.",
+    experiences: [{
+      id: verified.experiences[0].id,
+      title: verified.experiences[0].title,
+      description: "English experience description marker.",
+      achievements: [{ id: "english-exp", text: "English experience bullet marker." }],
+    }],
+    projects: [{
+      id: verified.projects[0].id,
+      title: verified.projects[0].title,
+      description: "English project description marker.",
+      achievements: [{ id: "english-project", text: "English project bullet marker." }],
+    }],
+    settings: { language: "ar" },
+  };
+  const reopened = composeCanonicalResume(master, { ...portfolio, _id: "arabic-master-presentation" }, portfolio.email, {
+    language: "ar",
+  });
+  assert.strictEqual(reopened.summary, portfolio.bio);
+  assert.strictEqual(reopened.experiences[0].description, verified.experiences[0].description);
+  assert.deepStrictEqual(reopened.experiences[0].achievements, verified.experiences[0].achievements);
+  assert.strictEqual(reopened.projects[0].description, verified.projects[0].description);
+  assert.deepStrictEqual(reopened.projects[0].achievements, verified.projects[0].achievements);
 }
 
 // Case F: an invalid legacy numeric phone is repaired from the professional

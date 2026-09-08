@@ -145,6 +145,46 @@ describe("English resume presentation", () => {
     expect(localized.personalInfo.phone).toBe("0500000000");
   });
 
+  it("does not render a stale English translation as Arabic master presentation", () => {
+    const localized = getLocalizedResumeForDisplay({
+      personalInfo: { major: "علوم الحاسب" },
+      summary: "English summary marker.",
+      verifiedResumeFacts: {
+        personalInfo: { major: "علوم الحاسب" },
+        professionalContext: "طالبة علوم حاسب لديها مشاريع تطبيقية.",
+        experiences: [{
+          id: "experience-1",
+          title: "تدريب تقني",
+          description: "تنظيم السجلات التقنية.",
+          achievements: [{ id: "exp-1", text: "إعداد التقارير الأسبوعية." }],
+        }],
+        projects: [{
+          id: "project-1",
+          title: "نظام مواعيد",
+          description: "تطبيق لإدارة المواعيد.",
+          achievements: [{ id: "project-1-bullet", text: "إتاحة الحجز وتعديل المواعيد." }],
+        }],
+      },
+      experiences: [{
+        id: "experience-1",
+        description: "English experience marker.",
+        achievements: [{ id: "exp-1", text: "English experience bullet marker." }],
+      }],
+      projects: [{
+        id: "project-1",
+        description: "English project marker.",
+        achievements: [{ id: "project-1-bullet", text: "English project bullet marker." }],
+      }],
+      settings: { language: "ar", direction: "rtl" },
+    });
+
+    expect(localized.summary).toBe("طالبة علوم حاسب لديها مشاريع تطبيقية.");
+    expect(localized.experience[0].description).toBe("تنظيم السجلات التقنية.");
+    expect(localized.experience[0].achievements[0].text).toBe("إعداد التقارير الأسبوعية.");
+    expect(localized.projects[0].description).toBe("تطبيق لإدارة المواعيد.");
+    expect(localized.projects[0].achievements[0].text).toBe("إتاحة الحجز وتعديل المواعيد.");
+  });
+
   it("replaces the current Arabic headline form with a confirmed English student headline", () => {
     const localized = getLocalizedResumeForDisplay({
       ...englishResume,

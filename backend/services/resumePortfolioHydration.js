@@ -66,6 +66,34 @@ const hasValue = (value) =>
     ? value.length > 0
     : Boolean(value && value.toString().trim());
 
+const hasArabicText = (value = "") => /[\u0600-\u06FF]/.test(String(value));
+
+// A translation is stored independently from the Arabic master. Older clients
+// could submit an open English version to the master save endpoint while adding
+// an English name for PDF download. Keep an existing Arabic presentation, but
+// fall back to the verified Arabic fact when that stale English presentation is
+// encountered at read time.
+const useArabicPresentation = (presentationValue = "", verifiedValue = "") => {
+  const presentation = cleanText(presentationValue, 1800);
+  const verified = cleanText(verifiedValue, 1800);
+  if (!presentation) return verified;
+  if (!verified || !hasArabicText(verified) || hasArabicText(presentation)) return presentation;
+  return verified;
+};
+
+const useArabicAchievements = (presentation = [], verified = []) => {
+  if (!Array.isArray(presentation) || !presentation.length) return verified;
+  const presentationText = presentation
+    .map((item) => cleanText(item?.text || item?.html || "", 1800))
+    .join(" ");
+  const verifiedText = (Array.isArray(verified) ? verified : [])
+    .map((item) => cleanText(item?.text || item?.html || "", 1800))
+    .join(" ");
+  return verifiedText && hasArabicText(verifiedText) && !hasArabicText(presentationText)
+    ? verified
+    : presentation;
+};
+
 const isInvalidResumePersonalValue = (key = "", value = "") => {
   if (key !== "phone") return false;
   const digits = cleanText(value, 40).replace(/[^0-9٠-٩]/g, "");
@@ -368,24 +396,32 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
       // Translation/tailoring may own wording and bullets, but never the
       // identity of the entry. For Arabic master resumes retain the verified
       // Portfolio description so an AI omission cannot erase it.
+      const presentationDescription = display.description || display.details || "";
       const translatedDescription = language === "en"
-        ? (display.description || display.details || factEntry.description)
-        : factEntry.description;
+        ? (presentationDescription || factEntry.description)
+        : useArabicPresentation(presentationDescription, factEntry.description);
       return {
         ...factEntry,
         description: translatedDescription,
         details: translatedDescription,
-        achievements: Array.isArray(display.achievements) && display.achievements.length
-          ? display.achievements
-          : factEntry.achievements,
+        achievements: language === "en"
+          ? (Array.isArray(display.achievements) && display.achievements.length
+            ? display.achievements
+            : factEntry.achievements)
+          : useArabicAchievements(display.achievements, factEntry.achievements),
       };
     });
   };
+
+  const summary = language === "en"
+    ? resume.summary || ""
+    : useArabicPresentation(resume.summary, verifiedResumeFacts.professionalContext || "");
 
   const experiences = composeEntries("experiences");
   return {
     ...resume,
     personalInfo,
+    summary,
     education: composeEntries("education"),
     experiences,
     experience: experiences,

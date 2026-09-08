@@ -405,6 +405,15 @@ const MyResumePage = () => {
     return saveResume({ manual: true, resumeOverride, silent: true });
   }, [resume, saveResume]);
 
+  const loadFreshMasterResume = useCallback(async () => {
+    const { data } = await axios.get(`${API_BASE_URL}/api/resume/me`, {
+      headers: getAccessHeaders({ itemKey: "resume:me" }),
+    });
+    const master = normalizeResume(data.resume || createEmptyResume());
+    setLastServerResume(master);
+    return master;
+  }, []);
+
   const handleDownloadPdf = useCallback(async () => {
     try {
       setPdfLoading(true);
@@ -420,7 +429,9 @@ const MyResumePage = () => {
             setMessage("اكتب اسمك الرسمي بالإنجليزية من كلمتين على الأقل قبل تحميل PDF.");
             return;
           }
-          const master = normalizeResume(lastServerResume || resume);
+          // Never use the open English ResumeTailoredVersion as a fallback for
+          // a master write. This path only persists the official English name.
+          const master = await loadFreshMasterResume();
           const masterPayload = prepareResumeForSave({
             ...master,
             personalInfo: { ...master.personalInfo, englishName },
@@ -476,7 +487,7 @@ const MyResumePage = () => {
     } finally {
       setPdfLoading(false);
     }
-  }, [applicationPack?.packType, editingTailoredVersion, lastServerResume, resume]);
+  }, [applicationPack?.packType, editingTailoredVersion, loadFreshMasterResume, resume]);
 
   const createEnglishVersion = useCallback(async () => {
     try {
@@ -559,7 +570,7 @@ const MyResumePage = () => {
     if (/[\u0600-\u06FF]/.test(englishName)) return setEnglishNameError("استخدم أحرفًا إنجليزية فقط.");
     if (englishName.split(" ").filter(Boolean).length < 2) return setEnglishNameError("اكتب الاسم من كلمتين على الأقل.");
     try {
-      const master = normalizeResume(lastServerResume || resume);
+      const master = await loadFreshMasterResume();
       const payload = prepareResumeForSave({
         ...master,
         personalInfo: { ...master.personalInfo, englishName },
