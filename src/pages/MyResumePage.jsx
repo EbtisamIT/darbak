@@ -40,7 +40,7 @@ import {
   prepareResumeForSave,
 } from "../features/resume/resumeDefaults";
 import { estimateResumePages } from "../features/resume/resumeValidation";
-import { getEnglishReviewItems } from "../features/resume/resumeLocalization";
+import { getEnglishPdfValidation, getEnglishReviewItems } from "../features/resume/resumeLocalization";
 import {
   clearResumeJourneyProgress,
   getReachableJourneyProgress,
@@ -218,6 +218,10 @@ const MyResumePage = () => {
   }, []);
 
   const estimatedPages = useMemo(() => estimateResumePages(resume), [resume]);
+  const pendingEnglishReviewCount = useMemo(
+    () => resume.settings?.language === "en" ? getEnglishReviewItems(resume).length : 0,
+    [resume],
+  );
   const routeOpportunityId =
     searchParams.get("opportunityId") ||
     searchParams.get("opportunity") ||
@@ -454,11 +458,15 @@ const MyResumePage = () => {
           });
           setResume(normalizedResume);
         }
+        const englishValidation = getEnglishPdfValidation(normalizedResume);
+        if (!englishValidation.valid) {
+          console.warn("English PDF blocked by unresolved display fields:", englishValidation.unresolvedFields);
+          setMessage("أكمل القيم الإنجليزية الظاهرة قبل تحميل PDF. توجد قيمة غير محلولة أو نص عربي داخل النسخة.");
+          return;
+        }
         const reviews = getEnglishReviewItems(normalizedResume);
         if (reviews.length) {
-          console.warn("English PDF blocked by localized field keys:", reviews.map((item) => item.fieldKey || `${item.section}.${item.field}`));
-          setMessage(`راجِع ${reviews.length} عناصر قبل تحميل النسخة الإنجليزية. أضف قيمة عرض إنجليزية لكل اسم أو جهة ظاهرة.`);
-          return;
+          setMessage(`لديك ${reviews.length} عناصر مقترحة للمراجعة قبل الاعتماد النهائي. يمكنك تحميل النسخة الآن أو مراجعتها لاحقًا.`);
         }
       }
       const blob = await pdf(<ResumePdfDocument resume={normalizedResume} />).toBlob();
@@ -1121,6 +1129,18 @@ const MyResumePage = () => {
       />}
 
       {message && <div className="resume-page-message">{message}</div>}
+      {resume.settings?.language === "en" && pendingEnglishReviewCount > 0 && !englishReviewOpen && (
+        <section className="resume-english-review-notice">
+          <div>
+            <strong>لديك {pendingEnglishReviewCount} عناصر مقترحة للمراجعة قبل الاعتماد النهائي.</strong>
+            <span>يمكنك تحميل النسخة الآن أو مراجعتها أولًا.</span>
+          </div>
+          <div>
+            <button type="button" onClick={handleDownloadPdf} disabled={pdfLoading}>تحميل PDF الآن</button>
+            <button type="button" className="is-review" onClick={() => setEnglishReviewOpen(true)}>مراجعة الترجمات</button>
+          </div>
+        </section>
+      )}
       {error && !accessIssue && (
         <div className={hasLoadedRef.current ? "resume-page-notice" : "resume-page-error"}>
           {error}

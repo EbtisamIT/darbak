@@ -9017,6 +9017,8 @@ body {
 
 .resume-dashboard-empty svg { color: var(--app-brand); font-size: 24px; }
 
+.resume-english-review-notice { max-width: 1180px; margin: 0 auto 14px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid rgba(228, 183, 87, .55); border-radius: 12px; background: rgba(228, 183, 87, .09); }.resume-english-review-notice > div:first-child { display: grid; gap: 3px; }.resume-english-review-notice strong { color: #f0c363; font-size: 14px; }.resume-english-review-notice span { color: var(--app-text-muted); font-size: 12px; }.resume-english-review-notice > div:last-child { display: flex; flex: 0 0 auto; gap: 8px; }.resume-english-review-notice button { min-height: 38px; border: 1px solid var(--app-brand); border-radius: 9px; padding: 0 11px; background: var(--app-brand); color: #07100e; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }.resume-english-review-notice button.is-review { background: transparent; border-color: rgba(228, 183, 87, .55); color: #f0c363; }
+
 /* Resume dashboard: compact workspace overview. */
 .resume-dashboard-header, .resume-dashboard-tabs, .resume-dashboard-status-cards, .resume-dashboard-action-required, .resume-dashboard-section, .resume-dashboard-section-head, .resume-dashboard-review-queue, .resume-dashboard-english-status { border: 1px solid var(--app-border); background: color-mix(in srgb, var(--app-surface) 94%, #081d1c); border-radius: 14px; }
 .resume-dashboard-header { padding: 24px; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
@@ -9219,6 +9221,7 @@ body {
   .resume-dashboard-list-head > button { flex: 0 0 auto; padding: 0 11px; }
   .resume-dashboard-version-list > button { padding: 15px; }
   .resume-dashboard-header { padding: 18px; align-items: stretch; flex-direction: column; }
+  .resume-english-review-notice { align-items: stretch; flex-direction: column; }.resume-english-review-notice > div:last-child { display: grid; grid-template-columns: 1fr 1fr; }.resume-english-review-notice button { width: 100%; min-height: 42px; }
   .resume-dashboard-header-actions { display: grid; grid-template-columns: 1fr 1fr; justify-content: stretch; }
   .resume-dashboard-header-actions button { width: 100%; min-height: 43px; }
   .resume-dashboard-tabs { margin-inline: -2px; }

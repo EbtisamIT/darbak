@@ -46,6 +46,45 @@ export const assertNoArabicScript = (finalEnglishDisplayPayload = {}) => {
   return !text.some((value) => arabicPattern.test(String(value || "")));
 };
 
+// Review approval is intentionally separate from language validity. A student
+// may download a complete English CV with proposed (but not yet approved)
+// localizations; only an unresolved display value or Arabic text can block it.
+export const getEnglishPdfValidation = (resume = {}) => {
+  const display = getLocalizedResumeForDisplay(resume);
+  if (display.settings?.language !== "en") {
+    return { valid: true, display, unresolvedFields: [] };
+  }
+
+  const unresolvedFields = [];
+  const sourceSections = ["education", "experience", "projects", "certifications", "volunteering"];
+  sourceSections.forEach((section) => {
+    const sourceEntries = section === "experience"
+      ? resume.experience || resume.experiences || []
+      : resume[section] || [];
+    const displayedEntries = section === "experience"
+      ? display.experience || display.experiences || []
+      : display[section] || [];
+    sourceEntries.forEach((sourceEntry) => {
+      const displayedEntry = displayedEntries.find((entry) => entry?.id === sourceEntry?.id) || {};
+      ["title", "organization"].forEach((field) => {
+        if (arabicPattern.test(String(sourceEntry?.[field] || "")) && !String(displayedEntry?.[field] || "").trim()) {
+          unresolvedFields.push(`${section}.${sourceEntry?.id || "unknown"}.${field}`);
+        }
+      });
+    });
+  });
+
+  const personal = display.personalInfo || {};
+  if (!String(personal.fullName || "").trim()) unresolvedFields.push("personal.fullName");
+  if (!String(personal.headline || personal.major || "").trim()) unresolvedFields.push("personal.headline");
+
+  return {
+    valid: unresolvedFields.length === 0 && assertNoArabicScript(display),
+    display,
+    unresolvedFields,
+  };
+};
+
 const normalizeLookupValue = (value = "") =>
   value
     .toString()

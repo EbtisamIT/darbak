@@ -3,6 +3,7 @@ import {
   canonicalEnglishMajor,
   canonicalEnglishStudentStatus,
   assertNoArabicScript,
+  getEnglishPdfValidation,
   getEnglishReviewItems,
   getLocalizedResumeForDisplay,
 } from "./resumeLocalization";
@@ -389,6 +390,45 @@ describe("English resume presentation", () => {
 
     expect(localized.experience[0].organization).toBe("Gulf Services Company");
     expect(assertNoArabicScript(localized)).toBe(true);
+  });
+
+  it("allows an English PDF when proposed translations are valid but still pending review", () => {
+    const dana = {
+      ...englishResume,
+      summary: "Accounting graduate with practical internship experience.",
+      experience: [{
+        id: "dana-internship",
+        title: "متدربة محاسبة",
+        organization: "شركة الخليج للخدمات",
+        achievements: [{ id: "task", text: "Prepared accounting reports." }],
+      }],
+      localizedDisplay: {
+        entries: {
+          "experience:dana-internship": {
+            title: "Accounting Intern",
+            organization: "Gulf Services Company",
+          },
+        },
+      },
+    };
+    expect(getEnglishReviewItems(dana)).toHaveLength(2);
+    expect(getEnglishPdfValidation(dana)).toMatchObject({ valid: true, unresolvedFields: [] });
+  });
+
+  it("blocks an English PDF only when a visible organization is unresolved", () => {
+    const invalidDana = {
+      ...englishResume,
+      summary: "Accounting graduate with practical internship experience.",
+      experience: [{
+        id: "dana-internship",
+        title: "Accounting Intern",
+        organization: "شركة الخليج للخدمات",
+      }],
+    };
+    expect(getEnglishPdfValidation(invalidDana)).toMatchObject({
+      valid: false,
+      unresolvedFields: ["experience.dana-internship.organization"],
+    });
   });
 
   it("uses the saved English project title by stable project id in both the summary and Projects section", () => {
