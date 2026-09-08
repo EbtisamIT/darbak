@@ -1,5 +1,6 @@
 import {
   applyEnglishReviewGroup,
+  canApproveEnglishReviewGroup,
   getEnglishReviewGroups,
 } from "./EnglishTranslationReview";
 
@@ -91,5 +92,31 @@ describe("English translation review state", () => {
     expect(next.localizedDisplay.entries["projects:project-1"].title).toBe("Appointments Platform");
     expect(next.localizedDisplay.review["groups:projects:project-1"].status).toBe("edited_and_approved");
     expect(getEnglishReviewGroups(next).find((candidate) => candidate.key === group.key).status).toBe("edited_and_approved");
+  });
+
+  test("does not persist an empty approval that would repeat the same review question", () => {
+    const missingTranslationGroup = {
+      key: "groups:projects:project-missing-title",
+      section: "projects",
+      entryId: "project-missing-title",
+      label: "مشروع",
+      items: [{
+        section: "projects",
+        entryId: "project-missing-title",
+        field: "title",
+        fieldKey: "projects.project-missing-title.title",
+        value: "مشروع بلا ترجمة",
+        generatedValue: "",
+      }],
+    };
+
+    expect(canApproveEnglishReviewGroup(missingTranslationGroup)).toBe(false);
+    expect(applyEnglishReviewGroup({}, missingTranslationGroup)).toEqual({});
+
+    const approved = applyEnglishReviewGroup({}, missingTranslationGroup, {
+      "projects.project-missing-title.title": "Translated Project",
+    });
+    expect(approved.localizedDisplay.entries["projects:project-missing-title"].title)
+      .toBe("Translated Project");
   });
 });

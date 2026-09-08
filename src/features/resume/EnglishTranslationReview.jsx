@@ -19,6 +19,16 @@ const reviewKeyForItem = (item) => {
 
 const groupKeyForItem = (item) => `groups:${item.section}:${item.entryId}`;
 
+const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
+
+const reviewValueForItem = (item, values = {}) => String(
+  hasOwn(values, item.fieldKey) ? values[item.fieldKey] : item.generatedValue || ""
+).trim();
+
+export const canApproveEnglishReviewGroup = (group, values = {}) =>
+  Array.isArray(group?.items) && group.items.length > 0 &&
+  group.items.every((item) => Boolean(reviewValueForItem(item, values)));
+
 const groupItems = (items) => items.reduce((groups, item) => {
   if (!REVIEWABLE_SECTIONS.has(item.section) || !item.entryId) return groups;
   const key = groupKeyForItem(item);
@@ -54,6 +64,10 @@ export const getEnglishReviewGroups = (resume = {}) => {
 };
 
 export const applyEnglishReviewGroup = (resume, group, values = {}, status = "approved") => {
+  // Never record an empty approval. An empty generated value is a missing
+  // translation and must be edited once, not returned as the same question.
+  if (!canApproveEnglishReviewGroup(group, values)) return resume;
+
   const localizedDisplay = {
     ...(resume.localizedDisplay || {}),
     entries: { ...(resume.localizedDisplay?.entries || {}) },
@@ -62,7 +76,7 @@ export const applyEnglishReviewGroup = (resume, group, values = {}, status = "ap
   };
 
   group.items.forEach((item) => {
-    const nextValue = String(values[item.fieldKey] ?? item.generatedValue ?? "").trim();
+    const nextValue = reviewValueForItem(item, values);
     const entryKey = `${item.section}:${item.entryId}`;
     if (item.field === "achievement") {
       const achievementKey = `${entryKey}:${item.achievementId || item.index}`;
@@ -156,6 +170,7 @@ const EnglishTranslationReview = ({ resume, onChange, onOpenEditor }) => {
         {groups.map((group) => {
           const isEditing = editingKey === group.key;
           const isApproved = group.status !== "pending";
+          const canApprove = canApproveEnglishReviewGroup(group, isEditing ? values : {});
           return (
             <article key={group.key} className={`english-review-card${isApproved ? " is-approved" : ""}${activeKey === group.key ? " is-active" : ""}`}>
               <div className="english-review-card-head">
@@ -179,12 +194,16 @@ const EnglishTranslationReview = ({ resume, onChange, onOpenEditor }) => {
                         />
                       </label>
                     ))}
-                    <button type="button" className="english-review-primary" onClick={() => approve(group, true)}>اعتماد التعديل</button>
+                    <button type="button" className="english-review-primary" disabled={!canApprove} onClick={() => approve(group, true)}>اعتماد التعديل</button>
                   </div>
                 ) : (
                   <div className="english-review-actions">
-                    <button type="button" className="english-review-primary" onClick={() => approve(group)}>اعتماد</button>
-                    <button type="button" onClick={() => beginEdit(group)}>تعديل</button>
+                    {canApprove ? <>
+                      <button type="button" className="english-review-primary" onClick={() => approve(group)}>اعتماد</button>
+                      <button type="button" onClick={() => beginEdit(group)}>تعديل</button>
+                    </> : (
+                      <button type="button" className="english-review-primary" onClick={() => beginEdit(group)}>أضف الترجمة</button>
+                    )}
                   </div>
                 )}
               </>}
