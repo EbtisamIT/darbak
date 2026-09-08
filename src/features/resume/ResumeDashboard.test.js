@@ -1,0 +1,56 @@
+import { getCustomizationStatus, getResumeReviewSummary } from "./ResumeDashboard";
+
+describe("resume dashboard state", () => {
+  const pendingTranslationResume = {
+    settings: { language: "en" },
+    experience: [{
+      id: "internship-1",
+      title: "متدربة محاسبة",
+      organization: "شركة الخليج للخدمات",
+    }],
+    localizedDisplay: {
+      entries: {
+        "experience:internship-1": {
+          title: "Accounting Intern",
+          organization: "Gulf Services Company",
+        },
+      },
+    },
+  };
+
+  it("uses one review summary for the dashboard count and progress", () => {
+    expect(getResumeReviewSummary(pendingTranslationResume)).toEqual({
+      total: 1,
+      pending: 1,
+      approved: 0,
+    });
+  });
+
+  it("keeps review state independent for each customization", () => {
+    const needsReview = getCustomizationStatus({
+      variantType: "tailored",
+      resumePayload: pendingTranslationResume,
+      applicationPack: { resume: { status: "ready" } },
+    });
+    const ready = getCustomizationStatus({
+      variantType: "tailored",
+      resumePayload: { localizedDisplay: { review: {} } },
+      applicationPack: {
+        resume: { status: "ready" },
+        trainingLetter: { status: "ready" },
+        email: { status: "ready" },
+      },
+    });
+
+    expect(needsReview.state).toBe("needs_review");
+    expect(needsReview.pendingReviewCount).toBe(1);
+    expect(ready.state).toBe("ready");
+    expect(ready.pendingReviewCount).toBe(0);
+  });
+
+  it("marks a stale English version for update without changing the master review count", () => {
+    const englishVersion = { needsLocalizationRefresh: true, resumePayload: { localizedDisplay: { review: {} } } };
+    expect(englishVersion.needsLocalizationRefresh).toBe(true);
+    expect(getResumeReviewSummary(englishVersion.resumePayload).pending).toBe(0);
+  });
+});
