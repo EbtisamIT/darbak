@@ -11,6 +11,15 @@ const { getEnglishReviewItems } = require("./resumeLocalization");
 
 const reviewItems = [
   {
+    section: "experience",
+    entryId: "experience-1",
+    field: "organization",
+    fieldKey: "experience.experience-1.organization",
+    value: "شركة المثال",
+    generatedValue: "Example Company",
+    label: "ترجمة اسم الجهة",
+  },
+  {
     section: "projects",
     entryId: "project-1",
     field: "title",
@@ -57,10 +66,10 @@ describe("English translation review state", () => {
     }));
   });
 
-  test("groups only user-specific items and tracks three approvals", () => {
+  test("groups all user-specific items, including experience details, and tracks approvals", () => {
     const groups = getEnglishReviewGroups({});
 
-    expect(groups).toHaveLength(3);
+    expect(groups).toHaveLength(4);
     expect(groups.every((group) => group.status === "pending")).toBe(true);
 
     const afterFirst = applyEnglishReviewGroup({}, groups[0]);
@@ -74,7 +83,7 @@ describe("English translation review state", () => {
   });
 
   test("an edited approval persists the English value and status", () => {
-    const group = getEnglishReviewGroups({})[0];
+    const group = getEnglishReviewGroups({}).find((candidate) => candidate.section === "projects");
     const next = applyEnglishReviewGroup({}, group, {
       "projects.project-1.title": "Appointments Platform",
     }, "edited_and_approved");

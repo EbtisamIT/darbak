@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getEnglishReviewItems } from "./resumeLocalization";
 
-const REVIEWABLE_SECTIONS = new Set(["projects", "certifications", "volunteering"]);
+const REVIEWABLE_SECTIONS = new Set(["experience", "projects", "certifications", "volunteering"]);
 
 const sectionLabel = {
+  experience: "خبرة",
   projects: "مشروع",
   certifications: "شهادة أو دورة",
   volunteering: "نشاط",

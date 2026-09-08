@@ -246,6 +246,39 @@ describe("English resume presentation", () => {
     expect(localized.volunteering[0]).toMatchObject({ title: "Programmer", organization: "Injaz Club" });
   });
 
+  it("clears an approved experience translation from the English PDF review gate", () => {
+    const resume = {
+      ...englishResume,
+      experience: [{
+        id: "accounting-internship",
+        title: "محاسب متدرب",
+        organization: "شركة المثال",
+        description: "Supported accounting reporting tasks.",
+        achievements: [],
+      }],
+      localizedDisplay: {
+        entries: {
+          "experience:accounting-internship": {
+            title: "Accounting Intern",
+            organization: "Example Company",
+          },
+        },
+        review: {
+          "entries:experience:accounting-internship:title": {
+            source: "محاسب متدرب",
+            approved: true,
+          },
+          "entries:experience:accounting-internship:organization": {
+            source: "شركة المثال",
+            approved: true,
+          },
+        },
+      },
+    };
+
+    expect(getEnglishReviewItems(resume).filter((item) => item.section === "experience")).toEqual([]);
+  });
+
   it("uses the saved English project title by stable project id in both the summary and Projects section", () => {
     const resume = {
       ...englishResume,
