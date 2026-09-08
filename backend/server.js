@@ -10015,7 +10015,6 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
         $setOnInsert: {
           contact: req.darbakAccess.contact,
           accessCodeHash: req.darbakAccess.accessCodeHash,
-          baseResumeId: storedResume._id || null,
           variantType: "translation",
         },
       },
