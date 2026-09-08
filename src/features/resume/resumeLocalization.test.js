@@ -431,6 +431,34 @@ describe("English resume presentation", () => {
     });
   });
 
+  it("treats a legacy mixed English version as stale instead of rendering Arabic presentation", () => {
+    const legacyMixedVersion = {
+      ...englishResume,
+      summary: "طالبة تقنية معلومات لديها خبرة في المشاريع التقنية.",
+      localizedDisplay: {
+        personalInfo: { headline: "طالبة تقنية المعلومات" },
+        entries: {
+          "projects:legacy-project": { description: "وصف عربي قديم" },
+        },
+      },
+      projects: [{
+        id: "legacy-project",
+        title: "مشروع تقني",
+        description: "وصف عربي قديم",
+        achievements: [],
+      }],
+    };
+
+    const display = getLocalizedResumeForDisplay(legacyMixedVersion);
+    expect(display.personalInfo.headline).toBe("Information Technology Graduate");
+    expect(display.summary).toBe("");
+    expect(display.projects[0].description).toBe("");
+    expect(getEnglishPdfValidation(legacyMixedVersion)).toMatchObject({
+      valid: false,
+      unresolvedFields: expect.arrayContaining(["summary", "projects.legacy-project.description"]),
+    });
+  });
+
   it("uses the saved English project title by stable project id in both the summary and Projects section", () => {
     const resume = {
       ...englishResume,

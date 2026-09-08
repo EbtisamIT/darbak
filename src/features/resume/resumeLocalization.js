@@ -66,9 +66,16 @@ export const getEnglishPdfValidation = (resume = {}) => {
       : display[section] || [];
     sourceEntries.forEach((sourceEntry) => {
       const displayedEntry = displayedEntries.find((entry) => entry?.id === sourceEntry?.id) || {};
-      ["title", "organization"].forEach((field) => {
+      ["title", "organization", "description"].forEach((field) => {
         if (arabicPattern.test(String(sourceEntry?.[field] || "")) && !String(displayedEntry?.[field] || "").trim()) {
           unresolvedFields.push(`${section}.${sourceEntry?.id || "unknown"}.${field}`);
+        }
+      });
+      (sourceEntry.achievements || []).forEach((achievement, index) => {
+        const sourceText = achievement?.text || achievement?.html || "";
+        const displayedText = (displayedEntry.achievements || [])[index]?.text || "";
+        if (arabicPattern.test(String(sourceText)) && !String(displayedText).trim()) {
+          unresolvedFields.push(`${section}.${sourceEntry?.id || "unknown"}.achievement.${achievement?.id || index}`);
         }
       });
     });
@@ -77,6 +84,9 @@ export const getEnglishPdfValidation = (resume = {}) => {
   const personal = display.personalInfo || {};
   if (!String(personal.fullName || "").trim()) unresolvedFields.push("personal.fullName");
   if (!String(personal.headline || personal.major || "").trim()) unresolvedFields.push("personal.headline");
+  if (arabicPattern.test(String(resume.summary || "")) && !String(display.summary || "").trim()) {
+    unresolvedFields.push("summary");
+  }
 
   return {
     valid: unresolvedFields.length === 0 && assertNoArabicScript(display),
@@ -399,6 +409,17 @@ const mergeCanonicalEntryDisplay = (generated = {}, saved = {}) => {
   return merged;
 };
 
+const omitArabicDisplayValues = (value) => {
+  if (typeof value === "string") return arabicPattern.test(value) ? "" : value;
+  if (Array.isArray(value)) return value.map(omitArabicDisplayValues);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, omitArabicDisplayValues(item)]),
+    );
+  }
+  return value;
+};
+
 const stableEntryKey = (section, entryId) => `${section}:${entryId}`;
 const stableAchievementKey = (section, entryId, achievementId) =>
   `${section}:${entryId}:${achievementId}`;
@@ -673,22 +694,26 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
       : resume;
   }
   const generated = buildEnglishLocalizedDisplay(resume);
+  // Old English versions may contain Arabic presentation values. They remain
+  // stored until the student explicitly refreshes, but they must never win at
+  // read/render time over a safe English value.
+  const savedLocalizedDisplay = omitArabicDisplayValues(resume.localizedDisplay || {});
   const localized = {
     ...generated,
-    ...(resume.localizedDisplay || {}),
-    personalInfo: mergeCanonicalPersonalDisplay(generated.personalInfo, resume.localizedDisplay?.personalInfo),
-    entries: mergeCanonicalEntryDisplay(generated.entries || {}, resume.localizedDisplay?.entries || {}),
+    ...savedLocalizedDisplay,
+    personalInfo: mergeCanonicalPersonalDisplay(generated.personalInfo, savedLocalizedDisplay.personalInfo),
+    entries: mergeCanonicalEntryDisplay(generated.entries || {}, savedLocalizedDisplay.entries || {}),
     achievements: {
       ...(generated.achievements || {}),
-      ...(resume.localizedDisplay?.achievements || {}),
+      ...(savedLocalizedDisplay.achievements || {}),
     },
     skills: {
       ...(generated.skills || {}),
-      ...(resume.localizedDisplay?.skills || {}),
+      ...(savedLocalizedDisplay.skills || {}),
     },
     languages: {
       ...(generated.languages || {}),
-      ...(resume.localizedDisplay?.languages || {}),
+      ...(savedLocalizedDisplay.languages || {}),
     },
   };
   const personal = { ...(resume.personalInfo || {}), ...(localized.personalInfo || {}) };
@@ -702,7 +727,7 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
     next[section] = entries.map((entry) => {
       const displayValues = localized.entries?.[`${section}:${entry.id}`] || {};
       const localizedEntry = { ...entry, ...displayValues };
-      ["title", "subtitle", "organization", "location"].forEach((field) => {
+      ["title", "subtitle", "organization", "location", "description", "details"].forEach((field) => {
         if (!displayValues[field] && arabicPattern.test(localizedEntry[field] || "")) {
           localizedEntry[field] = "";
         }
@@ -710,7 +735,9 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
       localizedEntry.achievements = (localizedEntry.achievements || []).map((achievement, index) => {
         const achievementId = achievement?.id || `${index}`;
         const text = localized.achievements?.[stableAchievementKey(section, entry.id, achievementId)];
-        return text ? { ...achievement, text, html: achievement.html || "" } : achievement;
+        return text && !arabicPattern.test(text)
+          ? { ...achievement, text, html: achievement.html || "" }
+          : { ...achievement, text: "", html: "" };
       });
       return section === "projects"
         ? getDarbakProjectPresentation(localizedEntry, resume.summary)
@@ -727,7 +754,9 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
     Boolean(resume.personalInfo?.academicTrack),
   );
   const canonicalSummary = removeStaleEnglishIdentity(summaryWithoutStaleAcademicTrack, personal.headline);
-  next.summary = !preserveWriterSummary && hasEnglishStatusConflict(canonicalSummary, resume.personalInfo?.studentStatus)
+  next.summary = arabicPattern.test(canonicalSummary)
+    ? ""
+    : !preserveWriterSummary && hasEnglishStatusConflict(canonicalSummary, resume.personalInfo?.studentStatus)
     ? buildEnglishFactSummary(resume, personal)
     : getEnglishSummary(canonicalSummary, personal, preserveWriterSummary);
   next.skills = getCleanEnglishSkills((resume.skills || []).map((skill, index) => {

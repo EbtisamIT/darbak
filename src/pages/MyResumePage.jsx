@@ -832,6 +832,18 @@ const MyResumePage = () => {
       if (!hasCompleteTailoredPack(data?.version)) {
         throw new Error("لم يكتمل حفظ ملف التقديم بعد. حاول فتحه مرة أخرى.");
       }
+      if (
+        data.version?.language === "en" &&
+        data.version?.needsLocalizationRefresh
+      ) {
+        setEditingTailoredVersion(false);
+        setEditingVersionId("");
+        setEditingVersionType("");
+        setResumeMode("dashboard");
+        setMessage("هذه النسخة الإنجليزية تحتاج تحديثًا قبل الاعتماد. سنحدّث الحقول الناقصة أو القديمة فقط عند اختيارك التحديث.");
+        navigate("/my-resume", { replace: true });
+        return;
+      }
       const loadedResume = normalizeResume(data.version?.resumePayload || createEmptyResume());
       setResume({ ...loadedResume, access: resume.access || {} });
       setEditingTailoredVersion(true);
@@ -847,7 +859,7 @@ const MyResumePage = () => {
     } finally {
       setLoading(false);
     }
-  }, [resume.access]);
+  }, [navigate, resume.access]);
 
   const openTailoredVersion = (version) => {
     if (version?._id) navigate(`/my-resume/versions/${version._id}`);

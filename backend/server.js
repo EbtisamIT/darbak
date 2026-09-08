@@ -7243,6 +7243,36 @@ const buildEnglishLocalizedDisplay = (resume = {}, generatedResume = {}) => {
   return localized;
 };
 
+const getEnglishVersionReadValidation = (payload = {}) => {
+  const localized = payload.localizedDisplay || {};
+  const renderedValues = [
+    payload.summary,
+    payload.personalInfo?.headline,
+    ...Object.values(localized.personalInfo || {}),
+    ...Object.values(localized.entries || {}).flatMap((entry) => Object.values(entry || {})),
+    ...Object.values(localized.achievements || {}),
+    ...Object.values(localized.skills || {}),
+    ...Object.values(localized.languages || {}).flatMap((entry) => Object.values(entry || {})),
+    ...["education", "experience", "experiences", "projects", "certifications", "volunteering"].flatMap((section) =>
+      (payload[section] || []).flatMap((entry) => [
+        entry?.description,
+        entry?.details,
+        ...(entry?.achievements || []).map((achievement) => achievement?.text || ""),
+      ]),
+    ),
+  ];
+  const containsArabicBeforeRender = renderedValues.some((value) => /[\u0600-\u06FF]/.test(String(value || "")));
+
+  return {
+    containsArabicBeforeRender,
+    needsLocalizationRefresh: containsArabicBeforeRender,
+    sourceOfHeadline: "canonical_verified_facts",
+    sourceOfSummary: payload.summaryProvenance?.summaryWriterVersion ? "saved_english_summary" : "legacy_presentation",
+    summaryWriterVersion: payload.summaryProvenance?.summaryWriterVersion || "",
+    localizationVersion: payload.localizedDisplay?.sourceHashes ? "incremental_v1" : "legacy",
+  };
+};
+
 const getPortfolioResumeReadiness = (portfolio = {}, contact = "") => {
   const hasProject = (portfolio.projects || []).some(
     (project) => project?.title || project?.description
@@ -9272,6 +9302,9 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
               masterUpdatedAt: masterResume?.updatedAt || "",
             })
           : {};
+        const englishReadValidation = isEnglishTranslation
+          ? getEnglishVersionReadValidation(version.resumePayload || {})
+          : {};
         return ({
         _id: version._id?.toString?.() || "",
         name:
@@ -9289,7 +9322,10 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
         applicationPack: version.applicationPack || {},
         changesSummary: version.changesSummary || [],
         updatedAt: version.updatedAt || version.approvedAt || null,
-        needsLocalizationRefresh: Boolean(summaryFreshness.needsLocalizationRefresh),
+        needsLocalizationRefresh: Boolean(
+          summaryFreshness.needsLocalizationRefresh || englishReadValidation.needsLocalizationRefresh,
+        ),
+        englishValidation: englishReadValidation,
       });
       }),
     });
@@ -9354,6 +9390,10 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
       version.variantType === "translation" && version.language === "en"
         ? buildEnglishLocalizedDisplay({ ...composedVersionPayload, personalInfo: synchronizedPersonal })
         : {};
+    const englishReadValidation =
+      version.variantType === "translation" && version.language === "en"
+        ? getEnglishVersionReadValidation(version.resumePayload || {})
+        : {};
     const versionPayload = {
       ...composedVersionPayload,
       personalInfo: synchronizedPersonal,
@@ -9411,6 +9451,10 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
         language: version.language || version.resumePayload?.settings?.language || "ar",
         changesSummary: version.changesSummary || [],
         applicationPack: version.applicationPack || {},
+        englishValidation: englishReadValidation,
+        needsLocalizationRefresh: Boolean(
+          versionPayload.summaryProvenance?.needsLocalizationRefresh || englishReadValidation.needsLocalizationRefresh,
+        ),
         updatedAt: version.updatedAt || version.approvedAt || null,
       },
     });
