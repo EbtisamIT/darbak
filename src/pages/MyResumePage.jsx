@@ -524,13 +524,20 @@ const MyResumePage = () => {
       setEditingVersionId(data.version?._id || "");
       setEditingVersionType("translation");
       setResumeMode("editor");
+      const englishValidation = getEnglishPdfValidation(translatedResume);
+      if (!englishValidation.valid) {
+        setError("تم حفظ التحديث، لكن توجد قيمة إنجليزية غير مكتملة. راجع النسخة قبل تحميل PDF.");
+        return;
+      }
+      await loadTailoredVersions();
       if (data.version?._id) navigate(`/my-resume/versions/${data.version._id}`);
       setEnglishTranslationReady(true);
       const localizedCount = Number(data.diagnostics?.fieldsLocalized || 0);
       const reusedCount = Number(data.diagnostics?.fieldsReused || 0);
+      const reviewCount = Number(data.diagnostics?.reviewItemsRemaining || 0);
       setMessage(
         localizedCount
-          ? `تم تحديث ${localizedCount} عنصرًا متغيرًا وإبقاء ${reusedCount} ترجمة محفوظة كما هي.`
+          ? `تم تحديث النسخة الإنجليزية ✓ تم تحديث ${localizedCount} عنصرًا وإبقاء ${reusedCount} ترجمة محفوظة كما هي.${reviewCount ? ` يوجد ${reviewCount} عناصر مقترحة للمراجعة.` : ""}`
           : "نسختك الإنجليزية محدثة بالفعل؛ لم نحتج إلى تشغيل الترجمة مرة أخرى.",
       );
       trackEvent("resume_translate_english_clicked", {
@@ -549,7 +556,7 @@ const MyResumePage = () => {
     } finally {
       setTranslating(false);
     }
-  }, [navigate, resume]);
+  }, [loadTailoredVersions, navigate, resume]);
 
   const handleTranslateToEnglish = useCallback(() => {
     const englishName = (lastServerResume?.personalInfo?.englishName || resume.personalInfo?.englishName || "").trim();

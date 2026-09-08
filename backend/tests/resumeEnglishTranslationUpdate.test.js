@@ -1,5 +1,8 @@
 const assert = require("assert");
-const { buildResumeTranslationUpdatePlan } = require("../services/resumeAiService");
+const {
+  buildResumeTranslationUpdatePlan,
+  readTranslatedItemValue,
+} = require("../services/resumeAiService");
 
 const sourceResume = {
   summary: "نبذة مهنية مختصرة",
@@ -45,5 +48,23 @@ assert.deepStrictEqual(
   "only the field whose Arabic source changed is localized again",
 );
 assert.strictEqual(changedPlan.resume.summary, "Professional summary.", "unchanged presentation is retained");
+assert.strictEqual(changedPlan.items.length, 3, "the update plan keeps stable source item IDs for review invalidation");
+
+const staleEntry = {
+  ...existingEnglishResume,
+  projects: [{ ...sourceResume.projects[0], title: "نظام حجوزات" }],
+  localizedDisplay: {
+    sourceHashes: firstPlan.sourceHashes,
+    entries: {
+      "projects:project-1": { title: "Appointment Booking System" },
+    },
+  },
+};
+const projectTitleItem = firstPlan.items.find((item) => item.id === "projects:project-1:title");
+assert.strictEqual(
+  readTranslatedItemValue(staleEntry, projectTitleItem),
+  "Appointment Booking System",
+  "saved English presentation wins over an Arabic source fact when reusing an unchanged localization",
+);
 
 console.log("resumeEnglishTranslationUpdate tests passed");

@@ -59,6 +59,7 @@ const {
   tailorResumeToOpportunity,
   translateResumeToEnglish,
   buildResumeTranslationUpdatePlan,
+  readTranslatedItemValue,
   tailoredResumeDraftSchema,
 } = require("./services/resumeAiService");
 const {
@@ -7245,27 +7246,31 @@ const buildEnglishLocalizedDisplay = (resume = {}, generatedResume = {}) => {
 
 const getEnglishVersionReadValidation = (payload = {}) => {
   const localized = payload.localizedDisplay || {};
-  const renderedValues = [
-    payload.summary,
-    payload.personalInfo?.headline,
-    ...Object.values(localized.personalInfo || {}),
-    ...Object.values(localized.entries || {}).flatMap((entry) => Object.values(entry || {})),
-    ...Object.values(localized.achievements || {}),
-    ...Object.values(localized.skills || {}),
-    ...Object.values(localized.languages || {}).flatMap((entry) => Object.values(entry || {})),
-    ...["education", "experience", "experiences", "projects", "certifications", "volunteering"].flatMap((section) =>
-      (payload[section] || []).flatMap((entry) => [
-        entry?.description,
-        entry?.details,
-        ...(entry?.achievements || []).map((achievement) => achievement?.text || ""),
-      ]),
-    ),
-  ];
-  const containsArabicBeforeRender = renderedValues.some((value) => /[\u0600-\u06FF]/.test(String(value || "")));
+  const arabicViolations = [];
+  const inspect = (fieldKey, value) => {
+    if (/[\u0600-\u06FF]/.test(String(value || ""))) arabicViolations.push(fieldKey);
+  };
+
+  // These are the values the English renderer actually consumes. Portfolio
+  // facts remain Arabic in the master payload and are canonicalized on read;
+  // treating those source facts as English presentation created a perpetual
+  // "needs refresh" loop for returning users.
+  inspect("summary", payload.summary);
+  Object.entries(localized.personalInfo || {}).forEach(([key, value]) => inspect(`personal.${key}`, value));
+  Object.entries(localized.entries || {}).forEach(([entryKey, entry]) => {
+    Object.entries(entry || {}).forEach(([key, value]) => inspect(`entries.${entryKey}.${key}`, value));
+  });
+  Object.entries(localized.achievements || {}).forEach(([key, value]) => inspect(`achievements.${key}`, value));
+  Object.entries(localized.skills || {}).forEach(([key, value]) => inspect(`skills.${key}`, value));
+  Object.entries(localized.languages || {}).forEach(([key, value]) => {
+    Object.entries(value || {}).forEach(([field, item]) => inspect(`languages.${key}.${field}`, item));
+  });
+  const containsArabicBeforeRender = arabicViolations.length > 0;
 
   return {
     containsArabicBeforeRender,
     needsLocalizationRefresh: containsArabicBeforeRender,
+    arabicViolations,
     sourceOfHeadline: "canonical_verified_facts",
     sourceOfSummary: payload.summaryProvenance?.summaryWriterVersion ? "saved_english_summary" : "legacy_presentation",
     summaryWriterVersion: payload.summaryProvenance?.summaryWriterVersion || "",
@@ -9988,12 +9993,38 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
     const generatedLocalizedDisplay = buildEnglishLocalizedDisplay(translatedPayload, translatedPresentation);
     const savedLocalizedDisplay = translatedPresentation.localizedDisplay || {};
     const existingReview = existingEnglishVersion?.resumePayload?.localizedDisplay?.review || {};
-    const currentSourceHashes = new Set(Object.values(updatePlan.sourceHashes));
+    const reviewItemMatchesCurrentSource = (item = {}) => {
+      const section = String(item.section || "");
+      const entryId = String(item.entryId || "");
+      const field = String(item.field || "");
+      const translationId = field === "achievement"
+        ? `${section}:${entryId}:achievement:${item.achievementId || item.index || ""}`
+        : `${section}:${entryId}:${field}`;
+      const expectedHash = updatePlan.sourceHashes[translationId];
+      const actualHash = crypto.createHash("sha256")
+        .update(String(item.value || "").trim())
+        .digest("hex")
+        .slice(0, 16);
+      return Boolean(expectedHash && expectedHash === actualHash);
+    };
     const retainedReview = Object.fromEntries(
-      Object.entries(existingReview).filter(([, review]) => {
-        if (review?.source) return currentSourceHashes.has(crypto.createHash("sha256").update(String(review.source).trim()).digest("hex").slice(0, 16));
+      Object.entries(existingReview).filter(([key, review]) => {
         if (Array.isArray(review?.items)) {
-          return review.items.every((item) => currentSourceHashes.has(crypto.createHash("sha256").update(String(item?.value || "").trim()).digest("hex").slice(0, 16)));
+          return review.items.every(reviewItemMatchesCurrentSource);
+        }
+        const entryMatch = key.match(/^entries:([^:]+):([^:]+):([^:]+)$/);
+        const achievementMatch = key.match(/^achievements:([^:]+):([^:]+):([^:]+)$/);
+        const translationId = entryMatch
+          ? `${entryMatch[1]}:${entryMatch[2]}:${entryMatch[3]}`
+          : achievementMatch
+            ? `${achievementMatch[1]}:${achievementMatch[2]}:achievement:${achievementMatch[3]}`
+            : "";
+        if (translationId && review?.source) {
+          const sourceHash = crypto.createHash("sha256")
+            .update(String(review.source).trim())
+            .digest("hex")
+            .slice(0, 16);
+          return updatePlan.sourceHashes[translationId] === sourceHash;
         }
         return false;
       }),
@@ -10012,21 +10043,21 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       ...generatedLocalizedDisplay,
       ...savedLocalizedDisplay,
       personalInfo: {
-        ...(generatedLocalizedDisplay.personalInfo || {}),
         ...savedUserSpecificPersonal,
+        ...(generatedLocalizedDisplay.personalInfo || {}),
       },
       entries: Object.entries(savedLocalizedDisplay.entries || {}).reduce(
         (entries, [key, value]) => ({
           ...entries,
-          [key]: key.startsWith("education:")
-            ? { ...(value || {}), ...(generatedLocalizedDisplay.entries?.[key] || {}) }
-            : value,
+          // The new localized value must win when a source item changed. The
+          // update plan already reuses approved values for unchanged items.
+          [key]: { ...(value || {}), ...(generatedLocalizedDisplay.entries?.[key] || {}) },
         }),
         { ...(generatedLocalizedDisplay.entries || {}) },
       ),
       achievements: {
-        ...(generatedLocalizedDisplay.achievements || {}),
         ...(savedLocalizedDisplay.achievements || {}),
+        ...(generatedLocalizedDisplay.achievements || {}),
       },
       sourceHashes: updatePlan.sourceHashes,
       review: retainedReview,
@@ -10042,6 +10073,22 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       sourceMasterUpdatedAt: storedResume.updatedAt?.toISOString?.() || storedResume.updatedAt || "",
       needsLocalizationRefresh: false,
     };
+    const unresolvedFields = updatePlan.items
+      .filter((item) => /[\u0600-\u06FF]/.test(String(item.text || "")))
+      .filter((item) => {
+        const localizedValue = String(readTranslatedItemValue(translatedPayload, item) || "").trim();
+        return !localizedValue || /[\u0600-\u06FF]/.test(localizedValue);
+      })
+      .map((item) => item.id);
+    const englishReadValidation = getEnglishVersionReadValidation(translatedPayload);
+    const arabicViolationsAfter = englishReadValidation.arabicViolations || [];
+    if (unresolvedFields.length || arabicViolationsAfter.length) {
+      return res.status(422).json({
+        error: "تعذر إكمال تحديث النسخة الإنجليزية لأن بعض القيم لم تُترجم بعد.",
+        code: "english_localization_incomplete",
+        unresolvedFields: [...new Set([...unresolvedFields, ...arabicViolationsAfter])],
+      });
+    }
     const version = await ResumeTailoredVersion.findOneAndUpdate(
       {
         contact: req.darbakAccess.contact,
@@ -10077,18 +10124,26 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
     // Translation is a separate resume representation, not a job customization.
     const usage = getResumeUsageSnapshot(req.darbakAccess);
     const diagnostics = {
+      masterVersionBefore: storedResume.updatedAt?.toISOString?.() || storedResume.updatedAt || "",
       englishSourceVersion: translatedPayload.summaryProvenance?.sourceSummaryVersion || "",
       currentMasterVersion: storedResume.updatedAt?.toISOString?.() || storedResume.updatedAt || "",
-      needsEnglishRefreshBefore: Boolean(existingEnglishVersion && buildEnglishSummaryFreshness({
-        masterProvenance: storedResume.summaryProvenance || {},
-        englishProvenance: existingEnglishVersion.resumePayload?.summaryProvenance || {},
-        masterUpdatedAt: storedResume.updatedAt || "",
-      }).needsLocalizationRefresh),
+      needsEnglishRefreshBefore: Boolean(existingEnglishVersion && (
+        buildEnglishSummaryFreshness({
+          masterProvenance: storedResume.summaryProvenance || {},
+          englishProvenance: existingEnglishVersion.resumePayload?.summaryProvenance || {},
+          masterUpdatedAt: storedResume.updatedAt || "",
+        }).needsLocalizationRefresh ||
+        getEnglishVersionReadValidation(existingEnglishVersion.resumePayload || {}).needsLocalizationRefresh
+      )),
+      fieldsChanged: updatePlan.changedItems.map((item) => item.id),
       fieldsLocalized: updatePlan.changedItems.length,
       fieldsReused: updatePlan.reusedItems.length,
       reviewItemsBefore: Object.keys(existingReview).length,
       reviewItemsAfter: Object.keys(retainedReview).length,
+      reviewItemsInvalidated: Object.keys(existingReview).length - Object.keys(retainedReview).length,
+      reviewItemsRemaining: Object.keys(retainedReview).length,
       englishSaveSucceeded: Boolean(version?._id),
+      arabicViolationsAfter,
       needsEnglishRefreshAfter: false,
     };
     console.info("Resume English update diagnostics:", diagnostics);

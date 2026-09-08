@@ -502,11 +502,18 @@ const readTranslatedItemValue = (resume = {}, item = {}) => {
   if (target.kind === "root") return resume[target.key] || "";
   if (target.kind === "personalList") return resume.localizedDisplay?.personalInfo?.[target.key]?.[target.index] || "";
   if (target.kind === "localizedEntry") return resume.localizedDisplay?.entries?.[entryKey]?.[target.key] || "";
-  if (target.kind === "entry") return entry?.[target.key] || (target.key === "description" ? entry?.details : "") || "";
+  if (target.kind === "entry") {
+    return resume.localizedDisplay?.entries?.[entryKey]?.[target.key]
+      || entry?.[target.key]
+      || (target.key === "description" ? entry?.details : "")
+      || "";
+  }
   if (target.kind === "achievement") {
     return (entry?.achievements || []).find(
       (candidate, index) => (candidate?.id || `${index}`) === target.bulletId,
-    )?.text || "";
+    )?.text
+      || resume.localizedDisplay?.achievements?.[`${target.section}:${target.entryId}:${target.bulletId}`]
+      || "";
   }
   return "";
 };
@@ -536,10 +543,22 @@ const buildResumeTranslationUpdatePlan = ({ resume = {}, existingEnglishResume =
       reusable,
       reusable.map((item) => ({ id: item.id, text: item.translatedValue })),
     );
-    return { resume: reused.resume, changedItems: changed, reusedItems: reusable, sourceHashes };
+    return {
+      resume: reused.resume,
+      changedItems: changed,
+      reusedItems: reusable,
+      sourceHashes,
+      items,
+    };
   }
 
-  return { resume: seed, changedItems: changed, reusedItems: reusable, sourceHashes };
+  return {
+    resume: seed,
+    changedItems: changed,
+    reusedItems: reusable,
+    sourceHashes,
+    items,
+  };
 };
 
 const translationStructure = (resume = {}) => ({
@@ -1042,6 +1061,7 @@ module.exports = {
   translateResumeToEnglish,
   collectResumeTextForTranslation,
   buildResumeTranslationUpdatePlan,
+  readTranslatedItemValue,
   applyResumeTranslations,
   assertTranslationIntegrity,
   assertEnglishSummaryIntegrity,
