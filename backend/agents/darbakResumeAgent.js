@@ -627,10 +627,25 @@ const mapPortfolioToFacts = (portfolio = null) => {
       year: safeString(certification.year, 80),
     })),
     experiences: safeArray(portfolio.experiences, 12, (experience, index) => ({
-      sourceId: sourceId("portfolio_experience", experience._id || experience.title, index),
+      sourceId: sourceId("portfolio_experience", experience.id || experience._id || experience.title, index),
       title: safeString(experience.title, 180),
       organization: safeString(experience.organization, 180),
-      description: safeText(experience.description || experience.details, 900),
+      city: safeString(experience.city, 100),
+      experienceType: safeString(experience.experienceType, 60),
+      startDate: safeString(experience.startDate, 40),
+      endDate: safeString(experience.endDate, 40),
+      current: Boolean(experience.current),
+      responsibilities: safeArray(experience.responsibilities, 8, (responsibility) => ({
+        id: safeString(responsibility?.id, 90),
+        text: safeText(responsibility?.text || responsibility, 320),
+      })).filter((responsibility) => responsibility.text),
+      description: safeText(
+        experience.description || experience.details || (experience.responsibilities || [])
+          .map((responsibility) => responsibility?.text || responsibility)
+          .filter(Boolean)
+          .join("، "),
+        900,
+      ),
     })),
     volunteering: safeArray(portfolio.volunteering, 12, (activity, index) => ({
       sourceId: sourceId("portfolio_volunteering", activity._id || activity.title, index),

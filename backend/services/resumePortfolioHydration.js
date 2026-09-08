@@ -183,26 +183,38 @@ const buildPortfolioHeadline = (portfolio = {}) => {
 const mapPortfolioEntry = (entry = {}, prefix = "portfolio-entry", index = 0) => {
   const title = cleanText(entry.title || entry.name, 140);
   const organization = cleanText(entry.organization || entry.issuer || entry.provider, 180);
-  const description = cleanText(entry.description || entry.details, 900);
+  const responsibilities = Array.isArray(entry.responsibilities)
+    ? entry.responsibilities
+      .map((responsibility) => cleanText(responsibility?.text || responsibility, 320))
+      .filter(Boolean)
+    : [];
+  const description = cleanText(entry.description || entry.details || responsibilities.join("، "), 900);
   return {
     id: entry.id || entry._id?.toString?.() || `${prefix}-${index}-${title || organization || "item"}`,
     title,
     subtitle: organization,
     organization,
+    experienceType: cleanText(entry.experienceType, 60),
     period: cleanText(entry.period || entry.year, 90),
     startDate: cleanText(entry.startDate, 40),
     endDate: cleanText(entry.endDate || entry.year, 40),
-    isCurrent: Boolean(entry.isCurrent),
-    location: cleanText(entry.location, 90),
+    isCurrent: Boolean(entry.current || entry.isCurrent),
+    location: cleanText(entry.location || entry.city, 90),
     url: cleanText(entry.url || entry.credentialUrl || entry.link, 260),
     technologies: Array.isArray(entry.technologies)
       ? entry.technologies.map((technology) => cleanText(technology, 80)).filter(Boolean)
       : [],
     description,
     details: description,
-    achievements: description
-      ? [{ id: `${prefix}-${index}-detail`, text: description, html: `<p>${escapeHtml(description)}</p>` }]
-      : [],
+    achievements: responsibilities.length
+      ? responsibilities.map((text, responsibilityIndex) => ({
+        id: entry.responsibilities?.[responsibilityIndex]?.id || `${prefix}-${index}-responsibility-${responsibilityIndex}`,
+        text,
+        html: `<p>${escapeHtml(text)}</p>`,
+      }))
+      : description
+        ? [{ id: `${prefix}-${index}-detail`, text: description, html: `<p>${escapeHtml(description)}</p>` }]
+        : [],
   };
 };
 

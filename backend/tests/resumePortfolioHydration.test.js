@@ -92,6 +92,61 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(legacyTrack.personalInfo.academicTrack, "");
 }
 
+// Repeatable onboarding experiences keep their own stable identity and every
+// saved responsibility reaches the verified payload that the agent receives.
+{
+  const experiencePortfolio = {
+    ...portfolio,
+    experiences: [
+      {
+        id: "experience-accounting",
+        title: "متدربة محاسبة",
+        organization: "شركة مثال",
+        city: "الرياض",
+        experienceType: "internship",
+        startDate: "2026-01-01",
+        endDate: "2026-04-01",
+        responsibilities: [
+          { id: "responsibility-invoices", text: "مراجعة الفواتير" },
+          { id: "responsibility-reports", text: "إعداد التقارير الأسبوعية" },
+        ],
+      },
+      {
+        id: "experience-support",
+        title: "مساعدة تقنية",
+        organization: "نادي التقنية",
+        experienceType: "volunteering",
+        current: true,
+        responsibilities: [
+          { id: "responsibility-support", text: "دعم فعاليات النادي التقنية" },
+        ],
+      },
+    ],
+  };
+  const verified = buildVerifiedResumeFacts(experiencePortfolio, experiencePortfolio.email);
+  assert.strictEqual(verified.experiences.length, 2);
+  assert.deepStrictEqual(verified.experiences.map((entry) => entry.id), ["experience-accounting", "experience-support"]);
+  assert.strictEqual(verified.experiences[0].experienceType, "internship");
+  assert.strictEqual(verified.experiences[1].isCurrent, true);
+  assert.deepStrictEqual(
+    verified.experiences[0].achievements.map((item) => item.text),
+    ["مراجعة الفواتير", "إعداد التقارير الأسبوعية"],
+  );
+  assert.deepStrictEqual(
+    verified.experiences[0].achievements.map((item) => item.id),
+    ["responsibility-invoices", "responsibility-reports"],
+  );
+
+  const afterRemovingFirst = buildVerifiedResumeFacts({
+    ...experiencePortfolio,
+    experiences: [experiencePortfolio.experiences[1]],
+  }, experiencePortfolio.email);
+  assert.deepStrictEqual(afterRemovingFirst.experiences.map((entry) => entry.id), ["experience-support"]);
+
+  const noExperience = buildVerifiedResumeFacts({ ...experiencePortfolio, experiences: [] }, experiencePortfolio.email);
+  assert.deepStrictEqual(noExperience.experiences, []);
+}
+
 // Noura acceptance: verified Portfolio facts always win over a stale local or
 // legacy ResumeProfile, while the summary remains presentation.
 {
@@ -242,7 +297,7 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
 {
   assert.deepStrictEqual(
     Object.keys(mapped.projects[0]).sort(),
-    ["achievements", "description", "details", "endDate", "id", "isCurrent", "location", "organization", "period", "startDate", "subtitle", "technologies", "title", "url"].sort()
+    ["achievements", "description", "details", "endDate", "experienceType", "id", "isCurrent", "location", "organization", "period", "startDate", "subtitle", "technologies", "title", "url"].sort()
   );
   assert.strictEqual(mapped.certifications[0].title, "ITIL v4");
   assert.strictEqual(mapped.certifications[0].organization, "PeopleCert");

@@ -154,10 +154,36 @@ const createEmptyCertification = () => ({
   year: "",
   credentialUrl: "",
 });
+const createEmptyResponsibility = () => ({
+  id: createCollectionItemId("responsibility"),
+  text: "",
+});
+const createEmptyExperience = () => ({
+  id: createCollectionItemId("experience"),
+  title: "",
+  organization: "",
+  city: "",
+  experienceType: "",
+  startDate: "",
+  endDate: "",
+  current: false,
+  period: "",
+  description: "",
+  responsibilities: [createEmptyResponsibility()],
+});
 const emptyProject = createEmptyProject();
 const emptyCertification = createEmptyCertification();
-const emptyExperience = { title: "", organization: "", period: "", description: "" };
+const emptyExperience = createEmptyExperience();
 const emptyLanguage = { name: "", level: "" };
+
+const experienceTypeOptions = [
+  ["", "نوع الخبرة"],
+  ["coop", "تدريب تعاوني"],
+  ["internship", "تدريب"],
+  ["summer_training", "تدريب صيفي"],
+  ["work", "عمل"],
+  ["volunteering", "تطوع"],
+];
 
 const emptyForm = {
   slug: "",
@@ -197,8 +223,8 @@ const emptyForm = {
   isPublished: false,
   projects: [createEmptyProject()],
   certifications: [createEmptyCertification()],
-  experiences: [{ ...emptyExperience }],
-  volunteering: [{ ...emptyExperience }],
+  experiences: [createEmptyExperience()],
+  volunteering: [createEmptyExperience()],
   languages: [{ ...emptyLanguage }],
 };
 
@@ -273,8 +299,20 @@ const normalizeForm = (portfolio = {}) => ({
       : [createEmptyCertification()],
   experiences:
     portfolio.experiences?.length > 0
-      ? portfolio.experiences.map((entry) => ({ ...emptyExperience, ...entry }))
-      : [{ ...emptyExperience }],
+      ? portfolio.experiences.map((entry) => ({
+          ...createEmptyExperience(),
+          ...entry,
+          id: entry.id || createCollectionItemId("experience"),
+          responsibilities: entry.responsibilities?.length > 0
+            ? entry.responsibilities.map((responsibility) => ({
+              id: responsibility.id || createCollectionItemId("responsibility"),
+              text: responsibility.text || "",
+            }))
+            : entry.description
+              ? [{ id: createCollectionItemId("responsibility"), text: entry.description }]
+              : [createEmptyResponsibility()],
+        }))
+      : [createEmptyExperience()],
   volunteering:
     portfolio.volunteering?.length > 0
       ? portfolio.volunteering.map((entry) => ({ ...emptyExperience, ...entry }))
@@ -478,6 +516,7 @@ export default function PortfolioBuilderPage() {
   const pendingEmptyCollectionItemsRef = useRef({
     projects: new Set(),
     certifications: new Set(),
+    experiences: new Set(),
   });
 
   const contact = identity.contact || identity.email || authForm.contact.trim();
@@ -513,7 +552,8 @@ export default function PortfolioBuilderPage() {
   );
   const activeExperiences = form.experiences.filter(
     (experience) =>
-      experience.title || experience.organization || experience.description
+      experience.title || experience.organization || experience.description ||
+      experience.responsibilities?.some((responsibility) => responsibility.text)
   );
   const sectionStatus = (missingCount) =>
     missingCount ? `ناقص ${missingCount}` : "✓ مكتمل";
@@ -625,6 +665,50 @@ export default function PortfolioBuilderPage() {
     setMessage("");
   };
 
+  const addExperienceResponsibility = (experienceIndex) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    setForm((current) => ({
+      ...current,
+      experiences: current.experiences.map((experience, index) => index === experienceIndex
+        ? { ...experience, responsibilities: [...(experience.responsibilities || []), createEmptyResponsibility()] }
+        : experience),
+    }));
+  };
+
+  const updateExperienceResponsibility = (experienceIndex, responsibilityIndex, text) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    setForm((current) => ({
+      ...current,
+      experiences: current.experiences.map((experience, index) => index === experienceIndex
+        ? {
+          ...experience,
+          responsibilities: (experience.responsibilities || []).map((responsibility, itemIndex) =>
+            itemIndex === responsibilityIndex ? { ...responsibility, text } : responsibility
+          ),
+        }
+        : experience),
+    }));
+  };
+
+  const removeExperienceResponsibility = (experienceIndex, responsibilityIndex) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    immediateSaveRef.current = true;
+    setForm((current) => ({
+      ...current,
+      experiences: current.experiences.map((experience, index) => index === experienceIndex
+        ? {
+          ...experience,
+          responsibilities: (experience.responsibilities || []).length <= 1
+            ? [createEmptyResponsibility()]
+            : experience.responsibilities.filter((_, itemIndex) => itemIndex !== responsibilityIndex),
+        }
+        : experience),
+    }));
+  };
+
   const addResumeSetupSkill = () => {
     const nextSkill = resumeSetupSkillDraft.trim();
     if (!nextSkill) return;
@@ -690,6 +774,8 @@ export default function PortfolioBuilderPage() {
           ? createEmptyProject()
           : listName === "certifications"
             ? createEmptyCertification()
+            : listName === "experiences" || listName === "volunteering"
+              ? createEmptyExperience()
             : { ...emptyItem };
       if (pendingEmptyCollectionItemsRef.current[listName] && nextItem.id) {
         pendingEmptyCollectionItemsRef.current[listName].add(nextItem.id);
@@ -715,6 +801,8 @@ export default function PortfolioBuilderPage() {
                 ? createEmptyProject()
                 : listName === "certifications"
                   ? createEmptyCertification()
+                  : listName === "experiences" || listName === "volunteering"
+                    ? createEmptyExperience()
                   : { ...emptyItem },
             ]
           : current[listName].filter((_, itemIndex) => itemIndex !== index),
@@ -894,7 +982,7 @@ export default function PortfolioBuilderPage() {
       if (!hasNewerChanges) {
         hasLoadedPortfolioRef.current = false;
         const normalizedPortfolio = normalizeForm(data.portfolio);
-        ["projects", "certifications"].forEach((listName) => {
+        ["projects", "certifications", "experiences"].forEach((listName) => {
           const pendingIds = pendingEmptyCollectionItemsRef.current[listName];
           const pendingItems = source[listName].filter((item) => pendingIds?.has(item.id));
           if (!pendingItems.length) return;
@@ -902,7 +990,9 @@ export default function PortfolioBuilderPage() {
           const persistedItems = normalizedPortfolio[listName].filter((item) =>
             listName === "projects"
               ? item.title || item.description || item.technologies || item.url
-              : item.title || item.provider || item.year || item.credentialUrl
+              : listName === "certifications"
+                ? item.title || item.provider || item.year || item.credentialUrl
+                : item.title || item.organization || item.responsibilities?.some((responsibility) => responsibility.text)
           );
           normalizedPortfolio[listName] = [...persistedItems, ...pendingItems];
         });
@@ -1511,6 +1601,50 @@ export default function PortfolioBuilderPage() {
               <div className="portfolio-resume-setup-collection is-wide">
                 <div className="portfolio-builder-section-head">
                   <div>
+                    <h3>الخبرات — اختيارية</h3>
+                    <p>أضف تدريبًا أو عملًا أو تطوعًا، والمهام تساعد دربك يكتب خبرتك بدقة.</p>
+                  </div>
+                  <button type="button" onClick={() => addListItem("experiences", emptyExperience, 8)}>
+                    + إضافة خبرة
+                  </button>
+                </div>
+                {form.experiences.map((experience, index) => (
+                  <div className="portfolio-experience-entry" key={experience.id || index}>
+                    <div className="portfolio-builder-repeat is-experience-details">
+                      <input value={experience.title} onChange={(event) => updateListItem("experiences", index, "title", event.target.value)} placeholder="المسمى أو الدور" />
+                      <input value={experience.organization} onChange={(event) => updateListItem("experiences", index, "organization", event.target.value)} placeholder="الجهة أو الشركة" />
+                      <input value={experience.city} onChange={(event) => updateListItem("experiences", index, "city", event.target.value)} placeholder="المدينة (اختياري)" />
+                      <select value={experience.experienceType} onChange={(event) => updateListItem("experiences", index, "experienceType", event.target.value, { immediate: true })}>
+                        {experienceTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                      <input type="date" value={experience.startDate} onChange={(event) => updateListItem("experiences", index, "startDate", event.target.value, { immediate: true })} aria-label="تاريخ البداية" />
+                      <input type="date" value={experience.endDate} onChange={(event) => updateListItem("experiences", index, "endDate", event.target.value, { immediate: true })} disabled={experience.current} aria-label="تاريخ النهاية" />
+                      <label className="portfolio-experience-current"><input type="checkbox" checked={Boolean(experience.current)} onChange={(event) => updateListItem("experiences", index, "current", event.target.checked, { immediate: true })} /> مستمرة حاليًا</label>
+                      <button type="button" onClick={() => removeListItem("experiences", index, emptyExperience)}>حذف الخبرة</button>
+                    </div>
+                    <div className="portfolio-experience-responsibilities">
+                      <strong>المهام والمسؤوليات — اختيارية</strong>
+                      {experience.responsibilities.map((responsibility, responsibilityIndex) => (
+                        <div key={responsibility.id || responsibilityIndex}>
+                          <input value={responsibility.text} onChange={(event) => updateExperienceResponsibility(index, responsibilityIndex, event.target.value)} placeholder="مثال: إعداد التقارير الأسبوعية" />
+                          <button type="button" onClick={() => removeExperienceResponsibility(index, responsibilityIndex)}>حذف المهمة</button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => addExperienceResponsibility(index)}>+ إضافة مهمة</button>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  className="portfolio-resume-setup-skip"
+                  type="button"
+                  onClick={() => updateField("experiences", [createEmptyExperience()], { immediate: true })}
+                >
+                  ما عندي خبرة حاليًا
+                </button>
+              </div>
+              <div className="portfolio-resume-setup-collection is-wide">
+                <div className="portfolio-builder-section-head">
+                  <div>
                     <h3>الشهادات والدورات</h3>
                     <p>اختيارية، ويمكنك إضافتها لاحقًا.</p>
                   </div>
@@ -2021,20 +2155,44 @@ export default function PortfolioBuilderPage() {
 
           <div className="portfolio-builder-panel portfolio-section-subpanel">
             <div className="portfolio-builder-section-head">
-              <h2>الخبرات العملية</h2>
+              <div><h2>الخبرات — اختيارية</h2><p>أضف تدريبًا أو عملًا أو تطوعًا ومهامه الأساسية.</p></div>
               <button type="button" onClick={() => addListItem("experiences", emptyExperience, 8)}>
                 إضافة خبرة
               </button>
             </div>
             {form.experiences.map((experience, index) => (
-              <div className="portfolio-builder-repeat is-experience" key={index}>
-                <input value={experience.title} onChange={(event) => updateListItem("experiences", index, "title", event.target.value)} placeholder="المسمى أو الدور" />
-                <input value={experience.organization} onChange={(event) => updateListItem("experiences", index, "organization", event.target.value)} placeholder="الجهة" />
-                <input value={experience.period} onChange={(event) => updateListItem("experiences", index, "period", event.target.value)} placeholder="الفترة" />
-                <textarea value={experience.description} onChange={(event) => updateListItem("experiences", index, "description", event.target.value)} placeholder="ماذا أنجزت أو تعلمت؟" />
-                <button type="button" onClick={() => removeListItem("experiences", index, emptyExperience)}>حذف</button>
+              <div className="portfolio-experience-entry" key={experience.id || index}>
+                <div className="portfolio-builder-repeat is-experience-details">
+                  <input value={experience.title} onChange={(event) => updateListItem("experiences", index, "title", event.target.value)} placeholder="المسمى أو الدور" />
+                  <input value={experience.organization} onChange={(event) => updateListItem("experiences", index, "organization", event.target.value)} placeholder="الجهة أو الشركة" />
+                  <input value={experience.city} onChange={(event) => updateListItem("experiences", index, "city", event.target.value)} placeholder="المدينة (اختياري)" />
+                  <select value={experience.experienceType} onChange={(event) => updateListItem("experiences", index, "experienceType", event.target.value, { immediate: true })}>
+                    {experienceTypeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                  <input type="date" value={experience.startDate} onChange={(event) => updateListItem("experiences", index, "startDate", event.target.value, { immediate: true })} aria-label="تاريخ البداية" />
+                  <input type="date" value={experience.endDate} onChange={(event) => updateListItem("experiences", index, "endDate", event.target.value, { immediate: true })} disabled={experience.current} aria-label="تاريخ النهاية" />
+                  <label className="portfolio-experience-current"><input type="checkbox" checked={Boolean(experience.current)} onChange={(event) => updateListItem("experiences", index, "current", event.target.checked, { immediate: true })} /> مستمرة حاليًا</label>
+                  <button type="button" onClick={() => removeListItem("experiences", index, emptyExperience)}>حذف الخبرة</button>
+                </div>
+                <div className="portfolio-experience-responsibilities">
+                  <strong>المهام والمسؤوليات — اختيارية</strong>
+                  {experience.responsibilities.map((responsibility, responsibilityIndex) => (
+                    <div key={responsibility.id || responsibilityIndex}>
+                      <input value={responsibility.text} onChange={(event) => updateExperienceResponsibility(index, responsibilityIndex, event.target.value)} placeholder="مثال: إعداد التقارير الأسبوعية" />
+                      <button type="button" onClick={() => removeExperienceResponsibility(index, responsibilityIndex)}>حذف المهمة</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => addExperienceResponsibility(index)}>+ إضافة مهمة</button>
+                </div>
               </div>
             ))}
+            <button
+              className="portfolio-resume-setup-skip"
+              type="button"
+              onClick={() => updateField("experiences", [createEmptyExperience()], { immediate: true })}
+            >
+              ما عندي خبرة حاليًا
+            </button>
           </div>
           </details>
 

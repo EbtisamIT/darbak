@@ -63,10 +63,28 @@ const portfolioCertificationSchema = new mongoose.Schema(
 
 const portfolioExperienceSchema = new mongoose.Schema(
   {
+    id: { type: String, default: "", trim: true },
     title: { type: String, default: "", trim: true },
     organization: { type: String, default: "", trim: true },
+    city: { type: String, default: "", trim: true },
+    experienceType: {
+      type: String,
+      enum: ["", "coop", "internship", "summer_training", "work", "volunteering"],
+      default: "",
+      trim: true,
+    },
+    startDate: { type: String, default: "", trim: true },
+    endDate: { type: String, default: "", trim: true },
+    current: { type: Boolean, default: false },
     period: { type: String, default: "", trim: true },
     description: { type: String, default: "", trim: true },
+    responsibilities: {
+      type: [{
+        id: { type: String, default: "", trim: true },
+        text: { type: String, default: "", trim: true },
+      }],
+      default: [],
+    },
   },
   { _id: false }
 );

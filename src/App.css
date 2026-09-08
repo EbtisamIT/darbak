@@ -3306,6 +3306,7 @@ body {
 .portfolio-builder-grid textarea,
 .portfolio-auth-row input,
 .portfolio-builder-repeat input,
+.portfolio-builder-repeat select,
 .portfolio-builder-repeat textarea {
   width: 100%;
   min-height: 44px;
@@ -3331,6 +3332,7 @@ body {
 .portfolio-builder-grid textarea:focus,
 .portfolio-auth-row input:focus,
 .portfolio-builder-repeat input:focus,
+.portfolio-builder-repeat select:focus,
 .portfolio-builder-repeat textarea:focus {
   border-color: var(--app-brand-border);
   box-shadow: 0 0 0 3px var(--app-brand-soft);
@@ -3452,6 +3454,53 @@ body {
 
 .portfolio-builder-repeat.is-experience {
   grid-template-columns: minmax(130px, 0.7fr) minmax(130px, 0.7fr) minmax(110px, 0.5fr) minmax(0, 1fr) auto;
+}
+
+.portfolio-builder-repeat.is-experience-details {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(130px, .8fr);
+}
+
+.portfolio-experience-entry {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 16px;
+  background: var(--app-input-bg);
+}
+
+.portfolio-experience-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  color: var(--app-text-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.portfolio-experience-current input { width: auto; min-height: auto; }
+
+.portfolio-experience-responsibilities {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--app-border-soft);
+}
+
+.portfolio-experience-responsibilities > strong {
+  color: var(--app-text);
+  font-size: 13px;
+}
+
+.portfolio-experience-responsibilities > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.portfolio-experience-responsibilities > button {
+  justify-self: start;
 }
 
 .portfolio-languages-head {
@@ -5311,6 +5360,11 @@ body {
   .portfolio-builder-repeat,
   .portfolio-builder-repeat.is-compact,
   .portfolio-builder-repeat.is-experience {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-builder-repeat.is-experience-details,
+  .portfolio-experience-responsibilities > div {
     grid-template-columns: 1fr;
   }
 

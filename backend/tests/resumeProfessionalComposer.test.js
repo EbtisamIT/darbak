@@ -237,6 +237,33 @@ assert.strictEqual(compact.confirmedAnswers.length, 1);
 assert.strictEqual(compact.professionalContext, "أحب إبراز مشروعي في بوابة الطلاب.");
 assert.ok(!Object.prototype.hasOwnProperty.call(compact, "workflow"));
 
+const compactExperiences = compactVerifiedResumeFacts({
+  ...facts,
+  experiences: [{
+    id: "experience-one",
+    title: "Technical Intern",
+    organization: "Example Co",
+    experienceType: "internship",
+    startDate: "2026-01-01",
+    endDate: "2026-03-01",
+    isCurrent: false,
+    achievements: [{ id: "responsibility-one", text: "Tested application forms." }],
+  }],
+});
+assert.deepStrictEqual(compactExperiences.experiences, [{
+  id: "experience-one",
+  title: "Technical Intern",
+  organization: "Example Co",
+  location: undefined,
+  experienceType: "internship",
+  startDate: "2026-01-01",
+  endDate: "2026-03-01",
+  isCurrent: false,
+  period: undefined,
+  description: undefined,
+  achievements: [{ id: "responsibility-one", text: "Tested application forms." }],
+}]);
+
 const copiedContext = runProfessionalQualityGate({
   draft: { ...composed, professionalSummary: facts.professionalContext },
   verifiedFacts: facts,

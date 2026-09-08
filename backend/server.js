@@ -2063,15 +2063,44 @@ const sanitizePortfolioCertifications = (certifications = []) => {
     .slice(0, 8);
 };
 
+const PORTFOLIO_EXPERIENCE_TYPES = new Set([
+  "coop",
+  "internship",
+  "summer_training",
+  "work",
+  "volunteering",
+]);
+
 const sanitizePortfolioExperiences = (entries = [], maxItems = 8) =>
   (Array.isArray(entries) ? entries : [])
-    .map((entry = {}) => ({
-      title: sanitizePortfolioText(entry.title, 110),
-      organization: sanitizePortfolioText(entry.organization, 120),
-      period: sanitizePortfolioText(entry.period, 80),
-      description: sanitizePortfolioLongText(entry.description, 360),
-    }))
-    .filter((entry) => entry.title || entry.organization || entry.description)
+    .map((entry = {}) => {
+      const responsibilities = (Array.isArray(entry.responsibilities) ? entry.responsibilities : [])
+        .map((responsibility = {}) => ({
+          id: sanitizePortfolioText(responsibility.id, 90) || crypto.randomUUID(),
+          text: sanitizePortfolioText(responsibility.text, 320),
+        }))
+        .filter((responsibility) => responsibility.text)
+        .slice(0, 8);
+      const description = sanitizePortfolioLongText(entry.description, 900) || responsibilities
+        .map((responsibility) => responsibility.text)
+        .join("، ");
+      return {
+        id: sanitizePortfolioText(entry.id, 90) || crypto.randomUUID(),
+        title: sanitizePortfolioText(entry.title, 110),
+        organization: sanitizePortfolioText(entry.organization, 120),
+        city: sanitizePortfolioText(entry.city, 60),
+        experienceType: PORTFOLIO_EXPERIENCE_TYPES.has(entry.experienceType)
+          ? entry.experienceType
+          : "",
+        startDate: sanitizePortfolioDate(entry.startDate),
+        endDate: entry.current ? "" : sanitizePortfolioDate(entry.endDate),
+        current: Boolean(entry.current),
+        period: sanitizePortfolioText(entry.period, 80),
+        description,
+        responsibilities,
+      };
+    })
+    .filter((entry) => entry.title || entry.organization || entry.description || entry.responsibilities.length)
     .slice(0, maxItems);
 
 const sanitizePortfolioLanguages = (languages = []) =>
