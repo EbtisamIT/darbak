@@ -9325,7 +9325,10 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
         needsLocalizationRefresh: Boolean(
           summaryFreshness.needsLocalizationRefresh || englishReadValidation.needsLocalizationRefresh,
         ),
-        englishValidation: englishReadValidation,
+        englishValidation: {
+          ...englishReadValidation,
+          englishVersionCreatedAt: version.createdAt || null,
+        },
       });
       }),
     });
@@ -9451,7 +9454,10 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
         language: version.language || version.resumePayload?.settings?.language || "ar",
         changesSummary: version.changesSummary || [],
         applicationPack: version.applicationPack || {},
-        englishValidation: englishReadValidation,
+        englishValidation: {
+          ...englishReadValidation,
+          englishVersionCreatedAt: version.createdAt || null,
+        },
         needsLocalizationRefresh: Boolean(
           versionPayload.summaryProvenance?.needsLocalizationRefresh || englishReadValidation.needsLocalizationRefresh,
         ),
