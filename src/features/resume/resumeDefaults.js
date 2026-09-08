@@ -316,13 +316,34 @@ export const getVisibleSectionOrder = (resume = {}) =>
 export const getResumeDirection = (resume = {}) =>
   resume.settings?.language === "en" || resume.settings?.direction === "ltr" ? "ltr" : "rtl";
 
+const resumeMonthLabels = {
+  ar: ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"],
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+};
+
+const formatResumeMonthYear = (value = "", language = "ar") => {
+  const clean = String(value || "").trim();
+  const match = clean.match(/^(\d{4})(?:-(\d{2})(?:-\d{2})?)?$/);
+  if (!match) return clean;
+  const [, year, month] = match;
+  if (!month) return year;
+  const monthIndex = Number(month) - 1;
+  const labels = resumeMonthLabels[language] || resumeMonthLabels.ar;
+  return labels[monthIndex] ? `${labels[monthIndex]} ${year}` : clean;
+};
+
 export const formatResumeDateRange = (entry = {}, language = "ar") => {
-  if (entry.period) return entry.period;
-  const currentLabel = language === "en" ? "Present" : "حتى الآن";
-  const separator = language === "en" ? " - " : " - ";
-  return [entry.startDate, entry.isCurrent ? currentLabel : entry.endDate]
-    .filter(Boolean)
-    .join(separator);
+  const startDate = formatResumeMonthYear(entry.startDate, language);
+  const endDate = entry.isCurrent
+    ? (language === "en" ? "Present" : "حتى الآن")
+    : formatResumeMonthYear(entry.endDate, language);
+  if (startDate || endDate) return [startDate, endDate].filter(Boolean).join(" – ");
+  if (entry.period) {
+    return String(entry.period).replace(/\b\d{4}(?:-\d{2}(?:-\d{2})?)?\b/g, (value) =>
+      formatResumeMonthYear(value, language)
+    );
+  }
+  return "";
 };
 
 export const getResumeFileName = (resume = {}) => {

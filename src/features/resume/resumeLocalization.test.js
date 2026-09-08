@@ -299,6 +299,28 @@ describe("English resume presentation", () => {
     expect(getEnglishReviewItems(resume).filter((item) => item.section === "experience")).toEqual([]);
   });
 
+  it("keeps an experience organization visible in English when no translation is confirmed", () => {
+    const localized = getLocalizedResumeForDisplay({
+      ...englishResume,
+      experience: [{
+        id: "dana-internship",
+        title: "Accounting Intern",
+        organization: "شركة الخليج للخدمات",
+        startDate: "2026-02-01",
+        endDate: "2026-05-01",
+        achievements: [{ id: "task", text: "Prepared accounting reports." }],
+      }],
+    });
+
+    expect(localized.experience[0]).toMatchObject({
+      id: "dana-internship",
+      title: "Accounting Intern",
+      organization: "شركة الخليج للخدمات",
+      startDate: "2026-02-01",
+      endDate: "2026-05-01",
+    });
+  });
+
   it("uses the saved English project title by stable project id in both the summary and Projects section", () => {
     const resume = {
       ...englishResume,

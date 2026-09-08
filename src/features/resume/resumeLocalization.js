@@ -612,7 +612,8 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
       const displayValues = localized.entries?.[`${section}:${entry.id}`] || {};
       const localizedEntry = { ...entry, ...displayValues };
       ["title", "subtitle", "organization", "location"].forEach((field) => {
-        if (!displayValues[field] && arabicPattern.test(localizedEntry[field] || "")) {
+        const keepExperienceOrganization = section === "experience" && field === "organization";
+        if (!keepExperienceOrganization && !displayValues[field] && arabicPattern.test(localizedEntry[field] || "")) {
           localizedEntry[field] = "";
         }
       });
