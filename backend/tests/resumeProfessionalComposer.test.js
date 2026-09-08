@@ -3,7 +3,9 @@ const {
   buildDeterministicHeadline,
   compactVerifiedResumeFacts,
   composeProfessionalDraft,
+  cleanExperienceBullets,
   getEvidenceStrength,
+  getExperienceStrength,
   runProfessionalQualityGate,
   getQualityFailureSections,
 } = require("../services/resumeProfessionalComposer");
@@ -79,6 +81,79 @@ assert.deepStrictEqual(composed.languages.map((language) => language.name), ["Ar
 
 const quality = runProfessionalQualityGate({ draft: composed, verifiedFacts: facts, language: "en" });
 assert.strictEqual(quality.needsRepair, false);
+
+const accountingExperience = {
+  id: "accounting-intern",
+  title: "Accounting Intern",
+  organization: "Example Accounting Co",
+  description: "مراجعة الفواتير، إدخال القيود، تجهيز ملفات المصروفات، مطابقة السجلات المالية.",
+};
+assert.strictEqual(getExperienceStrength(accountingExperience), "strong");
+assert.deepStrictEqual(
+  cleanExperienceBullets([
+    "مراجعة الفواتير والمساعدة في إدخال القيود المحاسبية.",
+    "تجهيز ملفات المصروفات للمراجعة.",
+    "مطابقة السجلات المالية.",
+  ], accountingExperience),
+  [
+    "مراجعة الفواتير والمساعدة في إدخال القيود المحاسبية.",
+    "تجهيز ملفات المصروفات للمراجعة.",
+    "مطابقة السجلات المالية.",
+  ],
+  "accounting responsibilities stay concise without invented outcomes"
+);
+
+const administrativeExperience = {
+  id: "administrative-intern",
+  title: "Administrative Intern",
+  organization: "Example Co",
+  description: "تنظيم السجلات، إعداد تقارير أسبوعية، تنسيق اجتماعات، متابعة طلبات داخلية.",
+};
+assert.strictEqual(getExperienceStrength(administrativeExperience), "strong");
+assert.deepStrictEqual(
+  cleanExperienceBullets([
+    "تنظيم وتحديث السجلات الإدارية لدعم الأعمال اليومية.",
+    "إعداد التقارير الأسبوعية وتنسيق ترتيبات الاجتماعات.",
+    "تنسيق الاجتماعات.",
+    "متابعة الطلبات الداخلية.",
+  ], administrativeExperience),
+  [
+    "تنظيم وتحديث السجلات الإدارية لدعم الأعمال اليومية.",
+    "إعداد التقارير الأسبوعية وتنسيق ترتيبات الاجتماعات.",
+    "متابعة الطلبات الداخلية.",
+  ],
+  "overlapping meeting coordination is merged into one administrative bullet"
+);
+
+const softwareExperience = {
+  id: "software-intern",
+  title: "Software Intern",
+  organization: "Example Tech Co",
+  description: "تطوير واجهات، إصلاح مشاكل النماذج، اختبار خصائص، GitHub.",
+};
+assert.strictEqual(getExperienceStrength(softwareExperience), "strong");
+assert.deepStrictEqual(
+  cleanExperienceBullets([
+    "Developed interface components for the application.",
+    "Fixed form issues and tested application features.",
+    "Documented changes using GitHub.",
+  ], softwareExperience),
+  [
+    "Developed interface components for the application.",
+    "Fixed form issues and tested application features.",
+    "Documented changes using GitHub.",
+  ],
+  "technical experience keeps distinct implementation, testing, and documentation responsibilities"
+);
+
+assert.deepStrictEqual(
+  cleanExperienceBullets(["Responsible for organizing records.", "Organized records."], {
+    id: "limited-intern",
+    description: "تنظيم السجلات",
+  }),
+  ["organizing records."],
+  "limited evidence keeps a single direct bullet and removes duplicate phrasing"
+);
 
 const classifierFacts = {
   ...facts,

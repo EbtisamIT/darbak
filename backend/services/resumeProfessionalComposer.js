@@ -87,6 +87,92 @@ const cleanBullets = (bullets = []) => list(bullets)
   .map((bullet) => cleanWriterText(bullet, 300))
   .filter(Boolean);
 
+const EXPERIENCE_BULLET_STOP_WORDS = new Set([
+  "a", "an", "and", "the", "to", "for", "of", "in", "with", "on", "at", "by",
+  "from", "as", "was", "were", "that", "this", "daily", "weekly", "work", "tasks",
+  "من", "في", "على", "إلى", "الى", "عن", "مع", "لـ", "ل", "تم", "بـ", "ضمن",
+  "دعم", "الأعمال", "اليومية", "المهام", "العمل", "على", "لدى",
+]);
+
+const normalizeExperienceToken = (token = "") => {
+  const normalized = safeText(token, 80).toLocaleLowerCase()
+    .replace(/[ًٌٍَُِّْـ]/gu, "")
+    .replace(/(?:ing|ed|es|s)$/u, "");
+  const arabicStem = normalized.replace(/^ال/u, "").replace(/ات$/u, "");
+
+  if (/^(?:organize|organized|organizing|coordinat|تنظيم|تنسيق)$/u.test(normalized)) return "coordination";
+  if (/^(?:meeting|اجتماع)$/u.test(arabicStem)) return "meeting";
+  if (/^(?:prepare|prepared|prepar|اعداد|إعداد|تجهيز)$/u.test(normalized)) return "preparation";
+  if (/^(?:review|reviewed|مراجع|مطابق)/u.test(normalized)) return "review";
+  if (/^(?:monitor|monitored|متابع)/u.test(normalized)) return "followup";
+  if (/^(?:develop|developed|تطوير|طور)/u.test(normalized)) return "development";
+  if (/^(?:test|tested|اختبار)/u.test(normalized)) return "testing";
+  if (/^(?:fix|fixed|troubleshoot|اصلاح|إصلاح)/u.test(normalized)) return "troubleshooting";
+  if (/^(?:document|documented|توثيق)/u.test(normalized)) return "documentation";
+  return normalized;
+};
+
+const experienceBulletTokens = (value = "") => Array.from(new Set(
+  safeText(value, 300)
+    .replace(/[.,;:!?؟،()\[\]{}]/gu, " ")
+    .split(/\s+/u)
+    .map(normalizeExperienceToken)
+    .filter((token) => token.length > 2 && !EXPERIENCE_BULLET_STOP_WORDS.has(token))
+));
+
+const bulletsCoverSameExperienceMeaning = (candidate = "", existing = "") => {
+  const candidateText = comparable(candidate).replace(/^responsible for\s+/u, "").replace(/^مسؤول عن\s+/u, "");
+  const existingText = comparable(existing).replace(/^responsible for\s+/u, "").replace(/^مسؤول عن\s+/u, "");
+  if (!candidateText || !existingText) return candidateText === existingText;
+  if (candidateText === existingText || candidateText.includes(existingText) || existingText.includes(candidateText)) return true;
+  const coordinationMeeting = /(?:تنظيم|تنسيق|organiz|coordinat).*?(?:اجتماع|meeting)/iu;
+  if (coordinationMeeting.test(candidateText) && coordinationMeeting.test(existingText)) return true;
+
+  const candidateTokens = experienceBulletTokens(candidate);
+  const existingTokens = experienceBulletTokens(existing);
+  if (!candidateTokens.length || !existingTokens.length) return false;
+  const existingSet = new Set(existingTokens);
+  const shared = candidateTokens.filter((token) => existingSet.has(token)).length;
+  if (candidateTokens.length <= 2 && shared === candidateTokens.length) return true;
+  return shared / Math.min(candidateTokens.length, existingTokens.length) >= 0.7;
+};
+
+const getExperienceStrength = (experience = {}) => {
+  const rawResponsibilities = [
+    safeText(experience.description || experience.details, 900),
+    ...list(experience.achievements).map((item) => safeText(item?.text || item, 300)),
+  ]
+    .join("\n")
+    .split(/[\n،,;؛]+/u)
+    .map((item) => safeText(item, 260))
+    .filter(Boolean);
+
+  if (rawResponsibilities.length >= 4) return "strong";
+  if (rawResponsibilities.length >= 2) return "moderate";
+  return "limited";
+};
+
+const cleanExperienceBullets = (bullets = [], experience = {}) => {
+  const maxBullets = getExperienceStrength(experience) === "strong"
+    ? 5
+    : getExperienceStrength(experience) === "moderate"
+      ? 3
+      : 2;
+
+  return cleanBullets(bullets)
+    .map((bullet) => bullet
+      .replace(/^\s*(?:مسؤول عن|قمت بـ)\s*/u, "")
+      .replace(/^\s*responsible for\s+/iu, "")
+    )
+    .filter(Boolean)
+    .reduce((distinct, bullet) => (
+      distinct.some((existing) => bulletsCoverSameExperienceMeaning(bullet, existing))
+        ? distinct
+        : [...distinct, bullet]
+    ), [])
+    .slice(0, maxBullets);
+};
+
 const PROJECT_BULLET_STOP_WORDS = new Set([
   "a", "an", "and", "the", "to", "for", "of", "in", "with", "using", "used", "use",
   "applied", "supported", "built", "build", "developed", "develop", "created", "create",
@@ -241,7 +327,7 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
   // entered in their professional profile.
   const experiences = list(verifiedFacts.experiences).map((fact) => {
     const entry = list(draft.experiences).find((candidate) => matchFact(candidate, [fact])) || {};
-    const sourceBullets = cleanBullets(entry.bullets);
+    const sourceBullets = cleanExperienceBullets(entry.bullets, fact);
     const fallbackBullet = safeText(fact.description, 300);
     return {
       ...entry,
@@ -361,8 +447,10 @@ const runProfessionalQualityGate = ({ draft = {}, verifiedFacts = {}, language =
 module.exports = {
   buildDeterministicHeadline,
   compactVerifiedResumeFacts,
+  cleanExperienceBullets,
   composeProfessionalDraft,
   getEvidenceStrength,
+  getExperienceStrength,
   runProfessionalQualityGate,
   getQualityFailureSections,
 };

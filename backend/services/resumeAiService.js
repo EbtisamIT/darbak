@@ -25,6 +25,21 @@ const educationSchema = z
   })
   .strict();
 
+const experienceQualitySchema = z
+  .object({
+    noDuplicateMeaning: z.boolean().default(false),
+    noUnsupportedClaims: z.boolean().default(false),
+    appropriateSeniority: z.boolean().default(false),
+    concise: z.boolean().default(false),
+  })
+  .strict()
+  .default({
+    noDuplicateMeaning: false,
+    noUnsupportedClaims: false,
+    appropriateSeniority: false,
+    concise: false,
+  });
+
 const experienceSchema = z
   .object({
     sourceId: shortString(80),
@@ -32,7 +47,8 @@ const experienceSchema = z
     organization: shortString(180),
     dates: shortString(100),
     location: shortString(100),
-    bullets: stringList(4, 300),
+    bullets: stringList(5, 300),
+    quality: experienceQualitySchema,
   })
   .strict();
 
