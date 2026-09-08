@@ -68,6 +68,10 @@ export default function AccountModal() {
   const [requestingHelp, setRequestingHelp] = useState(false);
   const [loginForm, setLoginForm] = useState({ contact: "", accessCode: "" });
   const [premiumGateVisible, setPremiumGateVisible] = useState(false);
+  const [journeyContext, setJourneyContext] = useState(null);
+  const [journeyForm, setJourneyForm] = useState({ firstName: "", contact: "", accessCode: "" });
+  const [savingJourney, setSavingJourney] = useState(false);
+  const [journeyLoginMode, setJourneyLoginMode] = useState(false);
 
   const status = useMemo(() => {
     if (pass?.isAdmin) return "admin";
@@ -75,9 +79,10 @@ export default function AccountModal() {
     return "free";
   }, [pass]);
 
-  const openModal = useCallback(() => {
+  const openModal = useCallback((event) => {
     const storedIdentity = getStoredAccessIdentity();
     const storedContact = storedIdentity.contact || storedIdentity.email || "";
+    const context = event?.detail?.mode === "save_journey" ? event.detail : null;
     setIdentity(storedIdentity);
     setPass(getStoredPremiumPass());
     setLoginForm({
@@ -85,6 +90,13 @@ export default function AccountModal() {
       accessCode: storedIdentity.accessCode || "",
     });
     setPremiumGateVisible(isPremiumGateEnabled());
+    setJourneyContext(context);
+    setJourneyLoginMode(false);
+    setJourneyForm({
+      firstName: "",
+      contact: isValidEmail(storedContact) ? storedContact : "",
+      accessCode: storedIdentity.accessCode || "",
+    });
     setMessage("");
     setIsOpen(true);
     trackEvent("account_modal_opened");
@@ -98,6 +110,44 @@ export default function AccountModal() {
   const closeModal = () => {
     setIsOpen(false);
     setMessage("");
+    setJourneyContext(null);
+  };
+
+  const saveFreeJourneyAccount = async (event) => {
+    event.preventDefault();
+    const contact = journeyForm.contact.trim();
+    const accessCode = journeyForm.accessCode.trim();
+    const firstName = journeyForm.firstName.trim();
+
+    if (!journeyLoginMode && !firstName) {
+      setMessage("اكتب اسمك الأول فقط.");
+      return;
+    }
+    if (!isValidEmail(contact) || !/^[A-Za-z0-9]{4,12}$/.test(accessCode)) {
+      setMessage("اكتب بريدًا صحيحًا ورمز دخول من 4 إلى 12 حرفًا أو رقمًا.");
+      return;
+    }
+
+    try {
+      setSavingJourney(true);
+      setMessage("");
+      const { data } = await axios.post(`${API_BASE_URL}/api/account/free-session`, {
+        email: contact,
+        accessCode,
+        firstName,
+        preferredMajor: journeyContext?.preferredMajor || "",
+        preferredCity: journeyContext?.preferredCity || "",
+      });
+      saveAccessIdentity({ contact, accessCode });
+      setIdentity(getStoredAccessIdentity());
+      window.dispatchEvent(new CustomEvent("darbak:free-account-saved", { detail: data.account || {} }));
+      trackEvent("free_journey_saved");
+      closeModal();
+    } catch (err) {
+      setMessage(err.response?.data?.error || "تعذر حفظ رحلتك حاليًا.");
+    } finally {
+      setSavingJourney(false);
+    }
   };
 
   const openPremiumGate = () => {
@@ -173,15 +223,24 @@ export default function AccountModal() {
     try {
       setLoggingIn(true);
       setMessage("");
-      const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
+      await axios.post(`${API_BASE_URL}/api/account/free-session`, {
         email: contact,
         accessCode,
       });
       saveAccessIdentity({ contact, accessCode });
-      savePremiumPass(data);
       setIdentity(getStoredAccessIdentity());
-      setPass(getStoredPremiumPass());
-      setMessage(data.message || "تم تسجيل الدخول وتفعيل مزايا حسابك.");
+      try {
+        const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
+          email: contact,
+          accessCode,
+        });
+        savePremiumPass(data);
+        setPass(getStoredPremiumPass());
+        setMessage(data.message || "تم تسجيل الدخول.");
+      } catch {
+        setPass(null);
+        setMessage("تم تسجيل الدخول إلى حسابك المجاني.");
+      }
       trackEvent("account_login_success");
     } catch (err) {
       setPass(null);
@@ -245,6 +304,49 @@ export default function AccountModal() {
   };
 
   if (!isOpen) return null;
+
+  if (journeyContext) {
+    return (
+      <div
+        className="account-modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="account-modal-title"
+        dir="rtl"
+        onClick={closeModal}
+      >
+        <section className="account-modal-card" onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="account-modal-close" aria-label="إغلاق" onClick={closeModal}>×</button>
+          <form className="account-login-form" onSubmit={saveFreeJourneyAccount}>
+            <div className="account-modal-header">
+              <span className="account-modal-kicker">حساب مجاني</span>
+              <h2 id="account-modal-title">احفظ رحلتك</h2>
+              <p>عشان نحفظ تخصصك ومدينتك ونطلع لك الجديد كل مرة.</p>
+            </div>
+            {!journeyLoginMode && <label>
+              <span>الاسم الأول</span>
+              <input value={journeyForm.firstName} onChange={(event) => setJourneyForm((current) => ({ ...current, firstName: event.target.value }))} placeholder="سارة" autoComplete="given-name" />
+            </label>}
+            <label>
+              <span>البريد الإلكتروني</span>
+              <input type="email" value={journeyForm.contact} onChange={(event) => setJourneyForm((current) => ({ ...current, contact: event.target.value }))} placeholder="name@email.com" autoComplete="email" dir="ltr" />
+            </label>
+            <label>
+              <span>رمز الدخول</span>
+              <input value={journeyForm.accessCode} onChange={(event) => setJourneyForm((current) => ({ ...current, accessCode: event.target.value }))} placeholder="4 إلى 12 حرف أو رقم" autoComplete="new-password" maxLength={12} dir="ltr" />
+            </label>
+            <button type="submit" disabled={savingJourney}>
+              {savingJourney ? "جاري الحفظ..." : journeyLoginMode ? "دخول وحفظ الرحلة" : "أنشئ حسابًا مجانيًا"}
+            </button>
+            <button type="button" className="account-login-help" onClick={() => { setJourneyLoginMode((value) => !value); setMessage(""); }}>
+              {journeyLoginMode ? "إنشاء حساب جديد" : "عندي حساب، دخول"}
+            </button>
+            {message && <p className="account-modal-message">{message}</p>}
+          </form>
+        </section>
+      </div>
+    );
+  }
 
   const isActive = status === "active" || status === "admin";
   const isExperienceReward = pass?.accessType === "experience_reward" && isActive;

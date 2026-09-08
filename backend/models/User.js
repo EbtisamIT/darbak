@@ -21,6 +21,21 @@ const userSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    firstName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    preferredMajor: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    preferredCity: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     isPremium: {
       type: Boolean,
       default: false,

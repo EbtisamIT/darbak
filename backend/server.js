@@ -6703,6 +6703,91 @@ app.get('/api/account/free-session', async (req, res) => {
   }
 });
 
+// One lightweight source for the student's journey across Home, opportunities,
+// applications, and reviews. Portfolio facts win when available; account
+// preferences keep the journey available before a Portfolio exists.
+app.get('/api/account/student-preferences', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
+    if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+      return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    }
+
+    const [user, portfolio] = await Promise.all([
+      ensureAccessUser({ contact, accessCode }),
+      Portfolio.findOne({ contact, accessCodeHash }).lean(),
+    ]);
+    const preferences = resolveSavedMajorCity({ portfolio, user });
+    const firstName =
+      user?.firstName || (portfolio?.fullName || "").trim().split(/\s+/)[0] || "";
+
+    res.json({
+      account: { firstName },
+      preferences,
+    });
+  } catch (err) {
+    console.error("❌ Student preferences fetch error:", err);
+    res.status(500).json({ error: "تعذر تحميل تفضيلات رحلتك الآن." });
+  }
+});
+
+app.post('/api/account/student-preferences', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
+    if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+      return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    }
+
+    const updates = buildMajorCityProfileUpdates({
+      major: sanitizePortfolioText(req.body?.major, 90),
+      city: sanitizePortfolioText(req.body?.city, 60),
+    });
+    if (!updates.major || !updates.city) {
+      return res.status(400).json({ error: "اختر التخصص والمدينة أولًا." });
+    }
+
+    const user = await ensureAccessUser({ contact, accessCode });
+    const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
+    const writes = [
+      User.updateOne(
+        { _id: user._id },
+        { $set: { preferredMajor: updates.major, preferredCity: updates.city } }
+      ),
+    ];
+    if (portfolio?._id) {
+      writes.push(
+        Portfolio.updateOne(
+          { _id: portfolio._id, contact, accessCodeHash },
+          {
+            $set: {
+              ...updates,
+              preferredMajor: updates.major,
+              preferredCity: updates.city,
+            },
+          }
+        )
+      );
+    }
+    await Promise.all(writes);
+
+    res.json({
+      account: { firstName: user.firstName || "" },
+      preferences: updates,
+    });
+  } catch (err) {
+    console.error("❌ Student preferences save error:", err);
+    res.status(500).json({ error: "تعذر حفظ تفضيلات رحلتك الآن." });
+  }
+});
+
 app.post('/api/account/reward-identity', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {

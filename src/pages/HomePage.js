@@ -15,9 +15,15 @@ import { cityOptions, specializationOptions } from "../data/trainingOptions";
 import {
   getStoredPremiumPass,
   getStoredAccessIdentity,
+  getAccessHeaders,
   passHasEntitlement,
   PREMIUM_STATUS_EVENT,
 } from "../utils/premiumAccess";
+import {
+  getStoredJourneyPreferences,
+  hasJourneyPreferences,
+  saveStoredJourneyPreferences,
+} from "../utils/studentJourneyPreferences";
 
 const homeFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 
@@ -99,15 +105,22 @@ const OpportunityLogo = ({ opportunity }) => {
 };
 
 const HomePage = () => {
+  const initialJourneyPreferencesRef = useRef(getStoredJourneyPreferences());
+  const initialJourneyPreferences = initialJourneyPreferencesRef.current;
   const [stats, setStats] = useState({});
   const [opportunities, setOpportunities] = useState([]);
   const [experiences, setExperiences] = useState([]);
   const [interviews, setInterviews] = useState([]);
   const [subscriptionPlans, setSubscriptionPlans] = useState(homepagePlanFallbacks);
-  const [major, setMajor] = useState("");
-  const [city, setCity] = useState("");
+  const [major, setMajor] = useState(initialJourneyPreferences.preferredMajor);
+  const [city, setCity] = useState(initialJourneyPreferences.preferredCity);
+  const [journeyPreferences, setJourneyPreferences] = useState(initialJourneyPreferences);
+  const [profileFirstName, setProfileFirstName] = useState("");
+  const [latestApplication, setLatestApplication] = useState(null);
+  const [applicationCount, setApplicationCount] = useState(0);
+  const [isChangingJourney, setIsChangingJourney] = useState(false);
   const [highlightedPlanId, setHighlightedPlanId] = useState("");
-  const [journeyReady, setJourneyReady] = useState(false);
+  const [journeyReady, setJourneyReady] = useState(() => hasJourneyPreferences(initialJourneyPreferences));
   const [premiumPass, setPremiumPass] = useState(() => getStoredPremiumPass());
   const defaultPreviewsRef = useRef({ opportunities: [], experiences: [], interviews: [] });
   const pricingRef = useRef(null);
@@ -140,6 +153,59 @@ const HomePage = () => {
     });
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    const identity = getStoredAccessIdentity();
+    if (!identity.contact || !identity.accessCode) return undefined;
+
+    let alive = true;
+    fetch(`${API_BASE_URL}/api/account/student-preferences`, { headers: getAccessHeaders() })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!alive || !payload?.preferences) return;
+        const account = payload.account || {};
+        if (account.firstName) setProfileFirstName(account.firstName);
+        const savedPreferences = {
+          preferredMajor: payload.preferences.major,
+          preferredCity: payload.preferences.city,
+        };
+        if (hasJourneyPreferences(savedPreferences)) {
+          const nextPreferences = saveStoredJourneyPreferences(savedPreferences);
+          setJourneyPreferences(nextPreferences);
+          setMajor(nextPreferences.preferredMajor);
+          setCity(nextPreferences.preferredCity);
+          setJourneyReady(true);
+        }
+      })
+      .catch(() => null);
+    fetch(`${API_BASE_URL}/api/company-applications/me`, { headers: getAccessHeaders() })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!alive || !Array.isArray(payload?.data)) return;
+        setApplicationCount(payload.data.length);
+        setLatestApplication(payload.data[0] || null);
+      })
+      .catch(() => null);
+
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    const handleFreeAccountSaved = (event) => {
+      const account = event.detail || {};
+      if (account.firstName) setProfileFirstName(account.firstName);
+      const preferences = saveStoredJourneyPreferences({
+        preferredMajor: account.preferredMajor || major,
+        preferredCity: account.preferredCity || city,
+      });
+      setJourneyPreferences(preferences);
+      setMajor(preferences.preferredMajor);
+      setCity(preferences.preferredCity);
+      setJourneyReady(true);
+    };
+    window.addEventListener("darbak:free-account-saved", handleFreeAccountSaved);
+    return () => window.removeEventListener("darbak:free-account-saved", handleFreeAccountSaved);
+  }, [city, major]);
 
   useEffect(() => {
     if (!journeyReady || !major || !city) return;
@@ -220,7 +286,36 @@ const HomePage = () => {
     return `/where-to-train${params.toString() ? `?${params}` : ""}`;
   };
 
-  const beginJourney = () => setJourneyReady(true);
+  const saveJourneyPreferencesToBackend = (preferences) => {
+    const identity = getStoredAccessIdentity();
+    if (!identity.contact || !identity.accessCode) return;
+
+    fetch(`${API_BASE_URL}/api/account/student-preferences`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAccessHeaders() },
+      body: JSON.stringify({
+        major: preferences.preferredMajor,
+        city: preferences.preferredCity,
+      }),
+    })
+      .catch(() => null);
+  };
+  const beginJourney = () => {
+    const preferences = saveStoredJourneyPreferences({ preferredMajor: major, preferredCity: city });
+    setJourneyPreferences(preferences);
+    setJourneyReady(true);
+    setIsChangingJourney(false);
+    saveJourneyPreferencesToBackend(preferences);
+  };
+  const openSaveJourney = () => {
+    window.dispatchEvent(new CustomEvent("darbak:open-account", {
+      detail: {
+        mode: "save_journey",
+        preferredMajor: journeyPreferences.preferredMajor || major,
+        preferredCity: journeyPreferences.preferredCity || city,
+      },
+    }));
+  };
   const showResumePlan = () => {
     setHighlightedPlanId("darbak_resume");
     pricingRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -251,6 +346,36 @@ const HomePage = () => {
       : getStoredAccessIdentity().contact
         ? "اشترك وابدأ"
         : "شوف باقة سيرتي";
+  const hasSavedJourney = hasJourneyPreferences(journeyPreferences);
+  const returningJourneyMessage = applicationCount
+    ? `عندك ${applicationCount} ${applicationCount === 1 ? "طلب قيد المتابعة" : "طلبات قيد المتابعة"}`
+    : `جهزنا لك فرص تناسب تخصصك في ${journeyPreferences.preferredCity}`;
+  const todayItems = [
+    latestApplication && {
+      type: "كمل من وين وقفت",
+      title: latestApplication.organizationName || "طلب تدريبك",
+      description: latestApplication.opportunityTitle || "تابع حالة طلبك",
+      to: "/applications",
+    },
+    opportunities[0] && {
+      type: "فرصة حديثة",
+      title: opportunities[0].organizationName || opportunities[0].title,
+      description: opportunities[0].title || "فرصة تدريب تعاوني",
+      to: `/where-to-train?tab=opportunities&opportunity=${opportunities[0]._id}`,
+    },
+    experiences[0] && {
+      type: "تجربة طلابية",
+      title: experiences[0].organizationName || experiences[0].companyName || "تجربة تدريب",
+      description: experiences[0].major || experiences[0].city || "اقرأ تجربة طالب في دربك",
+      to: `/experiences/${experiences[0]._id}`,
+    },
+    interviews[0] && {
+      type: "مقابلة",
+      title: interviews[0].organizationName || interviews[0].companyName || interviews[0].title || "تجربة مقابلة",
+      description: interviews[0].major || "أسئلة وتجارب تساعدك تستعد",
+      to: interviews[0]._id ? `/interviews/${interviews[0]._id}` : "/interviews",
+    },
+  ].filter(Boolean).slice(0, 4);
 
   return (
     <main className="home-page" dir="rtl">
@@ -258,11 +383,17 @@ const HomePage = () => {
         <HeroAtmosphere />
         <div className="home-hero-layout">
           <div className="home-hero-copy">
+            {hasSavedJourney && !isChangingJourney && <div className="home-returning-journey">
+              <span>{profileFirstName ? `هلا ${profileFirstName} 👋` : "هذا الجديد لك حسب بحثك 👋"}</span>
+              <strong>{returningJourneyMessage}</strong>
+              <small>رحلتك: {journeyPreferences.preferredMajor} · {journeyPreferences.preferredCity}</small>
+              <button type="button" onClick={() => setIsChangingJourney(true)}>تغيير</button>
+            </div>}
             <span className="home-eyebrow">منصة سعودية لرحلة التدريب التعاوني</span>
             <h1><span className="home-title-brand">دربك</span> معك من البحث عن جهة حتى <span className="home-title-brand">التقديم.</span></h1>
             <p>اكتشف الجهات والفرص، شوف تجارب ومقابلات الطلاب، وجهّز تقديمك لما تلقى الجهة المناسبة.</p>
           </div>
-          <form className="home-start-card" onSubmit={(event) => { event.preventDefault(); beginJourney(); }}>
+          {(!hasSavedJourney || isChangingJourney) && <form className="home-start-card" onSubmit={(event) => { event.preventDefault(); beginJourney(); }}>
             <span className="home-start-kicker">ابدأ من هنا</span>
             <h2>خلّنا نرتب لك البداية</h2>
             <div className="home-start-fields">
@@ -281,16 +412,30 @@ const HomePage = () => {
             </div>
             <button className="home-button home-button-primary" type="submit">رتّب لي رحلتي <FiArrowLeft aria-hidden="true" /></button>
             <div className="home-start-flow">جهات وفرص مناسبة <i /> تجارب ومقابلات <i /> سيرتك وتقديمك</div>
-          </form>
+          </form>}
+          {hasSavedJourney && !isChangingJourney && <aside className="home-saved-journey-card">
+            <span>رحلتك في دربك</span>
+            <strong>{journeyPreferences.preferredMajor}</strong>
+            <small>{journeyPreferences.preferredCity}</small>
+            <Link to={finderUrl()}>شوف الجهات والفرص <FiArrowLeft /></Link>
+            <button type="button" onClick={() => setIsChangingJourney(true)}>تغيير الرحلة</button>
+          </aside>}
         </div>
       </section>
 
       {journeyReady && <section className="home-journey-result" aria-live="polite">
-        <div className="home-journey-result-head"><span>رحلتك جاهزة</span><h2>ثلاث خطوات، ونبدأ بالأقرب لك</h2></div>
+        <div className="home-journey-result-head"><div><span>رحلتك جاهزة</span><h2>ثلاث خطوات، ونبدأ بالأقرب لك</h2></div>{!getStoredAccessIdentity().contact && <button type="button" className="home-save-journey" onClick={openSaveJourney}><strong>احفظ رحلتك</strong><small>عشان نحفظ تخصصك ومدينتك ونطلع لك الجديد كل مرة.</small></button>}</div>
         <div className="home-journey-result-grid">
           <article><b>01</b><strong>اكتشف</strong><p>جهات وفرص تناسب تخصصك ومدينتك.</p><Link to={finderUrl()}>شوف الجهات والفرص <FiArrowLeft /></Link></article>
           <article><b>02</b><strong>اعرف قبل ما تقدم</strong><p>تجارب ومقابلات من طلاب سبقوك.</p><Link to={experienceUrl()}>شوف التجارب <FiArrowLeft /></Link></article>
           <article className="home-journey-resume"><b>03</b><span>ضمن باقة سيرتي ✨</span><strong>جهّز تقديمك</strong><p>سيرة مخصصة + خطاب تقديم + رسالة إيميل.</p>{activePlanLabel && <small>باقتك الحالية: {activePlanLabel}</small>}<Link to="/my-resume">{resumeJourneyCta} <FiArrowLeft /></Link></article>
+        </div>
+      </section>}
+
+      {hasSavedJourney && todayItems.length > 0 && <section className="home-today-section" aria-label="لك اليوم">
+        <div className="home-today-heading"><div><span>لك اليوم ✨</span><h2>أحدث ما يناسب رحلتك</h2></div><small>{journeyPreferences.preferredMajor} · {journeyPreferences.preferredCity}</small></div>
+        <div className="home-today-grid">
+          {todayItems.map((item) => <Link key={`${item.type}-${item.title}`} to={item.to} className="home-today-card"><span>{item.type}</span><strong>{item.title}</strong><small>{item.description}</small><b>افتح <FiArrowLeft /></b></Link>)}
         </div>
       </section>}
 
@@ -308,7 +453,7 @@ const HomePage = () => {
             <Link className="home-story-link" to={finderUrl()}>استكشف الجهات <FiArrowLeft /></Link>
           </div>
           <div className="home-story-visual" aria-label="فرص وجهات من دربك">
-            <div className="home-visual-head"><strong>جهات وفرص مناسبة</strong><span>محدثة من دربك</span></div>
+            <div className="home-visual-head"><strong>{hasSavedJourney ? "فرص تناسب تخصصك" : "جهات وفرص مناسبة"}</strong><span>{hasSavedJourney ? `في ${journeyPreferences.preferredCity}` : "محدثة من دربك"}</span></div>
             <div className="home-visual-list">
               {opportunities.slice(0, 3).map((opportunity) => (
                 <Link className="home-story-item" key={opportunity._id} to={`/where-to-train?tab=opportunities&opportunity=${opportunity._id}`}>
@@ -433,6 +578,8 @@ const HomePage = () => {
         .home-hero-atmosphere { position: absolute; inset-block: 0; left: 50%; width: 100vw; transform: translateX(-50%); overflow: hidden; pointer-events: none; opacity: .92; }
         .home-hero-atmosphere::before { content: ""; position: absolute; width: min(61%, 710px); height: 250px; top: 18%; left: -4%; border-radius: 50%; background: radial-gradient(ellipse, rgba(59, 159, 154, .18), rgba(52, 121, 133, .07) 38%, transparent 72%); filter: blur(6px); }
         .home-hero-atmosphere::after { content: ""; position: absolute; width: 370px; height: 250px; top: 7%; right: -12%; border-radius: 50%; background: radial-gradient(ellipse, rgba(126, 222, 207, .09), transparent 70%); filter: blur(8px); }
+        .home-returning-journey { display: grid; gap: 5px; width: fit-content; max-width: 100%; margin-bottom: 18px; padding: 13px 15px; border: 1px solid var(--app-brand-border); border-radius: 15px; background: var(--app-brand-soft); }.home-returning-journey span { color: var(--app-brand); font-size: 13px; font-weight: 900; }.home-returning-journey strong { font-size: 15px; line-height: 1.6; }.home-returning-journey small { color: var(--app-text-soft); font-size: 12px; }.home-returning-journey button { width: fit-content; margin-top: 3px; padding: 0; border: 0; background: transparent; color: var(--app-brand); cursor: pointer; font: inherit; font-size: 12px; font-weight: 900; }
+        .home-saved-journey-card { display: grid; align-content: center; gap: 7px; min-height: 250px; padding: 26px; border: 1px solid var(--app-brand-border); border-radius: 22px; background: rgba(16, 23, 27, .96); box-shadow: 0 26px 70px var(--app-shadow), 0 0 38px var(--app-brand-soft); }.home-saved-journey-card > span { color: var(--app-brand); font-size: 13px; font-weight: 900; }.home-saved-journey-card strong { font-size: 27px; line-height: 1.35; }.home-saved-journey-card small { color: var(--app-text-soft); font-size: 15px; }.home-saved-journey-card a { display: inline-flex; align-items: center; gap: 6px; width: fit-content; margin-top: 12px; color: var(--app-brand); font-size: 14px; font-weight: 900; text-decoration: none; }.home-saved-journey-card button { width: fit-content; margin-top: 2px; padding: 0; border: 0; background: transparent; color: var(--app-muted); cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; }
         .home-star { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: rgba(238, 255, 251, .82); box-shadow: 0 0 10px rgba(211, 255, 246, .32); animation: homeTwinkle 3.6s ease-in-out infinite; }
         .home-star-one { top: 24%; right: 11%; }.home-star-two { top: 43%; right: 43%; animation-delay: .65s; }.home-star-three { top: 22%; left: 31%; animation-delay: 1.2s; }.home-star-four { bottom: 18%; left: 13%; animation-delay: 1.75s; }
         @keyframes homeTwinkle { 0%, 100% { opacity: .26; transform: scale(.75); } 50% { opacity: .86; transform: scale(1.15); } }
@@ -485,11 +632,12 @@ const HomePage = () => {
         .home-section { padding: 34px 0; }.home-journey-section { padding-top: 8px; }.home-section-heading { margin-bottom: 18px; }.home-finder-section { margin-top: 0; }.home-opportunities-section { padding-top: 20px; }
         .home-resume-section { display: grid; grid-template-columns: minmax(0, 1fr) 390px; align-items: center; gap: 34px; margin-top: 18px; padding: 26px 30px; box-sizing: border-box; border: 1px solid var(--app-brand-border); border-radius: 18px; background: var(--app-surface); }.home-resume-copy > span { color: var(--app-brand); font-weight: 800; font-size: 13px; }.home-resume-copy h2 { margin: 6px 0; font-size: clamp(23px, 2.6vw, 32px); }.home-resume-copy p { max-width: 570px; margin: 0 0 17px; color: var(--app-text-soft); line-height: 1.75; }.home-pack-preview-compact { grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px; box-shadow: none; }.home-pack-preview-compact .home-preview-row { grid-template-columns: 16px 1fr; gap: 6px; min-height: 52px; padding: 10px; font-size: 12px; }.home-pack-preview-compact .home-preview-row strong { font-size: 12px; }.home-pricing-section { padding: 28px 0 32px; }.home-pricing-heading { display: flex; align-items: baseline; justify-content: space-between; text-align: right; }.home-pricing-heading h2 { font-size: 25px; }.home-pricing-grid { grid-template-columns: repeat(3, 1fr); max-width: none; gap: 10px; }.home-pricing-card { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 7px 12px; min-height: 110px; padding: 16px; border-radius: 15px; }.home-pricing-card > div { display: grid; gap: 5px; }.home-pricing-card > div > span { color: var(--app-brand); font-weight: 800; font-size: 14px; }.home-pricing-card > div > strong { font-size: 19px; }.home-plan-new-badge { width: fit-content; padding: 3px 7px; border-radius: 999px; background: var(--app-brand-soft); color: var(--app-brand); font-size: 10px; font-weight: 800; }.home-pricing-card em { color: var(--app-muted); font-size: 10px; font-style: normal; font-weight: 600; }.home-pricing-card p { grid-column: 1 / -1; margin: 0; color: var(--app-text-soft); font-size: 12px; }.home-pricing-card > a { justify-self: end; color: var(--app-brand); font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }
         .home-hero { padding: 82px 0 72px; }.home-hero-layout { grid-template-columns: minmax(0, 1fr) minmax(360px, .88fr); gap: 54px; }.home-hero h1 { max-width: 670px; font-size: clamp(38px, 4.4vw, 58px); line-height: 1.16; font-weight: 700; letter-spacing: -.03em; }.home-hero p { font-size: 18px; }.home-start-card { gap: 12px; padding: 26px; border: 1px solid color-mix(in srgb, var(--app-brand) 58%, var(--app-border)); border-radius: 22px; background: rgba(16, 23, 27, .98); box-shadow: 0 30px 92px rgba(0, 0, 0, .22), 0 0 0 1px rgba(126, 222, 207, .06) inset; }.home-start-card h2 { font-size: 27px; }.home-start-fields { grid-template-columns: 1fr 1fr; gap: 10px; margin: 5px 0 1px; }.home-start-card label { color: var(--app-text); font-weight: 800; }.home-start-card select { height: 52px; border-radius: 13px; border-color: var(--app-brand-border); }.home-start-card select:focus { outline: 0; border-color: var(--app-brand); box-shadow: 0 0 0 3px var(--app-brand-soft); }.home-start-card .home-button { min-height: 52px; }.home-start-flow { margin-top: 3px; font-size: 11px; }
-        .home-journey-result { width: min(1180px, calc(100% - 40px)); margin: -20px auto 10px; padding: 20px; border: 1px solid var(--app-brand-border); border-radius: 18px; background: rgba(15, 23, 27, .96); box-shadow: 0 18px 46px var(--app-shadow); }.home-journey-result-head { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; margin-bottom: 15px; }.home-journey-result-head span { color: var(--app-brand); font-weight: 900; font-size: 13px; }.home-journey-result-head h2 { margin: 0; font-size: 21px; }.home-journey-result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }.home-journey-result-grid article { display: grid; align-content: start; gap: 7px; min-height: 150px; padding: 15px; border: 1px solid var(--app-border-soft); border-radius: 14px; background: var(--app-input-bg); }.home-journey-result-grid b { color: var(--app-brand); font-size: 11px; }.home-journey-result-grid strong { font-size: 17px; }.home-journey-result-grid p { min-height: 38px; margin: 0; color: var(--app-text-soft); font-size: 13px; line-height: 1.55; }.home-journey-result-grid small { color: var(--app-muted); font-size: 11px; }.home-journey-result-grid a { display: inline-flex; align-items: center; gap: 5px; margin-top: auto; color: var(--app-brand); font-size: 13px; font-weight: 900; text-decoration: none; }.home-journey-resume { border-color: var(--app-brand-border) !important; }.home-journey-resume > span, .home-pack-access-badge { width: fit-content; padding: 3px 7px; border: 1px solid var(--app-brand-border); border-radius: 999px; background: var(--app-brand-soft); color: var(--app-brand); font-size: 10px; font-style: normal; font-weight: 900; }
+        .home-journey-result { width: min(1180px, calc(100% - 40px)); margin: -20px auto 10px; padding: 20px; border: 1px solid var(--app-brand-border); border-radius: 18px; background: rgba(15, 23, 27, .96); box-shadow: 0 18px 46px var(--app-shadow); }.home-journey-result-head { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; margin-bottom: 15px; }.home-journey-result-head span { color: var(--app-brand); font-weight: 900; font-size: 13px; }.home-journey-result-head h2 { margin: 0; font-size: 21px; }.home-save-journey { display: grid; gap: 2px; min-width: 232px; padding: 10px 12px; border: 1px solid var(--app-brand-border); border-radius: 12px; background: var(--app-brand-soft); color: var(--app-text); cursor: pointer; font: inherit; text-align: right; }.home-save-journey strong { color: var(--app-brand); font-size: 13px; font-weight: 900; }.home-save-journey small { color: var(--app-text-soft); font-size: 11px; line-height: 1.5; }.home-journey-result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }.home-journey-result-grid article { display: grid; align-content: start; gap: 7px; min-height: 150px; padding: 15px; border: 1px solid var(--app-border-soft); border-radius: 14px; background: var(--app-input-bg); }.home-journey-result-grid b { color: var(--app-brand); font-size: 11px; }.home-journey-result-grid strong { font-size: 17px; }.home-journey-result-grid p { min-height: 38px; margin: 0; color: var(--app-text-soft); font-size: 13px; line-height: 1.55; }.home-journey-result-grid small { color: var(--app-muted); font-size: 11px; }.home-journey-result-grid a { display: inline-flex; align-items: center; gap: 5px; margin-top: auto; color: var(--app-brand); font-size: 13px; font-weight: 900; text-decoration: none; }.home-journey-resume { border-color: var(--app-brand-border) !important; }.home-journey-resume > span, .home-pack-access-badge { width: fit-content; padding: 3px 7px; border: 1px solid var(--app-brand-border); border-radius: 999px; background: var(--app-brand-soft); color: var(--app-brand); font-size: 10px; font-style: normal; font-weight: 900; }
+        .home-today-section { width: min(1180px, calc(100% - 40px)); margin: 24px auto 0; padding: 20px; border: 1px solid var(--app-border); border-radius: 18px; background: var(--app-surface); }.home-today-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 14px; }.home-today-heading span { color: var(--app-brand); font-size: 13px; font-weight: 900; }.home-today-heading h2 { margin: 5px 0 0; font-size: 22px; }.home-today-heading > small { color: var(--app-muted); font-size: 12px; }.home-today-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }.home-today-card { display: grid; gap: 6px; min-width: 0; padding: 14px; border: 1px solid var(--app-border-soft); border-radius: 14px; background: var(--app-input-bg); color: var(--app-text); text-decoration: none; transition: border-color .2s ease, transform .2s ease; }.home-today-card:hover { border-color: var(--app-brand-border); transform: translateY(-2px); }.home-today-card > span { width: fit-content; color: var(--app-brand); font-size: 11px; font-weight: 900; }.home-today-card strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.home-today-card small { min-height: 32px; color: var(--app-text-soft); font-size: 12px; line-height: 1.45; }.home-today-card b { display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; color: var(--app-brand); font-size: 12px; }
         .home-story-section { position: relative; padding: 80px 0; border-bottom: 1px solid var(--app-border); }.home-story-section::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; }.home-story-alt::before { background: rgba(10, 16, 19, .46); }.home-story-grid { width: min(1180px, calc(100% - 40px)); margin-inline: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, .92fr); gap: 64px; align-items: center; }.home-story-reverse .home-story-visual { order: 2; }.home-story-reverse .home-story-copy { order: 1; }.home-story-copy > span { color: var(--app-brand); font-size: 13px; font-weight: 900; }.home-story-copy h2 { max-width: 570px; margin: 9px 0 15px; font-size: clamp(36px, 4.6vw, 56px); line-height: 1.12; letter-spacing: -.035em; }.home-story-copy h2 b { color: var(--app-brand); font-weight: 900; }.home-story-copy > p { max-width: 550px; margin: 0; color: var(--app-text-soft); font-size: 16px; line-height: 1.9; }.home-story-copy ul { display: grid; gap: 10px; margin: 23px 0 0; padding: 0; list-style: none; color: var(--app-text-soft); font-size: 14px; }.home-story-copy li { display: flex; align-items: center; gap: 9px; }.home-story-copy li svg { width: 23px; height: 23px; padding: 5px; box-sizing: border-box; color: var(--app-brand); border: 1px solid var(--app-brand-border); border-radius: 7px; background: var(--app-brand-soft); }.home-story-link { display: inline-flex; align-items: center; gap: 7px; margin-top: 25px; color: var(--app-brand); font-weight: 900; text-decoration: none; }.home-story-visual { min-height: 330px; padding: 18px; box-sizing: border-box; border: 1px solid var(--app-border); border-radius: 20px; background: rgba(15, 23, 27, .94); box-shadow: 0 26px 70px rgba(0, 0, 0, .14); }.home-visual-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 2px 2px 14px; border-bottom: 1px solid var(--app-border-soft); }.home-visual-head strong { font-size: 14px; }.home-visual-head span { color: var(--app-brand); font-size: 11px; font-weight: 800; }.home-visual-list { display: grid; gap: 10px; margin-top: 14px; }.home-story-item, .home-story-note { display: grid; grid-template-columns: auto 1fr; gap: 11px; align-items: center; padding: 13px; border: 1px solid var(--app-border-soft); border-radius: 14px; background: var(--app-input-bg); color: var(--app-text); text-decoration: none; }.home-story-item:hover, .home-story-note:hover { border-color: var(--app-brand-border); }.home-opportunity-logo { width: 42px; height: 42px; min-width: 42px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--app-brand-border); border-radius: 14px; background: var(--app-brand-soft); color: var(--app-brand); }.home-opportunity-logo img { width: 25px; height: 25px; display: block; object-fit: contain; padding: 3px; box-sizing: border-box; border-radius: 6px; background: #ffffff; }.home-opportunity-logo b { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--app-brand-border); border-radius: 10px; background: var(--app-input-bg); color: var(--app-brand); font-size: 18px; font-weight: 900; }.home-story-item div, .home-story-note { min-width: 0; }.home-story-item strong, .home-story-note strong, .home-pack-card strong, .home-dashboard-row strong { display: block; font-size: 14px; }.home-story-item small, .home-story-note small, .home-pack-card small, .home-dashboard-row small { display: block; margin-top: 4px; color: var(--app-muted); font-size: 11px; line-height: 1.5; }.home-visual-tabs { display: flex; gap: 8px; margin-top: 13px; }.home-visual-tabs a { padding: 6px 10px; border: 1px solid var(--app-brand-border); border-radius: 999px; color: var(--app-brand); background: var(--app-brand-soft); font-size: 11px; font-weight: 800; text-decoration: none; }.home-story-note { display: block; }.home-story-note p { margin: 8px 0 0; color: var(--app-text-soft); font-size: 12px; line-height: 1.75; }.home-interview-note { border-color: var(--app-brand-border); }.home-pack-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 15px; }.home-pack-card { position: relative; display: grid; align-content: start; gap: 7px; min-height: 138px; padding: 14px; border: 1px solid var(--app-border-soft); border-radius: 14px; background: var(--app-input-bg); }.home-pack-card > svg { width: 22px; height: 22px; color: var(--app-brand); }.home-pack-card > span { width: fit-content; padding: 3px 7px; border: 1px solid var(--app-brand-border); border-radius: 999px; color: var(--app-brand); background: var(--app-brand-soft); font-size: 10px; font-weight: 900; }.home-pack-card strong { font-size: 15px; }.home-pack-card small { line-height: 1.6; }.home-dashboard-row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; margin-top: 11px; padding: 13px; border: 1px solid var(--app-border-soft); border-radius: 13px; background: var(--app-input-bg); }.home-dashboard-row > svg { color: var(--app-brand); }.home-dashboard-row i { width: 8px; height: 8px; border-radius: 50%; background: var(--app-brand); }
         @media (max-width: 800px) {
           .home-hero, .home-section, .home-company-section, .home-pricing-section, .home-resume-section { width: min(100% - 28px, 600px); }
-          .home-hero { padding: 52px 0 48px; }.home-hero-atmosphere { left: 0; width: 100%; transform: none; }.home-hero-layout { grid-template-columns: 1fr; gap: 26px; }.home-hero h1 { font-size: 42px; }.home-hero p { font-size: 16px; }.home-start-card { padding: 20px; }.home-start-fields { grid-template-columns: 1fr; }.home-journey-result { width: min(100% - 28px, 600px); margin-top: -12px; padding: 15px; }.home-journey-result-head { display: block; }.home-journey-result-head h2 { margin-top: 4px; font-size: 19px; }.home-journey-result-grid { grid-template-columns: 1fr; }.home-journey-result-grid article { min-height: 0; }
+          .home-hero { padding: 52px 0 48px; }.home-hero-atmosphere { left: 0; width: 100%; transform: none; }.home-hero-layout { grid-template-columns: 1fr; gap: 26px; }.home-hero h1 { font-size: 42px; }.home-hero p { font-size: 16px; }.home-returning-journey { margin-bottom: 14px; }.home-start-card, .home-saved-journey-card { padding: 20px; }.home-start-fields { grid-template-columns: 1fr; }.home-journey-result { width: min(100% - 28px, 600px); margin-top: -12px; padding: 15px; }.home-journey-result-head { display: grid; }.home-journey-result-head h2 { margin-top: 4px; font-size: 19px; }.home-save-journey { width: 100%; box-sizing: border-box; }.home-journey-result-grid { grid-template-columns: 1fr; }.home-journey-result-grid article { min-height: 0; }.home-today-section { width: min(100% - 28px, 600px); margin-top: 16px; padding: 16px; }.home-today-heading { align-items: start; flex-direction: column; gap: 5px; }.home-today-heading h2 { font-size: 20px; }.home-today-grid { grid-template-columns: 1fr; }.home-today-card small { min-height: 0; }
           .home-section { padding: 27px 0; }.home-section-heading { margin-bottom: 16px; }.home-section-heading h2 { font-size: 26px; }.home-heading-inline, .home-heading-row { align-items: flex-start; flex-direction: column; }.home-finder-section { padding: 22px 18px; }.home-finder-layout { grid-template-columns: 1fr; gap: 16px; }.home-finder-form { grid-template-columns: 1fr; }.home-finder-form .home-button { width: 100%; }.home-preview-grid { grid-template-columns: 1fr; gap: 10px; }.home-content-card { min-height: 132px; }.home-resume-section { grid-template-columns: 1fr; gap: 18px; padding: 23px 18px; }.home-pack-preview-compact { grid-template-columns: 1fr; }.home-pricing-heading { display: block; }.home-pricing-grid { grid-template-columns: 1fr; }.home-pricing-card { min-height: 0; }.home-stats-grid { grid-template-columns: repeat(2, 1fr); }.home-stats-grid a:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--app-border-soft); }.home-stats-grid a:nth-child(4) { border-top: 1px solid var(--app-border-soft); }.home-company-section { grid-template-columns: auto 1fr; padding: 20px; }.home-company-section .home-button { grid-column: 1 / -1; width: 100%; }
           .home-story-section { padding: 52px 0; }.home-story-grid { width: min(100% - 28px, 600px); grid-template-columns: 1fr; gap: 28px; }.home-story-reverse .home-story-visual, .home-story-reverse .home-story-copy { order: initial; }.home-story-copy h2 { font-size: 34px; }.home-story-visual { min-height: 0; padding: 15px; }.home-pack-cards { grid-template-columns: 1fr; }.home-pack-card { min-height: 0; }.home-pricing-heading { display: block; }
         }

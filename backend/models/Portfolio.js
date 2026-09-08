@@ -121,6 +121,16 @@ const portfolioSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    preferredMajor: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    preferredCity: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     dateOfBirth: {
       type: String,
       default: "",
