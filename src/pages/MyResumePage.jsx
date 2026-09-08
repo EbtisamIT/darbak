@@ -526,6 +526,13 @@ const MyResumePage = () => {
       setResumeMode("editor");
       if (data.version?._id) navigate(`/my-resume/versions/${data.version._id}`);
       setEnglishTranslationReady(true);
+      const localizedCount = Number(data.diagnostics?.fieldsLocalized || 0);
+      const reusedCount = Number(data.diagnostics?.fieldsReused || 0);
+      setMessage(
+        localizedCount
+          ? `تم تحديث ${localizedCount} عنصرًا متغيرًا وإبقاء ${reusedCount} ترجمة محفوظة كما هي.`
+          : "نسختك الإنجليزية محدثة بالفعل؛ لم نحتج إلى تشغيل الترجمة مرة أخرى.",
+      );
       trackEvent("resume_translate_english_clicked", {
         page: "/my-resume",
         metadata: {
@@ -534,7 +541,11 @@ const MyResumePage = () => {
         },
       });
     } catch (err) {
-      setError(err.response?.data?.error || "تعذر ترجمة السيرة الآن.");
+      const retryAfterSeconds = Number(err.response?.data?.retryAfterSeconds || 0);
+      const waitCopy = retryAfterSeconds
+        ? ` يمكنك المحاولة بعد ${Math.ceil(retryAfterSeconds / 60)} دقيقة تقريبًا.`
+        : "";
+      setError(`${err.response?.data?.error || "تعذر ترجمة السيرة الآن."}${waitCopy}`);
     } finally {
       setTranslating(false);
     }

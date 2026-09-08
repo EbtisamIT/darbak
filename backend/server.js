@@ -7633,7 +7633,8 @@ const checkResumeAiRateLimit = (req, res, action = "resume_ai") => {
 
   if (current.count > RESUME_AI_RATE_LIMIT_MAX) {
     res.status(429).json({
-      error: "وصلت للحد المؤقت من طلبات السيرة. انتظر قليلًا ثم حاول مرة أخرى.",
+      error: "أوقفنا محاولات الترجمة مؤقتًا بعد عدة طلبات متقاربة. لن تفقد بياناتك؛ أعد المحاولة بعد قليل.",
+      retryAfterSeconds: Math.max(1, Math.ceil((current.resetsAt - now) / 1000)),
     });
     return false;
   }
@@ -9858,23 +9859,9 @@ app.post('/api/resume/ai/tailor', requireResumeAccess, async (req, res) => {
 
 app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) => {
   try {
-    if (!checkResumeAiRateLimit(req, res, "translate_resume")) return;
-
     const idempotencyKey = getResumeAiIdempotencyKey(req, "translate_resume");
     const cached = getResumeAiCachedResponse(idempotencyKey);
     if (cached) return res.json({ ...cached, idempotentReplay: true });
-
-    const usageBefore = getResumeUsageSnapshot(req.darbakAccess);
-    if (
-      !req.darbakAccess.isAdmin &&
-      usageBefore.aiResumeUsageLimit > 0 &&
-      usageBefore.aiResumeUsageCount >= usageBefore.aiResumeUsageLimit
-    ) {
-      return res.status(429).json({
-        error: "استخدمت كل عمليات تخصيص السيرة لهذا الشهر.",
-        ...usageBefore,
-      });
-    }
 
     const storedResume = await getResumeForAccess({
       contact: req.darbakAccess.contact,
@@ -9908,6 +9895,22 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       resume: basePayload,
       existingEnglishResume: existingEnglishVersion?.resumePayload || {},
     });
+    // A no-op refresh reuses the saved English payload, so it must not consume
+    // a rate-limit slot or appear to the student as another AI request.
+    if (updatePlan.changedItems.length && !checkResumeAiRateLimit(req, res, "translate_resume")) return;
+
+    const usageBefore = getResumeUsageSnapshot(req.darbakAccess);
+    if (
+      updatePlan.changedItems.length &&
+      !req.darbakAccess.isAdmin &&
+      usageBefore.aiResumeUsageLimit > 0 &&
+      usageBefore.aiResumeUsageCount >= usageBefore.aiResumeUsageLimit
+    ) {
+      return res.status(429).json({
+        error: "استخدمت كل عمليات تخصيص السيرة لهذا الشهر.",
+        ...usageBefore,
+      });
+    }
     const result = updatePlan.changedItems.length
       ? await translateResumeToEnglish({
           resume: updatePlan.resume,
