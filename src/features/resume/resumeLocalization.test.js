@@ -125,6 +125,26 @@ describe("English resume presentation", () => {
     expect(localized.personalInfo.headline).toBe("Information Technology Graduate");
   });
 
+  it("keeps a saved Arabic resume phone when the verified portfolio snapshot has no phone", () => {
+    const localized = getLocalizedResumeForDisplay({
+      personalInfo: {
+        fullName: "سارة أحمد",
+        phone: "0500000000",
+        major: "تقنية المعلومات",
+      },
+      verifiedResumeFacts: {
+        personalInfo: {
+          fullName: "سارة أحمد",
+          phone: "",
+          major: "تقنية المعلومات",
+        },
+      },
+      settings: { language: "ar", direction: "rtl" },
+    });
+
+    expect(localized.personalInfo.phone).toBe("0500000000");
+  });
+
   it("replaces the current Arabic headline form with a confirmed English student headline", () => {
     const localized = getLocalizedResumeForDisplay({
       ...englishResume,

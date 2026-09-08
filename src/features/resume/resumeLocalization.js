@@ -358,7 +358,15 @@ export const applyVerifiedResumeFacts = (resume = {}) => {
   const facts = resume.verifiedResumeFacts;
   if (!facts) return resume;
   const language = resume.settings?.language === "en" ? "en" : "ar";
-  const personalInfo = { ...(resume.personalInfo || {}), ...(facts.personalInfo || {}) };
+  const personalInfo = { ...(resume.personalInfo || {}) };
+  Object.entries(facts.personalInfo || {}).forEach(([key, value]) => {
+    const hasVerifiedValue = Array.isArray(value)
+      ? value.length > 0
+      : value !== undefined && value !== null && String(value).trim().length > 0;
+    // A blank Portfolio fact must not erase a valid value already saved in the
+    // resume. This is especially important for phone numbers on older profiles.
+    if (hasVerifiedValue) personalInfo[key] = value;
+  });
   personalInfo.academicTrack = facts.personalInfo?.academicTrack || "";
   const composeEntries = (section) => {
     const verified = facts[section] || [];
