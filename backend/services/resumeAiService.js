@@ -458,6 +458,17 @@ const collectResumeTextForTranslation = (resume = {}) => {
             key: "title",
           });
         }
+        // Organization names are presentation values in English too. Keep the
+        // Arabic source fact intact and store its English display value by the
+        // stable entry id, rather than falling back to Arabic in the final CV.
+        if (section !== "education") {
+          add(`${section}:${entryId}:organization`, entry?.organization, {
+            kind: "localizedEntry",
+            section,
+            entryId,
+            key: "organization",
+          });
+        }
         ["description"].forEach((key) => {
           const text = key === "description" ? entry.description || entry.details : entry[key];
           add(`${section}:${entryId}:${key}`, text, { kind: "entry", section, entryId, key });
@@ -553,6 +564,16 @@ const applyResumeTranslations = (resume, items, translations) => {
         : [...(translatedResume.personalInfo?.[target.key] || [])];
       values[target.index] = text;
       translatedResume.localizedDisplay.personalInfo[target.key] = values;
+    } else if (target.kind === "localizedEntry") {
+      translatedResume.localizedDisplay = {
+        ...(translatedResume.localizedDisplay || {}),
+        entries: { ...(translatedResume.localizedDisplay?.entries || {}) },
+      };
+      const entryKey = `${target.section}:${target.entryId}`;
+      translatedResume.localizedDisplay.entries[entryKey] = {
+        ...(translatedResume.localizedDisplay.entries[entryKey] || {}),
+        [target.key]: text,
+      };
     } else if (target.kind === "entry" || target.kind === "achievement") {
       const entries = getResumeEntries(translatedResume, target.section);
       const entry = entries.find((candidate) => candidate?.id === target.entryId);
@@ -964,6 +985,8 @@ module.exports = {
   rewriteResumeSection,
   tailorResumeToOpportunity,
   translateResumeToEnglish,
+  collectResumeTextForTranslation,
+  applyResumeTranslations,
   assertTranslationIntegrity,
   assertEnglishSummaryIntegrity,
   tailoredResumeDraftSchema,

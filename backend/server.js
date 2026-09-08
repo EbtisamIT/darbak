@@ -7213,6 +7213,13 @@ const buildEnglishLocalizedDisplay = (resume = {}, generatedResume = {}) => {
       if (degree(entry.title || "")) values.title = degree(entry.title);
       if (entry.title === "دربك") values.title = "Darbak";
       if (entry.organization === "دربك") values.organization = "Darbak";
+      const generatedOrganization = sanitizeResumeText(
+        generatedResume.localizedDisplay?.entries?.[`${section}:${entry.id}`]?.organization || "",
+        180,
+      );
+      if (generatedOrganization && !/[\u0600-\u06FF]/.test(generatedOrganization)) {
+        values.organization = generatedOrganization;
+      }
       const generatedDescription = sanitizeResumeText(
         generatedEntry?.description || generatedEntry?.details || "",
         900,

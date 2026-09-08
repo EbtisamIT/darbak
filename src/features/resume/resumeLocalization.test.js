@@ -2,6 +2,7 @@ import {
   applyVerifiedResumeFacts,
   canonicalEnglishMajor,
   canonicalEnglishStudentStatus,
+  assertNoArabicScript,
   getEnglishReviewItems,
   getLocalizedResumeForDisplay,
 } from "./resumeLocalization";
@@ -339,7 +340,7 @@ describe("English resume presentation", () => {
     expect(getEnglishReviewItems(resume).filter((item) => item.section === "experience")).toEqual([]);
   });
 
-  it("keeps an experience organization visible in English when no translation is confirmed", () => {
+  it("requires a saved English organization localization instead of leaking Arabic into English", () => {
     const localized = getLocalizedResumeForDisplay({
       ...englishResume,
       experience: [{
@@ -355,10 +356,39 @@ describe("English resume presentation", () => {
     expect(localized.experience[0]).toMatchObject({
       id: "dana-internship",
       title: "Accounting Intern",
-      organization: "شركة الخليج للخدمات",
+      organization: "",
       startDate: "2026-02-01",
       endDate: "2026-05-01",
     });
+    expect(getEnglishReviewItems({
+      ...englishResume,
+      experience: [{
+        id: "dana-internship",
+        title: "Accounting Intern",
+        organization: "شركة الخليج للخدمات",
+      }],
+    }).some((item) => item.fieldKey === "experience.dana-internship.organization")).toBe(true);
+  });
+
+  it("uses Dana's organization localization by stable experience id without Arabic in the English payload", () => {
+    const localized = getLocalizedResumeForDisplay({
+      ...englishResume,
+      summary: "Accounting graduate with practical internship experience.",
+      experience: [{
+        id: "dana-internship",
+        title: "Accounting Intern",
+        organization: "شركة الخليج للخدمات",
+        achievements: [{ id: "task", text: "Prepared accounting reports." }],
+      }],
+      localizedDisplay: {
+        entries: {
+          "experience:dana-internship": { organization: "Gulf Services Company" },
+        },
+      },
+    });
+
+    expect(localized.experience[0].organization).toBe("Gulf Services Company");
+    expect(assertNoArabicScript(localized)).toBe(true);
   });
 
   it("uses the saved English project title by stable project id in both the summary and Projects section", () => {

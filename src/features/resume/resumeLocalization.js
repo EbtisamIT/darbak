@@ -19,6 +19,33 @@ const getArabicAchievements = (presentation = [], verified = []) => {
     : presentation;
 };
 
+export const assertNoArabicScript = (finalEnglishDisplayPayload = {}) => {
+  if (finalEnglishDisplayPayload.settings?.language !== "en") return true;
+  const personal = finalEnglishDisplayPayload.personalInfo || {};
+  const text = [
+    personal.fullName,
+    personal.headline,
+    personal.major,
+    personal.university,
+    personal.city,
+    finalEnglishDisplayPayload.summary,
+    ...(finalEnglishDisplayPayload.skills || []).map((skill) => typeof skill === "string" ? skill : skill?.name),
+    ...(finalEnglishDisplayPayload.languages || []).flatMap((item) => [item?.name, item?.level]),
+    ...["education", "experience", "experiences", "projects", "certifications", "volunteering"].flatMap((section) =>
+      (finalEnglishDisplayPayload[section] || []).flatMap((entry) => [
+        entry?.title,
+        entry?.subtitle,
+        entry?.organization,
+        entry?.location,
+        entry?.description,
+        entry?.details,
+        ...(entry?.achievements || []).map((achievement) => achievement?.text || achievement?.html),
+      ]),
+    ),
+  ];
+  return !text.some((value) => arabicPattern.test(String(value || "")));
+};
+
 const normalizeLookupValue = (value = "") =>
   value
     .toString()
@@ -510,7 +537,7 @@ export const getEnglishReviewItems = (resume = {}) => {
           field === "organization" &&
           Boolean(localized.personalInfo?.university);
         const sourceValue = sourceEntry[field] || entry[field] || "";
-        const translatedValue = values[field] || entry[field] || "";
+        const translatedValue = values[field] || (!arabicPattern.test(sourceValue) ? entry[field] || "" : "");
         const isCanonicalValue = Boolean(
           (field === "title" && localizedDegree(sourceValue)) ||
           (field === "organization" && localizedUniversity(sourceValue)) ||
@@ -637,8 +664,7 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
       const displayValues = localized.entries?.[`${section}:${entry.id}`] || {};
       const localizedEntry = { ...entry, ...displayValues };
       ["title", "subtitle", "organization", "location"].forEach((field) => {
-        const keepExperienceOrganization = section === "experience" && field === "organization";
-        if (!keepExperienceOrganization && !displayValues[field] && arabicPattern.test(localizedEntry[field] || "")) {
+        if (!displayValues[field] && arabicPattern.test(localizedEntry[field] || "")) {
           localizedEntry[field] = "";
         }
       });
@@ -714,6 +740,8 @@ export const buildEnglishLocalizedDisplay = (resume = {}) => {
       if (entry.organization === "دربك") values.organization = "Darbak";
       if (localizedUniversity(entry.organization)) values.organization = localizedUniversity(entry.organization);
       if (localizedOrganization(entry.organization)) values.organization = localizedOrganization(entry.organization);
+      const savedOrganization = resume.localizedDisplay?.entries?.[`${section}:${entry.id}`]?.organization;
+      if (savedOrganization && !arabicPattern.test(savedOrganization)) values.organization = savedOrganization;
       if (localizedCity(entry.location)) values.location = localizedCity(entry.location);
       if (Object.keys(values).length) localized.entries[`${section}:${entry.id}`] = values;
       (entry.achievements || []).forEach((achievement, index) => {
