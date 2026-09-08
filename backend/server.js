@@ -74,6 +74,10 @@ const {
 } = require("./services/resumePortfolioHydration");
 const { normalizeResumeSkills } = require("./services/resumeSkillNormalization");
 const {
+  buildMajorCityProfileUpdates,
+  resolveSavedMajorCity,
+} = require("./services/studentProfileFacts");
+const {
   buildEnglishSummaryFreshness,
   mergeMasterSummaryProvenance,
 } = require("./services/resumeSummaryFreshness");
@@ -2788,7 +2792,12 @@ const getPortfolioPhoneForApplication = (portfolio = {}, contact = "") => {
 const buildCompanyApplicationPortfolioUrl = (portfolio = {}) =>
   portfolio?.slug ? `${getFrontendUrl()}/p/${portfolio.slug}` : "";
 
-const buildCompanyApplicationSnapshot = ({ portfolio = {}, contact = "", req = null } = {}) => {
+const buildCompanyApplicationSnapshot = ({
+  portfolio = {},
+  contact = "",
+  req = null,
+  savedJourneyFacts = {},
+} = {}) => {
   const cvAssetId = portfolio.cvAssetId || null;
   const cvAssetUrl = req && cvAssetId ? getPortfolioAssetUrl(req, cvAssetId) : "";
 
@@ -2797,9 +2806,9 @@ const buildCompanyApplicationSnapshot = ({ portfolio = {}, contact = "", req = n
     email: getPortfolioEmailForApplication(portfolio, contact),
     contact: contact || portfolio.contact || "",
     phone: getPortfolioPhoneForApplication(portfolio, contact),
-    major: portfolio.major || "",
+    major: portfolio.major || portfolio.preferredMajor || savedJourneyFacts.major || "",
     university: portfolio.university || "",
-    city: portfolio.city || "",
+    city: portfolio.city || portfolio.preferredCity || savedJourneyFacts.city || "",
     degreeLevel: portfolio.degreeLevel || "",
     readinessStatus: portfolio.readinessStatus || "",
     bio: portfolio.bio || "",
@@ -12573,15 +12582,19 @@ app.get('/api/company-apply/:companySlug/context', async (req, res) => {
     const portfolio = hasIdentity
       ? await Portfolio.findOne({ contact, accessCodeHash }).lean()
       : null;
+    const savedJourneyFacts = resolveSavedMajorCity({
+      portfolio,
+      user: accessUser,
+    });
     const snapshot = portfolio
-      ? buildCompanyApplicationSnapshot({ portfolio, contact, req })
+      ? buildCompanyApplicationSnapshot({ portfolio, contact, req, savedJourneyFacts })
       : {
           fullName: accessUser?.firstName || "",
           email: isValidEmail(contact) ? contact : "",
           contact: hasIdentity ? contact : "",
           phone: getPortfolioPhoneForApplication({}, contact),
-          major: accessUser?.preferredMajor || "",
-          city: accessUser?.preferredCity || "",
+          major: savedJourneyFacts.major,
+          city: savedJourneyFacts.city,
           university: "",
           linkedinUrl: "",
         };
@@ -12838,8 +12851,12 @@ app.post('/api/company-applications', async (req, res) => {
     const portfolio = hasIdentity
       ? await Portfolio.findOne({ contact, accessCodeHash }).lean()
       : null;
+    const savedJourneyFacts = resolveSavedMajorCity({
+      portfolio,
+      user: accessUser,
+    });
     const profileSnapshot = portfolio
-      ? buildCompanyApplicationSnapshot({ portfolio, contact, req })
+      ? buildCompanyApplicationSnapshot({ portfolio, contact, req, savedJourneyFacts })
       : {};
     const customAnswers = sanitizeCompanyApplicationCustomAnswers(
       req.body?.customAnswers || []
@@ -12974,6 +12991,43 @@ app.post('/api/company-applications', async (req, res) => {
       { _id: cvFile._id, applicationId: null },
       { $set: { applicationId: application._id, expiresAt: null } }
     );
+
+    // The student explicitly submitted these values in their application.
+    // Keep the account and any existing Portfolio aligned for future flows.
+    const savedMajorCity = buildMajorCityProfileUpdates(payload);
+    if (Object.keys(savedMajorCity).length) {
+      const updates = [];
+      if (accessUser?._id) {
+        updates.push(
+          User.updateOne(
+            { _id: accessUser._id },
+            {
+              $set: {
+                ...(savedMajorCity.major ? { preferredMajor: savedMajorCity.major } : {}),
+                ...(savedMajorCity.city ? { preferredCity: savedMajorCity.city } : {}),
+              },
+            }
+          )
+        );
+      }
+      if (portfolio?._id) {
+        updates.push(
+          Portfolio.updateOne(
+            { _id: portfolio._id, contact, accessCodeHash },
+            {
+              $set: {
+                ...savedMajorCity,
+                ...(savedMajorCity.major ? { preferredMajor: savedMajorCity.major } : {}),
+                ...(savedMajorCity.city ? { preferredCity: savedMajorCity.city } : {}),
+              },
+            }
+          )
+        );
+      }
+      await Promise.all(updates).catch((profileError) =>
+        console.error("❌ Company application profile facts sync error:", profileError)
+      );
+    }
 
     const notificationCampaign = await ensureCompanyApplicationShareToken(
       campaignDocument
