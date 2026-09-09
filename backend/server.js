@@ -9281,7 +9281,7 @@ app.post('/api/resume-agent/reject/:pendingDraftId', requireResumeAccess, async 
 
 app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, res) => {
   try {
-    const [versions, masterResume] = await Promise.all([
+    const [versions, masterResume, portfolio] = await Promise.all([
       ResumeTailoredVersion.find({
       contact: req.darbakAccess.contact,
       accessCodeHash: req.darbakAccess.accessCodeHash,
@@ -9293,7 +9293,11 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
       ResumeProfile.findOne({
         contact: req.darbakAccess.contact,
         accessCodeHash: req.darbakAccess.accessCodeHash,
-      }).select("summaryProvenance updatedAt").lean(),
+      }).lean(),
+      getPortfolioForAccess({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      }),
     ]);
 
     return res.json({
@@ -9310,6 +9314,17 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
         const englishReadValidation = isEnglishTranslation
           ? getEnglishVersionReadValidation(version.resumePayload || {})
           : {};
+        const sourceUpdatePlan = isEnglishTranslation && masterResume
+          ? buildResumeTranslationUpdatePlan({
+              resume: sanitizeResumePayload(composeCanonicalResume(
+                masterResume,
+                portfolio || {},
+                req.darbakAccess.contact,
+                { frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS, language: "ar" },
+              )),
+              existingEnglishResume: version.resumePayload || {},
+            })
+          : { changedItems: [] };
         return ({
         _id: version._id?.toString?.() || "",
         name:
@@ -9328,11 +9343,14 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
         changesSummary: version.changesSummary || [],
         updatedAt: version.updatedAt || version.approvedAt || null,
         needsLocalizationRefresh: Boolean(
-          summaryFreshness.needsLocalizationRefresh || englishReadValidation.needsLocalizationRefresh,
+          summaryFreshness.needsLocalizationRefresh ||
+          englishReadValidation.needsLocalizationRefresh ||
+          sourceUpdatePlan.changedItems.length,
         ),
         englishValidation: {
           ...englishReadValidation,
           englishVersionCreatedAt: version.createdAt || null,
+          changedSourceFields: sourceUpdatePlan.changedItems.map((item) => item.id),
         },
       });
       }),
@@ -9368,7 +9386,7 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
       ResumeProfile.findOne({
         contact: req.darbakAccess.contact,
         accessCodeHash: req.darbakAccess.accessCodeHash,
-      }).select("summaryProvenance updatedAt").lean(),
+      }).lean(),
     ]);
     // Versions own presentation only. Recompose immutable facts from Portfolio
     // for both translations and tailored versions before anything reaches UI.
@@ -9402,6 +9420,18 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
       version.variantType === "translation" && version.language === "en"
         ? getEnglishVersionReadValidation(version.resumePayload || {})
         : {};
+    const sourceUpdatePlan =
+      version.variantType === "translation" && version.language === "en" && masterResume
+        ? buildResumeTranslationUpdatePlan({
+            resume: sanitizeResumePayload(composeCanonicalResume(
+              masterResume,
+              portfolio || {},
+              req.darbakAccess.contact,
+              { frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS, language: "ar" },
+            )),
+            existingEnglishResume: version.resumePayload || {},
+          })
+        : { changedItems: [] };
     const versionPayload = {
       ...composedVersionPayload,
       personalInfo: synchronizedPersonal,
@@ -9464,7 +9494,9 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
           englishVersionCreatedAt: version.createdAt || null,
         },
         needsLocalizationRefresh: Boolean(
-          versionPayload.summaryProvenance?.needsLocalizationRefresh || englishReadValidation.needsLocalizationRefresh,
+          versionPayload.summaryProvenance?.needsLocalizationRefresh ||
+          englishReadValidation.needsLocalizationRefresh ||
+          sourceUpdatePlan.changedItems.length,
         ),
         updatedAt: version.updatedAt || version.approvedAt || null,
       },
@@ -10121,11 +10153,30 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
     ).lean();
 
+    const persistedSummaryFreshness = buildEnglishSummaryFreshness({
+      masterProvenance: storedResume.summaryProvenance || {},
+      englishProvenance: version.resumePayload?.summaryProvenance || {},
+      masterUpdatedAt: storedResume.updatedAt || "",
+    });
+    const persistedSourceUpdatePlan = buildResumeTranslationUpdatePlan({
+      resume: basePayload,
+      existingEnglishResume: version.resumePayload || {},
+    });
+    const persistedEnglishValidation = getEnglishVersionReadValidation(version.resumePayload || {});
+    const needsEnglishRefreshAfter = Boolean(
+      persistedSummaryFreshness.needsLocalizationRefresh ||
+      persistedSourceUpdatePlan.changedItems.length ||
+      persistedEnglishValidation.needsLocalizationRefresh,
+    );
+
     // Translation is a separate resume representation, not a job customization.
     const usage = getResumeUsageSnapshot(req.darbakAccess);
     const diagnostics = {
       masterVersionBefore: storedResume.updatedAt?.toISOString?.() || storedResume.updatedAt || "",
+      masterVersion: storedResume.updatedAt?.toISOString?.() || storedResume.updatedAt || "",
+      englishSourceVersionBefore: existingEnglishVersion?.resumePayload?.summaryProvenance?.sourceMasterUpdatedAt || "",
       englishSourceVersion: translatedPayload.summaryProvenance?.sourceSummaryVersion || "",
+      englishSourceVersionAfter: version.resumePayload?.summaryProvenance?.sourceMasterUpdatedAt || "",
       currentMasterVersion: storedResume.updatedAt?.toISOString?.() || storedResume.updatedAt || "",
       needsEnglishRefreshBefore: Boolean(existingEnglishVersion && (
         buildEnglishSummaryFreshness({
@@ -10142,9 +10193,11 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       reviewItemsAfter: Object.keys(retainedReview).length,
       reviewItemsInvalidated: Object.keys(existingReview).length - Object.keys(retainedReview).length,
       reviewItemsRemaining: Object.keys(retainedReview).length,
+      pendingReviewCount: Object.keys(retainedReview).length,
+      unresolvedRequiredCount: unresolvedFields.length + arabicViolationsAfter.length,
       englishSaveSucceeded: Boolean(version?._id),
       arabicViolationsAfter,
-      needsEnglishRefreshAfter: false,
+      needsEnglishRefreshAfter,
     };
     console.info("Resume English update diagnostics:", diagnostics);
 
