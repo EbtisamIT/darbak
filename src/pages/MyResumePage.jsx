@@ -41,6 +41,7 @@ import {
 } from "../features/resume/resumeDefaults";
 import { estimateResumePages } from "../features/resume/resumeValidation";
 import { getEnglishPdfValidation, getEnglishReviewItems } from "../features/resume/resumeLocalization";
+import { markEnglishVersionFresh } from "../features/resume/englishVersionFreshness";
 import {
   clearResumeJourneyProgress,
   getReachableJourneyProgress,
@@ -261,16 +262,23 @@ const MyResumePage = () => {
     );
   }, []);
 
-  const loadTailoredVersions = useCallback(async () => {
+  const loadTailoredVersions = useCallback(async ({ forceFreshness = false } = {}) => {
     try {
       setLoadingTailoredVersions(true);
       const { data } = await axios.get(`${API_BASE_URL}/api/resume-agent/tailored-versions`, {
-        headers: getAccessHeaders({ itemKey: "resume-agent:tailored-versions" }),
+        headers: {
+          ...getAccessHeaders({ itemKey: "resume-agent:tailored-versions" }),
+          ...(forceFreshness ? { "Cache-Control": "no-cache" } : {}),
+        },
+        params: forceFreshness ? { freshness: Date.now() } : undefined,
       });
-      setTailoredVersions(Array.isArray(data.versions) ? data.versions : []);
+      const versions = Array.isArray(data.versions) ? data.versions : [];
+      setTailoredVersions(versions);
+      return versions;
     } catch {
       // A saved master resume must still be usable when version history is temporarily unavailable.
-      setTailoredVersions([]);
+      if (!forceFreshness) setTailoredVersions([]);
+      return null;
     } finally {
       setLoadingTailoredVersions(false);
     }
@@ -529,7 +537,10 @@ const MyResumePage = () => {
         setError("تم حفظ التحديث، لكن توجد قيمة إنجليزية غير مكتملة. راجع النسخة قبل تحميل PDF.");
         return;
       }
-      await loadTailoredVersions();
+      // Do not let a cached dashboard list reintroduce the pre-update stale
+      // flag while the student returns from the English editor.
+      setTailoredVersions((current) => markEnglishVersionFresh(current, data.version?._id));
+      await loadTailoredVersions({ forceFreshness: true });
       if (data.version?._id) navigate(`/my-resume/versions/${data.version._id}`);
       setEnglishTranslationReady(true);
       const localizedCount = Number(data.diagnostics?.fieldsLocalized || 0);
