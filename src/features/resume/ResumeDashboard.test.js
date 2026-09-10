@@ -82,4 +82,31 @@ describe("resume dashboard state", () => {
     fireEvent.click(screen.getByRole("button", { name: "تحديث النسخة الإنجليزية" }));
     expect(onCreateEnglish).toHaveBeenCalledTimes(1);
   });
+
+  it("uses the newest English translation when historical versions exist", () => {
+    const onOpenVersion = jest.fn();
+    render(
+      <ResumeDashboard
+        resume={{ personalInfo: {}, settings: { language: "ar" } }}
+        resumeExists
+        versions={[
+          { _id: "english-old", variantType: "translation", language: "en", updatedAt: "2026-01-01T00:00:00.000Z", needsLocalizationRefresh: true },
+          { _id: "english-new", variantType: "translation", language: "en", updatedAt: "2026-02-01T00:00:00.000Z", needsLocalizationRefresh: false },
+        ]}
+        onOpenEditor={jest.fn()}
+        onEditProfile={jest.fn()}
+        onReviewResumeSetup={jest.fn()}
+        onStartFromPortfolio={jest.fn()}
+        onStartFromScratch={jest.fn()}
+        onCustomize={jest.fn()}
+        onCreateEnglish={jest.fn()}
+        onOpenVersion={onOpenVersion}
+        onDownloadPdf={jest.fn()}
+        onOpenEnglishReview={jest.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "النسخة الإنجليزية" })[0]);
+    expect(onOpenVersion).toHaveBeenCalledWith(expect.objectContaining({ _id: "english-new" }));
+  });
 });

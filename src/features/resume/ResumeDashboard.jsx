@@ -128,7 +128,7 @@ const ResumeStatusCards = ({ resume, completion, customizations, review, onOpenR
   </div>
 );
 
-const ResumeActionRequired = ({ review, englishVersion, onReview, onUpdateEnglish }) => {
+const ResumeActionRequired = ({ review, englishVersion, onReview, onUpdateEnglish, englishUpdating = false }) => {
   if (!review.pending && !englishVersion?.needsLocalizationRefresh) return null;
   const stale = englishVersion?.needsLocalizationRefresh;
   return (
@@ -137,7 +137,10 @@ const ResumeActionRequired = ({ review, englishVersion, onReview, onUpdateEnglis
         <span>{stale ? "تحديث مطلوب" : "مطلوب منك"}</span>
         <strong>{stale ? "النسخة الإنجليزية تحتاج تحديث" : `لديك ${review.pending} ${review.pending === 1 ? "ترجمة تحتاج مراجعة" : "ترجمات تحتاج مراجعة"}`}</strong>
       </div>
-      <button type="button" onClick={stale ? onUpdateEnglish : onReview}>{stale ? "تحديث النسخة الإنجليزية" : "مراجعة الترجمات"}<FiArrowLeft aria-hidden="true" /></button>
+      <button type="button" disabled={stale && englishUpdating} onClick={stale ? onUpdateEnglish : onReview}>
+        {stale ? (englishUpdating ? "جاري تحديث النسخة الإنجليزية..." : "تحديث النسخة الإنجليزية") : "مراجعة الترجمات"}
+        <FiArrowLeft aria-hidden="true" />
+      </button>
     </section>
   );
 };
@@ -184,12 +187,12 @@ const ResumeReviewQueue = ({ review, onReview }) => (
   </section>
 );
 
-const EnglishVersionTab = ({ englishVersion, review, onOpenEnglish, onReview }) => (
+const EnglishVersionTab = ({ englishVersion, review, onOpenEnglish, onReview, englishUpdating = false }) => (
   <section className="resume-dashboard-english-tab">
     <div className={`resume-dashboard-english-status${review.pending ? " is-amber" : ""}`}>
       <FiGlobe aria-hidden="true" />
       <div><span>النسخة الإنجليزية</span><strong>{englishVersion?.needsLocalizationRefresh ? "تحتاج تحديث" : review.pending ? `تحتاج مراجعة ${review.pending} ${review.pending === 1 ? "عنصر" : "عناصر"}` : englishVersion ? "النسخة الإنجليزية جاهزة" : "لم تُنشأ بعد"}</strong></div>
-      <button type="button" onClick={onOpenEnglish}>{englishVersion ? "فتح النسخة" : "إنشاء النسخة"}</button>
+      <button type="button" disabled={englishUpdating} onClick={onOpenEnglish}>{englishUpdating ? "جاري التحديث..." : englishVersion ? "فتح النسخة" : "إنشاء النسخة"}</button>
     </div>
     {englishVersion && <ResumeReviewQueue review={review} onReview={onReview} />}
   </section>
@@ -210,12 +213,17 @@ const ResumeDashboard = ({
   onOpenVersion,
   onDownloadPdf,
   onOpenEnglishReview,
+  englishUpdating = false,
   initialTab = "overview",
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const completionItems = getResumeCompletionItems(resume);
   const completion = Math.round((completionItems.filter((item) => item.status === "complete").length / completionItems.length) * 100);
-  const englishVersion = versions.find((version) => version.variantType === "translation" || version.language === "en");
+  // The API returns newest first, but be explicit so historical duplicate
+  // English translation records cannot make the dashboard open a stale copy.
+  const englishVersion = versions
+    .filter((version) => version.variantType === "translation" || version.language === "en")
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0) - new Date(left.updatedAt || left.createdAt || 0))[0];
   const customizations = versions.filter((version) => version.variantType === "tailored");
   const review = useMemo(() => getResumeReviewSummary(englishVersion?.resumePayload || resume), [englishVersion?.resumePayload, resume]);
   // Opening an existing version and refreshing it are separate actions. A
@@ -232,12 +240,12 @@ const ResumeDashboard = ({
       <ResumeDashboardTabs activeTab={activeTab} reviewCount={review.pending} onChange={setActiveTab} />
       {activeTab === "overview" && <>
         <ResumeStatusCards resume={resume} completion={completion} customizations={customizations} review={review} onOpenResume={onOpenEditor} />
-        <ResumeActionRequired review={review} englishVersion={englishVersion} onReview={onOpenEnglishReview} onUpdateEnglish={onCreateEnglish} />
+        <ResumeActionRequired review={review} englishVersion={englishVersion} onReview={onOpenEnglishReview} onUpdateEnglish={onCreateEnglish} englishUpdating={englishUpdating} />
         <RecentCustomizations versions={customizations} loading={loadingVersions} onOpen={onOpenVersion} />
       </>}
       {activeTab === "review" && <ResumeReviewQueue review={review} onReview={onOpenEnglishReview} />}
       {activeTab === "customizations" && <><div className="resume-dashboard-section-head"><div><span>تخصيصاتك</span><h2>كل نسخة جهزتها لفرصة تبقى محفوظة هنا بشكل مستقل.</h2></div><button type="button" onClick={onCustomize}>+ تخصيص لفرصة</button></div><RecentCustomizations versions={customizations} loading={loadingVersions} onOpen={onOpenVersion} title="" helper="" limit={customizations.length || 3} /></>}
-      {activeTab === "english" && <EnglishVersionTab englishVersion={englishVersion} review={review} onOpenEnglish={openEnglish} onReview={onOpenEnglishReview} />}
+      {activeTab === "english" && <EnglishVersionTab englishVersion={englishVersion} review={review} onOpenEnglish={openEnglish} onReview={onOpenEnglishReview} englishUpdating={englishUpdating} />}
       <button type="button" className="resume-dashboard-profile-link" onClick={onEditProfile}><FiEdit3 aria-hidden="true" /> تعديل بيانات السيرة</button>
       <button type="button" className="resume-dashboard-review-link" onClick={onReviewResumeSetup}>مراجعة بيانات السيرة من البداية</button>
     </section>

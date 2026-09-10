@@ -9977,7 +9977,11 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       variantType: "translation",
       language: "en",
       status: "approved",
-    }).lean();
+    })
+      // Historical production records can contain more than one English
+      // translation. Always refresh the most recently saved one.
+      .sort({ updatedAt: -1, _id: -1 })
+      .lean();
     const updatePlan = buildResumeTranslationUpdatePlan({
       resume: basePayload,
       existingEnglishResume: existingEnglishVersion?.resumePayload || {},
@@ -10150,7 +10154,15 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
           variantType: "translation",
         },
       },
-      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+        runValidators: true,
+        // Keep the read/update target identical when legacy duplicate
+        // translation records exist for the same student.
+        sort: { updatedAt: -1, _id: -1 },
+      }
     ).lean();
 
     const persistedSummaryFreshness = buildEnglishSummaryFreshness({

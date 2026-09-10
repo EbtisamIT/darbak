@@ -1211,6 +1211,7 @@ const MyResumePage = () => {
             onOpenVersion={openTailoredVersion}
             onDownloadPdf={handleDownloadPdf}
             onOpenEnglishReview={() => setEnglishReviewOpen(true)}
+            englishUpdating={translating}
             initialTab={searchParams.get("tab") || "overview"}
           />
         )
