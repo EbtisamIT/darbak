@@ -83,6 +83,29 @@ describe("resume dashboard state", () => {
     expect(onCreateEnglish).toHaveBeenCalledTimes(1);
   });
 
+  it("shows the resume as needing an explicit update when verified facts changed", () => {
+    render(
+      <ResumeDashboard
+        resume={{ personalInfo: {}, settings: { language: "ar" } }}
+        resumeExists
+        factsFreshness={{ changed: true, changes: ["مشروع محدث"] }}
+        versions={[]}
+        onOpenEditor={jest.fn()}
+        onEditProfile={jest.fn()}
+        onReviewResumeSetup={jest.fn()}
+        onStartFromPortfolio={jest.fn()}
+        onStartFromScratch={jest.fn()}
+        onCustomize={jest.fn()}
+        onCreateEnglish={jest.fn()}
+        onOpenVersion={jest.fn()}
+        onDownloadPdf={jest.fn()}
+        onOpenEnglishReview={jest.fn()}
+      />,
+    );
+    expect(screen.getByText("تحتاج تحديث")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "مراجعة التغييرات وتحديث السيرة" })).toBeInTheDocument();
+  });
+
   it("uses the newest English translation when historical versions exist", () => {
     const onOpenVersion = jest.fn();
     render(

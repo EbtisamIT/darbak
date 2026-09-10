@@ -103,11 +103,11 @@ const ResumeDashboardTabs = ({ activeTab, reviewCount, onChange }) => (
   </nav>
 );
 
-const ResumeStatusCards = ({ resume, completion, customizations, review, onOpenResume }) => (
+const ResumeStatusCards = ({ resume, completion, customizations, review, onOpenResume, factsFreshness }) => (
   <div className="resume-dashboard-status-cards">
     <article>
       <span>السيرة الأساسية</span>
-      <strong>{completion >= 100 ? "جاهزة" : "تحتاج مراجعة"}</strong>
+      <strong>{factsFreshness?.changed ? "تحتاج تحديث" : completion >= 100 ? "جاهزة" : "تحتاج مراجعة"}</strong>
       <button type="button" onClick={onOpenResume}>فتح السيرة</button>
     </article>
     <article>
@@ -214,6 +214,7 @@ const ResumeDashboard = ({
   onDownloadPdf,
   onOpenEnglishReview,
   englishUpdating = false,
+  factsFreshness = {},
   initialTab = "overview",
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -239,7 +240,7 @@ const ResumeDashboard = ({
       <ResumeDashboardHeader hasEnglishVersion={Boolean(englishVersion)} onOpenResume={onOpenEditor} onDownloadPdf={onDownloadPdf} onCreateCustomization={onCustomize} onOpenEnglish={openEnglish} />
       <ResumeDashboardTabs activeTab={activeTab} reviewCount={review.pending} onChange={setActiveTab} />
       {activeTab === "overview" && <>
-        <ResumeStatusCards resume={resume} completion={completion} customizations={customizations} review={review} onOpenResume={onOpenEditor} />
+        <ResumeStatusCards resume={resume} completion={completion} customizations={customizations} review={review} onOpenResume={onOpenEditor} factsFreshness={factsFreshness} />
         <ResumeActionRequired review={review} englishVersion={englishVersion} onReview={onOpenEnglishReview} onUpdateEnglish={onCreateEnglish} englishUpdating={englishUpdating} />
         <RecentCustomizations versions={customizations} loading={loadingVersions} onOpen={onOpenVersion} />
       </>}
@@ -247,7 +248,7 @@ const ResumeDashboard = ({
       {activeTab === "customizations" && <><div className="resume-dashboard-section-head"><div><span>تخصيصاتك</span><h2>كل نسخة جهزتها لفرصة تبقى محفوظة هنا بشكل مستقل.</h2></div><button type="button" onClick={onCustomize}>+ تخصيص لفرصة</button></div><RecentCustomizations versions={customizations} loading={loadingVersions} onOpen={onOpenVersion} title="" helper="" limit={customizations.length || 3} /></>}
       {activeTab === "english" && <EnglishVersionTab englishVersion={englishVersion} review={review} onOpenEnglish={openEnglish} onReview={onOpenEnglishReview} englishUpdating={englishUpdating} />}
       <button type="button" className="resume-dashboard-profile-link" onClick={onEditProfile}><FiEdit3 aria-hidden="true" /> تعديل بيانات السيرة</button>
-      <button type="button" className="resume-dashboard-review-link" onClick={onReviewResumeSetup}>مراجعة بيانات السيرة من البداية</button>
+      <button type="button" className="resume-dashboard-review-link" onClick={onReviewResumeSetup}>{factsFreshness?.changed ? "مراجعة التغييرات وتحديث السيرة" : "مراجعة وتحديث بيانات السيرة"}</button>
     </section>
   );
 };

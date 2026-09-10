@@ -83,6 +83,7 @@ const {
   buildEnglishSummaryFreshness,
   mergeMasterSummaryProvenance,
 } = require("./services/resumeSummaryFreshness");
+const { getResumeFactsFreshness } = require("./services/resumeFactsFreshness");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -93,6 +94,16 @@ const READ_CACHE_MAX_ENTRIES = Number(process.env.READ_CACHE_MAX_ENTRIES || 600)
 const INTERACTION_STATS_CACHE_TTL_MS = Number(
   process.env.INTERACTION_STATS_CACHE_TTL_MS || 30 * 60 * 1000
 );
+
+const buildLastBuiltFactsWorkflow = (currentWorkflow = {}, verifiedResumeFacts = {}) => {
+  const freshness = getResumeFactsFreshness({ verifiedFacts, workflow: currentWorkflow });
+  return {
+    ...currentWorkflow,
+    lastBuiltFactsHash: freshness.currentHash,
+    lastBuiltFactsSnapshot: freshness.currentSnapshot,
+    lastBuiltAt: new Date(),
+  };
+};
 const EXPIRED_OPPORTUNITY_SWEEP_INTERVAL_MS = Number(
   process.env.EXPIRED_OPPORTUNITY_SWEEP_INTERVAL_MS || 15 * 60 * 1000
 );
@@ -8434,6 +8445,10 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
       frontendUrl: getFrontendUrl(),
       sectionOrder: RESUME_SECTION_KEYS,
     });
+    const factsFreshness = getResumeFactsFreshness({
+      verifiedFacts: enrichedResume.verifiedResumeFacts || {},
+      workflow: enrichedResume.workflow || {},
+    });
 
     res.json({
       exists: Boolean(resume),
@@ -8441,6 +8456,13 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
       resume: serializeResume(enrichedResume, req.darbakAccess),
       portfolioImported: Boolean(portfolio),
       portfolioReadiness: getPortfolioResumeReadiness(portfolio || {}, contact),
+      factsFreshness: {
+        changed: factsFreshness.changed,
+        baselineMissing: factsFreshness.baselineMissing,
+        changes: factsFreshness.changes,
+        currentHash: factsFreshness.currentHash,
+        lastBuiltHash: factsFreshness.lastBuiltHash,
+      },
     });
   } catch (err) {
     console.error("❌ Resume fetch error:", err);
@@ -8500,6 +8522,78 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
   } catch (err) {
     console.error("❌ Resume save error:", err);
     res.status(500).json({ error: "تعذر حفظ السيرة." });
+  }
+});
+
+// Resume facts are owned by Portfolio. The resume review journey uses this
+// narrow endpoint so edits remain durable facts without accidentally treating
+// presentation-only ResumeProfile content as the source of truth.
+app.put('/api/resume/me/facts', requireResumeAccess, async (req, res) => {
+  try {
+    const { contact, accessCodeHash } = req.darbakAccess;
+    const incoming = sanitizeResumePayload(req.body || {});
+    const personal = incoming.personalInfo || {};
+    const mapEntry = (entry = {}, type = "") => ({
+      id: entry.id || "",
+      title: entry.title || "",
+      organization: entry.organization || "",
+      city: entry.location || "",
+      experienceType: type || entry.experienceType || "",
+      startDate: entry.startDate || "",
+      endDate: entry.endDate || "",
+      current: Boolean(entry.isCurrent),
+      description: entry.description || entry.details || "",
+      responsibilities: (entry.achievements || []).map((item) => ({ id: item.id || "", text: item.text || item.html || "" })).filter((item) => item.text),
+    });
+    const portfolioPatch = {
+      fullName: personal.fullName || "",
+      email: personal.email || contact,
+      phone: personal.phone || "",
+      city: personal.city || "",
+      major: personal.major || "",
+      university: personal.university || "",
+      degreeLevel: personal.degree || "",
+      studentStatus: personal.studentStatus || "",
+      grammaticalGender: personal.grammaticalGender || "",
+      graduationYear: personal.graduationYear || "",
+      expectedGraduationYear: personal.expectedGraduationYear || "",
+      studyStartYear: personal.studyStartYear || "",
+      gpa: personal.gpa || "",
+      gpaScale: personal.gpaScale || "",
+      academicTrack: personal.academicTrack || "",
+      relevantCoursework: personal.relevantCoursework || [],
+      professionalHeadline: personal.headline || "",
+      linkedinUrl: personal.linkedinUrl || "",
+      githubUrl: personal.githubUrl || "",
+      personalWebsite: personal.personalUrl || personal.portfolioUrl || "",
+      targetTrainingField: personal.trainingField || "",
+      trainingStart: personal.trainingStart || "",
+      trainingEnd: personal.trainingEnd || "",
+      skills: incoming.skills || [],
+      projects: (incoming.projects || []).map((entry) => ({ id: entry.id || "", title: entry.title || "", description: entry.description || entry.details || "", technologies: [], url: entry.url || "" })),
+      certifications: (incoming.certifications || []).map((entry) => ({ id: entry.id || "", title: entry.title || "", provider: entry.organization || "", year: entry.endDate || entry.period || "", credentialUrl: entry.url || "" })),
+      experiences: (incoming.experiences || incoming.experience || []).map((entry) => mapEntry(entry)),
+      volunteering: (incoming.volunteering || []).map((entry) => mapEntry(entry, "volunteering")),
+      languages: (incoming.languages || []).map((item) => ({ name: item.name || "", level: item.level || "" })),
+    };
+    const portfolio = await Portfolio.findOneAndUpdate(
+      { contact, accessCodeHash },
+      { $set: portfolioPatch, $setOnInsert: { contact, accessCodeHash, slug: buildDefaultPortfolioSlug(contact) } },
+      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
+    ).lean();
+    const storedResume = await ResumeProfile.findOne({ contact, accessCodeHash }).lean();
+    const canonical = composeCanonicalResume(storedResume || {}, portfolio || {}, contact, {
+      frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS,
+    });
+    const freshness = getResumeFactsFreshness({ verifiedFacts: canonical.verifiedResumeFacts || {}, workflow: storedResume?.workflow || {} });
+    res.json({
+      resume: serializeResume(canonical, req.darbakAccess),
+      factsFreshness: { changed: freshness.changed, baselineMissing: freshness.baselineMissing, changes: freshness.changes, currentHash: freshness.currentHash, lastBuiltHash: freshness.lastBuiltHash },
+      message: "تم حفظ بيانات السيرة.",
+    });
+  } catch (err) {
+    console.error("❌ Resume facts save error:", err);
+    res.status(500).json({ error: "تعذر حفظ بيانات السيرة." });
   }
 });
 
@@ -9008,7 +9102,6 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
       nextSummary: payload.summary || "",
       generated: Boolean(payload.summaryProvenance?.summaryWriterVersion),
     });
-
     if (pendingDraft.draftType === "tailored_resume") {
       const usageBefore = getResumeUsageSnapshot(req.darbakAccess);
       if (
@@ -9175,6 +9268,16 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
       }
     }
 
+    const latestPortfolio = await getPortfolioForAccess({
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+    });
+    const latestVerifiedResume = composeCanonicalResume(payload, latestPortfolio || {}, req.darbakAccess.contact, {
+      frontendUrl: getFrontendUrl(),
+      sectionOrder: RESUME_SECTION_KEYS,
+    });
+    payload.workflow = buildLastBuiltFactsWorkflow(payload.workflow || {}, latestVerifiedResume.verifiedResumeFacts || {});
+
     const resume = await ResumeProfile.findOneAndUpdate(
       {
         contact: req.darbakAccess.contact,
@@ -9194,6 +9297,7 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
             ...(pendingDraft.validationResult || {}),
           },
           summaryProvenance: payload.summaryProvenance || {},
+          workflow: payload.workflow,
         },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
@@ -9777,6 +9881,12 @@ app.post('/api/resume/ai/approve-draft', requireResumeAccess, async (req, res) =
       sectionOrder: currentResume?.sectionOrder || RESUME_SECTION_KEYS,
       hiddenSections: currentResume?.hiddenSections || [],
     });
+    const portfolio = await getPortfolioForAccess({ contact, accessCodeHash });
+    const canonical = composeCanonicalResume(payload, portfolio || {}, contact, {
+      frontendUrl: getFrontendUrl(),
+      sectionOrder: RESUME_SECTION_KEYS,
+    });
+    payload.workflow = buildLastBuiltFactsWorkflow(currentResume?.workflow || payload.workflow || {}, canonical.verifiedResumeFacts || {});
 
     const resume = await ResumeProfile.findOneAndUpdate(
       { contact, accessCodeHash },
@@ -9790,6 +9900,7 @@ app.post('/api/resume/ai/approve-draft', requireResumeAccess, async (req, res) =
           rawDraftInput: rawInput,
           aiDraftStatus: "approved",
           aiDraftApprovedAt: new Date(),
+          workflow: payload.workflow,
         },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }

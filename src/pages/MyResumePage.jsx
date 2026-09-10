@@ -27,6 +27,7 @@ import ResumePdfDocument from "../features/resume/ResumePdfDocument";
 import ResumePreview from "../features/resume/ResumePreview";
 import ResumeJobMatchPanel from "../features/resume/ResumeJobMatchPanel";
 import ResumeDashboard from "../features/resume/ResumeDashboard";
+import ResumeFactsReviewJourney from "../features/resume/ResumeFactsReviewJourney";
 import ApplicationPackPanel from "../features/resume/ApplicationPackPanel";
 import {
   ResumeJourneyPersonal,
@@ -178,6 +179,7 @@ const MyResumePage = () => {
   const [lastServerResume, setLastServerResume] = useState(null);
   const [resumeExists, setResumeExists] = useState(false);
   const [resumeWorkflow, setResumeWorkflow] = useState({});
+  const [factsFreshness, setFactsFreshness] = useState({ changed: false, changes: [] });
   const [resumeMode, setResumeMode] = useState("dashboard");
   const [agentConfig, setAgentConfig] = useState(null);
   const [editingTailoredVersion, setEditingTailoredVersion] = useState(false);
@@ -238,6 +240,8 @@ const MyResumePage = () => {
     ? "build"
     : location.pathname === "/my-resume/edit"
     ? "edit"
+    : location.pathname === "/my-resume/review"
+    ? "review"
     : location.pathname === "/my-resume/tailor"
     ? "tailor"
     : "dashboard";
@@ -302,6 +306,7 @@ const MyResumePage = () => {
         setResume(nextResume);
         setResumeExists(Boolean(data.exists));
         setResumeWorkflow(data.resume?.workflow || {});
+        setFactsFreshness(data.factsFreshness || { changed: false, changes: [] });
         setLastServerResume(serverResume);
         lastSavedSnapshotRef.current = getSnapshot(serverResume);
         hasLoadedRef.current = true;
@@ -415,8 +420,29 @@ const MyResumePage = () => {
   }, [resumeStorageScope]);
 
   const saveJourneyDraft = useCallback(async (resumeOverride = resume) => {
+    if (journeyView === "review") {
+      try {
+        setSaveState("saving");
+        const { data } = await axios.put(
+          `${API_BASE_URL}/api/resume/me/facts`,
+          prepareResumeForSave(resumeOverride),
+          { headers: getAccessHeaders({ itemKey: "resume:facts" }) },
+        );
+        const saved = normalizeResume(data.resume || resumeOverride);
+        setResume(saved);
+        setLastServerResume(saved);
+        setFactsFreshness(data.factsFreshness || { changed: true, changes: [] });
+        lastSavedSnapshotRef.current = getSnapshot(saved);
+        setSaveState("saved");
+        return true;
+      } catch (err) {
+        setSaveState("error");
+        setError(err.response?.data?.error || "تعذر حفظ بيانات السيرة.");
+        return false;
+      }
+    }
     return saveResume({ manual: true, resumeOverride, silent: true });
-  }, [resume, saveResume]);
+  }, [journeyView, resume, saveResume]);
 
   const loadFreshMasterResume = useCallback(async () => {
     const { data } = await axios.get(`${API_BASE_URL}/api/resume/me`, {
@@ -714,6 +740,14 @@ const MyResumePage = () => {
     return () => window.clearTimeout(journeySaveTimerRef.current);
   }, [journeyCompletedSteps, journeySource, journeyView, resume, resumeMode, resumeStorageScope, saveJourneyDraft]);
 
+  useEffect(() => {
+    if (!hasLoadedRef.current || resumeMode !== "dashboard" || journeyView !== "review") return undefined;
+    if (getSnapshot(resume) === lastSavedSnapshotRef.current) return undefined;
+    window.clearTimeout(journeySaveTimerRef.current);
+    journeySaveTimerRef.current = window.setTimeout(() => saveJourneyDraft(resume), JOURNEY_AUTOSAVE_DELAY);
+    return () => window.clearTimeout(journeySaveTimerRef.current);
+  }, [journeyView, resume, resumeMode, saveJourneyDraft]);
+
   const handleUsePortfolio = () => {
     loadResume();
     trackEvent("resume_use_portfolio_clicked", { page: "/my-resume" });
@@ -783,6 +817,12 @@ const MyResumePage = () => {
       completedSteps: ["data", "missing"],
       source: journeySource,
     });
+    startAgent({ purpose: "create_resume", source: "professional_profile" });
+  };
+
+  const rebuildResumeFromFacts = async () => {
+    const saved = await saveJourneyDraft();
+    if (!saved) return;
     startAgent({ purpose: "create_resume", source: "professional_profile" });
   };
 
@@ -924,6 +964,13 @@ const MyResumePage = () => {
       setResumeMode("editor");
       setJourneyStep("polish");
       setActiveMobileTab("content");
+      return;
+    }
+    if (routeView === "review") {
+      openMaster();
+      setResumeMode("dashboard");
+      setJourneyView("review");
+      setJourneyStep("data");
       return;
     }
     if (routeView === "build") {
@@ -1242,7 +1289,8 @@ const MyResumePage = () => {
             onStartFromScratch={startJourneyFromScratch}
             onOpenEditor={() => navigate("/my-resume/edit")}
             onEditProfile={() => navigate("/portfolio")}
-            onReviewResumeSetup={() => navigate("/portfolio?from=resume&review=1")}
+            onReviewResumeSetup={() => navigate("/my-resume/review")}
+            factsFreshness={factsFreshness}
             onCustomize={handleCustomizeLater}
             onCreateEnglish={handleTranslateToEnglish}
             onOpenVersion={openTailoredVersion}
@@ -1274,6 +1322,17 @@ const MyResumePage = () => {
           onBack={returnToJourneyData}
           onContinue={finishJourneyBasics}
           onAutosave={saveJourneyDraft}
+        />
+      )}
+
+      {resumeMode === "dashboard" && journeyView === "review" && (
+        <ResumeFactsReviewJourney
+          resume={resume}
+          freshness={factsFreshness}
+          onChange={(nextResume) => setResume(normalizeResume(nextResume))}
+          onBack={() => navigate("/my-resume")}
+          onRebuild={rebuildResumeFromFacts}
+          rebuilding={false}
         />
       )}
 
