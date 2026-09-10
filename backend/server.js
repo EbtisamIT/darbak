@@ -9518,7 +9518,7 @@ app.put('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
       accessCodeHash: req.darbakAccess.accessCodeHash,
       status: "approved",
       variantType: "translation",
-    });
+    }).lean();
     if (!version) return res.status(404).json({ error: "النسخة الإنجليزية غير موجودة." });
     const portfolio = await getPortfolioForAccess({
       contact: req.darbakAccess.contact,
@@ -9532,11 +9532,32 @@ app.put('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
     if (payload.settings?.language !== "en") {
       return res.status(400).json({ error: "يجب أن تبقى هذه النسخة باللغة الإنجليزية." });
     }
-    version.resumePayload = payload;
-    version.template = payload.settings?.template || version.template;
-    version.theme = { ...(version.theme || {}), accentColor: payload.settings?.accentColor || "#42cfc3", language: "en" };
-    await version.save();
-    return res.json({ resume: serializeResume(version.resumePayload, req.darbakAccess), message: "تم حفظ النسخة الإنجليزية." });
+    // The English editor autosaves after a version is opened. Use an atomic
+    // ownership-scoped update so an overlapping stale refresh cannot make a
+    // Mongoose document save fail and strand the student on an old version.
+    const savedVersion = await ResumeTailoredVersion.findOneAndUpdate(
+      {
+        _id: version._id,
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+        status: "approved",
+        variantType: "translation",
+      },
+      {
+        $set: {
+          resumePayload: payload,
+          template: payload.settings?.template || version.template,
+          theme: {
+            ...(version.theme || {}),
+            accentColor: payload.settings?.accentColor || "#42cfc3",
+            language: "en",
+          },
+        },
+      },
+      { new: true, runValidators: true },
+    ).lean();
+    if (!savedVersion) return res.status(404).json({ error: "النسخة الإنجليزية غير موجودة." });
+    return res.json({ resume: serializeResume(savedVersion.resumePayload, req.darbakAccess), message: "تم حفظ النسخة الإنجليزية." });
   } catch (err) {
     console.error("❌ English resume version save error:", err);
     return res.status(500).json({ error: "تعذر حفظ النسخة الإنجليزية." });
