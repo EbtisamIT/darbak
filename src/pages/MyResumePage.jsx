@@ -185,6 +185,7 @@ const MyResumePage = () => {
   const [editingVersionType, setEditingVersionType] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [summaryImproving, setSummaryImproving] = useState(false);
   const [englishNameStepOpen, setEnglishNameStepOpen] = useState(false);
   const [englishNameInput, setEnglishNameInput] = useState("");
   const [englishNameError, setEnglishNameError] = useState("");
@@ -568,6 +569,33 @@ const MyResumePage = () => {
       setTranslating(false);
     }
   }, [loadTailoredVersions, navigate, resume]);
+
+  const handleImproveSummary = useCallback(async () => {
+    try {
+      setSummaryImproving(true);
+      setError("");
+      setMessage("");
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/resume/ai/improve-summary`,
+        { visitorId: getVisitorId() },
+        { headers: getAccessHeaders({ itemKey: "resume:improve-summary" }) },
+      );
+      const nextResume = normalizeResume({
+        ...(data.resume || resume),
+        access: { ...(resume.access || {}), ...(data.usage || {}) },
+      });
+      setResume(nextResume);
+      setLastServerResume(nextResume);
+      setResumeExists(true);
+      setSaveState("saved");
+      setMessage(data.message || "تم تحسين النبذة.");
+      await loadTailoredVersions({ forceFreshness: true });
+    } catch (err) {
+      setError(err.response?.data?.error || "تعذر تحسين النبذة الآن. حاول مرة أخرى.");
+    } finally {
+      setSummaryImproving(false);
+    }
+  }, [loadTailoredVersions, resume]);
 
   const handleTranslateToEnglish = useCallback(() => {
     const englishName = (lastServerResume?.personalInfo?.englishName || resume.personalInfo?.englishName || "").trim();
@@ -1124,6 +1152,15 @@ const MyResumePage = () => {
                 <FiRefreshCw aria-hidden="true" />
                 {translating ? "جاري الترجمة..." : "ترجمة EN"}
               </button>
+              {!editingTailoredVersion && resume.settings?.language !== "en" && <button
+                type="button"
+                className="resume-icon-button"
+                onClick={handleImproveSummary}
+                disabled={summaryImproving}
+              >
+                <FiRefreshCw aria-hidden="true" />
+                {summaryImproving ? "جاري تحسين النبذة..." : "تحسين النبذة"}
+              </button>}
               <button
                 type="button"
                 className="resume-download-link"
@@ -1378,6 +1415,10 @@ const MyResumePage = () => {
           <FiRefreshCw aria-hidden="true" />
           EN
         </button>
+        {!editingTailoredVersion && resume.settings?.language !== "en" && <button type="button" onClick={handleImproveSummary} disabled={summaryImproving}>
+          <FiRefreshCw aria-hidden="true" />
+          {summaryImproving ? "جاري التحسين..." : "تحسين النبذة"}
+        </button>}
         <button type="button" onClick={handleDownloadPdf} disabled={pdfLoading}>
           <FiDownload aria-hidden="true" />
           {pdfLoading ? "تجهيز..." : "PDF"}
