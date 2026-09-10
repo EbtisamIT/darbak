@@ -273,6 +273,11 @@ const getSummaryClosing = (summary = "") => safeText(summary, 900)
   .filter(Boolean)
   .at(-1) || "";
 
+const getSummarySentences = (summary = "") => safeText(summary, 900)
+  .split(/(?<=[.!?؟])\s+/u)
+  .map((sentence) => sentence.trim())
+  .filter(Boolean);
+
 const hasGenericSummaryClosing = (summary = "") => {
   const closing = getSummaryClosing(summary);
   return /(?:(?:ي|ت)ركز\s+على\s+(?:تطوير|بناء)\s+(?:حلول|خبر(?:ت|تها))|يتجه\s+نحو|يسعى\s+إلى|يطمح\s+إلى|\bfocused on (?:developing|building experience|expanding)\b|\bbuilding experience in\b|\bexpanding expertise in\b)/iu.test(closing);
@@ -283,6 +288,26 @@ const hasGenericSummaryClosing = (summary = "") => {
 const hasNonValueLinkedDirectionalClosing = (summary = "") => {
   const closing = getSummaryClosing(summary);
   return /^(?:(?:ي|ت)ركز\s+على\s+|تسعى\s+إلى\s+|يسعى\s+إلى\s+|focused on\s+|seeking to\s+|interested in\s+)/iu.test(closing);
+};
+
+// A third sentence is optional. For candidates with meaningful evidence, a
+// direction-only closing adds no resume value, so remove it deterministically
+// instead of spending a second model call to rewrite an otherwise sound draft.
+const removeGenericDirectionalClosing = ({ result = {}, payload = {} } = {}) => {
+  if (!["strong", "moderate"].includes(payload.evidenceStrength)) return result;
+  if (!hasNonValueLinkedDirectionalClosing(result.summary)) return result;
+  const sentences = getSummarySentences(result.summary);
+  if (sentences.length < 2) return result;
+  return {
+    ...result,
+    summary: sentences.slice(0, -1).join(" "),
+    quality: {
+      ...(result.quality || {}),
+      noGenericClosing: true,
+      closingAddsNewValue: true,
+      closingIsEvidenceLinked: true,
+    },
+  };
 };
 
 const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
@@ -1953,6 +1978,7 @@ const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedRe
     trace.summaryUsage = summarizeRunUsage(result, Date.now());
   }
 
+  output = removeGenericDirectionalClosing({ result: output, payload });
   let validation = validateProfessionalSummary({ result: output, payload });
   if (!validation.valid) {
     trace.summaryRepairAttempted = true;
@@ -1968,7 +1994,10 @@ const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedRe
       }),
       { context, maxTurns: 1 }
     );
-    output = professionalSummarySchema.parse(repairedResult.finalOutput);
+    output = removeGenericDirectionalClosing({
+      result: professionalSummarySchema.parse(repairedResult.finalOutput),
+      payload,
+    });
     validation = validateProfessionalSummary({ result: output, payload });
     trace.summaryRepairSucceeded = validation.valid;
     if (!validation.valid) {
@@ -2022,7 +2051,10 @@ const regenerateProfessionalSummary = async ({ verifiedResumeFacts, language = "
     buildProfessionalSummaryInput({ payload, currentSummary }),
     { context, maxTurns: 1 }
   );
-  let output = professionalSummarySchema.parse(result.finalOutput);
+  let output = removeGenericDirectionalClosing({
+    result: professionalSummarySchema.parse(result.finalOutput),
+    payload,
+  });
   let validation = validateProfessionalSummary({ result: output, payload });
 
   if (!validation.valid) {
@@ -2037,7 +2069,10 @@ const regenerateProfessionalSummary = async ({ verifiedResumeFacts, language = "
       }),
       { context, maxTurns: 1 }
     );
-    output = professionalSummarySchema.parse(repairedResult.finalOutput);
+    output = removeGenericDirectionalClosing({
+      result: professionalSummarySchema.parse(repairedResult.finalOutput),
+      payload,
+    });
     validation = validateProfessionalSummary({ result: output, payload });
     if (!validation.valid) {
       throw Object.assign(new Error("Professional summary validation failed"), {
@@ -2772,6 +2807,7 @@ module.exports = {
   mergeQualityRepair,
   buildQualityRepairInput,
   buildProfessionalSummaryPayload,
+  removeGenericDirectionalClosing,
   validateProfessionalSummary,
   buildProfessionalSummaryInput,
   regenerateProfessionalSummary,

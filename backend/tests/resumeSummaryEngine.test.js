@@ -1,6 +1,7 @@
 const assert = require("assert");
 const {
   buildProfessionalSummaryPayload,
+  removeGenericDirectionalClosing,
   validateProfessionalSummary,
 } = require("../agents/darbakResumeAgent");
 const { composeProfessionalDraft } = require("../services/resumeProfessionalComposer");
@@ -208,6 +209,24 @@ const saraCurrentArabicClosing = validateProfessionalSummary({
 assert.ok(
   saraCurrentArabicClosing.errors.includes("summary_value_linked_closing_required"),
   "Sara's current Arabic direction-only closing requires value-linked repair",
+);
+
+const saraCurrentArabicNormalized = removeGenericDirectionalClosing({
+  result: {
+    summary: "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية في تحليل الأعمال والبيانات. طوّرت مشروعًا باستخدام Power BI لتحليل بيانات الأعمال. تركز على تطوير حلول رقمية عملية في تحليل الأعمال والبيانات.",
+    quality,
+  },
+  payload: saraPayload,
+});
+assert.strictEqual(
+  saraCurrentArabicNormalized.summary,
+  "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية في تحليل الأعمال والبيانات. طوّرت مشروعًا باستخدام Power BI لتحليل بيانات الأعمال.",
+  "Sara's exact generic closing is removed rather than allowed through at moderate evidence",
+);
+assert.deepStrictEqual(
+  validateProfessionalSummary({ result: saraCurrentArabicNormalized, payload: saraPayload }).errors,
+  [],
+  "the concise two-sentence Sara summary remains valid",
 );
 
 const saraEnglishPayload = buildProfessionalSummaryPayload({
