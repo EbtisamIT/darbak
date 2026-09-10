@@ -128,7 +128,7 @@ const ResumeStatusCards = ({ resume, completion, customizations, review, onOpenR
   </div>
 );
 
-const ResumeActionRequired = ({ review, englishVersion, onReview, onEnglish }) => {
+const ResumeActionRequired = ({ review, englishVersion, onReview, onUpdateEnglish }) => {
   if (!review.pending && !englishVersion?.needsLocalizationRefresh) return null;
   const stale = englishVersion?.needsLocalizationRefresh;
   return (
@@ -137,7 +137,7 @@ const ResumeActionRequired = ({ review, englishVersion, onReview, onEnglish }) =
         <span>{stale ? "تحديث مطلوب" : "مطلوب منك"}</span>
         <strong>{stale ? "النسخة الإنجليزية تحتاج تحديث" : `لديك ${review.pending} ${review.pending === 1 ? "ترجمة تحتاج مراجعة" : "ترجمات تحتاج مراجعة"}`}</strong>
       </div>
-      <button type="button" onClick={stale ? onEnglish : onReview}>{stale ? "تحديث النسخة الإنجليزية" : "مراجعة الترجمات"}<FiArrowLeft aria-hidden="true" /></button>
+      <button type="button" onClick={stale ? onUpdateEnglish : onReview}>{stale ? "تحديث النسخة الإنجليزية" : "مراجعة الترجمات"}<FiArrowLeft aria-hidden="true" /></button>
     </section>
   );
 };
@@ -218,7 +218,9 @@ const ResumeDashboard = ({
   const englishVersion = versions.find((version) => version.variantType === "translation" || version.language === "en");
   const customizations = versions.filter((version) => version.variantType === "tailored");
   const review = useMemo(() => getResumeReviewSummary(englishVersion?.resumePayload || resume), [englishVersion?.resumePayload, resume]);
-  const openEnglish = () => englishVersion && !englishVersion.needsLocalizationRefresh ? onOpenVersion(englishVersion) : onCreateEnglish();
+  // Opening an existing version and refreshing it are separate actions. A
+  // stale flag must not strand the student on the dashboard or start AI work.
+  const openEnglish = () => englishVersion ? onOpenVersion(englishVersion) : onCreateEnglish();
 
   if (!resumeExists) {
     return <section className="resume-dashboard resume-dashboard-onboarding"><div className="resume-dashboard-hero"><span>سيرتي بدربك</span><h2>نجهز سيرتك من معلوماتك في دربك.</h2><p>عندنا بعض معلوماتك بالفعل، وبنسألك فقط عن الناقص.</p><button type="button" onClick={onStartFromPortfolio}>ابدأ سيرتي <FiArrowLeft aria-hidden="true" /></button><button type="button" className="resume-dashboard-text-action" onClick={onStartFromScratch}>أو ابدأ من الصفر</button></div></section>;
@@ -230,7 +232,7 @@ const ResumeDashboard = ({
       <ResumeDashboardTabs activeTab={activeTab} reviewCount={review.pending} onChange={setActiveTab} />
       {activeTab === "overview" && <>
         <ResumeStatusCards resume={resume} completion={completion} customizations={customizations} review={review} onOpenResume={onOpenEditor} />
-        <ResumeActionRequired review={review} englishVersion={englishVersion} onReview={onOpenEnglishReview} onEnglish={openEnglish} />
+        <ResumeActionRequired review={review} englishVersion={englishVersion} onReview={onOpenEnglishReview} onUpdateEnglish={onCreateEnglish} />
         <RecentCustomizations versions={customizations} loading={loadingVersions} onOpen={onOpenVersion} />
       </>}
       {activeTab === "review" && <ResumeReviewQueue review={review} onReview={onOpenEnglishReview} />}

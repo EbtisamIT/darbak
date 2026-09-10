@@ -1,4 +1,6 @@
-import { getCustomizationStatus, getResumeReviewSummary } from "./ResumeDashboard";
+import React from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import ResumeDashboard, { getCustomizationStatus, getResumeReviewSummary } from "./ResumeDashboard";
 
 describe("resume dashboard state", () => {
   const pendingTranslationResume = {
@@ -52,5 +54,32 @@ describe("resume dashboard state", () => {
     const englishVersion = { needsLocalizationRefresh: true, resumePayload: { localizedDisplay: { review: {} } } };
     expect(englishVersion.needsLocalizationRefresh).toBe(true);
     expect(getResumeReviewSummary(englishVersion.resumePayload).pending).toBe(0);
+  });
+
+  it("opens an existing stale English version while keeping refresh as an explicit action", () => {
+    const onOpenVersion = jest.fn();
+    const onCreateEnglish = jest.fn();
+    render(
+      <ResumeDashboard
+        resume={{ personalInfo: {}, settings: { language: "ar" } }}
+        resumeExists
+        versions={[{ _id: "english-1", variantType: "translation", language: "en", needsLocalizationRefresh: true }]}
+        onOpenEditor={jest.fn()}
+        onEditProfile={jest.fn()}
+        onReviewResumeSetup={jest.fn()}
+        onStartFromPortfolio={jest.fn()}
+        onStartFromScratch={jest.fn()}
+        onCustomize={jest.fn()}
+        onCreateEnglish={onCreateEnglish}
+        onOpenVersion={onOpenVersion}
+        onDownloadPdf={jest.fn()}
+        onOpenEnglishReview={jest.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "النسخة الإنجليزية" })[0]);
+    expect(onOpenVersion).toHaveBeenCalledWith(expect.objectContaining({ _id: "english-1" }));
+    fireEvent.click(screen.getByRole("button", { name: "تحديث النسخة الإنجليزية" }));
+    expect(onCreateEnglish).toHaveBeenCalledTimes(1);
   });
 });

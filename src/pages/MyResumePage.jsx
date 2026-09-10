@@ -22,7 +22,7 @@ import {
 import { getVisitorId, trackEvent, trackEventOncePerSession } from "../utils/analytics";
 import ResumeAgentFlow from "../features/resume/ResumeAgentFlow";
 import ResumeBuilder, { SettingsEditor } from "../features/resume/ResumeBuilder";
-import EnglishTranslationReview, { getEnglishReviewGroups } from "../features/resume/EnglishTranslationReview";
+import EnglishTranslationReview from "../features/resume/EnglishTranslationReview";
 import ResumePdfDocument from "../features/resume/ResumePdfDocument";
 import ResumePreview from "../features/resume/ResumePreview";
 import ResumeJobMatchPanel from "../features/resume/ResumeJobMatchPanel";
@@ -850,18 +850,7 @@ const MyResumePage = () => {
       if (!hasCompleteTailoredPack(data?.version)) {
         throw new Error("لم يكتمل حفظ ملف التقديم بعد. حاول فتحه مرة أخرى.");
       }
-      if (
-        data.version?.language === "en" &&
-        data.version?.needsLocalizationRefresh
-      ) {
-        setEditingTailoredVersion(false);
-        setEditingVersionId("");
-        setEditingVersionType("");
-        setResumeMode("dashboard");
-        setMessage("هذه النسخة الإنجليزية تحتاج تحديثًا قبل الاعتماد. سنحدّث الحقول الناقصة أو القديمة فقط عند اختيارك التحديث.");
-        navigate("/my-resume", { replace: true });
-        return;
-      }
+      const englishNeedsRefresh = data.version?.language === "en" && data.version?.needsLocalizationRefresh;
       const loadedResume = normalizeResume(data.version?.resumePayload || createEmptyResume());
       setResume({ ...loadedResume, access: resume.access || {} });
       setEditingTailoredVersion(true);
@@ -871,13 +860,15 @@ const MyResumePage = () => {
       setResumeMode("editor");
       setJourneyStep("ready");
       setActiveMobileTab("preview");
-      setMessage(`فتحت نسخة ${data.version?.name || "مخصصة"} بدون تغيير سيرتك الأساسية.`);
+      setMessage(englishNeedsRefresh
+        ? "هذه النسخة الإنجليزية تحتاج تحديثًا. يمكنك مراجعتها، ثم اختيار «ترجمة EN» لتحديث العناصر القديمة فقط."
+        : `فتحت نسخة ${data.version?.name || "مخصصة"} بدون تغيير سيرتك الأساسية.`);
     } catch (err) {
       setError(err.response?.data?.error || "تعذر فتح النسخة المخصصة.");
     } finally {
       setLoading(false);
     }
-  }, [navigate, resume.access]);
+  }, [resume.access]);
 
   const openTailoredVersion = (version) => {
     if (version?._id) navigate(`/my-resume/versions/${version._id}`);
@@ -1096,8 +1087,8 @@ const MyResumePage = () => {
             </ul>
             <button type="button" onClick={() => {
               setEnglishTranslationReady(false);
-              setEnglishReviewOpen(getEnglishReviewGroups(resume).some((group) => group.status === "pending"));
-            }}>مراجعة الترجمات</button>
+              setEnglishReviewOpen(false);
+            }}>فتح النسخة الإنجليزية</button>
           </section>
         </div>
       )}
