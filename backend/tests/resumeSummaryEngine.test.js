@@ -21,6 +21,8 @@ const quality = {
   everySentenceAddsValue: true,
   closingAddsNewValue: true,
   closingIsEvidenceLinked: true,
+  representsStrongEvidenceBreadth: true,
+  doesNotOverfocusSingleProject: true,
 };
 
 const fixture = ({ language, status, major, summary, experiences = [], projects = [], skills = [] }) => ({
@@ -115,6 +117,7 @@ assert.ok(mixedValidation.errors.includes("summary_language_mixing"), "English s
 const faisalAr = fixtures[0];
 const faisalArPayload = buildProfessionalSummaryPayload({ verifiedResumeFacts: faisalAr.facts, language: "ar" });
 assert.strictEqual(faisalArPayload.evidenceStrength, "strong", "Faisal Arabic fixture has strong project evidence");
+assert.deepStrictEqual(faisalArPayload.evidenceThemes.sort(), ["software_web", "text_processing"], "Faisal's web and Arabic text evidence remain distinct themes");
 assert.ok(
   validateProfessionalSummary({
     result: {
@@ -179,11 +182,15 @@ const saraPayload = buildProfessionalSummaryPayload({
   language: "ar",
   verifiedResumeFacts: {
     personalInfo: { studentStatus: "student", major: "نظم المعلومات الإدارية" },
-    projects: [{ id: "power-bi", title: "تحليل أعمال", description: "مشروع Power BI لتحليل بيانات الأعمال." }],
-    skills: ["Power BI"],
+    projects: [
+      { id: "power-bi", title: "لوحة مؤشرات المبيعات", description: "مشروع Power BI وExcel لتحليل بيانات المبيعات ومقارنة أداء الفروع." },
+      { id: "facilities", title: "نظام حجز مرافق", description: "نموذج أولي لنظام حجز مرافق جامعية وتصميم واجهات المستخدم باستخدام Figma." },
+    ],
+    skills: ["Power BI", "Excel", "Figma"],
   },
 });
-const saraClosing = "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية في تحليل الأعمال والبيانات. طوّرت مشروعًا باستخدام Power BI لتحليل بيانات الأعمال. توظف تحليل الأعمال والبيانات في تطوير حلول رقمية عملية.";
+assert.deepStrictEqual(saraPayload.evidenceThemes.sort(), ["data_analysis", "design_ux"], "Sara's dashboard and facilities prototype keep both evidence themes");
+const saraClosing = "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية تجمع بين تحليل الأعمال والبيانات وتصميم الحلول الرقمية. طوّرت لوحة مؤشرات للمبيعات باستخدام Power BI، وصممت نموذجًا أوليًا لنظام حجز مرافق باستخدام Figma.";
 assert.deepStrictEqual(
   validateProfessionalSummary({ result: { summary: saraClosing, quality }, payload: saraPayload }).errors,
   [],
@@ -211,16 +218,34 @@ assert.ok(
   "Sara's current Arabic direction-only closing requires value-linked repair",
 );
 
+const saraNarrowSummary = validateProfessionalSummary({
+  result: {
+    summary: "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية في تحليل الأعمال والبيانات. أنجزت لوحة مؤشرات باستخدام Power BI وExcel لمتابعة المبيعات.",
+    quality,
+  },
+  payload: saraPayload,
+});
+assert.ok(saraNarrowSummary.errors.includes("summary_evidence_breadth_missing"), "Sara's summary cannot omit the verified design/UX evidence theme");
+
+const saraBroadSummary = validateProfessionalSummary({
+  result: {
+    summary: "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية تجمع بين تحليل البيانات وتصميم الحلول الرقمية. أنجزت لوحة مؤشرات للمبيعات باستخدام Power BI وExcel، كما صممت نموذجًا أوليًا لنظام حجز مرافق باستخدام Figma.",
+    quality,
+  },
+  payload: saraPayload,
+});
+assert.deepStrictEqual(saraBroadSummary.errors, [], "Sara's data and design evidence both survive the summary");
+
 const saraCurrentArabicNormalized = removeGenericDirectionalClosing({
   result: {
-    summary: "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية في تحليل الأعمال والبيانات. طوّرت مشروعًا باستخدام Power BI لتحليل بيانات الأعمال. تركز على تطوير حلول رقمية عملية في تحليل الأعمال والبيانات.",
+    summary: "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية تجمع بين تحليل الأعمال والبيانات وتصميم الحلول الرقمية. طوّرت لوحة مؤشرات للمبيعات باستخدام Power BI، وصممت نموذجًا أوليًا لنظام حجز مرافق باستخدام Figma. تركز على تطوير حلول رقمية عملية في تحليل الأعمال والبيانات.",
     quality,
   },
   payload: saraPayload,
 });
 assert.strictEqual(
   saraCurrentArabicNormalized.summary,
-  "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية في تحليل الأعمال والبيانات. طوّرت مشروعًا باستخدام Power BI لتحليل بيانات الأعمال.",
+  "طالبة نظم المعلومات الإدارية لديها تجربة تطبيقية تجمع بين تحليل الأعمال والبيانات وتصميم الحلول الرقمية. طوّرت لوحة مؤشرات للمبيعات باستخدام Power BI، وصممت نموذجًا أوليًا لنظام حجز مرافق باستخدام Figma.",
   "Sara's exact generic closing is removed rather than allowed through at moderate evidence",
 );
 assert.deepStrictEqual(

@@ -109,6 +109,8 @@ const professionalSummarySchema = z
         evidenceLinkedTools: z.boolean().default(false),
         noGenericClosing: z.boolean().default(false),
         everySentenceAddsValue: z.boolean().default(false),
+        representsStrongEvidenceBreadth: z.boolean().default(true),
+        doesNotOverfocusSingleProject: z.boolean().default(true),
         // Defaults keep pre-existing cached V3 summaries readable. New Sol
         // responses are explicitly asked to return both closing checks.
         closingAddsNewValue: z.boolean().default(true),
@@ -208,6 +210,22 @@ const getSummaryCandidateLevel = (personalInfo = {}) => {
   return "early_career";
 };
 
+const SUMMARY_EVIDENCE_THEMES = {
+  data_analysis: /(?:\bdata\b|\banalytics?\b|\banalysis\b|\bdashboard\b|\bpower\s*bi\b|\bexcel\b|تحليل|بيانات|لوح(?:ة|ات)\s*(?:مؤشرات|بيانات)|مبيعات)/iu,
+  software_web: /(?:\bsoftware\b|\bweb\b|\bapplication\b|\bapp\b|\breact\b|\bnode\b|\bdevelopment\b|تطوير\s*(?:البرمجيات|الويب|تطبيق)|تطبيق(?:ات)?\s*(?:ويب|رقمي)?|نظام\s*(?:ويب|رقمي|مواعيد))/iu,
+  design_ux: /(?:\bfigma\b|\bui\/?ux\b|\buser interface\b|\binterface\b|تصميم\s*(?:واجهة|واجهات|حلول)|واجهات\s*المستخدم|تجربة\s*المستخدم|نموذج\s*أولي)/iu,
+  accounting_finance: /(?:\baccounting\b|\bfinancial\b|\binvoice\b|محاسب|مالية|فواتير|قيود|مصروفات)/iu,
+  operations: /(?:\boperations?\b|\badministrative\b|\breports?\b|\bcoordination\b|عمليات|إدار(?:ي|ية)|تقارير|تنسيق|متابعة)/iu,
+  text_processing: /(?:\btext\b|\bnlp\b|\bclassification\b|معالجة\s*النصوص|تصنيف\s*النصوص|نصوص\s*عربي)/iu,
+};
+
+const getEvidenceThemes = (entry = {}) => {
+  const source = [entry.title, entry.description, ...(entry.achievements || []), ...(entry.tools || [])].join(" ");
+  return Object.entries(SUMMARY_EVIDENCE_THEMES)
+    .filter(([, pattern]) => pattern.test(source))
+    .map(([theme]) => theme);
+};
+
 const getSummaryEvidence = (facts = {}) => {
   const evidence = [
     ...(Array.isArray(facts.experiences) ? facts.experiences : []).map((entry) => ({
@@ -245,6 +263,7 @@ const buildProfessionalSummaryPayload = ({ verifiedResumeFacts = {}, language = 
   const personalInfo = verifiedResumeFacts.personalInfo || {};
   const skills = Array.isArray(verifiedResumeFacts.skills) ? verifiedResumeFacts.skills : [];
   const strongestEvidence = getSummaryEvidence(verifiedResumeFacts);
+  const evidenceThemes = [...new Set(strongestEvidence.flatMap(getEvidenceThemes))].slice(0, 2);
   return {
     candidateLevel: getSummaryCandidateLevel(personalInfo),
     studentStatus: safeString(personalInfo.studentStatus, 40),
@@ -255,6 +274,8 @@ const buildProfessionalSummaryPayload = ({ verifiedResumeFacts = {}, language = 
     academicTrack: safeString(personalInfo.academicTrack, 160),
     strongestEvidence,
     evidenceStrength: getSummaryEvidenceStrength(strongestEvidence),
+    evidenceThemes,
+    requiresEvidenceBreadth: evidenceThemes.length >= 2,
     relevantCapabilityThemes: skills.slice(0, 6).map((skill) => safeString(skill?.name || skill, 80)).filter(Boolean),
     targetProfessionalDirection: safeText(verifiedResumeFacts.professionalContext, 500),
     language,
@@ -288,6 +309,11 @@ const hasGenericSummaryClosing = (summary = "") => {
 const hasNonValueLinkedDirectionalClosing = (summary = "") => {
   const closing = getSummaryClosing(summary);
   return /^(?:(?:ي|ت)ركز\s+على\s+|تسعى\s+إلى\s+|يسعى\s+إلى\s+|focused on\s+|seeking to\s+|interested in\s+)/iu.test(closing);
+};
+
+const summaryRepresentsEvidenceBreadth = (summary = "", payload = {}) => {
+  if (!payload.requiresEvidenceBreadth) return true;
+  return (payload.evidenceThemes || []).every((theme) => SUMMARY_EVIDENCE_THEMES[theme]?.test(summary));
 };
 
 // A third sentence is optional. For candidates with meaningful evidence, a
@@ -346,6 +372,9 @@ const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
   if (!quality.everySentenceAddsValue) errors.push("summary_low_value_sentence");
   if (!quality.closingAddsNewValue) errors.push("summary_closing_low_value");
   if (!quality.closingIsEvidenceLinked) errors.push("summary_closing_not_evidence_linked");
+  if (payload.requiresEvidenceBreadth && !quality.representsStrongEvidenceBreadth) errors.push("summary_evidence_breadth_missing");
+  if (payload.requiresEvidenceBreadth && !quality.doesNotOverfocusSingleProject) errors.push("summary_single_project_overfocus");
+  if (!summaryRepresentsEvidenceBreadth(summary, payload)) errors.push("summary_evidence_breadth_missing");
   if (hasGenericSummaryClosing(summary)) errors.push("summary_generic_closing");
   return { valid: errors.length === 0, errors };
 };
@@ -1913,9 +1942,9 @@ const createProfessionalSummaryAgent = () =>
     modelSettings: { maxTokens: 700 },
     instructions: `أنت كاتب نبذات مهنية محترف للسير الذاتية ATS. اكتب Professional Summary فقط، ولا تعدّل أي قسم آخر.
 استخدم payload المختصر الموثوق فقط. لا تخترع مهارة أو خبرة أو أداة أو نتيجة أو مسمى. اكتب غالبًا جملتين: الهوية المهنية الحالية والمجال، ثم أقوى دليل عملي مع التقنية أو المنهج المرتبط به عند وجوده. أضف جملة ثالثة فقط إذا أضافت positioning جديدًا محددًا ومدعومًا.
-لا تكرر قائمة المهارات أو تفاصيل المشاريع؛ يكفي ذكر أقوى دليل باختصار. لا تذكر أداة أو تقنية داخل النبذة لمجرد وجودها في قائمة skills: اذكرها فقط إذا كانت مرتبطة مباشرة بمشروع أو خبرة ضمن strongestEvidence، واذكر العلاقة بالفعل الذي نُفذ. عند الدليل القوي أو المتوسط استخدم positioning مباشرًا يوضح القيمة المهنية، ولا تستخدم building experience in أو expanding expertise in أو ما يعادلها بالعربية. إذا احتجت إلى خاتمة، اربط المجال بالفعل والقيمة الواقعية: «توظف تحليل الأعمال والبيانات في تطوير حلول رقمية عملية» أو «يوظف خبرته في تطوير تطبيقات الويب لبناء حلول برمجية عملية»، وبالإنجليزية "Applies business and data analysis to build practical digital solutions" أو "Applies web development experience to build practical software solutions" عندما تدعمها facts. لا تستخدم «يركز على تطوير…»، «Focused on developing…»، أو خاتمة عامة لا تضيف معنى جديدًا. إذا غطت أول جملتين الهوية والدليل والتموضع، احذف الجملة الثالثة بدل ملئها.
+لا تكرر قائمة المهارات أو تفاصيل المشاريع؛ يكفي ذكر أقوى دليل باختصار. لا تذكر أداة أو تقنية داخل النبذة لمجرد وجودها في قائمة skills: اذكرها فقط إذا كانت مرتبطة مباشرة بمشروع أو خبرة ضمن strongestEvidence، واذكر العلاقة بالفعل الذي نُفذ. إذا أظهر payload وجود evidenceThemes مختلفين، اذكر البعدين باختصار داخل النبذة (حد أقصى دليلان)، ولا تختزل المرشح في مشروع واحد. عند الدليل القوي أو المتوسط استخدم positioning مباشرًا يوضح القيمة المهنية، ولا تستخدم building experience in أو expanding expertise in أو ما يعادلها بالعربية. إذا احتجت إلى خاتمة، اربط المجال بالفعل والقيمة الواقعية: «توظف تحليل الأعمال والبيانات في تطوير حلول رقمية عملية» أو «يوظف خبرته في تطوير تطبيقات الويب لبناء حلول برمجية عملية»، وبالإنجليزية "Applies business and data analysis to build practical digital solutions" أو "Applies web development experience to build practical software solutions" عندما تدعمها facts. لا تستخدم «يركز على تطوير…»، «Focused on developing…»، أو خاتمة عامة لا تضيف معنى جديدًا. إذا غطت أول جملتين الهوية والدليل والتموضع، احذف الجملة الثالثة بدل ملئها.
 بالعربية اكتب فصحى مهنية طبيعية ومباشرة، وتجنب «يتجه نحو»، «يسعى إلى»، والعبارات الآلية أو لغة التحقق. بالإنجليزية اكتب natural resume English، وتجنب generic objective language وdocumented/verified wording.
-داخل quality أعد أيضًا evidenceLinkedTools وnoGenericClosing وeverySentenceAddsValue وclosingAddsNewValue وclosingIsEvidenceLinked كقيم true/false بعد مراجعة النبذة. closingAddsNewValue تكون true فقط إذا أضافت الخاتمة قيمة أو فعلًا جديدًا، وclosingIsEvidenceLinked تكون true فقط إذا ربطت المجال بما فعله المرشح فعليًا أو حُذفت الخاتمة الزائدة.
+داخل quality أعد أيضًا evidenceLinkedTools وnoGenericClosing وeverySentenceAddsValue وclosingAddsNewValue وclosingIsEvidenceLinked وrepresentsStrongEvidenceBreadth وdoesNotOverfocusSingleProject كقيم true/false بعد مراجعة النبذة. عند وجود evidenceThemes مختلفين، representsStrongEvidenceBreadth لا تكون true إلا إذا مثّلت النبذة البعدين، وdoesNotOverfocusSingleProject لا تكون true إذا ذُكر مشروع واحد فقط دون الثاني. closingAddsNewValue تكون true فقط إذا أضافت الخاتمة قيمة أو فعلًا جديدًا، وclosingIsEvidenceLinked تكون true فقط إذا ربطت المجال بما فعله المرشح فعليًا أو حُذفت الخاتمة الزائدة.
 أعد summary وquality فقط. لا تكتب reasoning أو markdown.`,
     tools: [],
     outputType: professionalSummarySchema,
@@ -2808,6 +2837,7 @@ module.exports = {
   buildQualityRepairInput,
   buildProfessionalSummaryPayload,
   removeGenericDirectionalClosing,
+  summaryRepresentsEvidenceBreadth,
   validateProfessionalSummary,
   buildProfessionalSummaryInput,
   regenerateProfessionalSummary,
