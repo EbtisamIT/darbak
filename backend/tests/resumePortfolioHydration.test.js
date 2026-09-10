@@ -400,6 +400,24 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.deepStrictEqual(reopened.projects[0].achievements, verified.projects[0].achievements);
 }
 
+// If no Arabic professional context exists, a legacy English summary still
+// must never be displayed after the student returns from an English version.
+{
+  const emptyContextPortfolio = {
+    ...portfolio,
+    _id: "arabic-master-empty-context",
+    bio: "",
+  };
+  const verified = buildVerifiedResumeFacts(emptyContextPortfolio, portfolio.email);
+  const reopened = composeCanonicalResume({
+    personalInfo: verified.personalInfo,
+    summary: "Computer Science student with practical project experience.",
+    settings: { language: "ar" },
+  }, emptyContextPortfolio, portfolio.email, { language: "ar" });
+  assert.ok(/[\u0600-\u06FF]/.test(reopened.summary), "Arabic master recovers an Arabic summary when a legacy English summary is stored");
+  assert.ok(!reopened.summary.includes("Computer Science student"), "legacy English summary never renders in the Arabic master");
+}
+
 // Case F: an invalid legacy numeric phone is repaired from the professional
 // profile without overwriting valid student-entered resume facts.
 {

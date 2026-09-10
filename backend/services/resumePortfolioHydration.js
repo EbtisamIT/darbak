@@ -94,6 +94,30 @@ const useArabicAchievements = (presentation = [], verified = []) => {
     : presentation;
 };
 
+// ResumeProfile is the Arabic master. A legacy translation could have stored
+// an English summary on it, while a Portfolio without professionalContext has
+// no Arabic text for useArabicPresentation to restore. Never render that
+// English presentation in the Arabic master: recover a small Arabic summary
+// from the current verified facts instead.
+const getArabicMasterSummary = ({ presentationValue = "", verifiedFacts = {}, personalInfo = {} } = {}) => {
+  const presentation = cleanText(presentationValue, 1800);
+  if (hasArabicText(presentation)) return presentation;
+
+  const professionalContext = cleanText(verifiedFacts.professionalContext, 900);
+  if (hasArabicText(professionalContext)) return professionalContext;
+
+  const headline = cleanText(personalInfo.headline || verifiedFacts.personalInfo?.headline, 180);
+  const evidence = [
+    ...(Array.isArray(verifiedFacts.experiences) ? verifiedFacts.experiences : []),
+    ...(Array.isArray(verifiedFacts.projects) ? verifiedFacts.projects : []),
+  ].find((entry) => cleanText(entry?.title || entry?.name, 180));
+  const evidenceTitle = cleanText(evidence?.title || evidence?.name, 180);
+  if (!headline) return "";
+  return evidenceTitle
+    ? `${headline}. يتضمن الملف مشروعًا أو خبرة بعنوان ${evidenceTitle}.`
+    : headline;
+};
+
 const isInvalidResumePersonalValue = (key = "", value = "") => {
   if (key !== "phone") return false;
   const digits = cleanText(value, 40).replace(/[^0-9٠-٩]/g, "");
@@ -415,7 +439,11 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
 
   const summary = language === "en"
     ? resume.summary || ""
-    : useArabicPresentation(resume.summary, verifiedResumeFacts.professionalContext || "");
+    : getArabicMasterSummary({
+        presentationValue: resume.summary,
+        verifiedFacts: verifiedResumeFacts,
+        personalInfo,
+      });
 
   const experiences = composeEntries("experiences");
   return {
