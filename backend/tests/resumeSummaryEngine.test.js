@@ -3,6 +3,8 @@ const {
   buildProfessionalSummaryPayload,
   removeGenericDirectionalClosing,
   validateProfessionalSummary,
+  normalizeProfessionalSummaryOutput,
+  professionalSummaryModelOutputSchema,
   PROFESSIONAL_SUMMARY_MAX_TURNS,
 } = require("../agents/darbakResumeAgent");
 const { composeProfessionalDraft } = require("../services/resumeProfessionalComposer");
@@ -31,6 +33,18 @@ assert.strictEqual(
   2,
   "manual Summary V3 generation allows the structured agent to complete before validation",
 );
+
+const summaryOnlyOutput = professionalSummaryModelOutputSchema.parse({
+  summary: "طالب علوم حاسب لديه خبرة تطبيقية في مشاريع برمجية.",
+});
+assert.deepStrictEqual(
+  Object.keys(summaryOnlyOutput),
+  ["summary"],
+  "the Summary V3 model contract requires only student-facing content",
+);
+const normalizedSummaryOnlyOutput = normalizeProfessionalSummaryOutput(summaryOnlyOutput);
+assert.strictEqual(normalizedSummaryOnlyOutput.quality.hasIdentity, true, "local deterministic checks normalize editorial metadata");
+assert.strictEqual(normalizedSummaryOnlyOutput.quality.noGenericClosing, true, "missing model metadata cannot reject a valid summary");
 
 const fixture = ({ language, status, major, summary, experiences = [], projects = [], skills = [] }) => ({
   language,

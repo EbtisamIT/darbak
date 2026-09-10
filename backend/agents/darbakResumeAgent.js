@@ -121,6 +121,42 @@ const professionalSummarySchema = z
   })
   .strict();
 
+// Sol only needs to return the student-facing summary. Editorial checks are
+// deterministic and run locally, so missing metadata must never reject an
+// otherwise valid summary response at the structured-output boundary.
+const professionalSummaryModelOutputSchema = z
+  .object({
+    summary: z.string().max(900),
+  })
+  .strict();
+
+const PROFESSIONAL_SUMMARY_QUALITY_DEFAULTS = {
+  hasIdentity: true,
+  hasEvidence: true,
+  hasClearPositioning: true,
+  hasGenericFiller: false,
+  hasRepeatedIdeas: false,
+  hasUnsupportedClaim: false,
+  hasExcessiveToolListing: false,
+  naturalLanguage: true,
+  evidenceLinkedTools: true,
+  noGenericClosing: true,
+  everySentenceAddsValue: true,
+  closingAddsNewValue: true,
+  closingIsEvidenceLinked: true,
+  representsStrongEvidenceBreadth: true,
+  doesNotOverfocusSingleProject: true,
+};
+
+const normalizeProfessionalSummaryOutput = (output = {}) =>
+  professionalSummarySchema.parse({
+    summary: output.summary,
+    quality: {
+      ...PROFESSIONAL_SUMMARY_QUALITY_DEFAULTS,
+      ...(output.quality || {}),
+    },
+  });
+
 const sourceMapEntrySchema = z
   .object({
     path: z.string().max(180).default(""),
@@ -1945,10 +1981,9 @@ const createProfessionalSummaryAgent = () =>
 استخدم payload المختصر الموثوق فقط. لا تخترع مهارة أو خبرة أو أداة أو نتيجة أو مسمى. اكتب غالبًا جملتين: الهوية المهنية الحالية والمجال، ثم أقوى دليل عملي مع التقنية أو المنهج المرتبط به عند وجوده. أضف جملة ثالثة فقط إذا أضافت positioning جديدًا محددًا ومدعومًا.
 لا تكرر قائمة المهارات أو تفاصيل المشاريع؛ يكفي ذكر أقوى دليل باختصار. لا تذكر أداة أو تقنية داخل النبذة لمجرد وجودها في قائمة skills: اذكرها فقط إذا كانت مرتبطة مباشرة بمشروع أو خبرة ضمن strongestEvidence، واذكر العلاقة بالفعل الذي نُفذ. إذا أظهر payload وجود evidenceThemes مختلفين، اذكر البعدين باختصار داخل النبذة (حد أقصى دليلان)، ولا تختزل المرشح في مشروع واحد. عند الدليل القوي أو المتوسط استخدم positioning مباشرًا يوضح القيمة المهنية، ولا تستخدم building experience in أو expanding expertise in أو ما يعادلها بالعربية. إذا احتجت إلى خاتمة، اربط المجال بالفعل والقيمة الواقعية: «توظف تحليل الأعمال والبيانات في تطوير حلول رقمية عملية» أو «يوظف خبرته في تطوير تطبيقات الويب لبناء حلول برمجية عملية»، وبالإنجليزية "Applies business and data analysis to build practical digital solutions" أو "Applies web development experience to build practical software solutions" عندما تدعمها facts. لا تستخدم «يركز على تطوير…»، «Focused on developing…»، أو خاتمة عامة لا تضيف معنى جديدًا. إذا غطت أول جملتين الهوية والدليل والتموضع، احذف الجملة الثالثة بدل ملئها.
 بالعربية اكتب فصحى مهنية طبيعية ومباشرة، وتجنب «يتجه نحو»، «يسعى إلى»، والعبارات الآلية أو لغة التحقق. بالإنجليزية اكتب natural resume English، وتجنب generic objective language وdocumented/verified wording.
-داخل quality أعد أيضًا evidenceLinkedTools وnoGenericClosing وeverySentenceAddsValue وclosingAddsNewValue وclosingIsEvidenceLinked وrepresentsStrongEvidenceBreadth وdoesNotOverfocusSingleProject كقيم true/false بعد مراجعة النبذة. عند وجود evidenceThemes مختلفين، representsStrongEvidenceBreadth لا تكون true إلا إذا مثّلت النبذة البعدين، وdoesNotOverfocusSingleProject لا تكون true إذا ذُكر مشروع واحد فقط دون الثاني. closingAddsNewValue تكون true فقط إذا أضافت الخاتمة قيمة أو فعلًا جديدًا، وclosingIsEvidenceLinked تكون true فقط إذا ربطت المجال بما فعله المرشح فعليًا أو حُذفت الخاتمة الزائدة.
-أعد summary وquality فقط. لا تكتب reasoning أو markdown.`,
+أعد JSON يحتوي summary فقط. لا تكتب reasoning أو markdown.`,
     tools: [],
-    outputType: professionalSummarySchema,
+    outputType: professionalSummaryModelOutputSchema,
   });
 
 const buildProfessionalSummaryInput = ({ payload = {}, currentSummary = "", repairErrors = [] } = {}) =>
@@ -2004,7 +2039,7 @@ const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedRe
       buildProfessionalSummaryInput({ payload, currentSummary }),
       { context, maxTurns: 1 }
     );
-    output = professionalSummarySchema.parse(result.finalOutput);
+    output = normalizeProfessionalSummaryOutput(result.finalOutput);
     trace.summaryUsage = summarizeRunUsage(result, Date.now());
   }
 
@@ -2025,7 +2060,7 @@ const writeProfessionalSummary = async ({ session, context, cacheKey, verifiedRe
       { context, maxTurns: 1 }
     );
     output = removeGenericDirectionalClosing({
-      result: professionalSummarySchema.parse(repairedResult.finalOutput),
+      result: normalizeProfessionalSummaryOutput(repairedResult.finalOutput),
       payload,
     });
     validation = validateProfessionalSummary({ result: output, payload });
@@ -2085,7 +2120,7 @@ const regenerateProfessionalSummary = async ({ verifiedResumeFacts, language = "
     { context, maxTurns: PROFESSIONAL_SUMMARY_MAX_TURNS }
   );
   let output = removeGenericDirectionalClosing({
-    result: professionalSummarySchema.parse(result.finalOutput),
+    result: normalizeProfessionalSummaryOutput(result.finalOutput),
     payload,
   });
   let validation = validateProfessionalSummary({ result: output, payload });
@@ -2103,7 +2138,7 @@ const regenerateProfessionalSummary = async ({ verifiedResumeFacts, language = "
       { context, maxTurns: PROFESSIONAL_SUMMARY_MAX_TURNS }
     );
     output = removeGenericDirectionalClosing({
-      result: professionalSummarySchema.parse(repairedResult.finalOutput),
+      result: normalizeProfessionalSummaryOutput(repairedResult.finalOutput),
       payload,
     });
     validation = validateProfessionalSummary({ result: output, payload });
@@ -2843,6 +2878,8 @@ module.exports = {
   removeGenericDirectionalClosing,
   summaryRepresentsEvidenceBreadth,
   validateProfessionalSummary,
+  normalizeProfessionalSummaryOutput,
+  professionalSummaryModelOutputSchema,
   buildProfessionalSummaryInput,
   regenerateProfessionalSummary,
   PROFESSIONAL_SUMMARY_MAX_TURNS,
