@@ -3,6 +3,7 @@ const {
   buildProfessionalSummaryPayload,
   removeGenericDirectionalClosing,
   validateProfessionalSummary,
+  PROFESSIONAL_SUMMARY_MAX_TURNS,
 } = require("../agents/darbakResumeAgent");
 const { composeProfessionalDraft } = require("../services/resumeProfessionalComposer");
 const { mapDraftToResumePayload } = require("../services/resumeAiService");
@@ -24,6 +25,12 @@ const quality = {
   representsStrongEvidenceBreadth: true,
   doesNotOverfocusSingleProject: true,
 };
+
+assert.strictEqual(
+  PROFESSIONAL_SUMMARY_MAX_TURNS,
+  2,
+  "manual Summary V3 generation allows the structured agent to complete before validation",
+);
 
 const fixture = ({ language, status, major, summary, experiences = [], projects = [], skills = [] }) => ({
   language,

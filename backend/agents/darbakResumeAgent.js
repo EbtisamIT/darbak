@@ -24,6 +24,7 @@ setSensitiveDataLoggingEnabled(false);
 const DEFAULT_RESUME_AGENT_MODEL = "gpt-5.6-terra";
 const DEFAULT_RESUME_SUMMARY_MODEL = "gpt-5.6-sol";
 const PROFESSIONAL_SUMMARY_WRITER_VERSION = "v3.1";
+const PROFESSIONAL_SUMMARY_MAX_TURNS = 2;
 const DEFAULT_MAX_TURNS = 6;
 const MAX_ANSWER_LENGTH = 1600;
 const MAX_FACT_TEXT_LENGTH = 22000;
@@ -2078,7 +2079,10 @@ const regenerateProfessionalSummary = async ({ verifiedResumeFacts, language = "
   const result = await run(
     createProfessionalSummaryAgent(),
     buildProfessionalSummaryInput({ payload, currentSummary }),
-    { context, maxTurns: 1 }
+    // The structured Summary V3 agent can require one completion turn after
+    // its initial response. One turn rejects an otherwise valid result with
+    // MaxTurnsExceededError before it reaches validation or persistence.
+    { context, maxTurns: PROFESSIONAL_SUMMARY_MAX_TURNS }
   );
   let output = removeGenericDirectionalClosing({
     result: professionalSummarySchema.parse(result.finalOutput),
@@ -2096,7 +2100,7 @@ const regenerateProfessionalSummary = async ({ verifiedResumeFacts, language = "
         currentSummary: output.summary,
         repairErrors: validation.errors,
       }),
-      { context, maxTurns: 1 }
+      { context, maxTurns: PROFESSIONAL_SUMMARY_MAX_TURNS }
     );
     output = removeGenericDirectionalClosing({
       result: professionalSummarySchema.parse(repairedResult.finalOutput),
@@ -2841,6 +2845,7 @@ module.exports = {
   validateProfessionalSummary,
   buildProfessionalSummaryInput,
   regenerateProfessionalSummary,
+  PROFESSIONAL_SUMMARY_MAX_TURNS,
   createAgentInstructions,
   runDarbakResumeAgent,
   validateResumeClaims,
