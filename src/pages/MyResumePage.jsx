@@ -243,6 +243,10 @@ const MyResumePage = () => {
   const routeVersionId = location.pathname.match(/^\/my-resume\/versions\/([^/]+)$/)?.[1] || "";
   const routeView = routeVersionId
     ? "version"
+    : location.pathname === "/my-resume/master"
+    ? "master"
+    : location.pathname === "/my-resume/customizations"
+    ? "customizations"
     : location.pathname === "/my-resume/setup"
     ? "setup"
     : location.pathname === "/my-resume/build"
@@ -1036,7 +1040,14 @@ const MyResumePage = () => {
       return;
     }
     if (routeView === "edit") {
-      navigate("/my-resume/review", { replace: true });
+      navigate("/my-resume/master", { replace: true });
+      return;
+    }
+    if (routeView === "master") {
+      openMaster();
+      setResumeMode("editor");
+      setJourneyStep("polish");
+      setActiveMobileTab("preview");
       return;
     }
     if (routeView === "review") {
@@ -1092,6 +1103,12 @@ const MyResumePage = () => {
       openMaster();
       setResumeMode("match");
       setJourneyStep("draft");
+      return;
+    }
+    if (routeView === "customizations") {
+      openMaster();
+      setResumeMode("dashboard");
+      setJourneyView("start");
       return;
     }
     // `/my-resume` is the stable entry point after subscribing. A saved draft
@@ -1388,16 +1405,14 @@ const MyResumePage = () => {
             loadingVersions={loadingTailoredVersions}
             onStartFromPortfolio={startJourneyFromPortfolio}
             onStartFromScratch={startJourneyFromScratch}
-            onEditProfile={() => navigate("/portfolio")}
+            onOpenResume={() => navigate("/my-resume/master")}
             onReviewResumeSetup={() => navigate("/my-resume/review")}
             factsFreshness={factsFreshness}
             onCustomize={handleCustomizeLater}
             onCreateEnglish={handleTranslateToEnglish}
             onOpenVersion={openTailoredVersion}
-            onDownloadPdf={handleDownloadPdf}
-            onOpenEnglishReview={() => setEnglishReviewOpen(true)}
-            englishUpdating={translating}
-            initialTab={searchParams.get("tab") || "overview"}
+            onViewAllCustomizations={() => navigate("/my-resume/customizations")}
+            showAllCustomizations={routeView === "customizations"}
           />
         )
       )}

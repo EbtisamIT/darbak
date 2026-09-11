@@ -64,26 +64,24 @@ describe("resume dashboard state", () => {
         resume={{ personalInfo: {}, settings: { language: "ar" } }}
         resumeExists
         versions={[{ _id: "english-1", variantType: "translation", language: "en", needsLocalizationRefresh: true }]}
-        onOpenEditor={jest.fn()}
-        onEditProfile={jest.fn()}
+        onOpenResume={jest.fn()}
         onReviewResumeSetup={jest.fn()}
         onStartFromPortfolio={jest.fn()}
         onStartFromScratch={jest.fn()}
         onCustomize={jest.fn()}
         onCreateEnglish={onCreateEnglish}
         onOpenVersion={onOpenVersion}
-        onDownloadPdf={jest.fn()}
-        onOpenEnglishReview={jest.fn()}
       />,
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "النسخة الإنجليزية" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: /النسخة الإنجليزية/ }));
     expect(onOpenVersion).toHaveBeenCalledWith(expect.objectContaining({ _id: "english-1" }));
-    fireEvent.click(screen.getByRole("button", { name: "تحديث النسخة الإنجليزية" }));
-    expect(onCreateEnglish).toHaveBeenCalledTimes(1);
+    expect(onCreateEnglish).not.toHaveBeenCalled();
+    expect(screen.getByText("تحتاج تحديث", { selector: "small" })).toBeInTheDocument();
   });
 
-  it("shows the resume as needing an explicit update when verified facts changed", () => {
+  it("keeps one primary master action and one freshness banner", () => {
+    const onOpenResume = jest.fn();
     const onReviewResumeSetup = jest.fn();
     render(
       <ResumeDashboard
@@ -91,25 +89,24 @@ describe("resume dashboard state", () => {
         resumeExists
         factsFreshness={{ changed: true, changes: ["مشروع محدث"] }}
         versions={[]}
-        onOpenEditor={jest.fn()}
-        onEditProfile={jest.fn()}
+        onOpenResume={onOpenResume}
         onReviewResumeSetup={onReviewResumeSetup}
         onStartFromPortfolio={jest.fn()}
         onStartFromScratch={jest.fn()}
         onCustomize={jest.fn()}
         onCreateEnglish={jest.fn()}
         onOpenVersion={jest.fn()}
-        onDownloadPdf={jest.fn()}
-        onOpenEnglishReview={jest.fn()}
       />,
     );
     expect(screen.getByText("تحتاج تحديث")).toBeInTheDocument();
-    const primaryMasterAction = screen.getByRole("button", { name: "مراجعة وتحديث سيرتي" });
+    const primaryMasterAction = screen.getAllByRole("button", { name: /فتح السيرة/ })[0];
     expect(primaryMasterAction).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "عرض السيرة" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "فتح السيرة" })).not.toBeInTheDocument();
     fireEvent.click(primaryMasterAction);
+    expect(onOpenResume).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /تحديث السيرة/ }));
     expect(onReviewResumeSetup).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 من 0/)).not.toBeInTheDocument();
   });
 
   it("uses the newest English translation when historical versions exist", () => {
@@ -122,20 +119,46 @@ describe("resume dashboard state", () => {
           { _id: "english-old", variantType: "translation", language: "en", updatedAt: "2026-01-01T00:00:00.000Z", needsLocalizationRefresh: true },
           { _id: "english-new", variantType: "translation", language: "en", updatedAt: "2026-02-01T00:00:00.000Z", needsLocalizationRefresh: false },
         ]}
-        onOpenEditor={jest.fn()}
-        onEditProfile={jest.fn()}
+        onOpenResume={jest.fn()}
         onReviewResumeSetup={jest.fn()}
         onStartFromPortfolio={jest.fn()}
         onStartFromScratch={jest.fn()}
         onCustomize={jest.fn()}
         onCreateEnglish={jest.fn()}
         onOpenVersion={onOpenVersion}
-        onDownloadPdf={jest.fn()}
-        onOpenEnglishReview={jest.fn()}
       />,
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "النسخة الإنجليزية" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "النسخة الإنجليزية" }));
     expect(onOpenVersion).toHaveBeenCalledWith(expect.objectContaining({ _id: "english-new" }));
+  });
+
+  it("shows only the latest three customizations with a link to all", () => {
+    const onViewAllCustomizations = jest.fn();
+    const versions = Array.from({ length: 4 }, (_, index) => ({
+      _id: `tailored-${index}`,
+      variantType: "tailored",
+      label: `فرصة ${index + 1}`,
+      applicationPack: { resume: { status: "ready" } },
+    }));
+    render(
+      <ResumeDashboard
+        resume={{ personalInfo: {}, settings: { language: "ar" } }}
+        resumeExists
+        versions={versions}
+        onOpenResume={jest.fn()}
+        onReviewResumeSetup={jest.fn()}
+        onStartFromPortfolio={jest.fn()}
+        onStartFromScratch={jest.fn()}
+        onCustomize={jest.fn()}
+        onCreateEnglish={jest.fn()}
+        onOpenVersion={jest.fn()}
+        onViewAllCustomizations={onViewAllCustomizations}
+      />,
+    );
+
+    expect(screen.getAllByRole("button", { name: /فتح التخصيص/ })).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "عرض كل التخصيصات" }));
+    expect(onViewAllCustomizations).toHaveBeenCalledTimes(1);
   });
 });
