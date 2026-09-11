@@ -452,9 +452,10 @@ const derivedArabicHeadline = (personal = {}) => {
   if (!major) return "";
   const feminine = personal.grammaticalGender === "feminine";
   const masculine = personal.grammaticalGender === "masculine";
-  if (personal.studentStatus === "graduate") return `${feminine ? "خريجة" : masculine ? "خريج" : "خريج/ة"} ${major}`;
-  if (personal.studentStatus === "student") return `${feminine ? "طالبة" : masculine ? "طالب" : "طالب/ة"} ${major}`;
-  return `${feminine ? "متخصصة" : masculine ? "متخصص" : "متخصص/ة"} في ${major}`;
+  if (!feminine && !masculine) return major;
+  if (personal.studentStatus === "graduate") return `${feminine ? "خريجة" : "خريج"} ${major}`;
+  if (personal.studentStatus === "student") return `${feminine ? "طالبة" : "طالب"} ${major}`;
+  return `${feminine ? "متخصصة" : "متخصص"} في ${major}`;
 };
 
 // The API attaches this read-only snapshot after resolving Portfolio facts.

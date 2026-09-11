@@ -46,9 +46,9 @@ const getCertificationDetails = (entry = {}) => {
   return [entry.organization || entry.subtitle, year].filter(Boolean).join(" | ");
 };
 
-const EntryPreview = ({ entry, language, sectionKey, personal }) => {
+const EntryPreview = ({ entry, language, sectionKey, personal, resume }) => {
   const education = sectionKey === "education"
-    ? getResumeEducationDisplay(entry, personal, language)
+    ? getResumeEducationDisplay(entry, personal, language, resume)
     : null;
   const isCertification = sectionKey === "certifications";
   const date = isCertification ? "" : formatResumeDateRange(entry, language);
@@ -114,7 +114,7 @@ const ResumePreview = ({ resume }) => {
         <section className="resume-paper-section" key={sectionKey}>
           <h3>{titles[sectionKey]}</h3>
           {visibleEntries.map((entry) => (
-            <EntryPreview key={entry.id || entry.title} entry={entry} language={language} sectionKey={sectionKey} personal={personal} />
+            <EntryPreview key={entry.id || entry.title} entry={entry} language={language} sectionKey={sectionKey} personal={personal} resume={resume} />
           ))}
         </section>
       );

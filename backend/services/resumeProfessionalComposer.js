@@ -260,6 +260,7 @@ const buildDeterministicHeadline = (personalInfo = {}, language = "ar") => {
     if (status === "student") return `${major} Student`;
     return `${major} Specialist`;
   }
+  if (!gender) return major;
   if (status === "graduate") return `${gender === "masculine" ? "خريج" : "خريجة"} ${major}`;
   if (status === "student") return `${gender === "masculine" ? "طالب" : "طالبة"} ${major}`;
   return `${gender === "masculine" ? "متخصص" : "متخصصة"} ${major}`;

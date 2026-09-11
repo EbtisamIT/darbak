@@ -796,9 +796,10 @@ const buildConfirmedHeadline = (personal = {}, language = "ar") => {
   }
   const feminine = personal.grammaticalGender === "feminine";
   const masculine = personal.grammaticalGender === "masculine";
-  if (status === "graduate") return `${feminine ? "خريجة" : masculine ? "خريج" : "خريج/ة"} ${major}`;
-  if (status === "student") return `${feminine ? "طالبة" : masculine ? "طالب" : "طالب/ة"} ${major}`;
-  return `${feminine ? "متخصصة" : masculine ? "متخصص" : "متخصص/ة"} في ${major}`;
+  if (!feminine && !masculine) return major;
+  if (status === "graduate") return `${feminine ? "خريجة" : "خريج"} ${major}`;
+  if (status === "student") return `${feminine ? "طالبة" : "طالب"} ${major}`;
+  return `${feminine ? "متخصصة" : "متخصص"} في ${major}`;
 };
 
 const buildFactGroundedSummary = ({ personal = {}, resume = {}, language = "ar" } = {}) => {

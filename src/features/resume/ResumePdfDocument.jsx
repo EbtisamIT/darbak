@@ -237,13 +237,13 @@ const ResumeSection = ({ title, children, styles }) => {
   );
 };
 
-const EntryList = ({ entries = [], styles, language, sectionKey, personal }) => {
+const EntryList = ({ entries = [], styles, language, sectionKey, personal, resume }) => {
   const visibleEntries = entries.filter(hasEntryContent);
   if (!visibleEntries.length) return null;
 
   return visibleEntries.map((entry) => {
     const education = sectionKey === "education"
-      ? getResumeEducationDisplay(entry, personal, language)
+      ? getResumeEducationDisplay(entry, personal, language, resume)
       : null;
     const isCertification = sectionKey === "certifications";
     const date = isCertification ? "" : formatResumeDateRange(entry, language);
@@ -303,7 +303,7 @@ const ResumePdfDocument = ({ resume = {} }) => {
       if (!entries?.some(hasEntryContent)) return null;
       return (
         <ResumeSection key={sectionKey} title={titles[sectionKey]} styles={styles}>
-          <EntryList entries={entries} styles={styles} language={language} sectionKey={sectionKey} personal={personal} />
+          <EntryList entries={entries} styles={styles} language={language} sectionKey={sectionKey} personal={personal} resume={resume} />
         </ResumeSection>
       );
     }

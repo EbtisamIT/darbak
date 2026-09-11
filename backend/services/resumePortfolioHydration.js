@@ -215,9 +215,9 @@ const buildPortfolioHeadline = (portfolio = {}) => {
     "متوقعة التخرج": "expected_graduate", "متوقع التخرج": "expected_graduate",
   }[rawStatus] || portfolio.studentStatus;
   const statusLabels = {
-    student: { feminine: "طالبة", masculine: "طالب", neutral: "طالب/ة" },
-    graduate: { feminine: "خريجة", masculine: "خريج", neutral: "خريج/ة" },
-    expected_graduate: { feminine: "متوقعة التخرج", masculine: "متوقع التخرج", neutral: "متوقع/ة التخرج" },
+    student: { feminine: "طالبة", masculine: "طالب", neutral: "" },
+    graduate: { feminine: "خريجة", masculine: "خريج", neutral: "" },
+    expected_graduate: { feminine: "متوقعة التخرج", masculine: "متوقع التخرج", neutral: "" },
   };
   const stage = cleanText(portfolio.degreeLevel, 120);
   if (!major) return "";
@@ -226,10 +226,10 @@ const buildPortfolioHeadline = (portfolio = {}) => {
     return `${explicitArabicStatus} ${major}`;
   }
   if (statusLabels[normalizedStatus]) {
-    return `${statusLabels[normalizedStatus][portfolio.grammaticalGender] || statusLabels[normalizedStatus].neutral} ${major}`;
+    return [statusLabels[normalizedStatus][portfolio.grammaticalGender] || statusLabels[normalizedStatus].neutral, major].filter(Boolean).join(" ");
   }
   const confirmedStage = stage.match(/(?:طالبة|طالب|خريجة|خريج)/)?.[0];
-  return confirmedStage ? `${confirmedStage} ${major}` : `متخصص/ة في ${major}`;
+  return confirmedStage ? `${confirmedStage} ${major}` : major;
 };
 
 const mapPortfolioEntry = (entry = {}, prefix = "portfolio-entry", index = 0) => {

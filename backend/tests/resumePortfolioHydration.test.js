@@ -179,7 +179,8 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(composed.personalInfo.university, "University of Jeddah");
   assert.strictEqual(composed.personalInfo.city, "Jeddah");
   assert.strictEqual(composed.personalInfo.studentStatus, "graduate");
-  assert.strictEqual(composed.personalInfo.headline, "خريج/ة Business Administration");
+  assert.strictEqual(composed.personalInfo.headline, "Business Administration");
+  assert.ok(!composed.personalInfo.headline.includes("/"));
   assert.strictEqual(composed.summary, nouraPortfolio.bio);
   assert.strictEqual(composed.projects[0].description, "Analyzed customer satisfaction feedback.");
 }
