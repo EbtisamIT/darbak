@@ -1,3 +1,5 @@
+import { getResumeDisplaySkills } from "./resumeSkillDisplay";
+
 const arabicPattern = /[\u0600-\u06FF]/;
 
 const isArabicPresentation = (value = "") => arabicPattern.test(String(value));
@@ -690,9 +692,10 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
     const personal = resume.personalInfo || {};
     const headline = derivedArabicHeadline(personal);
     const isStatusHeadline = /^(?:طالب(?:ة)?|خريج(?:ة)?|متخصص(?:ة)?|طالب\/ة|خريج\/ة|متخصص\/ة)(?=\s|$)/.test(String(personal.headline || "").trim());
-    return headline && (!personal.headline || isStatusHeadline)
+    const localizedResume = headline && (!personal.headline || isStatusHeadline)
       ? { ...resume, personalInfo: { ...personal, headline } }
       : resume;
+    return { ...localizedResume, skills: getResumeDisplaySkills(localizedResume) };
   }
   const generated = buildEnglishLocalizedDisplay(resume);
   // Old English versions may contain Arabic presentation values. They remain
@@ -760,10 +763,11 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
     : !preserveWriterSummary && hasEnglishStatusConflict(canonicalSummary, resume.personalInfo?.studentStatus)
     ? buildEnglishFactSummary(resume, personal)
     : getEnglishSummary(canonicalSummary, personal, preserveWriterSummary);
-  next.skills = getCleanEnglishSkills((resume.skills || []).map((skill, index) => {
+  const localizedSkills = getCleanEnglishSkills((resume.skills || []).map((skill, index) => {
     const source = typeof skill === "string" ? skill : skill?.name || "";
     return localized.skills?.[index] || (!arabicPattern.test(source) ? source : "");
   }));
+  next.skills = getResumeDisplaySkills({ ...next, verifiedResumeFacts: null }, localizedSkills);
   next.languages = (resume.languages || []).map((language, index) => {
     const display = localized.languages?.[index] || {};
     const name = display.name || (!arabicPattern.test(language?.name || "") ? language?.name || "" : "");

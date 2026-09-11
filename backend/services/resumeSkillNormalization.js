@@ -22,6 +22,8 @@ const SKILL_ALIASES = {
   "microsoft excel": "Microsoft Excel",
   excel: "Microsoft Excel",
   sql: "SQL",
+  "web design": "Web Design",
+  "software development": "Software Development",
 };
 
 const normalizeKey = (value = "") =>
@@ -39,9 +41,15 @@ const normalizeResumeSkill = (value = "") => {
 
 const normalizeResumeSkills = (skills = [], max = 30) => {
   const seen = new Set();
-  return (Array.isArray(skills) ? skills : [])
+  const normalized = (Array.isArray(skills) ? skills : [])
     .flatMap((skill) => String(typeof skill === "string" ? skill : skill?.name || "").split(/[•|,،]/))
-    .map(normalizeResumeSkill)
+    .map(normalizeResumeSkill);
+  const hasUi = normalized.some((skill) => normalizeKey(skill) === "ui");
+  const hasUx = normalized.some((skill) => normalizeKey(skill) === "ux");
+  const candidates = hasUi && hasUx
+    ? [...normalized.filter((skill) => !["ui", "ux"].includes(normalizeKey(skill))), "UI/UX"]
+    : normalized;
+  return candidates
     .filter((skill) => {
       const key = normalizeKey(skill).replace(/[^\p{L}\p{N}]/gu, "");
       if (!key || seen.has(key)) return false;

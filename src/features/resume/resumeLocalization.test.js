@@ -303,7 +303,7 @@ describe("English resume presentation", () => {
       }],
     });
 
-    expect(localized.skills).toEqual(["React.js", "Web Development", "Node.js"]);
+    expect(localized.skills).toEqual(["React.js", "Node.js", "Web Development"]);
     expect(localized.languages[0]).toMatchObject({ name: "Arabic", level: "Native" });
     expect(localized.volunteering[0]).toMatchObject({ title: "Programmer", organization: "Injaz Club" });
   });
@@ -601,11 +601,11 @@ describe("English resume presentation", () => {
 
     expect(localized.education).toHaveLength(1);
     expect(localized.skills).toEqual([
-      "GitHub",
-      "React.js",
-      "Time Management",
       "UI/UX",
+      "React.js",
       "Node.js",
+      "GitHub",
+      "Time Management",
       "Web Development",
     ]);
     expect(localized.summary).toMatch(/^Information Technology Graduate\./);
