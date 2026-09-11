@@ -1,7 +1,7 @@
 const cleanText = (value = "", max = 1600) => String(value || "").trim().slice(0, max);
 
 const parseStructuredAnswerFieldKey = (fieldKey = "") => {
-  const match = cleanText(fieldKey, 160).match(/^(project_description):(.+)$/u);
+  const match = cleanText(fieldKey, 160).match(/^(project_description|experience_description):(.+)$/u);
   if (!match) return null;
   return { type: match[1], itemId: cleanText(match[2], 120) };
 };
@@ -20,6 +20,34 @@ const validateProjectDescriptionAnswer = (answer = "") => {
   };
 };
 
+const buildPendingProjectDescriptionQuestion = (facts = {}, state = {}) => {
+  const answered = new Set((Array.isArray(state.answers) ? state.answers : [])
+    .map((answer) => cleanText(answer?.fieldKey || answer?.questionId, 160))
+    .filter(Boolean));
+  const skipped = new Set((Array.isArray(state.skippedFieldKeys) ? state.skippedFieldKeys : [])
+    .map((fieldKey) => cleanText(fieldKey, 160))
+    .filter(Boolean));
+  const project = (Array.isArray(facts.projects) ? facts.projects : []).find((entry) => {
+    const id = cleanText(entry?.id || entry?._id, 120);
+    const fieldKey = id ? `project_description:${id}` : "";
+    return fieldKey && !cleanText(entry?.description || entry?.details, 1600) && !answered.has(fieldKey) && !skipped.has(fieldKey);
+  });
+  if (!project) return null;
+  const projectId = cleanText(project.id || project._id, 120);
+  const fieldKey = `project_description:${projectId}`;
+  return {
+    id: fieldKey,
+    fieldKey,
+    section: "projects",
+    itemTitle: cleanText(project.title || project.name, 140),
+    question: `وش سويت في مشروع ${cleanText(project.title || project.name, 140) || "هذا المشروع"}؟ اذكر باختصار أهم شيء نفذته، وإذا استخدمت أدوات معينة اذكرها.`,
+    whyNeeded: "نستخدم إجابتك لصياغة نقاط المشروع بدقة، ويمكنك تخطي السؤال.",
+    reason: "project_description_missing",
+    inputType: "textarea",
+    options: [],
+  };
+};
+
 const upsertAnswersByFieldKey = (existing = [], incoming = []) => {
   const byKey = new Map();
   [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]
@@ -32,11 +60,15 @@ const upsertAnswersByFieldKey = (existing = [], incoming = []) => {
 
 const mergeStructuredAnswersIntoFacts = (facts = {}, answers = []) => {
   const projectAnswers = new Map();
+  const experienceAnswers = new Map();
   (Array.isArray(answers) ? answers : []).forEach((answer) => {
     const parsed = parseStructuredAnswerFieldKey(answer?.fieldKey || answer?.questionId);
     const value = cleanText(answer?.answer || answer?.value);
     if (parsed?.type === "project_description" && parsed.itemId && value) {
       projectAnswers.set(parsed.itemId, value);
+    }
+    if (parsed?.type === "experience_description" && parsed.itemId && value) {
+      experienceAnswers.set(parsed.itemId, value);
     }
   });
 
@@ -46,6 +78,11 @@ const mergeStructuredAnswersIntoFacts = (facts = {}, answers = []) => {
       const id = cleanText(project?.id || project?._id, 120);
       const answer = projectAnswers.get(id);
       return answer ? { ...project, description: answer, details: answer } : project;
+    }),
+    experiences: (Array.isArray(facts.experiences) ? facts.experiences : []).map((experience) => {
+      const id = cleanText(experience?.id || experience?._id, 120);
+      const answer = experienceAnswers.get(id);
+      return answer ? { ...experience, description: answer, details: answer } : experience;
     }),
   };
 };
@@ -65,8 +102,22 @@ const applyProjectDescriptionAnswer = (source = {}, answer = {}) => {
   return true;
 };
 
+const applyExperienceDescriptionAnswer = (source = {}, answer = {}) => {
+  const parsed = parseStructuredAnswerFieldKey(answer.fieldKey || answer.questionId);
+  const value = cleanText(answer.answer || answer.value);
+  const experiences = Array.isArray(source.experiences) ? source.experiences : source.experience;
+  if (parsed?.type !== "experience_description" || !value || !Array.isArray(experiences)) return false;
+  const experience = experiences.find((entry) => cleanText(entry?.id || entry?._id, 120) === parsed.itemId);
+  if (!experience) return false;
+  experience.description = value;
+  if (Object.prototype.hasOwnProperty.call(experience, "details")) experience.details = value;
+  return true;
+};
+
 module.exports = {
   applyProjectDescriptionAnswer,
+  applyExperienceDescriptionAnswer,
+  buildPendingProjectDescriptionQuestion,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
   upsertAnswersByFieldKey,

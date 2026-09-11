@@ -85,6 +85,7 @@ const {
 } = require("./services/resumeSummaryFreshness");
 const { getResumeFactsFreshness } = require("./services/resumeFactsFreshness");
 const {
+  applyExperienceDescriptionAnswer,
   applyProjectDescriptionAnswer,
   parseStructuredAnswerFieldKey,
   upsertAnswersByFieldKey,
@@ -8063,10 +8064,10 @@ const sanitizeResumeAgentAnswers = (answers = [], pendingQuestions = []) => {
 };
 
 const persistAcceptedResumeAgentAnswers = async (access = {}, answers = []) => {
-  const projectAnswers = answers.filter((answer) =>
-    parseStructuredAnswerFieldKey(answer.fieldKey)?.type === "project_description"
+  const structuredAnswers = answers.filter((answer) =>
+    ["project_description", "experience_description"].includes(parseStructuredAnswerFieldKey(answer.fieldKey)?.type)
   );
-  if (!projectAnswers.length) return { answerPersisted: true, persistedCount: 0 };
+  if (!structuredAnswers.length) return { answerPersisted: true, persistedCount: 0 };
 
   const ownershipQuery = {
     contact: access.contact,
@@ -8076,14 +8077,17 @@ const persistAcceptedResumeAgentAnswers = async (access = {}, answers = []) => {
   const portfolio = resume?.workflow?.factsOwner === "resume" ? null : await Portfolio.findOne(ownershipQuery);
   const sources = portfolio ? [portfolio, resume].filter(Boolean) : [resume].filter(Boolean);
   let persistedCount = 0;
-  for (const answer of projectAnswers) {
-    const source = sources.find((candidate) => applyProjectDescriptionAnswer(candidate, answer));
+  for (const answer of structuredAnswers) {
+    const type = parseStructuredAnswerFieldKey(answer.fieldKey)?.type;
+    const source = sources.find((candidate) => type === "project_description"
+      ? applyProjectDescriptionAnswer(candidate, answer)
+      : applyExperienceDescriptionAnswer(candidate, answer));
     if (!source) continue;
-    source.markModified("projects");
+    source.markModified(type === "project_description" ? "projects" : (Array.isArray(source.experiences) ? "experiences" : "experience"));
     await source.save();
     persistedCount += 1;
   }
-  return { answerPersisted: persistedCount === projectAnswers.length, persistedCount };
+  return { answerPersisted: persistedCount === structuredAnswers.length, persistedCount };
 };
 
 const mergeResumeAgentUsage = (current = {}, next = {}) => ({
@@ -8583,6 +8587,8 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
       portfolioReadiness: getPortfolioResumeReadiness(portfolio || {}, contact),
       factsFreshness: {
         changed: factsFreshness.changed,
+        contentRefreshNeeded: factsFreshness.contentRefreshNeeded,
+        deterministicChanged: factsFreshness.deterministicChanged,
         baselineMissing: factsFreshness.baselineMissing,
         changes: factsFreshness.changes,
         currentHash: factsFreshness.currentHash,
@@ -8683,7 +8689,7 @@ app.put('/api/resume/me/facts', requireResumeAccess, async (req, res) => {
     const freshness = getResumeFactsFreshness({ verifiedFacts: canonical.verifiedResumeFacts || {}, workflow: savedResume?.workflow || {} });
     res.json({
       resume: serializeResume(canonical, req.darbakAccess),
-      factsFreshness: { changed: freshness.changed, baselineMissing: freshness.baselineMissing, changes: freshness.changes, currentHash: freshness.currentHash, lastBuiltHash: freshness.lastBuiltHash },
+      factsFreshness: { changed: freshness.changed, contentRefreshNeeded: freshness.contentRefreshNeeded, deterministicChanged: freshness.deterministicChanged, baselineMissing: freshness.baselineMissing, changes: freshness.changes, currentHash: freshness.currentHash, lastBuiltHash: freshness.lastBuiltHash },
       message: "تم حفظ بيانات السيرة.",
     });
   } catch (err) {
@@ -9022,8 +9028,15 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
       return res.status(409).json({ error: "هذه الجلسة انتهت. ابدأ جلسة جديدة." });
     }
 
+    const pendingFieldKeys = new Set((session.pendingQuestions || []).map((question) =>
+      sanitizeAccessItemKey(question.fieldKey || question.id || "")
+    ).filter(Boolean));
+    const skippedFieldKeys = (Array.isArray(req.body?.skippedFieldKeys) ? req.body.skippedFieldKeys : [])
+      .map((fieldKey) => sanitizeAccessItemKey(fieldKey))
+      .filter((fieldKey) => pendingFieldKeys.has(fieldKey))
+      .slice(0, 3);
     const answers = sanitizeResumeAgentAnswers(req.body?.answers, session.pendingQuestions);
-    if (!answers.length) {
+    if (!answers.length && !skippedFieldKeys.length) {
       return res.status(400).json({ error: "أجب عن سؤال واحد على الأقل للمتابعة." });
     }
 
@@ -9094,8 +9107,12 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
     session.collectedFacts = {
       ...(session.collectedFacts || {}),
       answers: mergedAnswers,
+      skippedFieldKeys: Array.from(new Set([
+        ...(session.collectedFacts?.skippedFieldKeys || []),
+        ...skippedFieldKeys,
+      ])),
     };
-    session.answeredQuestionIds = nextAnsweredIds;
+    session.answeredQuestionIds = Array.from(new Set([...nextAnsweredIds, ...skippedFieldKeys]));
     session.status = "generating";
     session.expiresAt = getResumeAgentExpiry();
     await session.save();

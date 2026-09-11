@@ -1,6 +1,8 @@
 const assert = require("assert");
 const {
   applyProjectDescriptionAnswer,
+  applyExperienceDescriptionAnswer,
+  buildPendingProjectDescriptionQuestion,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
   upsertAnswersByFieldKey,
@@ -33,6 +35,12 @@ assert.strictEqual(applyProjectDescriptionAnswer(persisted, answers[0]), true);
 assert.strictEqual(persisted.projects[0].description, validAnswer);
 assert.strictEqual(persisted.projects[1].description, "وصف محفوظ");
 
+const experienceFacts = { experiences: [{ id: "experience-1", title: "تدريب", description: "" }] };
+const experienceAnswer = { fieldKey: "experience_description:experience-1", answer: "أعددت التقارير الأسبوعية ونظمت السجلات." };
+assert.strictEqual(applyExperienceDescriptionAnswer(experienceFacts, experienceAnswer), true);
+assert.strictEqual(experienceFacts.experiences[0].description, experienceAnswer.answer);
+assert.strictEqual(mergeStructuredAnswersIntoFacts({ experiences: [{ id: "experience-1" }] }, [experienceAnswer]).experiences[0].description, experienceAnswer.answer);
+
 const legacyPortfolio = { projects: [{ id: "", title: "تحليل رضا العملاء", description: "" }] };
 assert.strictEqual(applyProjectDescriptionAnswer(legacyPortfolio, {
   fieldKey: "project_description:portfolio-project-0-تحليل رضا العملاء",
@@ -46,5 +54,11 @@ const replaced = upsertAnswersByFieldKey(
 );
 assert.strictEqual(replaced.length, 1);
 assert.strictEqual(replaced[0].answer, validAnswer);
+
+const pendingQuestion = buildPendingProjectDescriptionQuestion(facts, { answers: [] });
+assert.strictEqual(pendingQuestion.fieldKey, fieldKey);
+assert.strictEqual(pendingQuestion.inputType, "textarea");
+assert.strictEqual(buildPendingProjectDescriptionQuestion(facts, { skippedFieldKeys: [fieldKey] }), null);
+assert.strictEqual(buildPendingProjectDescriptionQuestion(merged, { answers }), null);
 
 console.log("resumeAgentAnswerLifecycle tests passed");

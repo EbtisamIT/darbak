@@ -93,7 +93,7 @@ const ResumeMasterCard = ({ resume, factsFreshness, onOpenResume }) => (
     </div>
     <div>
       <span>السيرة الحالية · قالب {resume.settings?.template || "نظيف"}</span>
-      <h2>{factsFreshness?.changed ? "تحتاج تحديث" : "محدثة ✓"}</h2>
+      <h2>{(factsFreshness?.contentRefreshNeeded ?? factsFreshness?.changed) ? "تحتاج تحديث" : "محدثة ✓"}</h2>
       <p>آخر تحديث {relativeDate(resume.updatedAt)} · {formatDate(resume.updatedAt)}</p>
       <button type="button" onClick={onOpenResume}>فتح السيرة <FiArrowLeft aria-hidden="true" /></button>
     </div>
@@ -101,12 +101,12 @@ const ResumeMasterCard = ({ resume, factsFreshness, onOpenResume }) => (
 );
 
 const ResumeActionRequired = ({ factsFreshness, onReviewResume }) => {
-  if (!factsFreshness?.changed) return null;
+  if (!(factsFreshness?.contentRefreshNeeded ?? factsFreshness?.changed)) return null;
   return (
     <section className="resume-dashboard-action-required">
       <div>
         <span>تحديث مطلوب</span>
-        <strong>عندك تغييرات جديدة لم تُطبّق على السيرة</strong>
+        <strong>عندك تغييرات تحتاج تحديث صياغة السيرة</strong>
       </div>
       <button type="button" onClick={onReviewResume}>تحديث السيرة <FiArrowLeft aria-hidden="true" /></button>
     </section>

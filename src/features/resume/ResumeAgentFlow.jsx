@@ -5,6 +5,10 @@ import API_BASE_URL from "../../config/api";
 import { getAccessHeaders } from "../../utils/premiumAccess";
 import { getVisitorId, trackEvent } from "../../utils/analytics";
 import { getScopedResumeStorageKey } from "./resumeStorageScope";
+import {
+  getStudentVisibleAgentMessages,
+  getStudentVisibleMissingNotes,
+} from "./resumeAgentMessages";
 
 const getQuestionKey = (question = {}, index = 0) =>
   question.fieldKey || question.id || question.question || `question-${index + 1}`;
@@ -389,7 +393,7 @@ const ResumeAgentFlow = ({
           : "جاري إكمال تقديمك..."
         : data.output?.status === "needs_information"
           ? "باقي كم تفصيل صغير ونجهز المسودة."
-          : "جاري كتابة سيرتك وترتيب المشاريع ومراجعة المعلومات..."
+          : "تم حفظ إجابتك ✓ جاري كتابة سيرتك وترتيب المشاريع..."
       );
       trackEvent("resume_agent_answers_submitted", {
         page: "/my-resume",
@@ -412,6 +416,32 @@ const ResumeAgentFlow = ({
           },
         });
       }
+      setError(getAgentErrorMessage(err));
+      setNotice("");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const skipQuestions = async () => {
+    if (!session?.sessionId || !questions.length) return;
+    try {
+      setLoading(true);
+      setError("");
+      setNotice("تم التخطي. نجهز المسودة بالمعلومات المتوفرة.");
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/resume-agent/respond`,
+        {
+          sessionId: session.sessionId,
+          skippedFieldKeys: questions.map((question, index) => getQuestionKey(question, index)),
+          visitorId: getVisitorId(),
+        },
+        { headers: getAccessHeaders({ itemKey: "resume-agent:respond" }) },
+      );
+      setSession(data.session);
+      setOutput(data.output);
+      setAnswers({});
+    } catch (err) {
       setError(getAgentErrorMessage(err));
       setNotice("");
     } finally {
@@ -556,8 +586,8 @@ const ResumeAgentFlow = ({
       {!loading && output?.status === "needs_information" && (
         <div className="resume-agent-questions">
           <div className="resume-agent-section-head">
-            <h3>أجب على هذه الأسئلة</h3>
-            <p>اكتب بأسلوبك العادي، والوكيل يحولها لصياغة مناسبة للسيرة.</p>
+            <h3>نكمل كم معلومة</h3>
+            <p>اكتب بأسلوبك العادي، أو تخطَّ السؤال ونكمل بالمعلومات المتوفرة.</p>
           </div>
           {questions.map((question, index) => {
             const key = getQuestionKey(question, index);
@@ -585,11 +615,11 @@ const ResumeAgentFlow = ({
             );
           })}
           <div className="resume-agent-actions">
-            <button type="button" className="is-soft" onClick={onCancel}>
-              رجوع
+            <button type="button" className="is-soft" onClick={skipQuestions}>
+              تخطي
             </button>
             <button type="button" onClick={submitAnswers}>
-              إرسال ومتابعة
+              حفظ ومتابعة
               <FiArrowRight aria-hidden="true" />
             </button>
           </div>
@@ -634,21 +664,21 @@ const ResumeAgentFlow = ({
                   </ul>
                 </div>
               )}
-              {!isTailored && output.warnings?.length > 0 && (
+              {!isTailored && getStudentVisibleAgentMessages(output.warnings).length > 0 && (
                 <div>
                   <strong>ملاحظات للمراجعة</strong>
                   <ul>
-                    {output.warnings.map((item, index) => (
+                    {getStudentVisibleAgentMessages(output.warnings).map((item, index) => (
                       <li key={`warning-${index}`}>{item}</li>
                     ))}
                   </ul>
                 </div>
               )}
-              {!isTailored && output.missingInformation?.length > 0 && (
+              {!isTailored && getStudentVisibleMissingNotes(output.missingInformation).length > 0 && (
                 <div>
-                  <strong>معلومات لم نستخدمها أو ناقصة</strong>
+                  <strong>معلومات اختيارية يمكنك إضافتها لاحقًا</strong>
                   <ul>
-                    {output.missingInformation.map((item, index) => (
+                    {getStudentVisibleMissingNotes(output.missingInformation).map((item, index) => (
                       <li key={`missing-${index}`}>
                         {[item.section, item.question].filter(Boolean).join(": ")}
                       </li>
@@ -693,9 +723,9 @@ const ResumeAgentFlow = ({
         <div className="resume-agent-loading is-error">
           <strong>ما قدرنا نكمل المسودة الآن</strong>
           <p>{output.message || "المعلومات الحالية غير كافية أو تحتاج مراجعة."}</p>
-          {output.warnings?.length > 0 && (
+          {getStudentVisibleAgentMessages(output.warnings).length > 0 && (
             <ul>
-              {output.warnings.map((warning, index) => (
+              {getStudentVisibleAgentMessages(output.warnings).map((warning, index) => (
                 <li key={`cannot-warning-${index}`}>{warning}</li>
               ))}
             </ul>

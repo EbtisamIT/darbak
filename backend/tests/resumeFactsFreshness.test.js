@@ -25,6 +25,8 @@ const changed = getResumeFactsFreshness({
   workflow: { lastBuiltFactsHash: first.currentHash, lastBuiltFactsSnapshot: first.currentSnapshot },
 });
 assert.strictEqual(changed.changed, true);
+assert.strictEqual(changed.contentRefreshNeeded, false);
+assert.strictEqual(changed.deterministicChanged, true);
 assert.ok(changed.changes.includes("شهادة جديدة أو محدثة"));
 
 const certificationMetadataChanged = getResumeFactsFreshness({
@@ -46,5 +48,18 @@ const activityChanged = getResumeFactsFreshness({
 });
 assert.strictEqual(activityChanged.changed, true);
 assert.ok(activityChanged.changes.includes("نشاط جديد أو محدث"));
+
+const projectWritingChanged = getResumeFactsFreshness({
+  verifiedFacts: { ...baseFacts, projects: [{ id: "project-1", title: "نظام حجز", description: "تطبيق ويب لإدارة المواعيد" }] },
+  workflow: { lastBuiltFactsHash: first.currentHash, lastBuiltFactsSnapshot: first.currentSnapshot },
+});
+assert.strictEqual(projectWritingChanged.contentRefreshNeeded, true);
+
+const skillOnlyChanged = getResumeFactsFreshness({
+  verifiedFacts: { ...baseFacts, skills: ["React.js", "Node.js"] },
+  workflow: { lastBuiltFactsHash: first.currentHash, lastBuiltFactsSnapshot: first.currentSnapshot },
+});
+assert.strictEqual(skillOnlyChanged.contentRefreshNeeded, false);
+assert.strictEqual(skillOnlyChanged.deterministicChanged, true);
 
 console.log("resume facts freshness tests passed");

@@ -18,7 +18,7 @@ const {
   getQualityFailureSections,
 } = require("../services/resumeProfessionalComposer");
 const { buildVerifiedResumeFacts, composeCanonicalResume } = require("../services/resumePortfolioHydration");
-const { upsertAnswersByFieldKey } = require("../services/resumeAgentAnswerLifecycle");
+const { buildPendingProjectDescriptionQuestion, upsertAnswersByFieldKey } = require("../services/resumeAgentAnswerLifecycle");
 const { getResumeFactsFreshness } = require("../services/resumeFactsFreshness");
 
 setSensitiveDataLoggingEnabled(false);
@@ -1065,6 +1065,7 @@ const collectFacts = ({ profile, resume, opportunity, collectedFacts } = {}) => 
     profile: profileFacts.profile,
     resume: resumeFacts.resume,
     answers: answerFacts.answers,
+    skippedFieldKeys: Array.isArray(collectedFacts?.skippedFieldKeys) ? collectedFacts.skippedFieldKeys : [],
     opportunity: opportunityFacts.opportunity,
     sources,
     sourceIds,
@@ -1091,8 +1092,11 @@ const isConfirmedQuestion = (question = {}, facts = {}) => {
   const normalizedSection = normalizeComparable(question.section);
   const section = sectionAliases[normalizedSection] || normalizedSection;
   const answeredQuestionIds = new Set(
-    (facts.answers || [])
-      .map((answer) => normalizeComparable(answer.fieldKey || answer.questionId || answer.id || ""))
+    [
+      ...(facts.answers || []).map((answer) => answer.fieldKey || answer.questionId || answer.id || ""),
+      ...(facts.skippedFieldKeys || []),
+    ]
+      .map((fieldKey) => normalizeComparable(fieldKey))
       .filter(Boolean)
   );
   // An already persisted question can have a stable session id even when it
@@ -1151,8 +1155,11 @@ const filterConfirmedQuestions = (output = {}, facts = {}) => {
 
 const getFallbackMissingQuestion = (facts = {}) => {
   const answers = new Set(
-    (facts.answers || [])
-      .map((answer) => normalizeComparable(answer.fieldKey || answer.questionId || answer.id || ""))
+    [
+      ...(facts.answers || []).map((answer) => answer.fieldKey || answer.questionId || answer.id || ""),
+      ...(facts.skippedFieldKeys || []),
+    ]
+      .map((fieldKey) => normalizeComparable(fieldKey))
       .filter(Boolean)
   );
   const projects = getEntriesForQuestion(facts, "projects");
@@ -2462,12 +2469,6 @@ const persistProfessionalDraft = async ({ context = {}, draft = {}, sourceMap = 
 };
 
 const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
-  if (!process.env.OPENAI_API_KEY) {
-    const error = new Error("OPENAI_API_KEY is missing");
-    error.code = "OPENAI_KEY_MISSING";
-    throw error;
-  }
-
   const startedAt = Date.now();
   const agent = createDarbakResumeAgent();
   const existingAnswers = Array.isArray(session.collectedFacts?.answers)
@@ -2548,6 +2549,23 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     backendRefreshCompleted: true,
     cacheHit: false,
   };
+  const enrichmentQuestion = session.purpose === "create_resume"
+    ? buildPendingProjectDescriptionQuestion(verifiedResumeFacts, collectedFacts)
+    : null;
+  if (enrichmentQuestion) {
+    return {
+      output: {
+        status: "needs_information",
+        message: "نكمل معلومة اختيارية قبل تجهيز المسودة.",
+        questions: [enrichmentQuestion],
+        missingInformation: [],
+        warnings: [],
+        pendingDraftId: "",
+      },
+      lastResponseId: session.lastResponseId || "",
+      usage: { ...trace, model: "", durationMs: Date.now() - startedAt },
+    };
+  }
   let result = null;
   let output = getReusableDraftOutput(session, generationCacheKey);
 
@@ -2558,6 +2576,11 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     trace.cacheHit = true;
     trace.initialGenerationSucceeded = true;
   } else {
+    if (!process.env.OPENAI_API_KEY) {
+      const error = new Error("OPENAI_API_KEY is missing");
+      error.code = "OPENAI_KEY_MISSING";
+      throw error;
+    }
     try {
       trace.modelCallStarted = true;
       trace.aiCalls += 1;

@@ -58,6 +58,25 @@ const getChangedFactSections = (previous = {}, current = {}) => [
 ].filter(([key]) => stableJson(previous[key] || (key === "personalInfo" ? {} : [])) !== stableJson(current[key] || (key === "personalInfo" ? {} : [])))
   .map(([, label]) => label);
 
+const getWritingSnapshot = (snapshot = {}) => ({
+  experiences: (snapshot.experiences || []).map((entry) => ({
+    id: entry.id,
+    description: entry.description,
+    achievements: entry.achievements,
+  })),
+  projects: (snapshot.projects || []).map((entry) => ({
+    id: entry.id,
+    description: entry.description,
+    achievements: entry.achievements,
+  })),
+});
+
+const getDeterministicSnapshot = (snapshot = {}) => ({
+  ...snapshot,
+  experiences: (snapshot.experiences || []).map(({ description, achievements, ...entry }) => entry),
+  projects: (snapshot.projects || []).map(({ description, achievements, ...entry }) => entry),
+});
+
 const getResumeFactsFreshness = ({ verifiedFacts = {}, workflow = {} } = {}) => {
   const currentSnapshot = buildResumeFactsSnapshot(verifiedFacts);
   const currentHash = hashResumeFactsSnapshot(currentSnapshot);
@@ -65,11 +84,15 @@ const getResumeFactsFreshness = ({ verifiedFacts = {}, workflow = {} } = {}) => 
   const lastBuiltHash = cleanText(workflow?.lastBuiltFactsHash);
   const baselineMissing = !lastBuiltSnapshot || !lastBuiltHash;
   const changed = baselineMissing || lastBuiltHash !== currentHash;
+  const writingChanged = baselineMissing || stableJson(getWritingSnapshot(lastBuiltSnapshot || {})) !== stableJson(getWritingSnapshot(currentSnapshot));
+  const deterministicChanged = baselineMissing || stableJson(getDeterministicSnapshot(lastBuiltSnapshot || {})) !== stableJson(getDeterministicSnapshot(currentSnapshot));
   return {
     currentHash,
     lastBuiltHash,
     baselineMissing,
     changed,
+    contentRefreshNeeded: changed && writingChanged,
+    deterministicChanged: changed && deterministicChanged,
     changes: changed && !baselineMissing ? getChangedFactSections(lastBuiltSnapshot, currentSnapshot) : [],
     currentSnapshot,
   };

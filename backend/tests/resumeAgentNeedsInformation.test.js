@@ -68,4 +68,16 @@ const facts = {
   assert.deepStrictEqual(afterAnswer.questions, []);
 }
 
+{
+  const normalized = normalizeNeedsInformationOutput({
+    status: "needs_information",
+    questions: [{ section: "projects", question: "اكتب وصفًا مختصرًا لما نفذته في بوابة الطلاب." }],
+  }, facts);
+  const afterSkip = filterConfirmedQuestions(normalized, {
+    ...facts,
+    skippedFieldKeys: ["project_description:project-1"],
+  });
+  assert.deepStrictEqual(afterSkip.questions, []);
+}
+
 console.log("resumeAgentNeedsInformation tests passed");
