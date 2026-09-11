@@ -1120,9 +1120,11 @@ const MyResumePage = () => {
     return <ResumeAccessPreview premiumPass={localPremiumPass} onUpgrade={openResumeUpgrade} onExplore={() => navigate("/")} />;
   }
 
-  // Profile hydration may fill the form, but it must never skip the first
-  // onboarding. Only the explicit Portfolio CTA completes this workflow.
-  if (shouldShowResumeOnboarding(resumeWorkflow) && routeView !== "version") {
+  // Onboarding is only for a student who has not built a master resume yet.
+  // Older master resumes can have an empty legacy workflow; they must still
+  // open the dashboard and its explicit review journey rather than being
+  // redirected away from `/my-resume/review`.
+  if (!resumeExists && shouldShowResumeOnboarding(resumeWorkflow) && routeView !== "version") {
     return <Navigate to="/portfolio?from=resume" replace />;
   }
 
