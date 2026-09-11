@@ -1028,10 +1028,7 @@ const MyResumePage = () => {
       return;
     }
     if (routeView === "edit") {
-      openMaster();
-      setResumeMode("editor");
-      setJourneyStep("polish");
-      setActiveMobileTab("content");
+      navigate("/my-resume/review", { replace: true });
       return;
     }
     if (routeView === "review") {
@@ -1113,7 +1110,7 @@ const MyResumePage = () => {
     const approvedResume = data.resume || data.tailoredVersion?.resumePayload || null;
     if (!approvedResume) {
       setMessage(data.message || "تم اعتماد المسودة.");
-      navigate("/my-resume/edit");
+      navigate("/my-resume/review");
       return;
     }
 
@@ -1150,7 +1147,7 @@ const MyResumePage = () => {
     if (data.tailoredVersion?._id) {
       navigate(`/my-resume/versions/${data.tailoredVersion._id}`);
     } else {
-      navigate("/my-resume/edit");
+      navigate("/my-resume/review");
     }
   };
 
@@ -1178,7 +1175,7 @@ const MyResumePage = () => {
   };
 
   const returnToMasterResume = async () => {
-    navigate("/my-resume/edit");
+    navigate("/my-resume/review");
   };
 
   const renderSaveStatus = () => {
@@ -1268,7 +1265,7 @@ const MyResumePage = () => {
           {resumeMode === "editor" ? (
             <>
               {editingTailoredVersion && <button type="button" className="resume-icon-button" onClick={returnToMasterResume}>
-                سيرتي الأساسية
+                مراجعة وتحديث سيرتي
               </button>}
               <span className={`resume-save-status is-${saveState}`}>{renderSaveStatus()}</span>
               <button type="button" className="resume-icon-button" onClick={() => setActiveMobileTab("preview")}>
@@ -1376,7 +1373,6 @@ const MyResumePage = () => {
             loadingVersions={loadingTailoredVersions}
             onStartFromPortfolio={startJourneyFromPortfolio}
             onStartFromScratch={startJourneyFromScratch}
-            onOpenEditor={() => navigate("/my-resume/edit")}
             onEditProfile={() => navigate("/portfolio")}
             onReviewResumeSetup={() => navigate("/my-resume/review")}
             factsFreshness={factsFreshness}
@@ -1555,7 +1551,7 @@ const MyResumePage = () => {
 
       {resumeMode === "editor" && !englishReviewOpen && <div className="resume-sticky-actions">
         {editingTailoredVersion && <button type="button" onClick={returnToMasterResume}>
-          سيرتي الأساسية
+          مراجعة وتحديث سيرتي
         </button>}
         <button type="button" onClick={() => saveResume({ manual: true })}>
           <FiSave aria-hidden="true" />

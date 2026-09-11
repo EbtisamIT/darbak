@@ -11,6 +11,7 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
+  Navigate,
   useLocation,
   useNavigate,
 } from "react-router-dom";
@@ -1383,7 +1384,7 @@ function AppLayout({ theme, setTheme }) {
               <Route path="/subscribe" element={<SubscribeRoute />} />
               <Route path="/my-resume" element={<MyResumePage />} />
               <Route path="/my-resume/build" element={<MyResumePage />} />
-              <Route path="/my-resume/edit" element={<MyResumePage />} />
+              <Route path="/my-resume/edit" element={<Navigate to="/my-resume/review" replace />} />
               <Route path="/my-resume/review" element={<MyResumePage />} />
               <Route path="/my-resume/versions/:versionId" element={<MyResumePage />} />
               <Route path="/my-resume/tailor" element={<MyResumePage />} />

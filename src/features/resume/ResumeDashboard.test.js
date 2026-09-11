@@ -84,6 +84,7 @@ describe("resume dashboard state", () => {
   });
 
   it("shows the resume as needing an explicit update when verified facts changed", () => {
+    const onReviewResumeSetup = jest.fn();
     render(
       <ResumeDashboard
         resume={{ personalInfo: {}, settings: { language: "ar" } }}
@@ -92,7 +93,7 @@ describe("resume dashboard state", () => {
         versions={[]}
         onOpenEditor={jest.fn()}
         onEditProfile={jest.fn()}
-        onReviewResumeSetup={jest.fn()}
+        onReviewResumeSetup={onReviewResumeSetup}
         onStartFromPortfolio={jest.fn()}
         onStartFromScratch={jest.fn()}
         onCustomize={jest.fn()}
@@ -103,7 +104,12 @@ describe("resume dashboard state", () => {
       />,
     );
     expect(screen.getByText("تحتاج تحديث")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "مراجعة التغييرات وتحديث السيرة" })).toBeInTheDocument();
+    const primaryMasterAction = screen.getByRole("button", { name: "مراجعة وتحديث سيرتي" });
+    expect(primaryMasterAction).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "عرض السيرة" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "فتح السيرة" })).not.toBeInTheDocument();
+    fireEvent.click(primaryMasterAction);
+    expect(onReviewResumeSetup).toHaveBeenCalledTimes(1);
   });
 
   it("uses the newest English translation when historical versions exist", () => {
