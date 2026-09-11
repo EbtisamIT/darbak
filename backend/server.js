@@ -8207,9 +8207,42 @@ const pickDraftFields = (value = {}, fields = []) => fields.reduce((picked, fiel
   return picked;
 }, {});
 
+// Pending drafts are durable so a student never loses an AI response. Older
+// writer versions sometimes stored a display field as { ar, en } or { label }
+// instead of the current string contract. Normalize the approval copy only;
+// keep the original draft untouched for traceability and future recovery.
+const normalizePendingDraftText = (value, maxLength = 900) => {
+  if (typeof value === "string" || typeof value === "number") return String(value).trim().slice(0, maxLength);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  return [value.value, value.label, value.name, value.ar, value.en, value.text]
+    .find((candidate) => typeof candidate === "string" || typeof candidate === "number")
+    ?.toString()
+    .trim()
+    .slice(0, maxLength) || "";
+};
+
+const normalizePendingDraftEntry = (entry = {}, fields = [], listFields = []) => {
+  const normalized = pickDraftFields(entry, [...fields, ...listFields]);
+  fields.forEach((field) => {
+    if (field === "quality") {
+      normalized.quality = pickDraftFields(normalized.quality, [
+        "noDuplicateMeaning", "noUnsupportedClaims", "appropriateSeniority", "concise",
+      ]);
+      return;
+    }
+    normalized[field] = normalizePendingDraftText(normalized[field]);
+  });
+  listFields.forEach((field) => {
+    normalized[field] = Array.isArray(normalized[field])
+      ? normalized[field].map((item) => normalizePendingDraftText(item)).filter(Boolean)
+      : [];
+  });
+  return normalized;
+};
+
 const normalizePendingDraftForApproval = (draft = {}) => {
-  const entries = (value, fields) => (Array.isArray(value)
-    ? value.filter((entry) => entry && typeof entry === "object").map((entry) => pickDraftFields(entry, fields))
+  const entries = (value, fields, listFields = []) => (Array.isArray(value)
+    ? value.filter((entry) => entry && typeof entry === "object").map((entry) => normalizePendingDraftEntry(entry, fields, listFields))
     : []);
   return {
     ...pickDraftFields(draft, [
@@ -8218,18 +8251,21 @@ const normalizePendingDraftForApproval = (draft = {}) => {
     editorialCheck: pickDraftFields(draft.editorialCheck, [
       "concise", "noRepeatedIdeas", "naturalArabic", "evidenceBased", "noUnnecessaryToolListing",
     ]),
-    education: entries(draft.education, ["sourceId", "title", "organization", "degree", "major", "dates", "location", "details", "bullets"]),
-    experiences: entries(draft.experiences, ["sourceId", "title", "organization", "dates", "location", "bullets", "quality"]),
-    projects: entries(draft.projects, ["sourceId", "name", "description", "technologies", "bullets", "url"]),
+    education: entries(draft.education, ["sourceId", "title", "organization", "degree", "major", "dates", "location", "details"], ["bullets"]),
+    experiences: entries(draft.experiences, ["sourceId", "title", "organization", "dates", "location", "quality"], ["bullets"]),
+    projects: entries(draft.projects, ["sourceId", "name", "description", "url"], ["technologies", "bullets"]),
     certifications: entries(draft.certifications, ["sourceId", "name", "issuer", "date", "details"]),
-    volunteering: entries(draft.volunteering, ["sourceId", "title", "organization", "dates", "location", "bullets"]),
+    volunteering: entries(draft.volunteering, ["sourceId", "title", "organization", "dates", "location"], ["bullets"]),
     languages: entries(draft.languages, ["name", "level"]),
     // Evidence ranking is a server-only signal. Strip all extra skill
     // metadata so drafts made by any previous writer version stay approvable.
     skills: Array.isArray(draft.skills)
       ? draft.skills.map((skill) => typeof skill === "string"
         ? { name: skill, evidenceSourceId: "" }
-        : pickDraftFields(skill, ["name", "evidenceSourceId"]))
+        : {
+            name: normalizePendingDraftText(skill?.name, 80),
+            evidenceSourceId: normalizePendingDraftText(skill?.evidenceSourceId, 80),
+          })
       : [],
   };
 };
@@ -8260,7 +8296,8 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     error.code = "PENDING_DRAFT_INVALID";
     error.resumeApprovalDiagnostics = {
       stage: "pending_draft_contract",
-      issues: baseResult.error.issues.slice(0, 8).map((issue) => `${issue.path.join(".") || "draft"}:${issue.code}`),
+      issues: (tailoredResult.error?.issues || baseResult.error.issues).slice(0, 8)
+        .map((issue) => `${issue.path.join(".") || "draft"}:${issue.code}`),
     };
     throw error;
   }
