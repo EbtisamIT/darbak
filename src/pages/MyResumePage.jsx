@@ -1539,7 +1539,9 @@ const MyResumePage = () => {
               <div className="resume-pane-head">
                 <div>
                   <h2>المحرر</h2>
-                  <p>رتّب الأقسام، أضف الإنجازات، وأخفِ أي قسم لا تحتاجه.</p>
+                  <p>{routeView === "master" && !editingTailoredVersion
+                    ? "عدّل صياغة النبذة واللمسات فقط. لتحديث الحقائق استخدم مراجعة وتحديث البيانات."
+                    : "رتّب الأقسام، أضف الإنجازات، وأخفِ أي قسم لا تحتاجه."}</p>
                 </div>
                 <button type="button" onClick={() => loadResume()}>
                   <FiRefreshCw aria-hidden="true" />
@@ -1549,6 +1551,9 @@ const MyResumePage = () => {
               <ResumeBuilder
                 resume={resume}
                 hideCompletedChecklist={editingTailoredVersion && editingVersionType === "tailored"}
+                showPersonalInfo={routeView !== "master" || editingTailoredVersion}
+                showApplicationDetails={routeView !== "master" || editingTailoredVersion}
+                visibleSections={routeView === "master" && !editingTailoredVersion ? ["summary"] : null}
                 onChange={(nextResume) => setResume(normalizeResume(nextResume))}
                 onUsePortfolio={handleUsePortfolio}
                 onCreateScratch={handleCreateScratch}
