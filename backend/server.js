@@ -8198,6 +8198,17 @@ const applyResumeAgentOutputToSession = async (session, agentResult) => {
   return session;
 };
 
+// Some pending drafts created before the skills-ranking fix contain its
+// internal evidenceStrength signal. It is not student content and never
+// belongs in the persisted draft contract, but old pending drafts should
+// remain approvable rather than forcing the student to regenerate.
+const normalizePendingDraftForApproval = (draft = {}) => ({
+  ...draft,
+  skills: Array.isArray(draft.skills)
+    ? draft.skills.map(({ name = "", evidenceSourceId = "" }) => ({ name, evidenceSourceId }))
+    : [],
+});
+
 const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "ar") => {
   const currentResume = await getResumeForAccess({
     contact: access.contact,
@@ -8216,9 +8227,10 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     sectionOrder: RESUME_SECTION_KEYS,
     language,
   });
-  const parsedDraft = tailoredResumeDraftSchema.safeParse(pendingDraft.draft).success
-    ? tailoredResumeDraftSchema.parse(pendingDraft.draft)
-    : resumeDraftSchema.parse(pendingDraft.draft);
+  const approvalDraft = normalizePendingDraftForApproval(pendingDraft.draft);
+  const parsedDraft = tailoredResumeDraftSchema.safeParse(approvalDraft).success
+    ? tailoredResumeDraftSchema.parse(approvalDraft)
+    : resumeDraftSchema.parse(approvalDraft);
   const mappedPayload = mapDraftToResumePayload(
     parsedDraft,
     baseResume,
