@@ -9069,6 +9069,7 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
           status: "approved",
           variantType: "tailored",
         };
+        if (pendingDraft._id) tailoredQuery.pendingDraftId = pendingDraft._id;
         if (pendingDraft.opportunityId) tailoredQuery.opportunityId = pendingDraft.opportunityId;
         if (pendingDraft.baseResumeId) tailoredQuery.baseResumeId = pendingDraft.baseResumeId;
         const tailoredVersion = await ResumeTailoredVersion.findOne(tailoredQuery)
@@ -9080,6 +9081,32 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
             message: "المسودة معتمدة بالفعل، وفتحنا النسخة المخصصة المحفوظة.",
           });
         }
+        // Legacy versions predate pendingDraftId. Keep their replay scoped to
+        // the same account and the draft's known opportunity/base resume, but
+        // never turn a second approval click into a blocking error.
+        const legacyQuery = {
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+          status: "approved",
+          variantType: "tailored",
+        };
+        if (pendingDraft.opportunityId) legacyQuery.opportunityId = pendingDraft.opportunityId;
+        if (pendingDraft.baseResumeId) legacyQuery.baseResumeId = pendingDraft.baseResumeId;
+        const legacyVersion = await ResumeTailoredVersion.findOne(legacyQuery)
+          .sort({ approvedAt: -1 })
+          .lean();
+        if (legacyVersion) {
+          return res.json({
+            tailoredVersion: legacyVersion,
+            approvalReplay: "legacy_version",
+            message: "المسودة معتمدة بالفعل، وفتحنا النسخة المخصصة المحفوظة.",
+          });
+        }
+        return res.json({
+          alreadyApproved: true,
+          approvalReplay: "approved_result_missing",
+          message: "هذه المسودة معتمدة بالفعل. يمكنك فتح سيرتك أو تخصيصاتك المحفوظة.",
+        });
       }
       if (pendingDraft.status === "approved" && pendingDraft.draftType !== "tailored_resume") {
         const approvedResume = await ResumeProfile.findOne({
@@ -9112,7 +9139,14 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
           });
         }
       }
-      return res.status(409).json({ error: "تم التعامل مع هذه المسودة مسبقًا." });
+      if (pendingDraft.status === "approved") {
+        return res.json({
+          alreadyApproved: true,
+          approvalReplay: "approved_result_missing",
+          message: "هذه المسودة معتمدة بالفعل. يمكنك فتح سيرتك أو تخصيصاتك المحفوظة.",
+        });
+      }
+      return res.status(409).json({ error: "هذه المسودة لم تعد صالحة للاعتماد. ابدأ مسودة جديدة." });
     }
     if (pendingDraft.expiresAt && pendingDraft.expiresAt <= new Date()) {
       pendingDraft.status = "expired";
@@ -9223,6 +9257,7 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
           contact: req.darbakAccess.contact,
           accessCodeHash: req.darbakAccess.accessCodeHash,
           baseResumeId: pendingDraft.baseResumeId || null,
+          pendingDraftId: pendingDraft._id,
           opportunityId: pendingDraft.opportunityId || null,
           companyName: jobSnapshot?.company || pendingDraft.companyName || "",
           roleTitle: jobSnapshot?.title || pendingDraft.roleTitle || "",

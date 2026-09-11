@@ -1052,6 +1052,12 @@ const MyResumePage = () => {
   };
 
   const handleAgentApproved = (data = {}) => {
+    if (data.alreadyApproved) {
+      setMessage(data.message || "هذه المسودة معتمدة بالفعل.");
+      loadTailoredVersions();
+      navigate("/my-resume");
+      return;
+    }
     const approvedResume = data.resume || data.tailoredVersion?.resumePayload || null;
     if (!approvedResume) {
       setMessage(data.message || "تم اعتماد المسودة.");

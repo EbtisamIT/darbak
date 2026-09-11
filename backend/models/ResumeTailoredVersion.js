@@ -26,6 +26,12 @@ const resumeTailoredVersionSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    pendingDraftId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "resume_pending_drafts",
+      default: null,
+      index: true,
+    },
     variantType: {
       type: String,
       enum: ["tailored", "translation"],
