@@ -75,7 +75,7 @@ assert.strictEqual(reconciledExperiences[0].title, "IT Intern");
 assert.strictEqual(reconciledExperiences[0].organization, "Example Co");
 assert.deepStrictEqual(reconciledExperiences[0].bullets, ["Supported technical operations."]);
 assert.deepStrictEqual(composed.projects[0].bullets, ["Built a portal to organize student requests."]);
-assert.deepStrictEqual(composed.skills.map((skill) => skill.name), ["React.js", "GitHub"]);
+assert.deepStrictEqual(composed.skills.map((skill) => skill.name), ["React.js", "GitHub", "Time Management", "UI/UX"]);
 assert.strictEqual(composed.education[0].organization, "University of Jeddah");
 assert.deepStrictEqual(composed.languages.map((language) => language.name), ["Arabic", "English"]);
 
@@ -463,7 +463,7 @@ const technicalWriterCleanup = composeProfessionalDraft({
     skills: ["FireBase", "figma", "react.js", "node.js", "github", "power bi", "microsoft excel"],
   },
 });
-assert.deepStrictEqual(technicalWriterCleanup.skills.map((skill) => skill.name), ["Firebase", "Figma", "React.js", "Node.js", "GitHub", "Power BI", "Microsoft Excel"]);
+assert.deepStrictEqual(technicalWriterCleanup.skills.map((skill) => skill.name), ["React.js", "Node.js", "GitHub", "Firebase", "Figma", "Microsoft Excel", "Power BI"]);
 assert.ok(!/في نطاق المهارات الموثقة|بحسب المعلومات المتاحة|وفق البيانات المقدمة|القدرات المثبتة|المعلومات الموثقة/u.test(technicalWriterCleanup.professionalSummary));
 assert.ok(!/documented skills|verified skills|verified capabilities|based on available information|according to provided data/iu.test(technicalWriterCleanup.professionalSummary));
 assert.ok(!/documented skills/iu.test(technicalWriterCleanup.projects[0].bullets[0]));

@@ -1,4 +1,5 @@
 const { normalizeResumeSkills } = require("./resumeSkillNormalization");
+const { rankResumeSkills } = require("./resumeSkillRanking");
 
 const ARABIC_CHARACTERS = /[\u0600-\u06FF]/u;
 const GENERIC_SUMMARY = /\b(hardworking|passionate|motivated|seeking an opportunity)\b|مجتهد|شغوف|باحث عن فرصة/u;
@@ -361,10 +362,11 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
         .filter((technology) => allowedTechnologies.has(technology.toLowerCase())),
     };
   });
-  const verifiedSkills = normalizeResumeSkills(list(verifiedFacts.skills));
-  const selectedSkills = normalizeResumeSkills(list(draft.skills).map((skill) => skill?.name || skill));
-  const allowed = new Set(verifiedSkills.map((skill) => skill.toLowerCase()));
-  const skills = selectedSkills.filter((skill) => allowed.has(skill.toLowerCase())).map((name) => ({ name, evidenceSourceId: "verified_skills" }));
+  const skills = rankResumeSkills({
+    verifiedSkills: list(verifiedFacts.skills),
+    evidence: { projects: list(verifiedFacts.projects), experiences: list(verifiedFacts.experiences) },
+    personalInfo,
+  }).map(({ name, evidenceStrength }) => ({ name, evidenceSourceId: "verified_skills", evidenceStrength }));
 
   return {
     ...draft,

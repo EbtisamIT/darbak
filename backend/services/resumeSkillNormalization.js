@@ -2,6 +2,7 @@ const SKILL_ALIASES = {
   "git hub": "GitHub",
   github: "GitHub",
   react: "React.js",
+  reactjs: "React.js",
   "react.js": "React.js",
   "react js": "React.js",
   "ui/ ux": "UI/UX",
@@ -14,9 +15,13 @@ const SKILL_ALIASES = {
   firebase: "Firebase",
   figma: "Figma",
   "node.js": "Node.js",
+  node: "Node.js",
+  nodejs: "Node.js",
   "node js": "Node.js",
   "power bi": "Power BI",
   "microsoft excel": "Microsoft Excel",
+  excel: "Microsoft Excel",
+  sql: "SQL",
 };
 
 const normalizeKey = (value = "") =>
