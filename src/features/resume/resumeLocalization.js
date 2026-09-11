@@ -689,7 +689,7 @@ export const getLocalizedResumeForDisplay = (resume = {}) => {
   if (resume.settings?.language !== "en") {
     const personal = resume.personalInfo || {};
     const headline = derivedArabicHeadline(personal);
-    const isStatusHeadline = /^(?:طالب(?:ة)?|خريج(?:ة)?|متخصص(?:ة)?|طالب\/ة|خريج\/ة|متخصص\/ة)\b/.test(String(personal.headline || "").trim());
+    const isStatusHeadline = /^(?:طالب(?:ة)?|خريج(?:ة)?|متخصص(?:ة)?|طالب\/ة|خريج\/ة|متخصص\/ة)(?=\s|$)/.test(String(personal.headline || "").trim());
     return headline && (!personal.headline || isStatusHeadline)
       ? { ...resume, personalInfo: { ...personal, headline } }
       : resume;

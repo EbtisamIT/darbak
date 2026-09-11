@@ -1,4 +1,5 @@
 import { getEducationDetailLevel, getResumeEducationDisplay } from "./resumeEducationDisplay";
+import { getLocalizedResumeForDisplay } from "./resumeLocalization";
 
 describe("resume education intelligence", () => {
   const education = { title: "بكالوريوس", organization: "جامعة الملك خالد", location: "أبها" };
@@ -118,5 +119,19 @@ describe("resume education intelligence", () => {
   it("returns a stable detail level for identical facts", () => {
     const resume = { personalInfo: { studentStatus: "student" }, projects: [] };
     expect(getEducationDetailLevel(resume)).toBe(getEducationDetailLevel(resume));
+  });
+
+  it("replaces a legacy slash headline with a neutral headline when gender is missing", () => {
+    const localized = getLocalizedResumeForDisplay({
+      settings: { language: "ar" },
+      personalInfo: {
+        major: "تقنية المعلومات",
+        studentStatus: "student",
+        headline: "طالب/ة تقنية المعلومات",
+      },
+    });
+
+    expect(localized.personalInfo.headline).toBe("تقنية المعلومات");
+    expect(localized.personalInfo.headline).not.toContain("/");
   });
 });
