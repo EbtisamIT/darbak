@@ -21,6 +21,16 @@ assert.deepStrictEqual(
 );
 
 assert.deepStrictEqual(
+  resolveSavedMajorCity({ portfolio: null, user: { preferredMajor: "تقنية المعلومات", preferredCity: "الرياض" } }),
+  { major: "تقنية المعلومات", city: "الرياض" },
+);
+
+assert.deepStrictEqual(
+  resolveSavedMajorCity({ portfolio: null, user: null }),
+  { major: "", city: "" },
+);
+
+assert.deepStrictEqual(
   buildMajorCityProfileUpdates({ major: " نظم المعلومات ", city: " الدمام " }),
   { major: "نظم المعلومات", city: "الدمام" },
 );
