@@ -237,6 +237,30 @@ assert.strictEqual(compact.confirmedAnswers.length, 1);
 assert.strictEqual(compact.professionalContext, "أحب إبراز مشروعي في بوابة الطلاب.");
 assert.ok(!Object.prototype.hasOwnProperty.call(compact, "workflow"));
 
+const compactWithProjectAnswer = compactVerifiedResumeFacts({
+  ...facts,
+  projects: [{ id: "project-1", title: "تحليل رضا العملاء", description: "" }],
+}, [{
+  fieldKey: "project_description:project-1",
+  answer: "حللت استبيان رضا العملاء وصنفت أسباب عدم الرضا وعرضت النتائج في تقرير.",
+}]);
+assert.strictEqual(
+  compactWithProjectAnswer.projects[0].description,
+  "حللت استبيان رضا العملاء وصنفت أسباب عدم الرضا وعرضت النتائج في تقرير.",
+  "an answered project question must become the matching project's verified description"
+);
+const composedFromAnsweredProject = composeProfessionalDraft({
+  draft: { ...composed, projects: [] },
+  verifiedFacts: compactWithProjectAnswer,
+  language: "ar",
+});
+assert.strictEqual(composedFromAnsweredProject.projects.length, 1);
+assert.deepStrictEqual(
+  composedFromAnsweredProject.projects[0].bullets,
+  ["حللت استبيان رضا العملاء وصنفت أسباب عدم الرضا وعرضت النتائج في تقرير."],
+  "the composer must carry an accepted answer into the draft even if the model omitted the project"
+);
+
 const compactExperiences = compactVerifiedResumeFacts({
   ...facts,
   experiences: [{

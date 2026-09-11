@@ -84,6 +84,12 @@ const {
   mergeMasterSummaryProvenance,
 } = require("./services/resumeSummaryFreshness");
 const { getResumeFactsFreshness } = require("./services/resumeFactsFreshness");
+const {
+  applyProjectDescriptionAnswer,
+  parseStructuredAnswerFieldKey,
+  upsertAnswersByFieldKey,
+  validateProjectDescriptionAnswer,
+} = require("./services/resumeAgentAnswerLifecycle");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -8056,6 +8062,30 @@ const sanitizeResumeAgentAnswers = (answers = [], pendingQuestions = []) => {
     .filter((answer) => answer.answer);
 };
 
+const persistAcceptedResumeAgentAnswers = async (access = {}, answers = []) => {
+  const projectAnswers = answers.filter((answer) =>
+    parseStructuredAnswerFieldKey(answer.fieldKey)?.type === "project_description"
+  );
+  if (!projectAnswers.length) return { answerPersisted: true, persistedCount: 0 };
+
+  const ownershipQuery = {
+    contact: access.contact,
+    accessCodeHash: access.accessCodeHash,
+  };
+  const resume = await ResumeProfile.findOne(ownershipQuery);
+  const portfolio = resume?.workflow?.factsOwner === "resume" ? null : await Portfolio.findOne(ownershipQuery);
+  const sources = portfolio ? [portfolio, resume].filter(Boolean) : [resume].filter(Boolean);
+  let persistedCount = 0;
+  for (const answer of projectAnswers) {
+    const source = sources.find((candidate) => applyProjectDescriptionAnswer(candidate, answer));
+    if (!source) continue;
+    source.markModified("projects");
+    await source.save();
+    persistedCount += 1;
+  }
+  return { answerPersisted: persistedCount === projectAnswers.length, persistedCount };
+};
+
 const mergeResumeAgentUsage = (current = {}, next = {}) => ({
   model: next.model || current.model || "",
   turns: Number(current.turns || 0) + Number(next.turns || 0),
@@ -8987,6 +9017,60 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
     const existingAnswers = Array.isArray(session.collectedFacts?.answers)
       ? session.collectedFacts.answers
       : [];
+    const projectAnswer = answers.find((answer) =>
+      parseStructuredAnswerFieldKey(answer.fieldKey)?.type === "project_description"
+    );
+    const projectValidation = projectAnswer
+      ? validateProjectDescriptionAnswer(projectAnswer.answer)
+      : { accepted: true, reason: "", message: "" };
+    const mergedAnswers = upsertAnswersByFieldKey(existingAnswers, answers);
+
+    if (!projectValidation.accepted) {
+      const pendingQuestions = (session.pendingQuestions || []).map((question) =>
+        (question.fieldKey || question.id) === projectAnswer.fieldKey
+          ? { ...question, reason: projectValidation.reason, whyNeeded: projectValidation.message }
+          : question
+      );
+      session.collectedFacts = { ...(session.collectedFacts || {}), answers: mergedAnswers };
+      session.pendingQuestions = pendingQuestions;
+      session.status = "collecting_information";
+      session.expiresAt = getResumeAgentExpiry();
+      session.markModified("collectedFacts");
+      session.markModified("pendingQuestions");
+      await session.save();
+      const parsed = parseStructuredAnswerFieldKey(projectAnswer.fieldKey);
+      const answerDiagnostics = {
+        questionFieldKey: projectAnswer.fieldKey,
+        questionItemId: parsed?.itemId || "",
+        answerReceived: true,
+        answerAccepted: false,
+        answerPersisted: false,
+        answerMergedIntoFacts: false,
+        generationSawAnswer: false,
+      };
+      console.info("Resume agent answer lifecycle", answerDiagnostics);
+      return res.json({
+        session: serializeResumeAgentSession(session),
+        output: {
+          status: "needs_information",
+          questions: pendingQuestions,
+          missingInformation: pendingQuestions,
+          message: projectValidation.message,
+        },
+        usage: { aiCalls: 0 },
+        answerDiagnostics,
+      });
+    }
+
+    const persistence = await persistAcceptedResumeAgentAnswers(req.darbakAccess, answers);
+    if (!persistence.answerPersisted) {
+      session.collectedFacts = { ...(session.collectedFacts || {}), answers: mergedAnswers };
+      session.markModified("collectedFacts");
+      await session.save();
+      const error = new Error("The accepted resume answer could not be persisted to its source item.");
+      error.code = "RESUME_ANSWER_PERSISTENCE_FAILED";
+      throw error;
+    }
     const nextAnsweredIds = Array.from(
       new Set([
         ...(session.answeredQuestionIds || []),
@@ -8996,7 +9080,7 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
 
     session.collectedFacts = {
       ...(session.collectedFacts || {}),
-      answers: [...existingAnswers, ...answers].slice(-40),
+      answers: mergedAnswers,
     };
     session.answeredQuestionIds = nextAnsweredIds;
     session.status = "generating";
@@ -9029,10 +9113,25 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
       }),
     }).catch(() => null);
 
+    const parsedProjectAnswer = projectAnswer
+      ? parseStructuredAnswerFieldKey(projectAnswer.fieldKey)
+      : null;
+    const answerDiagnostics = {
+      questionFieldKey: projectAnswer?.fieldKey || answers[0]?.fieldKey || "",
+      questionItemId: parsedProjectAnswer?.itemId || "",
+      answerReceived: true,
+      answerAccepted: true,
+      answerPersisted: persistence.answerPersisted,
+      answerMergedIntoFacts: true,
+      generationSawAnswer: true,
+    };
+    console.info("Resume agent answer lifecycle", answerDiagnostics);
+
     return res.json({
       session: serializeResumeAgentSession(session),
       output: agentResult.output,
       usage: agentResult.usage,
+      answerDiagnostics,
     });
   } catch (err) {
     recordResumeQualityFailure({

@@ -18,6 +18,7 @@ const {
   getQualityFailureSections,
 } = require("../services/resumeProfessionalComposer");
 const { buildVerifiedResumeFacts, composeCanonicalResume } = require("../services/resumePortfolioHydration");
+const { upsertAnswersByFieldKey } = require("../services/resumeAgentAnswerLifecycle");
 
 setSensitiveDataLoggingEnabled(false);
 
@@ -2479,7 +2480,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
   }));
   const collectedFacts = {
     ...(session.collectedFacts || {}),
-    answers: [...existingAnswers, ...normalizedNewAnswers].slice(-40),
+    answers: upsertAnswersByFieldKey(existingAnswers, normalizedNewAnswers),
   };
   const context = {
     access,
@@ -2788,6 +2789,17 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     filteredOutput = {
       ...filteredOutput,
       draft: composedDraft,
+      // Once every verified project has a meaningful description, an earlier
+      // project-detail question is resolved and must not reappear as an
+      // ignored/missing-information warning in the approved draft.
+      missingInformation: (verifiedResumeFacts.projects || []).every((project) =>
+        Boolean(safeText(project.description || project.details, MAX_ANSWER_LENGTH))
+      )
+        ? (filteredOutput.missingInformation || []).filter((item) =>
+            normalizeComparable(item.section) !== "projects" &&
+            normalizeComparable(item.section) !== "المشاريع"
+          )
+        : filteredOutput.missingInformation,
       quality,
       validationStatus: {
         ...validationResult,
