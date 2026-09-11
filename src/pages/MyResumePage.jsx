@@ -1443,11 +1443,12 @@ const MyResumePage = () => {
       {resumeMode === "dashboard" && journeyView === "review" && (
         <ResumeFactsReviewJourney
           resume={resume}
-          freshness={factsFreshness}
           onChange={(nextResume) => setResume(normalizeResume(nextResume))}
+          onAutosave={saveJourneyDraft}
           onBack={() => navigate("/my-resume")}
           onRebuild={rebuildResumeFromFacts}
           rebuilding={false}
+          storageScope={resumeStorageScope}
         />
       )}
 

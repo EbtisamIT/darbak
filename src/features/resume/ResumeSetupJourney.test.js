@@ -35,6 +35,6 @@ describe("resume setup journey", () => {
     expect(onAutosave).toHaveBeenCalledTimes(RESUME_SETUP_STEPS.length - 1);
     expect(onBuild).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /ابنِ سيرتي/ }));
-    expect(onBuild).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onBuild).toHaveBeenCalledTimes(1));
   });
 });
