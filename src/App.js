@@ -1384,6 +1384,7 @@ function AppLayout({ theme, setTheme }) {
               <Route path="/my-resume" element={<MyResumePage />} />
               <Route path="/my-resume/build" element={<MyResumePage />} />
               <Route path="/my-resume/edit" element={<MyResumePage />} />
+              <Route path="/my-resume/review" element={<MyResumePage />} />
               <Route path="/my-resume/versions/:versionId" element={<MyResumePage />} />
               <Route path="/my-resume/tailor" element={<MyResumePage />} />
               <Route path="/partners" element={<PartnersPage />} />
