@@ -205,6 +205,7 @@ const ResumeAgentFlow = ({
   externalJob = null,
   storageScope = "",
   onApproved,
+  onRejected,
   onCancel,
 }) => {
   const [session, setSession] = useState(null);
@@ -449,6 +450,11 @@ const ResumeAgentFlow = ({
       if (sessionStorageKey) window.sessionStorage.removeItem(sessionStorageKey);
       onApproved?.(data);
     } catch (err) {
+      if (err.response?.data?.nextAction === "create_new_draft") {
+        if (sessionStorageKey) window.sessionStorage.removeItem(sessionStorageKey);
+        onRejected?.(err.response.data);
+        return;
+      }
       if (isTailored) {
         trackEvent("application_pack_failed", {
           page: "/my-resume/tailor",
@@ -487,7 +493,11 @@ const ResumeAgentFlow = ({
         page: "/my-resume",
         metadata: { purpose },
       });
-      onCancel?.();
+      if (sessionStorageKey) window.sessionStorage.removeItem(sessionStorageKey);
+      onRejected?.({
+        message: "تم رفض المسودة. راجع بياناتك ثم أنشئ مسودة جديدة عندما تكون جاهزًا.",
+        nextAction: "create_new_draft",
+      });
     } catch (err) {
       setError(err.response?.data?.error || "تعذر رفض المسودة الآن.");
     } finally {

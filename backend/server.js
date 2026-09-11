@@ -9059,6 +9059,12 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
       return res.status(404).json({ error: "المسودة غير موجودة." });
     }
     if (pendingDraft.status !== "pending_review") {
+      if (pendingDraft.status === "rejected") {
+        return res.status(409).json({
+          error: "تم رفض هذه المسودة. راجع بياناتك ثم أنشئ مسودة جديدة.",
+          nextAction: "create_new_draft",
+        });
+      }
       // Approval can be submitted twice when a slow navigation races the
       // first successful request. Return the already persisted result rather
       // than trapping the student on a stale approval button.

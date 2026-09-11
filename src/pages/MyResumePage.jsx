@@ -1112,6 +1112,19 @@ const MyResumePage = () => {
     navigate("/my-resume/build?step=missing");
   };
 
+  const handleAgentRejected = (data = {}) => {
+    setAgentConfig(null);
+    const progress = setPersistedJourneyProgress({
+      currentStep: "missing",
+      completedSteps: ["data"],
+      source: journeySource,
+    });
+    setJourneyView("missing");
+    setJourneyStep("missing");
+    setMessage(data.message || "تم رفض المسودة. راجع بياناتك ثم أنشئ مسودة جديدة.");
+    navigate("/my-resume/build?step=missing", { state: { resumeJourney: progress } });
+  };
+
   const returnToMasterResume = async () => {
     navigate("/my-resume/edit");
   };
@@ -1387,6 +1400,7 @@ const MyResumePage = () => {
           externalJob={agentConfig.externalJob}
           storageScope={resumeStorageScope}
           onApproved={handleAgentApproved}
+          onRejected={handleAgentRejected}
           onCancel={cancelAgent}
         />
       )}
