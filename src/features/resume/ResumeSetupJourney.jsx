@@ -121,7 +121,8 @@ const ResumeSetupJourney = ({ resume, onChange, onAutosave, onBuild, building = 
           showSettings={false}
           showPersonalInfo={step.id === "personal"}
           showApplicationDetails={step.id === "personal"}
-          visibleSections={step.sections || []}
+          showEducationFacts={step.id === "education"}
+          visibleSections={step.id === "education" ? [] : (step.sections || [])}
         />
       )}
 

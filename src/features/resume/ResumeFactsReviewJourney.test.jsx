@@ -2,9 +2,9 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ResumeFactsReviewJourney from "./ResumeFactsReviewJourney";
 
-jest.mock("./ResumeBuilder", () => ({ resume, onChange, visibleSections, showPersonalInfo }) => (
+jest.mock("./ResumeBuilder", () => ({ resume, onChange, visibleSections, showPersonalInfo, showEducationFacts }) => (
   <div>
-    <span data-testid="review-editor">{showPersonalInfo ? "personal" : (visibleSections || []).join(",")}</span>
+    <span data-testid="review-editor">{showPersonalInfo ? "personal" : (showEducationFacts ? "education" : (visibleSections || []).join(","))}</span>
     <button type="button" onClick={() => onChange({ ...resume, summary: "قيمة محدثة" })}>تعديل قيمة</button>
   </div>
 ));

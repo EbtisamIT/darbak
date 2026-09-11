@@ -7587,6 +7587,27 @@ body {
   font-weight: 900;
 }
 
+.resume-coursework-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.resume-coursework-editor .resume-mini-title > div {
+  display: grid;
+  gap: 3px;
+}
+
+.resume-coursework-editor .resume-mini-title small {
+  color: var(--app-text-soft);
+  font-weight: 600;
+}
+
+.resume-coursework-editor .resume-simple-row input {
+  flex: 1;
+  min-width: 0;
+}
+
 .resume-achievement-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

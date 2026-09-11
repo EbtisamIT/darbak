@@ -21,6 +21,7 @@ import {
   hasEntryContent,
 } from "./resumeDefaults";
 import { getResumeCompletionItems } from "./resumeValidation";
+import ResumeEducationFactsEditor from "./ResumeEducationFactsEditor";
 
 const fieldLabels = {
   education: {
@@ -824,6 +825,7 @@ const ResumeBuilder = ({
   showSettings = true,
   showPersonalInfo = true,
   showApplicationDetails = true,
+  showEducationFacts = false,
   visibleSections = null,
 }) => {
   const order = resume.sectionOrder || RESUME_SECTION_KEYS;
@@ -910,6 +912,7 @@ const ResumeBuilder = ({
       {showSettings && <SettingsEditor resume={resume} onChange={onChange} />}
       {showPersonalInfo && <PersonalInfoEditor resume={resume} onChange={onChange} />}
       {showApplicationDetails && <ApplicationDetailsEditor resume={resume} onChange={onChange} />}
+      {showEducationFacts && <ResumeEducationFactsEditor resume={resume} onChange={onChange} />}
 
       <DragDropProvider
         onDragEnd={(event) => {
