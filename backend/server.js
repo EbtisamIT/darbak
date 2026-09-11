@@ -8202,12 +8202,37 @@ const applyResumeAgentOutputToSession = async (session, agentResult) => {
 // internal evidenceStrength signal. It is not student content and never
 // belongs in the persisted draft contract, but old pending drafts should
 // remain approvable rather than forcing the student to regenerate.
-const normalizePendingDraftForApproval = (draft = {}) => ({
-  ...draft,
-  skills: Array.isArray(draft.skills)
-    ? draft.skills.map(({ name = "", evidenceSourceId = "" }) => ({ name, evidenceSourceId }))
-    : [],
-});
+const pickDraftFields = (value = {}, fields = []) => fields.reduce((picked, field) => {
+  if (Object.prototype.hasOwnProperty.call(value || {}, field)) picked[field] = value[field];
+  return picked;
+}, {});
+
+const normalizePendingDraftForApproval = (draft = {}) => {
+  const entries = (value, fields) => (Array.isArray(value)
+    ? value.filter((entry) => entry && typeof entry === "object").map((entry) => pickDraftFields(entry, fields))
+    : []);
+  return {
+    ...pickDraftFields(draft, [
+      "targetTitle", "professionalSummary", "editorialCheck", "missingInformation", "warnings", "missingRequirements",
+    ]),
+    editorialCheck: pickDraftFields(draft.editorialCheck, [
+      "concise", "noRepeatedIdeas", "naturalArabic", "evidenceBased", "noUnnecessaryToolListing",
+    ]),
+    education: entries(draft.education, ["sourceId", "title", "organization", "degree", "major", "dates", "location", "details", "bullets"]),
+    experiences: entries(draft.experiences, ["sourceId", "title", "organization", "dates", "location", "bullets", "quality"]),
+    projects: entries(draft.projects, ["sourceId", "name", "description", "technologies", "bullets", "url"]),
+    certifications: entries(draft.certifications, ["sourceId", "name", "issuer", "date", "details"]),
+    volunteering: entries(draft.volunteering, ["sourceId", "title", "organization", "dates", "location", "bullets"]),
+    languages: entries(draft.languages, ["name", "level"]),
+    // Evidence ranking is a server-only signal. Strip all extra skill
+    // metadata so drafts made by any previous writer version stay approvable.
+    skills: Array.isArray(draft.skills)
+      ? draft.skills.map((skill) => typeof skill === "string"
+        ? { name: skill, evidenceSourceId: "" }
+        : pickDraftFields(skill, ["name", "evidenceSourceId"]))
+      : [],
+  };
+};
 
 const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "ar") => {
   const currentResume = await getResumeForAccess({
@@ -8228,9 +8253,18 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
     language,
   });
   const approvalDraft = normalizePendingDraftForApproval(pendingDraft.draft);
-  const parsedDraft = tailoredResumeDraftSchema.safeParse(approvalDraft).success
-    ? tailoredResumeDraftSchema.parse(approvalDraft)
-    : resumeDraftSchema.parse(approvalDraft);
+  const tailoredResult = tailoredResumeDraftSchema.safeParse(approvalDraft);
+  const baseResult = tailoredResult.success ? null : resumeDraftSchema.safeParse(approvalDraft);
+  if (!tailoredResult.success && !baseResult.success) {
+    const error = new Error("Pending resume draft does not match the approval contract");
+    error.code = "PENDING_DRAFT_INVALID";
+    error.resumeApprovalDiagnostics = {
+      stage: "pending_draft_contract",
+      issues: baseResult.error.issues.slice(0, 8).map((issue) => `${issue.path.join(".") || "draft"}:${issue.code}`),
+    };
+    throw error;
+  }
+  const parsedDraft = tailoredResult.success ? tailoredResult.data : baseResult.data;
   const mappedPayload = mapDraftToResumePayload(
     parsedDraft,
     baseResume,
@@ -9317,6 +9351,8 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
       code: err.code,
       status: err.status,
       name: err.name,
+      stage: err.resumeApprovalDiagnostics?.stage || "",
+      issues: err.resumeApprovalDiagnostics?.issues || [],
     });
     const response = getResumeAiErrorResponse(err);
     return res.status(response.status).json(response.body);
