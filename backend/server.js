@@ -96,7 +96,7 @@ const INTERACTION_STATS_CACHE_TTL_MS = Number(
 );
 
 const buildLastBuiltFactsWorkflow = (currentWorkflow = {}, verifiedResumeFacts = {}) => {
-  const freshness = getResumeFactsFreshness({ verifiedFacts, workflow: currentWorkflow });
+  const freshness = getResumeFactsFreshness({ verifiedFacts: verifiedResumeFacts, workflow: currentWorkflow });
   return {
     ...currentWorkflow,
     lastBuiltFactsHash: freshness.currentHash,
