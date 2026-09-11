@@ -224,11 +224,13 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
     professionalSummary: "Approved professional summary marker.",
     experiences: [{ sourceId: "experience-1", bullets: ["Approved experience bullet marker."] }],
     projects: [{ sourceId: "project-1", bullets: ["Approved project bullet marker."] }],
+    skills: [{ name: "Power BI", evidenceSourceId: "verified_skills" }],
   };
   const staleResume = {
     summary: "A fact-derived fallback summary.",
     experiences: [{ id: "experience-1", achievements: [{ text: "Original fact description." }] }],
     projects: [{ id: "project-1", achievements: [{ text: "Original project description." }] }],
+    skills: ["Microsoft Excel"],
   };
   assert.strictEqual(
     approvedDraftNeedsRematerialization(approvedDraft, staleResume),
@@ -239,6 +241,7 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
     summary: approvedDraft.professionalSummary,
     experiences: [{ id: "experience-1", achievements: [{ text: "Approved experience bullet marker." }] }],
     projects: [{ id: "project-1", achievements: [{ text: "Approved project bullet marker." }] }],
+    skills: ["Microsoft Excel", "Power BI"],
   };
   assert.strictEqual(
     approvedDraftNeedsRematerialization(approvedDraft, persistedApprovedResume),

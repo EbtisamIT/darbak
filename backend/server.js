@@ -8345,6 +8345,10 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
 
   const payload = sanitizeResumePayload(composeCanonicalResume({
     ...mappedPayload,
+    // Facts edited in the resume review journey remain resume-owned when the
+    // approved Agent presentation is materialized. Without this marker the
+    // canonical composer falls back to older Portfolio skills at approval.
+    workflow: baseResume.workflow || {},
     sectionOrder: baseResume.sectionOrder || RESUME_SECTION_KEYS,
     hiddenSections: baseResume.hiddenSections || [],
   }, portfolio || {}, access.contact, {
@@ -8354,6 +8358,7 @@ const mapPendingDraftToResumePayload = async (pendingDraft, access, language = "
   }));
   return {
     ...payload,
+    workflow: baseResume.workflow || {},
     summaryProvenance: {
       ...(pendingDraft.summaryProvenance || pendingDraft.validationResult?.summaryProvenance || {}),
       summarySourceAtRender: pendingDraft.summaryProvenance?.summarySourceAtSave
@@ -10103,10 +10108,14 @@ app.post('/api/resume/ai/approve-draft', requireResumeAccess, async (req, res) =
       hiddenSections: currentResume?.hiddenSections || [],
     });
     const portfolio = await getPortfolioForAccess({ contact, accessCodeHash });
-    const canonical = composeCanonicalResume(payload, portfolio || {}, contact, {
+    const canonical = composeCanonicalResume({
+      ...payload,
+      workflow: currentResume?.workflow || {},
+    }, portfolio || {}, contact, {
       frontendUrl: getFrontendUrl(),
       sectionOrder: RESUME_SECTION_KEYS,
     });
+    payload.skills = canonical.skills || payload.skills;
     payload.workflow = buildLastBuiltFactsWorkflow(currentResume?.workflow || payload.workflow || {}, canonical.verifiedResumeFacts || {});
 
     const resume = await ResumeProfile.findOneAndUpdate(

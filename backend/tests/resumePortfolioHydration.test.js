@@ -459,6 +459,14 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   const canonical = composeCanonicalResume(reviewResume, { ...portfolio, _id: "resume-review-portfolio" }, portfolio.email);
   assert.strictEqual(canonical.verifiedResumeFacts.personalInfo.major, "تقنية معلومات تطبيقية");
   assert.strictEqual(canonical.verifiedResumeFacts.projects[0].title, "مشروع السيرة");
+  assert.deepStrictEqual(canonical.skills, ["React.js"]);
+
+  const approvedPresentation = composeCanonicalResume(
+    { ...reviewResume, skills: ["React.js", "Power BI"] },
+    { ...portfolio, _id: "resume-review-portfolio", skills: ["مهارة قديمة"] },
+    portfolio.email,
+  );
+  assert.deepStrictEqual(approvedPresentation.skills, ["React.js", "Power BI"]);
 }
 
 console.log("resumePortfolioHydration tests passed");

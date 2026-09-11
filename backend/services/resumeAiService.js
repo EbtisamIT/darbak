@@ -1028,6 +1028,14 @@ const approvedDraftNeedsRematerialization = (draft = {}, resume = {}) => {
   const expectedSummary = comparablePresentationText(draft?.professionalSummary);
   if (expectedSummary && expectedSummary !== comparablePresentationText(resume?.summary)) return true;
 
+  const expectedSkills = normalizeResumeSkills(
+    (Array.isArray(draft?.skills) ? draft.skills : [])
+      .map((skill) => typeof skill === "string" ? skill : skill?.name)
+      .filter(Boolean)
+  );
+  const persistedSkills = new Set(normalizeResumeSkills(resume?.skills || []).map((skill) => skill.toLocaleLowerCase()));
+  if (expectedSkills.some((skill) => !persistedSkills.has(skill.toLocaleLowerCase()))) return true;
+
   const resumeSections = {
     experiences: Array.isArray(resume?.experiences) ? resume.experiences : resume?.experience || [],
     projects: Array.isArray(resume?.projects) ? resume.projects : [],
