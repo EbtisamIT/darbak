@@ -9060,9 +9060,27 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
     }
     if (pendingDraft.status !== "pending_review") {
       // Approval can be submitted twice when a slow navigation races the
-      // first successful request. Master-draft approval is safe to replay:
-      // return the persisted master resume so the client can open the editor
-      // instead of trapping the student on the already-approved draft.
+      // first successful request. Return the already persisted result rather
+      // than trapping the student on a stale approval button.
+      if (pendingDraft.status === "approved" && pendingDraft.draftType === "tailored_resume") {
+        const tailoredQuery = {
+          contact: req.darbakAccess.contact,
+          accessCodeHash: req.darbakAccess.accessCodeHash,
+          status: "approved",
+          variantType: "tailored",
+        };
+        if (pendingDraft.opportunityId) tailoredQuery.opportunityId = pendingDraft.opportunityId;
+        if (pendingDraft.baseResumeId) tailoredQuery.baseResumeId = pendingDraft.baseResumeId;
+        const tailoredVersion = await ResumeTailoredVersion.findOne(tailoredQuery)
+          .sort({ approvedAt: -1 })
+          .lean();
+        if (tailoredVersion) {
+          return res.json({
+            tailoredVersion,
+            message: "المسودة معتمدة بالفعل، وفتحنا النسخة المخصصة المحفوظة.",
+          });
+        }
+      }
       if (pendingDraft.status === "approved" && pendingDraft.draftType !== "tailored_resume") {
         const approvedResume = await ResumeProfile.findOne({
           contact: req.darbakAccess.contact,
