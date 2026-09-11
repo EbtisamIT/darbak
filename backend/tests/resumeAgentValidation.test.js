@@ -4,6 +4,7 @@ const {
   validateResumeClaims,
   filterConfirmedQuestions,
   ensureActionableNeedsInformation,
+  normalizeNeedsInformationOutput,
   isDeferredTailorQuestion,
   getTailoringEligibilityWarnings,
   getTailoringRelevanceStrength,
@@ -110,6 +111,44 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
   evidenceBased: true,
   noUnnecessaryToolListing: true,
 }, "the structured draft retains the Arabic editorial review without a second model call");
+
+{
+  // Ranking metadata is internal. Its presence in a strict draft used to make
+  // otherwise valid drafts fail after a student answered a project question.
+  const { composeProfessionalDraft } = require("../services/resumeProfessionalComposer");
+  const composed = composeProfessionalDraft({
+    draft: editorialDraft,
+    verifiedFacts: {
+      personalInfo: { major: "نظم معلومات", studentStatus: "student" },
+      education: [],
+      experiences: [],
+      projects: [],
+      certifications: [{ id: "cert-1", title: "شهادة", organization: "", period: "" }],
+      volunteering: [],
+      languages: [],
+      skills: ["React"],
+    },
+    language: "ar",
+  });
+  assert.strictEqual(resumeDraftSchema.safeParse(composed).success, true, "optional certification metadata and ranking state must not invalidate a draft");
+  assert.deepStrictEqual(composed.skills, [{ name: "React.js", evidenceSourceId: "verified_skills" }]);
+  assert.strictEqual(composed.certifications[0].issuer, "");
+  assert.strictEqual(composed.certifications[0].date, "");
+}
+
+{
+  const optional = normalizeNeedsInformationOutput({
+    status: "needs_information",
+    questions: [
+      {
+        section: "certifications",
+        question: "ما الجهة المانحة للشهادة أو تاريخ إصدارها؟",
+        inputType: "text",
+      },
+    ],
+  }, { profile: { certifications: [{ id: "cert-1", title: "شهادة" }] }, resume: {} });
+  assert.deepStrictEqual(optional.questions, [], "optional certification metadata must not block resume generation");
+}
 
 {
   const resumePayload = {

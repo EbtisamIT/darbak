@@ -366,7 +366,9 @@ const composeProfessionalDraft = ({ draft = {}, verifiedFacts = {}, language = "
     verifiedSkills: list(verifiedFacts.skills),
     evidence: { projects: list(verifiedFacts.projects), experiences: list(verifiedFacts.experiences) },
     personalInfo,
-  }).map(({ name, evidenceStrength }) => ({ name, evidenceSourceId: "verified_skills", evidenceStrength }));
+  // evidenceStrength is an internal ranking signal. Resume draft schemas are
+  // deliberately strict, so never leak it into the persisted presentation.
+  }).map(({ name }) => ({ name, evidenceSourceId: "verified_skills" }));
 
   return {
     ...draft,

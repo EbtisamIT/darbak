@@ -417,26 +417,32 @@ const validateProfessionalSummary = ({ result = {}, payload = {} } = {}) => {
 };
 
 const BASE_MISSING_FIELD_KEYS = new Set([
-  "phone",
   "full_name",
+  "student_status",
+  "major",
+]);
+
+const OPTIONAL_MISSING_FIELD_KEYS = new Set([
+  "phone",
   "professional_headline",
+  "study_start_year",
   "graduation_year",
   "expected_graduation_year",
   "gpa",
   "gpa_scale",
   "university",
   "degree",
-  "student_status",
-  "major",
   "city",
   "training_period",
   "target_field",
   "opportunity_description",
-]);
-
-const OPTIONAL_MISSING_FIELD_KEYS = new Set([
   "professional_context",
   "certification_details",
+  "certification_issuer",
+  "certification_issue_date",
+  "certification_url",
+  "project_tools",
+  "activity_details",
 ]);
 
 const getEntriesForQuestion = (facts = {}, section = "") => {
@@ -1087,7 +1093,10 @@ const isConfirmedQuestion = (question = {}, facts = {}) => {
       .map((answer) => normalizeComparable(answer.fieldKey || answer.questionId || answer.id || ""))
       .filter(Boolean)
   );
-  const fieldKey = getQuestionFieldKey(question);
+  // An already persisted question can have a stable session id even when it
+  // is not one of the public field-key aliases. Honour it before attempting
+  // semantic inference so answered project questions are never repeated.
+  const fieldKey = safeString(question.fieldKey || question.id || getQuestionFieldKey(question), 120);
   if (fieldKey && answeredQuestionIds.has(normalizeComparable(fieldKey))) return true;
   const text = normalizeComparable(`${question.question || ""} ${question.whyNeeded || ""}`);
   const profile = facts.profile || {};
