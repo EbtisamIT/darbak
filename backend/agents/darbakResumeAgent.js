@@ -17,7 +17,7 @@ const {
   runProfessionalQualityGate,
   getQualityFailureSections,
 } = require("../services/resumeProfessionalComposer");
-const { buildVerifiedResumeFacts } = require("../services/resumePortfolioHydration");
+const { buildVerifiedResumeFacts, composeCanonicalResume } = require("../services/resumePortfolioHydration");
 
 setSensitiveDataLoggingEnabled(false);
 
@@ -2493,9 +2493,20 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     answeredQuestionIds: session.answeredQuestionIds || [],
   };
 
-  const profile = await Portfolio.findOne(getAccessQuery(context)).lean();
+  const [profile, storedResume] = await Promise.all([
+    Portfolio.findOne(getAccessQuery(context)).lean(),
+    ResumeProfile.findOne(getAccessQuery(context)).lean(),
+  ]);
+  // The review journey can intentionally own a private resume-facts copy.
+  // Build from that canonical copy after the student explicitly saves it;
+  // otherwise the public Portfolio remains the initial source as before.
+  const canonicalResume = composeCanonicalResume(
+    storedResume || {},
+    profile || {},
+    access?.contact || "",
+  );
   const verifiedResumeFacts = compactVerifiedResumeFacts(
-    buildVerifiedResumeFacts(profile || {}, access?.contact || ""),
+    canonicalResume.verifiedResumeFacts || buildVerifiedResumeFacts(profile || {}, access?.contact || ""),
     collectedFacts.answers
   );
   const generationCacheKey = buildGenerationCacheKey({

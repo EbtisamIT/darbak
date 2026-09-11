@@ -208,7 +208,13 @@ const MyResumePage = () => {
   const saveTimerRef = useRef(null);
   const journeySaveTimerRef = useRef(null);
   const lastSavedSnapshotRef = useRef("");
+  const latestResumeSnapshotRef = useRef(getSnapshot(resume));
+  const factsSaveRequestRef = useRef(0);
   const lastRouteRef = useRef("");
+
+  // Autosave responses can arrive out of order. Keep the latest local draft
+  // visible while a prior request is finishing so typing never rolls back.
+  latestResumeSnapshotRef.current = getSnapshot(resume);
 
   useEffect(() => {
     // Previous releases stored the whole master resume under one global key.
@@ -422,6 +428,8 @@ const MyResumePage = () => {
   const saveJourneyDraft = useCallback(async (resumeOverride = resume) => {
     if (journeyView === "review") {
       try {
+        const submittedSnapshot = getSnapshot(resumeOverride);
+        const requestId = ++factsSaveRequestRef.current;
         setSaveState("saving");
         const { data } = await axios.put(
           `${API_BASE_URL}/api/resume/me/facts`,
@@ -429,6 +437,14 @@ const MyResumePage = () => {
           { headers: getAccessHeaders({ itemKey: "resume:facts" }) },
         );
         const saved = normalizeResume(data.resume || resumeOverride);
+        // Do not hydrate a late response over text the student typed after
+        // this request started. The newer debounce will save that text next.
+        if (
+          requestId !== factsSaveRequestRef.current ||
+          latestResumeSnapshotRef.current !== submittedSnapshot
+        ) {
+          return true;
+        }
         setResume(saved);
         setLastServerResume(saved);
         setFactsFreshness(data.factsFreshness || { changed: true, changes: [] });
