@@ -8925,6 +8925,7 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
       status: "generating",
       collectedFacts: {
         answers: [],
+        pendingAutosavesBeforeGeneration: 0,
         // A valid Darbak opportunity is never a manual flow. Persist its
         // snapshot so every agent turn receives the same trusted context.
         externalJob: opportunitySnapshot || externalJob,

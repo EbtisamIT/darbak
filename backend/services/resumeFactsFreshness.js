@@ -6,11 +6,17 @@ const normalizeEntry = (entry = {}) => ({
   id: cleanText(entry.id),
   title: cleanText(entry.title),
   organization: cleanText(entry.organization),
+  period: cleanText(entry.period),
   startDate: cleanText(entry.startDate),
   endDate: cleanText(entry.endDate),
   isCurrent: Boolean(entry.isCurrent),
   location: cleanText(entry.location),
   description: cleanText(entry.description || entry.details),
+  url: cleanText(entry.url),
+  technologies: (Array.isArray(entry.technologies) ? entry.technologies : [])
+    .map((technology) => cleanText(technology))
+    .filter(Boolean)
+    .sort(),
   achievements: (Array.isArray(entry.achievements) ? entry.achievements : [])
     .map((item) => cleanText(item?.text || item?.html))
     .filter(Boolean),
@@ -23,11 +29,12 @@ const normalizeFacts = (facts = {}) => ({
       "studentStatus", "grammaticalGender", "graduationYear", "expectedGraduationYear",
       "studyStartYear", "gpa", "gpaScale", "academicTrack", "relevantCoursework",
     ].includes(key))
-    .map(([key, value]) => [key, Array.isArray(value) ? value.map(cleanText).filter(Boolean) : cleanText(value)])),
+    .map(([key, value]) => [key, Array.isArray(value) ? value.map((item) => cleanText(item)).filter(Boolean) : cleanText(value)])),
   experiences: (facts.experiences || facts.experience || []).map(normalizeEntry),
   projects: (facts.projects || []).map(normalizeEntry),
   certifications: (facts.certifications || []).map(normalizeEntry),
-  skills: (facts.skills || []).map(cleanText).filter(Boolean).sort(),
+  volunteering: (facts.volunteering || []).map(normalizeEntry),
+  skills: (facts.skills || []).map((skill) => cleanText(skill)).filter(Boolean).sort(),
 });
 
 const stableJson = (value) => {
@@ -45,6 +52,7 @@ const getChangedFactSections = (previous = {}, current = {}) => [
   ["experiences", "خبرة جديدة أو محدثة"],
   ["projects", "مشروع محدث"],
   ["certifications", "شهادة جديدة أو محدثة"],
+  ["volunteering", "نشاط جديد أو محدث"],
   ["skills", "مهارات محدثة"],
   ["personalInfo", "بيانات أساسية محدثة"],
 ].filter(([key]) => stableJson(previous[key] || (key === "personalInfo" ? {} : [])) !== stableJson(current[key] || (key === "personalInfo" ? {} : [])))

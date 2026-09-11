@@ -20,7 +20,7 @@ import {
   getSubscriptionCapabilities,
 } from "../utils/premiumAccess";
 import { getVisitorId, trackEvent, trackEventOncePerSession } from "../utils/analytics";
-import ResumeAgentFlow from "../features/resume/ResumeAgentFlow";
+import ResumeAgentFlow, { getAgentSessionStorageKey } from "../features/resume/ResumeAgentFlow";
 import ResumeBuilder, { SettingsEditor } from "../features/resume/ResumeBuilder";
 import EnglishTranslationReview from "../features/resume/EnglishTranslationReview";
 import ResumePdfDocument from "../features/resume/ResumePdfDocument";
@@ -210,6 +210,7 @@ const MyResumePage = () => {
   const lastSavedSnapshotRef = useRef("");
   const latestResumeSnapshotRef = useRef(getSnapshot(resume));
   const factsSaveRequestRef = useRef(0);
+  const factsSaveQueueRef = useRef(Promise.resolve(true));
   const lastRouteRef = useRef("");
 
   // Autosave responses can arrive out of order. Keep the latest local draft
@@ -427,37 +428,50 @@ const MyResumePage = () => {
 
   const saveJourneyDraft = useCallback(async (resumeOverride = resume) => {
     if (journeyView === "review") {
-      try {
-        const submittedSnapshot = getSnapshot(resumeOverride);
-        const requestId = ++factsSaveRequestRef.current;
-        setSaveState("saving");
-        const { data } = await axios.put(
-          `${API_BASE_URL}/api/resume/me/facts`,
-          prepareResumeForSave(resumeOverride),
-          { headers: getAccessHeaders({ itemKey: "resume:facts" }) },
-        );
-        const saved = normalizeResume(data.resume || resumeOverride);
-        // Do not hydrate a late response over text the student typed after
-        // this request started. The newer debounce will save that text next.
-        if (
-          requestId !== factsSaveRequestRef.current ||
-          latestResumeSnapshotRef.current !== submittedSnapshot
-        ) {
+      const saveLatestFacts = async () => {
+        try {
+          const submittedSnapshot = getSnapshot(resumeOverride);
+          const requestId = ++factsSaveRequestRef.current;
+          setSaveState("saving");
+          const { data } = await axios.put(
+            `${API_BASE_URL}/api/resume/me/facts`,
+            prepareResumeForSave(resumeOverride),
+            { headers: getAccessHeaders({ itemKey: "resume:facts" }) },
+          );
+          const saved = normalizeResume(data.resume || resumeOverride);
+          // Do not hydrate a late response over text the student typed after
+          // this request started. The newer debounce will save that text next.
+          if (
+            requestId !== factsSaveRequestRef.current ||
+            latestResumeSnapshotRef.current !== submittedSnapshot
+          ) {
+            return true;
+          }
+          setResume(saved);
+          setLastServerResume(saved);
+          setFactsFreshness(data.factsFreshness || { changed: true, changes: [] });
+          lastSavedSnapshotRef.current = getSnapshot(saved);
+          setSaveState("saved");
           return true;
+        } catch (err) {
+          setSaveState("error");
+          setError(err.response?.data?.error || "تعذر حفظ بيانات السيرة.");
+          return false;
         }
-        setResume(saved);
-        setLastServerResume(saved);
-        setFactsFreshness(data.factsFreshness || { changed: true, changes: [] });
-        lastSavedSnapshotRef.current = getSnapshot(saved);
-        setSaveState("saved");
-        return true;
-      } catch (err) {
-        setSaveState("error");
-        setError(err.response?.data?.error || "تعذر حفظ بيانات السيرة.");
-        return false;
-      }
+      };
+      // Serialize autosaves. An older request must finish before the explicit
+      // rebuild save, so it can never land last and restore stale facts.
+      const queuedSave = factsSaveQueueRef.current
+        .catch(() => true)
+        .then(saveLatestFacts);
+      factsSaveQueueRef.current = queuedSave;
+      return queuedSave;
     }
-    return saveResume({ manual: true, resumeOverride, silent: true });
+    const queuedSave = factsSaveQueueRef.current
+      .catch(() => true)
+      .then(() => saveResume({ manual: true, resumeOverride, silent: true }));
+    factsSaveQueueRef.current = queuedSave;
+    return queuedSave;
   }, [journeyView, resume, saveResume]);
 
   const loadFreshMasterResume = useCallback(async () => {
@@ -826,6 +840,7 @@ const MyResumePage = () => {
   };
 
   const finishJourneyBasics = async (resumeToSave) => {
+    window.clearTimeout(journeySaveTimerRef.current);
     const saved = await saveJourneyDraft(resumeToSave);
     if (!saved) return;
     setPersistedJourneyProgress({
@@ -833,13 +848,32 @@ const MyResumePage = () => {
       completedSteps: ["data", "missing"],
       source: journeySource,
     });
-    startAgent({ purpose: "create_resume", source: "professional_profile" });
+    startAgent({
+      purpose: "create_resume",
+      source: "professional_profile",
+      factsVersion: getSnapshot(resumeToSave),
+      forceFresh: true,
+    });
   };
 
   const rebuildResumeFromFacts = async () => {
+    window.clearTimeout(journeySaveTimerRef.current);
     const saved = await saveJourneyDraft();
     if (!saved) return;
-    startAgent({ purpose: "create_resume", source: "professional_profile" });
+    const { data } = await axios.get(`${API_BASE_URL}/api/resume/me`, {
+      headers: getAccessHeaders({ itemKey: "resume:me" }),
+    });
+    const freshResume = normalizeResume(data.resume || resume);
+    setResume(freshResume);
+    setLastServerResume(freshResume);
+    setFactsFreshness(data.factsFreshness || { changed: true, changes: [] });
+    lastSavedSnapshotRef.current = getSnapshot(freshResume);
+    startAgent({
+      purpose: "create_resume",
+      source: "professional_profile",
+      factsVersion: data.factsFreshness?.currentHash || "fresh",
+      forceFresh: true,
+    });
   };
 
   const returnToJourneyData = async () => {
@@ -889,17 +923,35 @@ const MyResumePage = () => {
     trackEvent("resume_agent_tailor_started", { page: "/my-resume" });
   };
 
-  const startAgent = ({ purpose = "create_resume", source = "professional_profile" } = {}) => {
+  const startAgent = ({
+    purpose = "create_resume",
+    source = "professional_profile",
+    factsVersion = "",
+    forceFresh = false,
+  } = {}) => {
     setError("");
     setMessage("");
     setEditingTailoredVersion(false);
     setEditingVersionId("");
     setEditingVersionType("");
+    const language = resume.settings?.language || "ar";
+    if (forceFresh) {
+      const staleSessionKey = getAgentSessionStorageKey({
+        purpose,
+        source,
+        language,
+        opportunityId: purpose === "tailor_resume" ? routeOpportunityId : "",
+        externalJob: null,
+        storageScope: resumeStorageScope,
+      });
+      window.sessionStorage.removeItem(staleSessionKey);
+    }
     setAgentConfig({
       purpose,
       source,
-      language: resume.settings?.language || "ar",
+      language,
       opportunityId: purpose === "tailor_resume" ? routeOpportunityId : "",
+      factsVersion,
     });
     setResumeMode("agent");
     setJourneyStep("draft");
@@ -1391,7 +1443,8 @@ const MyResumePage = () => {
             agentConfig.source,
             agentConfig.language,
           agentConfig.opportunityId,
-          agentConfig.externalJob?.title || "",
+            agentConfig.externalJob?.title || "",
+            agentConfig.factsVersion || "",
           ].join(":")}
           purpose={agentConfig.purpose}
           source={agentConfig.source}

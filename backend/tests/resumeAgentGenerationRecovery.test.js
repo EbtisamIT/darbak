@@ -67,6 +67,15 @@ const verifiedResumeFacts = {
   skills: ["Microsoft Excel"],
 };
 const key = buildGenerationCacheKey({ session, verifiedResumeFacts, collectedFacts: session.collectedFacts });
+const certificationUpdatedKey = buildGenerationCacheKey({
+  session,
+  verifiedResumeFacts: {
+    ...verifiedResumeFacts,
+    certifications: [{ id: "cert-1", title: "Certificate", organization: "Issuer", period: "2026" }],
+  },
+  collectedFacts: session.collectedFacts,
+});
+assert.notStrictEqual(certificationUpdatedKey, key, "saved certification metadata invalidates the previous draft cache");
 session.collectedFacts.agentOutputCache = { key, output: parsed.data };
 assert.strictEqual(getReusableDraftOutput(session, key)?.status, "draft_ready", "a valid model output is reusable after a later composer failure");
 assert.strictEqual(getReusableDraftOutput(session, `${key}-changed`), null, "changed facts or answers invalidate the cache");

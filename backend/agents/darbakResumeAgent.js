@@ -19,6 +19,7 @@ const {
 } = require("../services/resumeProfessionalComposer");
 const { buildVerifiedResumeFacts, composeCanonicalResume } = require("../services/resumePortfolioHydration");
 const { upsertAnswersByFieldKey } = require("../services/resumeAgentAnswerLifecycle");
+const { getResumeFactsFreshness } = require("../services/resumeFactsFreshness");
 
 setSensitiveDataLoggingEnabled(false);
 
@@ -2510,6 +2511,10 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     canonicalResume.verifiedResumeFacts || buildVerifiedResumeFacts(profile || {}, access?.contact || ""),
     collectedFacts.answers
   );
+  const generationSourceFactsVersion = getResumeFactsFreshness({
+    verifiedFacts: verifiedResumeFacts,
+    workflow: {},
+  }).currentHash;
   const generationCacheKey = buildGenerationCacheKey({
     session,
     verifiedResumeFacts,
@@ -2538,6 +2543,10 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     summaryRepairCalled: false,
     summarySourceAtSave: "",
     summarySourceAtRender: "",
+    generationSourceFactsVersion,
+    cachedDraftFactsVersion: session.collectedFacts?.agentOutputCache?.sourceFactsVersion || "",
+    backendRefreshCompleted: true,
+    cacheHit: false,
   };
   let result = null;
   let output = getReusableDraftOutput(session, generationCacheKey);
@@ -2546,6 +2555,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     trace.modelCallSucceeded = true;
     trace.structuredOutputValid = true;
     trace.reusedModelOutput = true;
+    trace.cacheHit = true;
     trace.initialGenerationSucceeded = true;
   } else {
     try {
@@ -2576,6 +2586,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
           ...(session.collectedFacts || {}),
           agentOutputCache: {
             key: generationCacheKey,
+            sourceFactsVersion: generationSourceFactsVersion,
             output,
             createdAt: new Date().toISOString(),
           },
@@ -2638,6 +2649,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
           ...(session.collectedFacts || {}),
           agentOutputCache: {
             key: generationCacheKey,
+            sourceFactsVersion: generationSourceFactsVersion,
             output,
             createdAt: new Date().toISOString(),
           },
@@ -2771,6 +2783,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
             ...(session.collectedFacts || {}),
             agentOutputCache: {
               key: generationCacheKey,
+              sourceFactsVersion: generationSourceFactsVersion,
               output,
               createdAt: new Date().toISOString(),
             },
@@ -2882,6 +2895,10 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       summaryRepairCalled: trace.summaryRepairCalled,
       summarySourceAtSave: trace.summarySourceAtSave,
       summarySourceAtRender: trace.summarySourceAtRender,
+      generationSourceFactsVersion: trace.generationSourceFactsVersion,
+      cachedDraftFactsVersion: trace.cachedDraftFactsVersion,
+      backendRefreshCompleted: trace.backendRefreshCompleted,
+      cacheHit: trace.cacheHit,
     },
   };
 };
