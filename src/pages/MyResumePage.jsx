@@ -28,6 +28,7 @@ import ResumePreview from "../features/resume/ResumePreview";
 import ResumeJobMatchPanel from "../features/resume/ResumeJobMatchPanel";
 import ResumeDashboard from "../features/resume/ResumeDashboard";
 import ResumeFactsReviewJourney from "../features/resume/ResumeFactsReviewJourney";
+import ResumeSetupJourney from "../features/resume/ResumeSetupJourney";
 import ApplicationPackPanel from "../features/resume/ApplicationPackPanel";
 import {
   ResumeJourneyPersonal,
@@ -49,8 +50,8 @@ import {
   readResumeJourneyProgress,
   writeResumeJourneyProgress,
 } from "../features/resume/resumeJourneyPersistence";
-import { shouldShowResumeOnboarding } from "../features/resume/resumeOnboarding";
 import { getResumeStorageScope } from "../features/resume/resumeStorageScope";
+import { getResumeEntryRedirect } from "../features/resume/resumeRouteState";
 
 const LEGACY_LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
 const APPLICATION_PACK_RESULT_LOAD_ATTEMPTS = 3;
@@ -177,8 +178,7 @@ const MyResumePage = () => {
   const [accessIssue, setAccessIssue] = useState("");
   const [message, setMessage] = useState("");
   const [lastServerResume, setLastServerResume] = useState(null);
-  const [resumeExists, setResumeExists] = useState(false);
-  const [resumeWorkflow, setResumeWorkflow] = useState({});
+  const [masterResumeExists, setMasterResumeExists] = useState(false);
   const [factsFreshness, setFactsFreshness] = useState({ changed: false, changes: [] });
   const [resumeMode, setResumeMode] = useState("dashboard");
   const [agentConfig, setAgentConfig] = useState(null);
@@ -243,6 +243,8 @@ const MyResumePage = () => {
   const routeVersionId = location.pathname.match(/^\/my-resume\/versions\/([^/]+)$/)?.[1] || "";
   const routeView = routeVersionId
     ? "version"
+    : location.pathname === "/my-resume/setup"
+    ? "setup"
     : location.pathname === "/my-resume/build"
     ? "build"
     : location.pathname === "/my-resume/edit"
@@ -311,8 +313,7 @@ const MyResumePage = () => {
         const nextResume = serverResume;
 
         setResume(nextResume);
-        setResumeExists(Boolean(data.exists));
-        setResumeWorkflow(data.resume?.workflow || {});
+        setMasterResumeExists(Boolean(data.masterResumeExists));
         setFactsFreshness(data.factsFreshness || { changed: false, changes: [] });
         setLastServerResume(serverResume);
         lastSavedSnapshotRef.current = getSnapshot(serverResume);
@@ -405,7 +406,6 @@ const MyResumePage = () => {
         const savedResume = normalizeResume(data.resume || payload);
         lastSavedSnapshotRef.current = getSnapshot(savedResume);
         setLastServerResume(savedResume);
-        setResumeExists(true);
         setSaveState("saved");
         setMessage(manual && !silent ? data.message || "تم حفظ سيرتك." : "");
         return true;
@@ -642,7 +642,6 @@ const MyResumePage = () => {
       });
       setResume(nextResume);
       setLastServerResume(nextResume);
-      setResumeExists(true);
       setSaveState("saved");
       setMessage(data.message || "تم تحسين النبذة.");
       await loadTailoredVersions({ forceFreshness: true });
@@ -747,7 +746,7 @@ const MyResumePage = () => {
   }, [editingTailoredVersion, editingVersionType, resume, resumeMode, saveResume]);
 
   useEffect(() => {
-    const isJourneyStep = resumeMode === "dashboard" && ["personal", "missing"].includes(journeyView);
+    const isJourneyStep = resumeMode === "dashboard" && ["setup", "personal", "missing"].includes(journeyView);
     if (!hasLoadedRef.current || !isJourneyStep) return undefined;
 
     writeResumeJourneyProgress({
@@ -786,7 +785,7 @@ const MyResumePage = () => {
   const startJourneyFromPortfolio = () => {
     setPersistedJourneyProgress({ currentStep: "data", completedSteps: [], source: "portfolio" });
     handleUsePortfolio();
-    navigate("/my-resume/build");
+    navigate("/my-resume/setup");
   };
 
   const handleCreateScratch = () => {
@@ -810,7 +809,7 @@ const MyResumePage = () => {
         access: current.access,
       })
     );
-    navigate("/my-resume/build");
+    navigate("/my-resume/setup");
     trackEvent("resume_create_scratch_clicked", {
       page: "/my-resume",
       metadata: { source: "journey" },
@@ -841,7 +840,16 @@ const MyResumePage = () => {
 
   const finishJourneyBasics = async (resumeToSave) => {
     window.clearTimeout(journeySaveTimerRef.current);
-    const saved = await saveJourneyDraft(resumeToSave);
+    const setupCompleteResume = normalizeResume({
+      ...resumeToSave,
+      workflow: {
+        ...(resumeToSave.workflow || {}),
+        isSetupComplete: true,
+        lastStep: "review",
+      },
+    });
+    setResume(setupCompleteResume);
+    const saved = await saveJourneyDraft(setupCompleteResume);
     if (!saved) return;
     setPersistedJourneyProgress({
       currentStep: "draft",
@@ -1038,6 +1046,13 @@ const MyResumePage = () => {
       setJourneyStep("data");
       return;
     }
+    if (routeView === "setup") {
+      openMaster();
+      setResumeMode("dashboard");
+      setJourneyView("setup");
+      setJourneyStep("data");
+      return;
+    }
     if (routeView === "build") {
       openMaster();
       const savedJourney = getReachableJourneyProgress(
@@ -1110,7 +1125,8 @@ const MyResumePage = () => {
     const approvedResume = data.resume || data.tailoredVersion?.resumePayload || null;
     if (!approvedResume) {
       setMessage(data.message || "تم اعتماد المسودة.");
-      navigate("/my-resume/review");
+      setMasterResumeExists(true);
+      navigate("/my-resume");
       return;
     }
 
@@ -1126,7 +1142,7 @@ const MyResumePage = () => {
     setResume(savedResume);
     if (data.resume) {
       setLastServerResume(savedResume);
-      setResumeExists(true);
+      setMasterResumeExists(true);
       setEditingTailoredVersion(false);
       lastSavedSnapshotRef.current = getSnapshot(savedResume);
     } else {
@@ -1147,7 +1163,7 @@ const MyResumePage = () => {
     if (data.tailoredVersion?._id) {
       navigate(`/my-resume/versions/${data.tailoredVersion._id}`);
     } else {
-      navigate("/my-resume/review");
+      navigate("/my-resume");
     }
   };
 
@@ -1204,13 +1220,12 @@ const MyResumePage = () => {
     return <ResumeAccessPreview premiumPass={localPremiumPass} onUpgrade={openResumeUpgrade} onExplore={() => navigate("/")} />;
   }
 
-  // Onboarding is only for a student who has not built a master resume yet.
-  // Older master resumes can have an empty legacy workflow; they must still
-  // open the dashboard and its explicit review journey rather than being
-  // redirected away from `/my-resume/review`.
-  if (!resumeExists && shouldShowResumeOnboarding(resumeWorkflow) && routeView !== "version" && routeView !== "review") {
-    return <Navigate to="/my-resume/review" replace />;
-  }
+  const entryRedirect = getResumeEntryRedirect({
+    routeView,
+    masterResumeExists,
+    buildStep: searchParams.get("step") || "",
+  });
+  if (entryRedirect) return <Navigate to={entryRedirect} replace />;
 
   return (
     <main className="resume-page resume-page-v2" dir="rtl">
@@ -1253,7 +1268,7 @@ const MyResumePage = () => {
           </section>
         </div>
       )}
-      {!englishReviewOpen && !(resumeMode === "dashboard" && journeyView === "start") && !(
+      {!englishReviewOpen && resumeMode !== "dashboard" && !(
         routeView === "tailor" && (resumeMode === "match" || resumeMode === "agent")
       ) && <section className="resume-topbar">
         <div>
@@ -1312,7 +1327,7 @@ const MyResumePage = () => {
         </div>
       </section>}
 
-      {!englishReviewOpen && !(resumeMode === "dashboard" && journeyView === "start") && !isTailoredApplicationFlow && <ResumeJourneyStepper
+      {!englishReviewOpen && routeView === "build" && !isTailoredApplicationFlow && <ResumeJourneyStepper
         currentStep={journeyStep}
         completedSteps={journeyCompletedSteps}
         onStepChange={(step) => {
@@ -1368,7 +1383,7 @@ const MyResumePage = () => {
         ) : (
           <ResumeDashboard
             resume={resume}
-            resumeExists={resumeExists}
+            resumeExists={masterResumeExists}
             versions={tailoredVersions}
             loadingVersions={loadingTailoredVersions}
             onStartFromPortfolio={startJourneyFromPortfolio}
@@ -1418,6 +1433,15 @@ const MyResumePage = () => {
           onBack={() => navigate("/my-resume")}
           onRebuild={rebuildResumeFromFacts}
           rebuilding={false}
+        />
+      )}
+
+      {resumeMode === "dashboard" && journeyView === "setup" && (
+        <ResumeSetupJourney
+          resume={resume}
+          onChange={(nextResume) => setResume(normalizeResume(nextResume))}
+          onAutosave={saveJourneyDraft}
+          onBuild={finishJourneyBasics}
         />
       )}
 

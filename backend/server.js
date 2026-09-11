@@ -8562,9 +8562,16 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
       verifiedFacts: enrichedResume.verifiedResumeFacts || {},
       workflow: enrichedResume.workflow || {},
     });
+    const masterResumeExists = Boolean(resume && (
+      resume.workflow?.lastBuiltFactsHash ||
+      resume.workflow?.lastBuiltAt ||
+      resume.aiDraftStatus === "approved" ||
+      String(resume.summary || "").trim()
+    ));
 
     res.json({
       exists: Boolean(resume),
+      masterResumeExists,
       hasExistingResumeData: Boolean(resume || hasTailoredVersion),
       resume: serializeResume(enrichedResume, req.darbakAccess),
       portfolioImported: Boolean(portfolio),

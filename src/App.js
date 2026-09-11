@@ -1383,6 +1383,7 @@ function AppLayout({ theme, setTheme }) {
               <Route path="/where-to-train" element={<TrainingFinderPage />} />
               <Route path="/subscribe" element={<SubscribeRoute />} />
               <Route path="/my-resume" element={<MyResumePage />} />
+              <Route path="/my-resume/setup" element={<MyResumePage />} />
               <Route path="/my-resume/build" element={<MyResumePage />} />
               <Route path="/my-resume/edit" element={<Navigate to="/my-resume/review" replace />} />
               <Route path="/my-resume/review" element={<MyResumePage />} />

@@ -45,7 +45,14 @@ const ResumeFactsReviewJourney = ({ resume, freshness, onChange, onBack, onRebui
       <section className={`resume-facts-review-status${freshness?.changed ? " is-changed" : ""}`}>
         {freshness?.changed ? <><FiRefreshCw aria-hidden="true" /><div><strong>{freshness.baselineMissing ? "راجع بياناتك قبل أول تحديث للسيرة" : `تم اكتشاف ${changes.length || 1} تغييرات`}</strong><span>{changes.length ? changes.join(" · ") : "تم تعديل بيانات السيرة منذ آخر بناء."}</span></div></> : <><FiCheck aria-hidden="true" /><div><strong>سيرتك محدثة ✓</strong><span>{missing ? `باقي ${missing} حقول ناقصة يمكنك مراجعتها لاحقًا.` : "لا توجد تغييرات جديدة تحتاج إعادة بناء."}</span></div></>}
       </section>
-      <ResumeBuilder resume={resume} onChange={onChange} hideCompletedChecklist />
+      <ResumeBuilder
+        resume={resume}
+        onChange={onChange}
+        hideCompletedChecklist
+        showStartOptions={false}
+        showSettings={false}
+        visibleSections={["education", "experience", "projects", "skills", "certifications", "volunteering"]}
+      />
       <footer className="resume-journey-actions resume-facts-review-actions">
         <button type="button" className="is-secondary" onClick={onBack}>رجوع للوحة السيرة</button>
         {freshness?.changed && <button type="button" className="is-primary" onClick={onRebuild} disabled={rebuilding}>{rebuilding ? "جاري تحديث السيرة..." : "تحديث السيرة بهذه التغييرات"}<FiArrowLeft aria-hidden="true" /></button>}

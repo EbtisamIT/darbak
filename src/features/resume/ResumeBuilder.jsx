@@ -819,8 +819,17 @@ const ResumeBuilder = ({
   onCreateScratch,
   onContinueSaved,
   hideCompletedChecklist = false,
+  showStartOptions = true,
+  showCompletionPanel = true,
+  showSettings = true,
+  showPersonalInfo = true,
+  showApplicationDetails = true,
+  visibleSections = null,
 }) => {
   const order = resume.sectionOrder || RESUME_SECTION_KEYS;
+  const renderedOrder = visibleSections
+    ? order.filter((sectionKey) => visibleSections.includes(sectionKey))
+    : order;
 
   const updateSectionOrder = (nextOrder) => onChange({ ...resume, sectionOrder: nextOrder });
   const moveSection = (fromIndex, toIndex) =>
@@ -885,7 +894,7 @@ const ResumeBuilder = ({
 
   return (
     <div className="resume-builder-editor">
-      <section className="resume-start-options">
+      {showStartOptions && <section className="resume-start-options">
         <button type="button" onClick={onUsePortfolio}>
           استخدام بيانات الملف المهني
         </button>
@@ -895,12 +904,12 @@ const ResumeBuilder = ({
         <button type="button" onClick={onContinueSaved}>
           متابعة آخر سيرة محفوظة
         </button>
-      </section>
+      </section>}
 
-      <CompletionPanel resume={resume} onChange={onChange} hideCompletedChecklist={hideCompletedChecklist} />
-      <SettingsEditor resume={resume} onChange={onChange} />
-      <PersonalInfoEditor resume={resume} onChange={onChange} />
-      <ApplicationDetailsEditor resume={resume} onChange={onChange} />
+      {showCompletionPanel && <CompletionPanel resume={resume} onChange={onChange} hideCompletedChecklist={hideCompletedChecklist} />}
+      {showSettings && <SettingsEditor resume={resume} onChange={onChange} />}
+      {showPersonalInfo && <PersonalInfoEditor resume={resume} onChange={onChange} />}
+      {showApplicationDetails && <ApplicationDetailsEditor resume={resume} onChange={onChange} />}
 
       <DragDropProvider
         onDragEnd={(event) => {
@@ -908,7 +917,7 @@ const ResumeBuilder = ({
           updateSectionOrder(move(order, event));
         }}
       >
-        {order.map((sectionKey, index) => (
+        {renderedOrder.map((sectionKey, index) => (
           <SectionShell
             key={sectionKey}
             sectionKey={sectionKey}
