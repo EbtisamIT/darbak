@@ -8525,67 +8525,37 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
   }
 });
 
-// Resume facts are owned by Portfolio. The resume review journey uses this
-// narrow endpoint so edits remain durable facts without accidentally treating
-// presentation-only ResumeProfile content as the source of truth.
+// The resume review journey owns a private, editable copy of resume facts.
+// Portfolio is used as the initial import only, so this endpoint must never
+// write back to (or rehydrate from) the student's public professional profile.
 app.put('/api/resume/me/facts', requireResumeAccess, async (req, res) => {
   try {
-    const { contact, accessCodeHash } = req.darbakAccess;
+    const { contact, accessCodeHash, user } = req.darbakAccess;
     const incoming = sanitizeResumePayload(req.body || {});
-    const personal = incoming.personalInfo || {};
-    const mapEntry = (entry = {}, type = "") => ({
-      id: entry.id || "",
-      title: entry.title || "",
-      organization: entry.organization || "",
-      city: entry.location || "",
-      experienceType: type || entry.experienceType || "",
-      startDate: entry.startDate || "",
-      endDate: entry.endDate || "",
-      current: Boolean(entry.isCurrent),
-      description: entry.description || entry.details || "",
-      responsibilities: (entry.achievements || []).map((item) => ({ id: item.id || "", text: item.text || item.html || "" })).filter((item) => item.text),
-    });
-    const portfolioPatch = {
-      fullName: personal.fullName || "",
-      email: personal.email || contact,
-      phone: personal.phone || "",
-      city: personal.city || "",
-      major: personal.major || "",
-      university: personal.university || "",
-      degreeLevel: personal.degree || "",
-      studentStatus: personal.studentStatus || "",
-      grammaticalGender: personal.grammaticalGender || "",
-      graduationYear: personal.graduationYear || "",
-      expectedGraduationYear: personal.expectedGraduationYear || "",
-      studyStartYear: personal.studyStartYear || "",
-      gpa: personal.gpa || "",
-      gpaScale: personal.gpaScale || "",
-      academicTrack: personal.academicTrack || "",
-      relevantCoursework: personal.relevantCoursework || [],
-      professionalHeadline: personal.headline || "",
-      linkedinUrl: personal.linkedinUrl || "",
-      githubUrl: personal.githubUrl || "",
-      personalWebsite: personal.personalUrl || personal.portfolioUrl || "",
-      targetTrainingField: personal.trainingField || "",
-      trainingStart: personal.trainingStart || "",
-      trainingEnd: personal.trainingEnd || "",
-      skills: incoming.skills || [],
-      projects: (incoming.projects || []).map((entry) => ({ id: entry.id || "", title: entry.title || "", description: entry.description || entry.details || "", technologies: [], url: entry.url || "" })),
-      certifications: (incoming.certifications || []).map((entry) => ({ id: entry.id || "", title: entry.title || "", provider: entry.organization || "", year: entry.endDate || entry.period || "", credentialUrl: entry.url || "" })),
-      experiences: (incoming.experiences || incoming.experience || []).map((entry) => mapEntry(entry)),
-      volunteering: (incoming.volunteering || []).map((entry) => mapEntry(entry, "volunteering")),
-      languages: (incoming.languages || []).map((item) => ({ name: item.name || "", level: item.level || "" })),
+    const existingResume = await ResumeProfile.findOne({ contact, accessCodeHash }).select("workflow").lean();
+    const workflow = {
+      ...(existingResume?.workflow || {}),
+      factsOwner: "resume",
+      lastStep: "review",
     };
-    const portfolio = await Portfolio.findOneAndUpdate(
+    const savedResume = await ResumeProfile.findOneAndUpdate(
       { contact, accessCodeHash },
-      { $set: portfolioPatch, $setOnInsert: { contact, accessCodeHash, slug: buildDefaultPortfolioSlug(contact) } },
+      {
+        $set: {
+          contact,
+          accessCodeHash,
+          userId: user?._id,
+          ...incoming,
+          workflow,
+        },
+      },
       { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
     ).lean();
-    const storedResume = await ResumeProfile.findOne({ contact, accessCodeHash }).lean();
-    const canonical = composeCanonicalResume(storedResume || {}, portfolio || {}, contact, {
+    const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
+    const canonical = composeCanonicalResume(savedResume || {}, portfolio || {}, contact, {
       frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS,
     });
-    const freshness = getResumeFactsFreshness({ verifiedFacts: canonical.verifiedResumeFacts || {}, workflow: storedResume?.workflow || {} });
+    const freshness = getResumeFactsFreshness({ verifiedFacts: canonical.verifiedResumeFacts || {}, workflow: savedResume?.workflow || {} });
     res.json({
       resume: serializeResume(canonical, req.darbakAccess),
       factsFreshness: { changed: freshness.changed, baselineMissing: freshness.baselineMissing, changes: freshness.changes, currentHash: freshness.currentHash, lastBuiltHash: freshness.lastBuiltHash },

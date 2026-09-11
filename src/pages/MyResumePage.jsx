@@ -1124,8 +1124,8 @@ const MyResumePage = () => {
   // Older master resumes can have an empty legacy workflow; they must still
   // open the dashboard and its explicit review journey rather than being
   // redirected away from `/my-resume/review`.
-  if (!resumeExists && shouldShowResumeOnboarding(resumeWorkflow) && routeView !== "version") {
-    return <Navigate to="/portfolio?from=resume" replace />;
+  if (!resumeExists && shouldShowResumeOnboarding(resumeWorkflow) && routeView !== "version" && routeView !== "review") {
+    return <Navigate to="/my-resume/review" replace />;
   }
 
   return (

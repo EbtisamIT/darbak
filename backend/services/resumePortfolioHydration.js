@@ -391,6 +391,31 @@ const orderVerifiedEntries = (verifiedEntries = [], presentationEntries = []) =>
 };
 
 const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", options = {}) => {
+  // Once a student explicitly edits the resume facts journey, those facts are
+  // independent from the public Portfolio. Portfolio remains the initial
+  // import only; it must not replace typing after an autosave/refresh.
+  if (resume?.workflow?.factsOwner === "resume") {
+    const experiences = Array.isArray(resume.experiences) && resume.experiences.length
+      ? resume.experiences
+      : resume.experience || [];
+    return {
+      ...resume,
+      experiences,
+      experience: experiences,
+      verifiedResumeFacts: {
+        personalInfo: resume.personalInfo || {},
+        education: resume.education || [],
+        experiences,
+        projects: resume.projects || [],
+        certifications: resume.certifications || [],
+        volunteering: resume.volunteering || [],
+        languages: resume.languages || [],
+        links: resume.links || [],
+        skills: resume.skills || [],
+        professionalContext: "",
+      },
+    };
+  }
   const verifiedResumeFacts = buildVerifiedResumeFacts(portfolio, contact, options);
   // Existing users without a Portfolio keep their existing resume intact. Once
   // the Portfolio has a fact, that verified fact wins over stale resume copies.
@@ -471,7 +496,8 @@ const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
   // A profile created from Portfolio has one authoritative source for core
   // identity facts. This repairs stale or cross-account values saved by an old
   // resume draft without touching scratch/manual resume profiles.
-  const portfolioOwnsIdentity = resume.workflow?.source === "portfolio";
+  const resumeOwnsFacts = resume.workflow?.factsOwner === "resume";
+  const portfolioOwnsIdentity = resume.workflow?.source === "portfolio" && !resumeOwnsFacts;
   Object.entries(portfolioResume.personalInfo || {}).forEach(([key, value]) => {
     if (
       (portfolioOwnsIdentity || !hasValue(personalInfo[key]) || isInvalidResumePersonalValue(key, personalInfo[key])) &&
@@ -491,17 +517,19 @@ const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
     ...resume,
     personalInfo,
     summary: hasValue(resume.summary) ? resume.summary : portfolioResume.summary || "",
-    education: portfolioOwnsIdentity && Array.isArray(portfolioResume.education) && portfolioResume.education.length
+    education: resumeOwnsFacts
+      ? resume.education || []
+      : portfolioOwnsIdentity && Array.isArray(portfolioResume.education) && portfolioResume.education.length
       ? portfolioResume.education
       : hydrateEducationEntries(resume.education, portfolioResume.education),
-    experiences: mergeEntries(currentExperience, portfolioExperience),
-    experience: mergeEntries(currentExperience, portfolioExperience),
-    projects: mergeEntries(resume.projects, portfolioResume.projects),
-    certifications: mergeEntries(resume.certifications, portfolioResume.certifications),
-    volunteering: mergeEntries(resume.volunteering, portfolioResume.volunteering),
-    languages: mergeLanguages(resume.languages, portfolioResume.languages),
-    links: mergeLinks(resume.links, portfolioResume.links),
-    skills: normalizeResumeSkills(uniqueText(resume.skills, portfolioResume.skills)),
+    experiences: resumeOwnsFacts ? currentExperience : mergeEntries(currentExperience, portfolioExperience),
+    experience: resumeOwnsFacts ? currentExperience : mergeEntries(currentExperience, portfolioExperience),
+    projects: resumeOwnsFacts ? resume.projects || [] : mergeEntries(resume.projects, portfolioResume.projects),
+    certifications: resumeOwnsFacts ? resume.certifications || [] : mergeEntries(resume.certifications, portfolioResume.certifications),
+    volunteering: resumeOwnsFacts ? resume.volunteering || [] : mergeEntries(resume.volunteering, portfolioResume.volunteering),
+    languages: resumeOwnsFacts ? resume.languages || [] : mergeLanguages(resume.languages, portfolioResume.languages),
+    links: resumeOwnsFacts ? resume.links || [] : mergeLinks(resume.links, portfolioResume.links),
+    skills: resumeOwnsFacts ? normalizeResumeSkills(resume.skills || []) : normalizeResumeSkills(uniqueText(resume.skills, portfolioResume.skills)),
   };
   const patch = {};
   ["personalInfo", "summary", "education", "experiences", "experience", "projects", "certifications", "volunteering", "languages", "links", "skills"].forEach((key) => {

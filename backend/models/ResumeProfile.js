@@ -180,6 +180,15 @@ const resumeProfileSchema = new mongoose.Schema(
         enum: ["portfolio", "scratch", "uploaded_resume", "agent", ""],
         default: "",
       },
+      // The first resume form starts from the professional profile, but the
+      // student may then maintain resume-specific facts without changing that
+      // public profile. This flag is intentionally narrow: it controls facts
+      // hydration only, never AI generation or subscription access.
+      factsOwner: {
+        type: String,
+        enum: ["portfolio", "resume"],
+        default: "portfolio",
+      },
       lastStep: { type: String, default: "", trim: true },
       isSetupComplete: { type: Boolean, default: false },
       lastBuiltFactsHash: { type: String, default: "", trim: true },

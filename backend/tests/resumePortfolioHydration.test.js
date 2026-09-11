@@ -441,4 +441,24 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(result.resume.personalInfo.gpaScale, "5");
 }
 
+// Resume-review edits become private resume facts after the initial Portfolio
+// import. A later Portfolio hydration must not erase a student-entered field.
+{
+  const reviewResume = {
+    workflow: { source: "portfolio", factsOwner: "resume" },
+    personalInfo: { fullName: "سارة أحمد", major: "تقنية معلومات تطبيقية" },
+    summary: "ملخص خاص بالسيرة لا يجب أن يختفي.",
+    projects: [{ id: "resume-project", title: "مشروع السيرة", description: "وصف كتبه الطالب." }],
+    skills: ["React.js"],
+    settings: { language: "ar" },
+  };
+  const hydrated = hydrateResumeFromPortfolio(reviewResume, mapped);
+  assert.strictEqual(hydrated.resume.personalInfo.major, "تقنية معلومات تطبيقية");
+  assert.strictEqual(hydrated.resume.summary, "ملخص خاص بالسيرة لا يجب أن يختفي.");
+  assert.strictEqual(hydrated.resume.projects[0].title, "مشروع السيرة");
+  const canonical = composeCanonicalResume(reviewResume, { ...portfolio, _id: "resume-review-portfolio" }, portfolio.email);
+  assert.strictEqual(canonical.verifiedResumeFacts.personalInfo.major, "تقنية معلومات تطبيقية");
+  assert.strictEqual(canonical.verifiedResumeFacts.projects[0].title, "مشروع السيرة");
+}
+
 console.log("resumePortfolioHydration tests passed");

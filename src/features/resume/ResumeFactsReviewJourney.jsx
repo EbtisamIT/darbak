@@ -31,9 +31,9 @@ const ResumeFactsReviewJourney = ({ resume, freshness, onChange, onBack, onRebui
   return (
     <section className="resume-facts-review-journey" dir="rtl">
       <header className="resume-journey-section-head">
-        <span className="resume-journey-eyebrow">مراجعة وتحديث بيانات السيرة</span>
-        <h2>حدّث بياناتك ثم اختر وقت إعادة بناء السيرة</h2>
-        <p>الحفظ التلقائي يحفظ البيانات فقط؛ لن نشغّل كاتب السيرة إلا عندما تضغط زر التحديث.</p>
+        <span className="resume-journey-eyebrow">بيانات سيرتك</span>
+        <h2>راجع بيانات سيرتك ثم حدّثها عندما تكون جاهزة</h2>
+        <p>هذه البيانات تخص سيرتك فقط ولا تعدّل ملفك المهني. الحفظ التلقائي يحفظ ما تكتبه، ولن نشغّل كاتب السيرة إلا عندما تضغط زر التحديث.</p>
       </header>
       <nav className="resume-facts-review-steps" aria-label="خطوات مراجعة بيانات السيرة">
         {STEPS.map(([key, label]) => (
