@@ -2,6 +2,8 @@ const assert = require("assert");
 const {
   applyProjectDescriptionAnswer,
   applyExperienceDescriptionAnswer,
+  applyActivityDescriptionAnswer,
+  buildEnrichmentQuestions,
   buildPendingProjectDescriptionQuestion,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
@@ -17,7 +19,7 @@ assert.deepStrictEqual(parseStructuredAnswerFieldKey(fieldKey), {
   itemId: "project-customer-satisfaction",
 });
 assert.strictEqual(validateProjectDescriptionAnswer(validAnswer).accepted, true);
-assert.strictEqual(validateProjectDescriptionAnswer("مشروع جامعي").accepted, false);
+assert.strictEqual(validateProjectDescriptionAnswer("مشروع جامعي").accepted, true);
 
 const facts = {
   projects: [
@@ -40,6 +42,17 @@ const experienceAnswer = { fieldKey: "experience_description:experience-1", answ
 assert.strictEqual(applyExperienceDescriptionAnswer(experienceFacts, experienceAnswer), true);
 assert.strictEqual(experienceFacts.experiences[0].description, experienceAnswer.answer);
 assert.strictEqual(mergeStructuredAnswersIntoFacts({ experiences: [{ id: "experience-1" }] }, [experienceAnswer]).experiences[0].description, experienceAnswer.answer);
+const legacyExperience = { experiences: [{ id: "", title: "تدريب محاسبي", description: "" }] };
+assert.strictEqual(applyExperienceDescriptionAnswer(legacyExperience, {
+  fieldKey: "experience_description:portfolio-experience-0-تدريب محاسبي",
+  answer: experienceAnswer.answer,
+}), true);
+
+const activityFacts = { volunteering: [{ id: "activity-1", title: "النادي التقني", description: "" }] };
+const activityAnswer = { fieldKey: "activity_description:activity-1", answer: "نظمت لقاءات تعريفية للطلاب." };
+assert.strictEqual(applyActivityDescriptionAnswer(activityFacts, activityAnswer), true);
+assert.strictEqual(activityFacts.volunteering[0].description, activityAnswer.answer);
+assert.strictEqual(mergeStructuredAnswersIntoFacts({ volunteering: [{ id: "activity-1" }] }, [activityAnswer]).volunteering[0].description, activityAnswer.answer);
 
 const legacyPortfolio = { projects: [{ id: "", title: "تحليل رضا العملاء", description: "" }] };
 assert.strictEqual(applyProjectDescriptionAnswer(legacyPortfolio, {
@@ -60,5 +73,21 @@ assert.strictEqual(pendingQuestion.fieldKey, fieldKey);
 assert.strictEqual(pendingQuestion.inputType, "textarea");
 assert.strictEqual(buildPendingProjectDescriptionQuestion(facts, { skippedFieldKeys: [fieldKey] }), null);
 assert.strictEqual(buildPendingProjectDescriptionQuestion(merged, { answers }), null);
+
+const rankedQuestions = buildEnrichmentQuestions({
+  experiences: [{ id: "experience-1", title: "تدريب محاسبي" }],
+  projects: [{ id: "project-1", title: "لوحة مبيعات" }],
+  volunteering: [{ id: "activity-1", title: "النادي التقني" }],
+}, {});
+assert.deepStrictEqual(rankedQuestions.map((question) => question.fieldKey), [
+  "experience_description:experience-1",
+  "project_description:project-1",
+  "activity_description:activity-1",
+]);
+assert.ok(rankedQuestions.every((question) => question.questionType === "enrichment"));
+assert.strictEqual(rankedQuestions.length, 3);
+assert.strictEqual(buildEnrichmentQuestions({ projects: [{ id: "project-1", title: "لوحة مبيعات" }] }, {
+  skippedFieldKeys: ["project_description:project-1"],
+}).length, 0);
 
 console.log("resumeAgentAnswerLifecycle tests passed");

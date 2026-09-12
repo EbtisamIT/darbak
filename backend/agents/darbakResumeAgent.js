@@ -18,7 +18,7 @@ const {
   getQualityFailureSections,
 } = require("../services/resumeProfessionalComposer");
 const { buildVerifiedResumeFacts, composeCanonicalResume } = require("../services/resumePortfolioHydration");
-const { buildPendingProjectDescriptionQuestion, upsertAnswersByFieldKey } = require("../services/resumeAgentAnswerLifecycle");
+const { buildEnrichmentQuestions, upsertAnswersByFieldKey } = require("../services/resumeAgentAnswerLifecycle");
 const { getResumeFactsFreshness } = require("../services/resumeFactsFreshness");
 
 setSensitiveDataLoggingEnabled(false);
@@ -38,6 +38,8 @@ const questionSchema = z
     id: z.string().max(90).default(""),
     fieldKey: z.string().max(90).default(""),
     section: z.string().max(90).default(""),
+    questionType: z.enum(["required_core", "enrichment", "optional_detail"]).default("enrichment"),
+    itemTitle: z.string().max(140).default(""),
     question: z.string().max(320).default(""),
     whyNeeded: z.string().max(260).default(""),
     reason: z.string().max(120).default(""),
@@ -569,6 +571,7 @@ const normalizeNeedsInformationOutput = (output = {}, facts = {}) => {
       ...question,
       id: fieldKey,
       fieldKey,
+      questionType: BASE_MISSING_FIELD_KEYS.has(fieldKey.split(":")[0]) ? "required_core" : "enrichment",
       inputType: inputTypeForFieldKey(fieldKey, question.inputType),
       options: Array.isArray(question.options) ? question.options : [],
       reason: missingReasonForFieldKey(fieldKey, question.reason || question.whyNeeded),
@@ -2549,15 +2552,15 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     backendRefreshCompleted: true,
     cacheHit: false,
   };
-  const enrichmentQuestion = session.purpose === "create_resume"
-    ? buildPendingProjectDescriptionQuestion(verifiedResumeFacts, collectedFacts)
-    : null;
-  if (enrichmentQuestion) {
+  const enrichmentQuestions = session.purpose === "create_resume"
+    ? buildEnrichmentQuestions(verifiedResumeFacts, collectedFacts)
+    : [];
+  if (enrichmentQuestions.length) {
     return {
       output: {
         status: "needs_information",
-        message: "نكمل معلومة اختيارية قبل تجهيز المسودة.",
-        questions: [enrichmentQuestion],
+        message: "خلّنا نقوي سيرتك قبل تجهيز المسودة.",
+        questions: enrichmentQuestions,
         missingInformation: [],
         warnings: [],
         pendingDraftId: "",

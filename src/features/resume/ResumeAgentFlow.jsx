@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { FiArrowRight, FiCheckCircle, FiCpu, FiEdit3, FiRefreshCw, FiX } from "react-icons/fi";
+import { FiCheckCircle, FiCpu, FiEdit3, FiRefreshCw, FiX } from "react-icons/fi";
 import API_BASE_URL from "../../config/api";
 import { getAccessHeaders } from "../../utils/premiumAccess";
 import { getVisitorId, trackEvent } from "../../utils/analytics";
@@ -348,9 +348,10 @@ const ResumeAgentFlow = ({
     }));
   };
 
-  const submitAnswers = async () => {
+  const submitAnswers = async (selectedQuestion = null) => {
     if (!session?.sessionId) return;
-    const payloadAnswers = questions
+    const questionsToSubmit = selectedQuestion ? [selectedQuestion] : questions;
+    const payloadAnswers = questionsToSubmit
       .map((question, index) => ({
         fieldKey: getQuestionKey(question, index),
         questionId: getQuestionKey(question, index),
@@ -423,8 +424,9 @@ const ResumeAgentFlow = ({
     }
   };
 
-  const skipQuestions = async () => {
+  const skipQuestions = async (selectedQuestion = null) => {
     if (!session?.sessionId || !questions.length) return;
+    const questionsToSkip = selectedQuestion ? [selectedQuestion] : questions;
     try {
       setLoading(true);
       setError("");
@@ -433,14 +435,14 @@ const ResumeAgentFlow = ({
         `${API_BASE_URL}/api/resume-agent/respond`,
         {
           sessionId: session.sessionId,
-          skippedFieldKeys: questions.map((question, index) => getQuestionKey(question, index)),
+          skippedFieldKeys: questionsToSkip.map((question) => getQuestionKey(question, questions.indexOf(question))),
           visitorId: getVisitorId(),
         },
         { headers: getAccessHeaders({ itemKey: "resume-agent:respond" }) },
       );
       setSession(data.session);
       setOutput(data.output);
-      setAnswers({});
+      setAnswers((current) => retainAnswersForQuestions(current, data.output?.questions));
     } catch (err) {
       setError(getAgentErrorMessage(err));
       setNotice("");
@@ -586,18 +588,19 @@ const ResumeAgentFlow = ({
       {!loading && output?.status === "needs_information" && (
         <div className="resume-agent-questions">
           <div className="resume-agent-section-head">
-            <h3>نكمل كم معلومة</h3>
-            <p>اكتب بأسلوبك العادي، أو تخطَّ السؤال ونكمل بالمعلومات المتوفرة.</p>
+            <h3>خلّنا نقوي سيرتك</h3>
+            <p>هذي أسئلة اختيارية تساعد دربك يكتب محتوى أقوى. تقدر تجاوب أو تتخطى.</p>
           </div>
           {questions.map((question, index) => {
             const key = getQuestionKey(question, index);
             return (
-              <label key={key} className="resume-agent-question-card">
+              <div key={key} className="resume-agent-question-card">
                 <span>{SECTION_LABELS[question.section] || question.section || "تفصيل مهم"}</span>
                 <strong>{question.question}</strong>
                 {question.whyNeeded && <small>{question.whyNeeded}</small>}
                 {question.inputType === "textarea" ? (
                   <textarea
+                    aria-label={question.question}
                     rows={4}
                     value={answers[key] || ""}
                     onChange={(event) => updateAnswer(question, index, event.target.value)}
@@ -611,18 +614,17 @@ const ResumeAgentFlow = ({
                     placeholder="اكتب إجابتك هنا..."
                   />
                 )}
-              </label>
+                <div className="resume-agent-actions">
+                  <button type="button" className="is-soft" onClick={() => skipQuestions(question)}>
+                    تخطي
+                  </button>
+                  <button type="button" onClick={() => submitAnswers(question)}>
+                    حفظ
+                  </button>
+                </div>
+              </div>
             );
           })}
-          <div className="resume-agent-actions">
-            <button type="button" className="is-soft" onClick={skipQuestions}>
-              تخطي
-            </button>
-            <button type="button" onClick={submitAnswers}>
-              حفظ ومتابعة
-              <FiArrowRight aria-hidden="true" />
-            </button>
-          </div>
         </div>
       )}
 

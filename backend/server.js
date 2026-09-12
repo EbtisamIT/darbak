@@ -85,6 +85,7 @@ const {
 } = require("./services/resumeSummaryFreshness");
 const { getResumeFactsFreshness } = require("./services/resumeFactsFreshness");
 const {
+  applyActivityDescriptionAnswer,
   applyExperienceDescriptionAnswer,
   applyProjectDescriptionAnswer,
   parseStructuredAnswerFieldKey,
@@ -8065,7 +8066,7 @@ const sanitizeResumeAgentAnswers = (answers = [], pendingQuestions = []) => {
 
 const persistAcceptedResumeAgentAnswers = async (access = {}, answers = []) => {
   const structuredAnswers = answers.filter((answer) =>
-    ["project_description", "experience_description"].includes(parseStructuredAnswerFieldKey(answer.fieldKey)?.type)
+    ["project_description", "experience_description", "activity_description"].includes(parseStructuredAnswerFieldKey(answer.fieldKey)?.type)
   );
   if (!structuredAnswers.length) return { answerPersisted: true, persistedCount: 0 };
 
@@ -8079,11 +8080,17 @@ const persistAcceptedResumeAgentAnswers = async (access = {}, answers = []) => {
   let persistedCount = 0;
   for (const answer of structuredAnswers) {
     const type = parseStructuredAnswerFieldKey(answer.fieldKey)?.type;
-    const source = sources.find((candidate) => type === "project_description"
-      ? applyProjectDescriptionAnswer(candidate, answer)
-      : applyExperienceDescriptionAnswer(candidate, answer));
+    const source = sources.find((candidate) => {
+      if (type === "project_description") return applyProjectDescriptionAnswer(candidate, answer);
+      if (type === "experience_description") return applyExperienceDescriptionAnswer(candidate, answer);
+      return applyActivityDescriptionAnswer(candidate, answer);
+    });
     if (!source) continue;
-    source.markModified(type === "project_description" ? "projects" : (Array.isArray(source.experiences) ? "experiences" : "experience"));
+    source.markModified(type === "project_description"
+      ? "projects"
+      : type === "activity_description"
+        ? "volunteering"
+        : (Array.isArray(source.experiences) ? "experiences" : "experience"));
     await source.save();
     persistedCount += 1;
   }
