@@ -5,6 +5,7 @@ const {
   applyActivityDescriptionAnswer,
   buildEnrichmentQuestions,
   buildUserSourceEnrichmentFacts,
+  getEnrichmentSourceSignature,
   buildPendingProjectDescriptionQuestion,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
@@ -164,5 +165,30 @@ const answeredPollutedFacts = mergeStructuredAnswersIntoFacts(pollutedPresentati
 }]);
 assert.strictEqual(answeredPollutedFacts.projects[0].userSourceDescription, explicitProjectAnswer);
 assert.strictEqual(buildEnrichmentQuestions(answeredPollutedFacts, {}).some((question) => question.fieldKey === "project_description:customer-satisfaction"), false);
+
+const clubWithoutContribution = {
+  id: "entrepreneurship-club",
+  title: "عضو في نادي ريادة الأعمال",
+  userSourceDescription: "",
+  userSourceContributions: [],
+};
+const clubFieldKey = "activity_description:entrepreneurship-club";
+const clubSourceSignature = getEnrichmentSourceSignature(clubWithoutContribution);
+const persistedSkippedState = {
+  enrichmentStates: {
+    [clubFieldKey]: { status: "skipped", sourceSignature: clubSourceSignature },
+  },
+};
+assert.strictEqual(buildEnrichmentQuestions({
+  volunteering: [clubWithoutContribution],
+  skills: ["Microsoft Excel"],
+}, persistedSkippedState).length, 0);
+assert.strictEqual(buildEnrichmentQuestions({
+  volunteering: [clubWithoutContribution],
+  skills: ["Microsoft Excel", "Power BI"],
+}, persistedSkippedState).length, 0);
+assert.deepStrictEqual(buildEnrichmentQuestions({
+  volunteering: [{ ...clubWithoutContribution, title: "قائد فريق نادي ريادة الأعمال" }],
+}, persistedSkippedState).map((question) => question.fieldKey), [clubFieldKey]);
 
 console.log("resumeAgentAnswerLifecycle tests passed");

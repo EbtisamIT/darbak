@@ -2503,6 +2503,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     Portfolio.findOne(getAccessQuery(context)).lean(),
     ResumeProfile.findOne(getAccessQuery(context)).lean(),
   ]);
+  collectedFacts.enrichmentStates = storedResume?.workflow?.enrichmentStates || {};
   // The review journey can intentionally own a private resume-facts copy.
   // Build from that canonical copy after the student explicitly saves it;
   // otherwise the public Portfolio remains the initial source as before.

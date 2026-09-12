@@ -71,6 +71,7 @@ const { hasCompleteApplicationPack } = require("./services/applicationPackIntegr
 const { ensureReviewableAgentOutput } = require("./services/resumeAgentDraftGuard");
 const {
   mapPortfolioToResumePayload: mapPortfolioToResumeHydration,
+  buildVerifiedResumeFacts,
   composeCanonicalResume,
   hydrateResumeFromPortfolio,
 } = require("./services/resumePortfolioHydration");
@@ -88,6 +89,8 @@ const {
   applyActivityDescriptionAnswer,
   applyExperienceDescriptionAnswer,
   applyProjectDescriptionAnswer,
+  buildUserSourceEnrichmentFacts,
+  getEnrichmentSourceSignature,
   parseStructuredAnswerFieldKey,
   upsertAnswersByFieldKey,
   validateProjectDescriptionAnswer,
@@ -8133,6 +8136,56 @@ const persistAcceptedResumeAgentAnswers = async (access = {}, answers = []) => {
   return { answerPersisted: persistedCount === structuredAnswers.length, persistedCount };
 };
 
+const persistResumeEnrichmentStates = async (access = {}, {
+  answers = [],
+  skippedFieldKeys = [],
+  pendingQuestions = [],
+} = {}) => {
+  const ownershipQuery = { contact: access.contact, accessCodeHash: access.accessCodeHash };
+  const [resume, portfolio] = await Promise.all([
+    ResumeProfile.findOne(ownershipQuery),
+    Portfolio.findOne(ownershipQuery).lean(),
+  ]);
+  if (!resume) return false;
+  const canonical = composeCanonicalResume(resume.toObject(), portfolio || {}, access.contact || "");
+  const rawFacts = canonical.verifiedResumeFacts || buildVerifiedResumeFacts(portfolio || {}, access.contact || "");
+  const sourceFacts = buildUserSourceEnrichmentFacts(
+    rawFacts,
+    buildVerifiedResumeFacts(portfolio || {}, access.contact || ""),
+  );
+  const findEntry = (fieldKey) => {
+    const parsed = parseStructuredAnswerFieldKey(fieldKey);
+    const section = parsed?.type === "project_description"
+      ? "projects"
+      : parsed?.type === "experience_description"
+        ? "experiences"
+        : parsed?.type === "activity_description"
+          ? "volunteering"
+          : "";
+    return (sourceFacts[section] || []).find((entry) => String(entry?.id || entry?._id || "") === parsed?.itemId);
+  };
+  const questionMap = new Map((pendingQuestions || []).map((question) => [question.fieldKey || question.id, question]));
+  const states = { ...(resume.workflow?.enrichmentStates || {}) };
+  answers.forEach((answer) => {
+    const fieldKey = answer.fieldKey || answer.questionId;
+    const entry = findEntry(fieldKey);
+    if (!fieldKey || !entry) return;
+    states[fieldKey] = { status: "answered", sourceSignature: getEnrichmentSourceSignature(entry), updatedAt: new Date().toISOString() };
+  });
+  skippedFieldKeys.forEach((fieldKey) => {
+    const entry = findEntry(fieldKey);
+    const sourceSignature = entry
+      ? getEnrichmentSourceSignature(entry)
+      : questionMap.get(fieldKey)?.sourceSignature || "";
+    if (!fieldKey || !sourceSignature) return;
+    states[fieldKey] = { status: "skipped", sourceSignature, updatedAt: new Date().toISOString() };
+  });
+  resume.workflow = { ...(resume.workflow || {}), enrichmentStates: states };
+  resume.markModified("workflow.enrichmentStates");
+  await resume.save();
+  return true;
+};
+
 const mergeResumeAgentUsage = (current = {}, next = {}) => ({
   model: next.model || current.model || "",
   turns: Number(current.turns || 0) + Number(next.turns || 0),
@@ -9138,6 +9191,16 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
       await session.save();
       const error = new Error("The accepted resume answer could not be persisted to its source item.");
       error.code = "RESUME_ANSWER_PERSISTENCE_FAILED";
+      throw error;
+    }
+    const enrichmentStatePersisted = await persistResumeEnrichmentStates(req.darbakAccess, {
+      answers,
+      skippedFieldKeys,
+      pendingQuestions: session.pendingQuestions,
+    });
+    if (!enrichmentStatePersisted && (answers.length || skippedFieldKeys.length)) {
+      const error = new Error("The resume enrichment state could not be persisted.");
+      error.code = "RESUME_ENRICHMENT_STATE_PERSISTENCE_FAILED";
       throw error;
     }
     const nextAnsweredIds = Array.from(

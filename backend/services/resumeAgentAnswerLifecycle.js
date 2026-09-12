@@ -1,3 +1,5 @@
+const crypto = require("crypto");
+
 const cleanText = (value = "", max = 1600) => String(value || "").trim().slice(0, max);
 
 const parseStructuredAnswerFieldKey = (fieldKey = "") => {
@@ -35,6 +37,23 @@ const hasMeaningfulResumeDetail = (value = "") => {
   if (GENERIC_WEAK_DETAILS.has(normalized)) return false;
   return normalized.split(/\s+/u).filter(Boolean).length >= 2 || normalized.length >= 24;
 };
+
+const getEnrichmentSourceSignature = (entry = {}) => crypto.createHash("sha256").update(JSON.stringify({
+  id: cleanText(entry?.id || entry?._id, 120),
+  title: cleanText(entry?.title || entry?.name, 180),
+  organization: cleanText(entry?.organization || entry?.subtitle, 180),
+  startDate: cleanText(entry?.startDate, 40),
+  endDate: cleanText(entry?.endDate, 40),
+  description: cleanText(entry?.userSourceDescription || entry?.description || entry?.details, 1600),
+  contributions: (Array.isArray(entry?.userSourceContributions)
+    ? entry.userSourceContributions
+    : entry?.responsibilities || entry?.contributions || [])
+    .map((item) => cleanText(item?.text || item, 400))
+    .filter(Boolean),
+  tools: Array.isArray(entry?.technologies || entry?.tools)
+    ? (entry.technologies || entry.tools).map((item) => cleanText(item, 100)).filter(Boolean)
+    : cleanText(entry?.technologies || entry?.tools, 400),
+})).digest("hex");
 
 const buildUserSourceEnrichmentFacts = (facts = {}, portfolioFacts = {}) => {
   const portfolioBySection = Object.fromEntries(["projects", "experiences", "volunteering"].map((section) => [
@@ -103,7 +122,15 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
   const skipped = new Set((Array.isArray(state.skippedFieldKeys) ? state.skippedFieldKeys : [])
     .map((fieldKey) => cleanText(fieldKey, 160))
     .filter(Boolean));
-  const isPending = (fieldKey) => fieldKey && !answered.has(fieldKey) && !skipped.has(fieldKey);
+  const enrichmentStates = state.enrichmentStates && typeof state.enrichmentStates === "object"
+    ? state.enrichmentStates
+    : {};
+  const isPending = (fieldKey, entry) => {
+    if (!fieldKey || answered.has(fieldKey) || skipped.has(fieldKey)) return false;
+    const persisted = enrichmentStates[fieldKey];
+    if (!["answered", "skipped"].includes(persisted?.status)) return true;
+    return persisted.sourceSignature !== getEnrichmentSourceSignature(entry);
+  };
   const questions = [];
   const hasContributions = (entry = {}) => Boolean(
     hasMeaningfulResumeDetail(entry.description || entry.details)
@@ -115,7 +142,7 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     const title = cleanText(entry?.title || entry?.name, 140);
     const itemId = cleanText(entry?.id || entry?._id, 120) || `${prefix}-${index}-${title || "item"}`;
     const fieldKey = `${type}:${itemId}`;
-    if (!isPending(fieldKey) || hasContributions(entry)) return false;
+    if (!isPending(fieldKey, entry) || hasContributions(entry)) return false;
     questions.push({
       id: fieldKey,
       fieldKey,
@@ -129,6 +156,7 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
       options: [],
       resumeValueImpact: impact,
       stableOrder: index,
+      sourceSignature: getEnrichmentSourceSignature(entry),
     });
     return true;
   };
@@ -303,6 +331,7 @@ module.exports = {
   buildEnrichmentQuestions,
   buildEnrichmentDiagnostics,
   buildUserSourceEnrichmentFacts,
+  getEnrichmentSourceSignature,
   buildPendingProjectDescriptionQuestion,
   hasMeaningfulResumeDetail,
   mergeStructuredAnswersIntoFacts,
