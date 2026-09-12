@@ -12,6 +12,7 @@ const {
   buildPendingProjectDescriptionQuestion,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
+  revalidateEnrichmentQuestionQueue,
   upsertAnswersByFieldKey,
   validateProjectDescriptionAnswer,
 } = require("../services/resumeAgentAnswerLifecycle");
@@ -215,5 +216,44 @@ assert.deepStrictEqual(buildEnrichmentQuestions(projectWithTasksInAlternateField
 ]);
 assert.strictEqual(getExperienceEnrichmentStatus({ userSourceContributions: ["إعداد التقارير الأسبوعية"] }).complete, true);
 assert.strictEqual(getActivityEnrichmentStatus({ userSourceDescription: "نادي طلابي" }).complete, false);
+
+const staleProjectQuestion = {
+  id: "project_description:customer-satisfaction-stale",
+  fieldKey: "project_description:customer-satisfaction-stale",
+  section: "projects",
+  question: "وش سويت في مشروع تحليل رضا العملاء؟",
+  sourceFactsVersion: "facts-before-edit",
+};
+const revalidatedAfterProjectEdit = revalidateEnrichmentQuestionQueue({
+  facts: {
+    projects: [{
+      id: "customer-satisfaction-stale",
+      title: "تحليل رضا العملاء",
+      userSourceContributions: ["حللت الاستبيان وصنفت أسباب عدم الرضا وعرضت النتائج في تقرير."],
+    }],
+    volunteering: [{ id: "club-next-gap", title: "النادي الطلابي" }],
+  },
+  state: {},
+  pendingQuestions: [staleProjectQuestion],
+  sourceFactsVersion: "facts-after-edit",
+});
+assert.deepStrictEqual(
+  revalidatedAfterProjectEdit.questions.map((question) => question.fieldKey),
+  ["activity_description:club-next-gap"],
+);
+assert.deepStrictEqual(revalidatedAfterProjectEdit.staleQuestionKeys, [staleProjectQuestion.fieldKey]);
+assert.strictEqual(revalidatedAfterProjectEdit.staleQuestionRemoved, true);
+assert.strictEqual(revalidatedAfterProjectEdit.questions[0].sourceFactsVersion, "facts-after-edit");
+
+const removedProjectReappearsOnlyWhenIncomplete = revalidateEnrichmentQuestionQueue({
+  facts: { projects: [{ id: "customer-satisfaction-stale", title: "تحليل رضا العملاء" }] },
+  state: {},
+  pendingQuestions: revalidatedAfterProjectEdit.questions,
+  sourceFactsVersion: "facts-after-detail-removal",
+});
+assert.deepStrictEqual(
+  removedProjectReappearsOnlyWhenIncomplete.questions.map((question) => question.fieldKey),
+  [staleProjectQuestion.fieldKey],
+);
 
 console.log("resumeAgentAnswerLifecycle tests passed");

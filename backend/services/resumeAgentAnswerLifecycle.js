@@ -250,6 +250,30 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
 const buildPendingProjectDescriptionQuestion = (facts = {}, state = {}) =>
   buildEnrichmentQuestions(facts, state).find((question) => question.section === "projects") || null;
 
+const revalidateEnrichmentQuestionQueue = ({
+  facts = {},
+  state = {},
+  pendingQuestions = [],
+  sourceFactsVersion = "",
+} = {}) => {
+  const previousQuestions = Array.isArray(pendingQuestions) ? pendingQuestions : [];
+  const currentQuestions = buildEnrichmentQuestions(facts, state).map((question) => ({
+    ...question,
+    sourceFactsVersion,
+  }));
+  const currentKeys = new Set(currentQuestions.map((question) => question.fieldKey || question.id).filter(Boolean));
+  const staleQuestionKeys = previousQuestions
+    .map((question) => question.fieldKey || question.id)
+    .filter((fieldKey) => fieldKey && !currentKeys.has(fieldKey));
+
+  return {
+    questions: currentQuestions,
+    staleQuestionKeys,
+    staleQuestionRemoved: staleQuestionKeys.length > 0,
+    sourceFactsVersion,
+  };
+};
+
 const upsertAnswersByFieldKey = (existing = [], incoming = []) => {
   const byKey = new Map();
   [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]
@@ -380,6 +404,7 @@ module.exports = {
   hasMeaningfulResumeDetail,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
+  revalidateEnrichmentQuestionQueue,
   upsertAnswersByFieldKey,
   validateProjectDescriptionAnswer,
 };

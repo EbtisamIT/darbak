@@ -91,7 +91,9 @@ const {
   applyProjectDescriptionAnswer,
   buildUserSourceEnrichmentFacts,
   getEnrichmentSourceSignature,
+  getProjectEnrichmentStatus,
   parseStructuredAnswerFieldKey,
+  revalidateEnrichmentQuestionQueue,
   upsertAnswersByFieldKey,
   validateProjectDescriptionAnswer,
 } = require("./services/resumeAgentAnswerLifecycle");
@@ -8266,6 +8268,65 @@ const getResumeAgentSessionForAccess = async (sessionId = "", access = {}) =>
     accessCodeHash: access.accessCodeHash,
   });
 
+const revalidatePendingResumeAgentQuestions = async (session, access = {}) => {
+  if (session?.status !== "collecting_information") return null;
+  const ownershipQuery = { contact: access.contact, accessCodeHash: access.accessCodeHash };
+  const [resume, portfolio] = await Promise.all([
+    ResumeProfile.findOne(ownershipQuery),
+    Portfolio.findOne(ownershipQuery).lean(),
+  ]);
+  if (!resume) return null;
+
+  const canonical = composeCanonicalResume(resume.toObject(), portfolio || {}, access.contact || "");
+  const rawFacts = canonical.verifiedResumeFacts || buildVerifiedResumeFacts(portfolio || {}, access.contact || "");
+  const sourceFacts = buildUserSourceEnrichmentFacts(
+    rawFacts,
+    buildVerifiedResumeFacts(portfolio || {}, access.contact || ""),
+  );
+  const factsVersion = getResumeFactsFreshness({ verifiedFacts: sourceFacts, workflow: {} }).currentHash;
+  const state = {
+    ...(session.collectedFacts || {}),
+    enrichmentStates: resume.workflow?.enrichmentStates || {},
+  };
+  const previousVersion = session.collectedFacts?.enrichmentQueueSourceFactsVersion || "";
+  const result = revalidateEnrichmentQuestionQueue({
+    facts: sourceFacts,
+    state,
+    pendingQuestions: session.pendingQuestions,
+    sourceFactsVersion: factsVersion,
+  });
+  const previousKeys = (session.pendingQuestions || []).map((question) => question.fieldKey || question.id).filter(Boolean);
+  const nextKeys = result.questions.map((question) => question.fieldKey || question.id).filter(Boolean);
+  const queueChanged = previousVersion !== factsVersion
+    || JSON.stringify(previousKeys) !== JSON.stringify(nextKeys);
+
+  if (queueChanged) {
+    session.pendingQuestions = result.questions;
+    session.collectedFacts = {
+      ...(session.collectedFacts || {}),
+      enrichmentStates: state.enrichmentStates,
+      enrichmentQueueSourceFactsVersion: factsVersion,
+    };
+    session.markModified("pendingQuestions");
+    session.markModified("collectedFacts");
+    await session.save();
+  }
+
+  const diagnostics = {
+    currentProjectIds: (sourceFacts.projects || []).map((project) => String(project?.id || project?._id || "")).filter(Boolean),
+    currentProjectCompleteness: (sourceFacts.projects || []).map((project) => ({
+      itemId: String(project?.id || project?._id || ""),
+      complete: getProjectEnrichmentStatus(project).complete,
+    })),
+    pendingQuestionKeys: nextKeys,
+    questionSourceFactsVersion: previousVersion,
+    currentFactsVersion: factsVersion,
+    staleQuestionRemoved: result.staleQuestionRemoved,
+  };
+  console.info("Resume enrichment queue revalidated", diagnostics);
+  return diagnostics;
+};
+
 const getPendingResumeDraftForAccess = async (pendingDraftId = "", access = {}) => {
   if (!mongoose.Types.ObjectId.isValid(pendingDraftId)) return null;
   return ResumePendingDraft.findOne({
@@ -8319,7 +8380,15 @@ const applyResumeAgentOutputToSession = async (session, agentResult) => {
         : "failed";
 
   session.status = nextStatus;
-  session.pendingQuestions = output.status === "needs_information" ? output.questions || [] : [];
+  const queueSourceFactsVersion = agentResult.usage?.generationSourceFactsVersion || "";
+  session.pendingQuestions = output.status === "needs_information"
+    ? (output.questions || []).map((question) => ({ ...question, sourceFactsVersion: queueSourceFactsVersion }))
+    : [];
+  session.collectedFacts = {
+    ...(session.collectedFacts || {}),
+    enrichmentQueueSourceFactsVersion: output.status === "needs_information" ? queueSourceFactsVersion : "",
+  };
+  session.markModified("collectedFacts");
   session.pendingDraftId =
     output.pendingDraftId && mongoose.Types.ObjectId.isValid(output.pendingDraftId)
       ? output.pendingDraftId
@@ -9312,12 +9381,15 @@ app.get('/api/resume-agent/session/:sessionId', requireResumeAccess, async (req,
       return res.status(404).json({ error: "جلسة وكيل السيرة غير موجودة." });
     }
 
+    const enrichmentQueueDiagnostics = await revalidatePendingResumeAgentQuestions(session, req.darbakAccess);
+
     const pendingDraft = session.pendingDraftId
       ? await getPendingResumeDraftForAccess(session.pendingDraftId.toString(), req.darbakAccess)
       : null;
 
     return res.json({
       session: serializeResumeAgentSession(session, pendingDraft),
+      enrichmentQueueDiagnostics,
     });
   } catch (err) {
     console.error("❌ Resume agent session fetch error:", err);
