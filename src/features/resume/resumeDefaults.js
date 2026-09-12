@@ -216,6 +216,10 @@ export const normalizeEntry = (entry = {}, prefix = "entry") => {
     url: entry.url || "",
     description: details,
     details,
+    userSourceDescription: entry.userSourceDescription || "",
+    userSourceContributions: Array.isArray(entry.userSourceContributions)
+      ? entry.userSourceContributions.filter(Boolean)
+      : [],
     achievements: achievements.length
       ? achievements
       : details

@@ -14,6 +14,10 @@ const resumeEntrySchema = new mongoose.Schema(
     url: { type: String, default: "", trim: true },
     description: { type: String, default: "", trim: true },
     details: { type: String, default: "", trim: true },
+    // Student-owned source text is kept separately from Agent presentation.
+    // Enrichment decisions must never treat generated bullets as user facts.
+    userSourceDescription: { type: String, default: "", trim: true },
+    userSourceContributions: { type: [String], default: [] },
     achievements: {
       type: [
         {

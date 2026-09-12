@@ -264,6 +264,8 @@ const mapPortfolioEntry = (entry = {}, prefix = "portfolio-entry", index = 0) =>
       : cleanText(entry.technologies, 400).split(/[،,]/u).map((technology) => cleanText(technology, 80)).filter(Boolean),
     description,
     details: description,
+    userSourceDescription: description,
+    userSourceContributions: responsibilities,
     achievements: responsibilities.length
       ? responsibilities.map((text, responsibilityIndex) => ({
         id: entry.responsibilities?.[responsibilityIndex]?.id || `${prefix}-${index}-responsibility-${responsibilityIndex}`,

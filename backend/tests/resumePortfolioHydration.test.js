@@ -298,7 +298,7 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
 {
   assert.deepStrictEqual(
     Object.keys(mapped.projects[0]).sort(),
-    ["achievements", "description", "details", "endDate", "experienceType", "id", "isCurrent", "location", "organization", "period", "startDate", "subtitle", "technologies", "title", "url"].sort()
+    ["achievements", "description", "details", "endDate", "experienceType", "id", "isCurrent", "location", "organization", "period", "startDate", "subtitle", "technologies", "title", "url", "userSourceDescription", "userSourceContributions"].sort()
   );
   assert.strictEqual(mapped.certifications[0].title, "ITIL v4");
   assert.strictEqual(mapped.certifications[0].organization, "PeopleCert");

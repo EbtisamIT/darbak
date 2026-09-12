@@ -503,7 +503,11 @@ const EntryAccordion = ({
                           <textarea
                             value={entry.description || entry.details || ""}
                             onChange={(event) =>
-                              updateEntry(index, "description", event.target.value)
+                              onChange(items.map((item, itemIndex) => itemIndex === index ? {
+                                ...item,
+                                description: event.target.value,
+                                userSourceDescription: event.target.value,
+                              } : item))
                             }
                             rows={2}
                           />
@@ -511,7 +515,11 @@ const EntryAccordion = ({
                       </div>
                       <AchievementListEditor
                         achievements={entry.achievements}
-                        onChange={(achievements) => updateEntry(index, "achievements", achievements)}
+                        onChange={(achievements) => onChange(items.map((item, itemIndex) => itemIndex === index ? {
+                          ...item,
+                          achievements,
+                          userSourceContributions: achievements.map((achievement) => achievement?.text || achievement?.html || "").filter(Boolean),
+                        } : item))}
                       />
                     </div>
                   )}

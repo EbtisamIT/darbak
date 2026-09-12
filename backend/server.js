@@ -7099,6 +7099,11 @@ const sanitizeResumeAchievements = (achievements = [], fallback = "") => {
 
 const sanitizeResumeEntry = (entry = {}) => {
   const details = sanitizeResumeText(entry.details || entry.description, 900);
+  const userSourceDescription = sanitizeResumeText(entry.userSourceDescription, 900);
+  const userSourceContributions = (Array.isArray(entry.userSourceContributions) ? entry.userSourceContributions : [])
+    .map((item) => sanitizeResumeText(item?.text || item, 700))
+    .filter(Boolean)
+    .slice(0, 8);
   return {
     id: sanitizeResumeId(entry.id) || `entry-${Date.now().toString(36)}`,
     title: sanitizePortfolioText(entry.title, 140),
@@ -7112,6 +7117,8 @@ const sanitizeResumeEntry = (entry = {}) => {
     url: sanitizePortfolioUrl(entry.url, 260),
     description: details,
     details,
+    userSourceDescription,
+    userSourceContributions,
     achievements: sanitizeResumeAchievements(entry.achievements, details),
   };
 };

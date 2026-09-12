@@ -4,6 +4,7 @@ const {
   applyExperienceDescriptionAnswer,
   applyActivityDescriptionAnswer,
   buildEnrichmentQuestions,
+  buildUserSourceEnrichmentFacts,
   buildPendingProjectDescriptionQuestion,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
@@ -130,5 +131,38 @@ const activityOnlyQuestions = buildEnrichmentQuestions({
   volunteering: [{ id: "club-1", title: "النادي الطلابي", description: "" }],
 }, {});
 assert.deepStrictEqual(activityOnlyQuestions.map((question) => question.fieldKey), ["activity_description:club-1"]);
+
+const pollutedPresentationFacts = buildUserSourceEnrichmentFacts({
+  projects: [{
+    id: "customer-satisfaction",
+    title: "تحليل رضا العملاء",
+    description: "تتبع سلوك العملاء ومراجعة تقييمات المنتجات.",
+    achievements: [{ text: "حلل مؤشرات رضا العملاء وحدد فرص التحسين." }],
+  }],
+  volunteering: [{
+    id: "club-1",
+    title: "النادي الطلابي",
+    userSourceDescription: "نظمت لقاءات النادي ونسقت تسجيل الحضور.",
+  }],
+}, {
+  projects: [{
+    id: "customer-satisfaction",
+    title: "تحليل رضا العملاء",
+    userSourceDescription: "مشروع جامعي",
+  }],
+});
+const pollutionQuestions = buildEnrichmentQuestions(pollutedPresentationFacts, {});
+assert.deepStrictEqual(pollutionQuestions.map((question) => question.fieldKey), [
+  "project_description:customer-satisfaction",
+]);
+assert.strictEqual(pollutedPresentationFacts.projects[0].generatedPresentationExists, true);
+
+const explicitProjectAnswer = "حللت استبيان رضا العملاء وصنفت أسباب عدم الرضا وعرضت النتائج في تقرير.";
+const answeredPollutedFacts = mergeStructuredAnswersIntoFacts(pollutedPresentationFacts, [{
+  fieldKey: "project_description:customer-satisfaction",
+  answer: explicitProjectAnswer,
+}]);
+assert.strictEqual(answeredPollutedFacts.projects[0].userSourceDescription, explicitProjectAnswer);
+assert.strictEqual(buildEnrichmentQuestions(answeredPollutedFacts, {}).some((question) => question.fieldKey === "project_description:customer-satisfaction"), false);
 
 console.log("resumeAgentAnswerLifecycle tests passed");

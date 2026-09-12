@@ -25,4 +25,21 @@ describe("tailored resume reload", () => {
     expect(reopened.summary).toBe(customizedSummary);
     expect(reopened.personalInfo.headline).toBe("خريجة تقنية المعلومات");
   });
+
+  it("preserves student-owned entry facts separately from generated presentation", () => {
+    const resume = normalizeResume({
+      projects: [{
+        id: "project-1",
+        title: "تحليل رضا العملاء",
+        description: "صياغة مولدة قديمة",
+        achievements: [{ id: "generated-1", text: "نقطة مولدة" }],
+        userSourceDescription: "مشروع جامعي",
+        userSourceContributions: [],
+      }],
+    });
+
+    expect(resume.projects[0].description).toBe("صياغة مولدة قديمة");
+    expect(resume.projects[0].userSourceDescription).toBe("مشروع جامعي");
+    expect(resume.projects[0].userSourceContributions).toEqual([]);
+  });
 });

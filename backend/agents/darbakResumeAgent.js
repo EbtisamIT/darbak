@@ -18,7 +18,7 @@ const {
   getQualityFailureSections,
 } = require("../services/resumeProfessionalComposer");
 const { buildVerifiedResumeFacts, composeCanonicalResume } = require("../services/resumePortfolioHydration");
-const { buildEnrichmentQuestions, upsertAnswersByFieldKey } = require("../services/resumeAgentAnswerLifecycle");
+const { buildEnrichmentDiagnostics, buildEnrichmentQuestions, buildUserSourceEnrichmentFacts, upsertAnswersByFieldKey } = require("../services/resumeAgentAnswerLifecycle");
 const { getResumeFactsFreshness } = require("../services/resumeFactsFreshness");
 
 setSensitiveDataLoggingEnabled(false);
@@ -2511,8 +2511,10 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     profile || {},
     access?.contact || "",
   );
+  const rawVerifiedResumeFacts = canonicalResume.verifiedResumeFacts
+    || buildVerifiedResumeFacts(profile || {}, access?.contact || "");
   const verifiedResumeFacts = compactVerifiedResumeFacts(
-    canonicalResume.verifiedResumeFacts || buildVerifiedResumeFacts(profile || {}, access?.contact || ""),
+    rawVerifiedResumeFacts,
     collectedFacts.answers
   );
   const generationSourceFactsVersion = getResumeFactsFreshness({
@@ -2552,8 +2554,11 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     backendRefreshCompleted: true,
     cacheHit: false,
   };
+  const portfolioUserFacts = buildVerifiedResumeFacts(profile || {}, access?.contact || "");
+  const enrichmentSourceFacts = buildUserSourceEnrichmentFacts(rawVerifiedResumeFacts, portfolioUserFacts);
+  console.info("Resume enrichment candidates", buildEnrichmentDiagnostics(enrichmentSourceFacts, collectedFacts));
   const enrichmentQuestions = session.purpose === "create_resume"
-    ? buildEnrichmentQuestions(verifiedResumeFacts, collectedFacts)
+    ? buildEnrichmentQuestions(enrichmentSourceFacts, collectedFacts)
     : [];
   if (enrichmentQuestions.length) {
     return {
