@@ -15,6 +15,27 @@ const validateProjectDescriptionAnswer = (answer = "") => {
   };
 };
 
+const GENERIC_WEAK_DETAILS = new Set([
+  "مشروع",
+  "مشروع جامعي",
+  "مشروع تخرج",
+  "تطبيق",
+  "نشاط",
+  "نادي طلابي",
+  "تدريب",
+  "internship",
+  "academic project",
+  "student project",
+]);
+
+const hasMeaningfulResumeDetail = (value = "") => {
+  const text = cleanText(value, 1600);
+  if (!text) return false;
+  const normalized = text.toLocaleLowerCase("ar").replace(/[.،,:؛!?]/gu, "").trim();
+  if (GENERIC_WEAK_DETAILS.has(normalized)) return false;
+  return normalized.split(/\s+/u).filter(Boolean).length >= 2 || normalized.length >= 24;
+};
+
 const buildEnrichmentQuestions = (facts = {}, state = {}) => {
   const answered = new Set((Array.isArray(state.answers) ? state.answers : [])
     .map((answer) => cleanText(answer?.fieldKey || answer?.questionId, 160))
@@ -25,10 +46,10 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
   const isPending = (fieldKey) => fieldKey && !answered.has(fieldKey) && !skipped.has(fieldKey);
   const questions = [];
   const hasContributions = (entry = {}) => Boolean(
-    cleanText(entry.description || entry.details, 1600)
-    || (Array.isArray(entry.responsibilities) && entry.responsibilities.some((item) => cleanText(item?.text || item, 400)))
-    || (Array.isArray(entry.contributions) && entry.contributions.some((item) => cleanText(item?.text || item, 400)))
-    || (Array.isArray(entry.achievements) && entry.achievements.some((item) => cleanText(item, 400)))
+    hasMeaningfulResumeDetail(entry.description || entry.details)
+    || (Array.isArray(entry.responsibilities) && entry.responsibilities.some((item) => hasMeaningfulResumeDetail(item?.text || item)))
+    || (Array.isArray(entry.contributions) && entry.contributions.some((item) => hasMeaningfulResumeDetail(item?.text || item)))
+    || (Array.isArray(entry.achievements) && entry.achievements.some((item) => hasMeaningfulResumeDetail(item?.text || item)))
   );
   const addQuestion = ({ type, section, entry, index, prefix, question, reason, tip, impact }) => {
     const title = cleanText(entry?.title || entry?.name, 140);
@@ -61,7 +82,7 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     question: (title) => `وش أبرز المهام اللي اشتغلت عليها في ${title || "هذه الخبرة"}؟`,
     reason: "experience_description_missing",
     tip: "اذكر المهام اللي كنت تنفذها فعليًا، حتى لو كانت بسيطة.",
-    impact: 300,
+    impact: 950,
   }));
   (Array.isArray(facts.projects) ? facts.projects : []).forEach((entry, index) => addQuestion({
     type: "project_description",
@@ -71,8 +92,8 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     prefix: "portfolio-project",
     question: (title) => `وش سويت في مشروع ${title || "هذا المشروع"}؟`,
     reason: "project_description_missing",
-    tip: "ركز على دورك أنت، مو وصف المشروع بشكل عام.",
-    impact: 220 + (entry?.technologies || entry?.tools ? 20 : 0),
+    tip: "ركز على الخطوات اللي نفذتها بنفسك، وإذا استخدمت أداة معينة اذكرها.",
+    impact: index === 0 ? 900 : 800,
   }));
   (Array.isArray(facts.volunteering) ? facts.volunteering : []).forEach((entry, index) => addQuestion({
     type: "activity_description",
@@ -83,9 +104,13 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     question: (title) => `وش أبرز مساهمة لك في ${title || "هذا النشاط"}؟`,
     reason: "activity_description_missing",
     tip: "وش الشيء اللي شاركت فيه أو ساهمت بإنجازه؟",
-    impact: 120,
+    impact: 500,
   }));
-  return questions
+  const hasHigherImpactQuestion = questions.some((question) => question.section === "experiences" || question.section === "projects");
+  const eligibleQuestions = hasHigherImpactQuestion
+    ? questions.filter((question) => question.section !== "volunteering")
+    : questions;
+  return eligibleQuestions
     .sort((left, right) => right.resumeValueImpact - left.resumeValueImpact
       || left.section.localeCompare(right.section)
       || left.stableOrder - right.stableOrder)
@@ -206,6 +231,7 @@ module.exports = {
   applyActivityDescriptionAnswer,
   buildEnrichmentQuestions,
   buildPendingProjectDescriptionQuestion,
+  hasMeaningfulResumeDetail,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
   upsertAnswersByFieldKey,

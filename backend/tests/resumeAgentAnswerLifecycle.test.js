@@ -24,18 +24,18 @@ assert.strictEqual(validateProjectDescriptionAnswer("مشروع جامعي").acc
 const facts = {
   projects: [
     { id: "project-customer-satisfaction", title: "تحليل رضا العملاء", description: "" },
-    { id: "project-other", title: "مشروع آخر", description: "وصف محفوظ" },
+    { id: "project-other", title: "مشروع آخر", description: "حللت بيانات المشروع وقدمت النتائج في تقرير." },
   ],
 };
 const answers = [{ fieldKey, answer: validAnswer }];
 const merged = mergeStructuredAnswersIntoFacts(facts, answers);
 assert.strictEqual(merged.projects[0].description, validAnswer);
-assert.strictEqual(merged.projects[1].description, "وصف محفوظ");
+assert.strictEqual(merged.projects[1].description, "حللت بيانات المشروع وقدمت النتائج في تقرير.");
 
 const persisted = JSON.parse(JSON.stringify(facts));
 assert.strictEqual(applyProjectDescriptionAnswer(persisted, answers[0]), true);
 assert.strictEqual(persisted.projects[0].description, validAnswer);
-assert.strictEqual(persisted.projects[1].description, "وصف محفوظ");
+assert.strictEqual(persisted.projects[1].description, "حللت بيانات المشروع وقدمت النتائج في تقرير.");
 
 const experienceFacts = { experiences: [{ id: "experience-1", title: "تدريب", description: "" }] };
 const experienceAnswer = { fieldKey: "experience_description:experience-1", answer: "أعددت التقارير الأسبوعية ونظمت السجلات." };
@@ -84,10 +84,9 @@ const rankedQuestions = buildEnrichmentQuestions({
 assert.deepStrictEqual(rankedQuestions.map((question) => question.fieldKey), [
   "experience_description:experience-1",
   "project_description:project-1",
-  "activity_description:activity-1",
 ]);
 assert.ok(rankedQuestions.every((question) => question.questionType === "enrichment"));
-assert.strictEqual(rankedQuestions.length, 3);
+assert.strictEqual(rankedQuestions.length, 2);
 assert.strictEqual(buildEnrichmentQuestions({ projects: [{ id: "project-1", title: "لوحة مبيعات" }] }, {
   skippedFieldKeys: ["project_description:project-1"],
 }).length, 0);
@@ -102,11 +101,34 @@ const highImpactQuestions = buildEnrichmentQuestions({
 assert.deepStrictEqual(highImpactQuestions.map((question) => question.fieldKey), [
   "project_description:project-1",
   "project_description:project-2",
-  "activity_description:activity-1",
 ]);
 assert.strictEqual(buildEnrichmentQuestions({
   experiences: [{ id: "experience-complete", title: "تدريب", responsibilities: [{ id: "r1", text: "إعداد التقارير" }] }],
   projects: [{ id: "project-complete", title: "لوحة", description: "حللت بيانات المبيعات وبنيت لوحة متابعة." }],
 }, {}).length, 0);
+
+const businessStudentQuestions = buildEnrichmentQuestions({
+  personalInfo: {
+    major: "إدارة الأعمال",
+    studentStatus: "student",
+    university: "جامعة جدة",
+    expectedGraduationYear: "",
+    gpa: "",
+    academicTrack: "",
+  },
+  projects: [{ id: "customer-satisfaction", title: "تحليل رضا العملاء", description: "مشروع جامعي" }],
+  certifications: [{ id: "cert-1", title: "أساسيات إدارة المشاريع", organization: "", period: "" }],
+  volunteering: [{ id: "club-1", title: "النادي الطلابي", description: "" }],
+}, {});
+assert.deepStrictEqual(businessStudentQuestions.map((question) => question.fieldKey), [
+  "project_description:customer-satisfaction",
+]);
+assert.strictEqual(businessStudentQuestions[0].whyNeeded, "ركز على الخطوات اللي نفذتها بنفسك، وإذا استخدمت أداة معينة اذكرها.");
+
+const activityOnlyQuestions = buildEnrichmentQuestions({
+  projects: [{ id: "project-complete", title: "تحليل رضا العملاء", description: "حللت الاستبيان وصنفت أسباب عدم الرضا." }],
+  volunteering: [{ id: "club-1", title: "النادي الطلابي", description: "" }],
+}, {});
+assert.deepStrictEqual(activityOnlyQuestions.map((question) => question.fieldKey), ["activity_description:club-1"]);
 
 console.log("resumeAgentAnswerLifecycle tests passed");
