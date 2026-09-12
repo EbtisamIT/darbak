@@ -6,6 +6,9 @@ const {
   buildEnrichmentQuestions,
   buildUserSourceEnrichmentFacts,
   getEnrichmentSourceSignature,
+  getActivityEnrichmentStatus,
+  getExperienceEnrichmentStatus,
+  getProjectEnrichmentStatus,
   buildPendingProjectDescriptionQuestion,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
@@ -26,7 +29,7 @@ assert.strictEqual(validateProjectDescriptionAnswer("مشروع جامعي").acc
 const facts = {
   projects: [
     { id: "project-customer-satisfaction", title: "تحليل رضا العملاء", description: "" },
-    { id: "project-other", title: "مشروع آخر", description: "حللت بيانات المشروع وقدمت النتائج في تقرير." },
+    { id: "project-other", title: "مشروع آخر", description: "حللت بيانات المشروع وقدمت النتائج في تقرير.", userSourceDescription: "حللت بيانات المشروع وقدمت النتائج في تقرير." },
   ],
 };
 const answers = [{ fieldKey, answer: validAnswer }];
@@ -106,7 +109,7 @@ assert.deepStrictEqual(highImpactQuestions.map((question) => question.fieldKey),
 ]);
 assert.strictEqual(buildEnrichmentQuestions({
   experiences: [{ id: "experience-complete", title: "تدريب", responsibilities: [{ id: "r1", text: "إعداد التقارير" }] }],
-  projects: [{ id: "project-complete", title: "لوحة", description: "حللت بيانات المبيعات وبنيت لوحة متابعة." }],
+  projects: [{ id: "project-complete", title: "لوحة", description: "حللت بيانات المبيعات وبنيت لوحة متابعة.", userSourceDescription: "حللت بيانات المبيعات وبنيت لوحة متابعة." }],
 }, {}).length, 0);
 
 const businessStudentQuestions = buildEnrichmentQuestions({
@@ -128,7 +131,7 @@ assert.deepStrictEqual(businessStudentQuestions.map((question) => question.field
 assert.strictEqual(businessStudentQuestions[0].whyNeeded, "ركز على الخطوات اللي نفذتها بنفسك، وإذا استخدمت أداة معينة اذكرها.");
 
 const activityOnlyQuestions = buildEnrichmentQuestions({
-  projects: [{ id: "project-complete", title: "تحليل رضا العملاء", description: "حللت الاستبيان وصنفت أسباب عدم الرضا." }],
+  projects: [{ id: "project-complete", title: "تحليل رضا العملاء", description: "حللت الاستبيان وصنفت أسباب عدم الرضا.", userSourceDescription: "حللت الاستبيان وصنفت أسباب عدم الرضا." }],
   volunteering: [{ id: "club-1", title: "النادي الطلابي", description: "" }],
 }, {});
 assert.deepStrictEqual(activityOnlyQuestions.map((question) => question.fieldKey), ["activity_description:club-1"]);
@@ -138,7 +141,7 @@ const pollutedPresentationFacts = buildUserSourceEnrichmentFacts({
     id: "customer-satisfaction",
     title: "تحليل رضا العملاء",
     description: "تتبع سلوك العملاء ومراجعة تقييمات المنتجات.",
-    achievements: [{ text: "حلل مؤشرات رضا العملاء وحدد فرص التحسين." }],
+    achievements: [{ id: "ai-project-1-bullet-1", text: "حلل مؤشرات رضا العملاء وحدد فرص التحسين." }],
   }],
   volunteering: [{
     id: "club-1",
@@ -190,5 +193,27 @@ assert.strictEqual(buildEnrichmentQuestions({
 assert.deepStrictEqual(buildEnrichmentQuestions({
   volunteering: [{ ...clubWithoutContribution, title: "قائد فريق نادي ريادة الأعمال" }],
 }, persistedSkippedState).map((question) => question.fieldKey), [clubFieldKey]);
+
+const projectWithTasksInAlternateField = buildUserSourceEnrichmentFacts({
+  projects: [{
+    id: "customer-satisfaction-with-tasks",
+    title: "تحليل رضا العملاء",
+    userSourceDescription: "مشروع جامعي",
+    tasks: ["حللت نتائج الاستبيان", "صنفت أسباب عدم الرضا"],
+    achievements: [{ id: "ai-project-1-bullet-1", text: "صياغة أنشأها الوكيل" }],
+  }],
+  volunteering: [{ id: "club-needs-detail", title: "النادي الطلابي" }],
+}, {});
+assert.deepStrictEqual(getProjectEnrichmentStatus(projectWithTasksInAlternateField.projects[0]), {
+  complete: true,
+  missing: [],
+  hasMeaningfulUserDetail: true,
+  fieldsDetected: ["contributions"],
+});
+assert.deepStrictEqual(buildEnrichmentQuestions(projectWithTasksInAlternateField, {}).map((question) => question.fieldKey), [
+  "activity_description:club-needs-detail",
+]);
+assert.strictEqual(getExperienceEnrichmentStatus({ userSourceContributions: ["إعداد التقارير الأسبوعية"] }).complete, true);
+assert.strictEqual(getActivityEnrichmentStatus({ userSourceDescription: "نادي طلابي" }).complete, false);
 
 console.log("resumeAgentAnswerLifecycle tests passed");

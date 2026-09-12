@@ -18,6 +18,7 @@ const resumeEntrySchema = new mongoose.Schema(
     // Enrichment decisions must never treat generated bullets as user facts.
     userSourceDescription: { type: String, default: "", trim: true },
     userSourceContributions: { type: [String], default: [] },
+    technologies: { type: [String], default: [] },
     achievements: {
       type: [
         {

@@ -7122,6 +7122,10 @@ const sanitizeResumeEntry = (entry = {}) => {
     details,
     userSourceDescription,
     userSourceContributions,
+    technologies: (Array.isArray(entry.technologies) ? entry.technologies : [])
+      .map((item) => sanitizePortfolioText(item, 100))
+      .filter(Boolean)
+      .slice(0, 16),
     achievements: sanitizeResumeAchievements(entry.achievements, details),
   };
 };

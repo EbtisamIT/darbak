@@ -220,6 +220,7 @@ export const normalizeEntry = (entry = {}, prefix = "entry") => {
     userSourceContributions: Array.isArray(entry.userSourceContributions)
       ? entry.userSourceContributions.filter(Boolean)
       : [],
+    technologies: Array.isArray(entry.technologies) ? entry.technologies.filter(Boolean) : [],
     achievements: achievements.length
       ? achievements
       : details

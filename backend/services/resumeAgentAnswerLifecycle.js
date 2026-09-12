@@ -38,6 +38,39 @@ const hasMeaningfulResumeDetail = (value = "") => {
   return normalized.split(/\s+/u).filter(Boolean).length >= 2 || normalized.length >= 24;
 };
 
+const isGeneratedPresentationItem = (item = {}) => /^(ai-|darbak-display-|translated-|generated-)/u.test(cleanText(item?.id, 120));
+
+const getMeaningfulUserFields = (item = {}) => {
+  const hasCanonicalContributions = Array.isArray(item.userSourceContributions) && item.userSourceContributions.length > 0;
+  const candidates = {
+    description: [item.userSourceDescription],
+    contributions: hasCanonicalContributions ? item.userSourceContributions : item.contributions || [],
+    tasks: hasCanonicalContributions ? [] : item.tasks || [],
+    responsibilities: hasCanonicalContributions ? [] : item.responsibilities || [],
+    achievements: (hasCanonicalContributions ? [] : Array.isArray(item.achievements) ? item.achievements : [])
+      .filter((entry) => !isGeneratedPresentationItem(entry)),
+  };
+  const fieldsDetected = Object.entries(candidates)
+    .filter(([, values]) => (Array.isArray(values) ? values : [values])
+      .some((value) => hasMeaningfulResumeDetail(value?.text || value?.html || value)))
+    .map(([field]) => field);
+  return { fieldsDetected, hasMeaningfulUserDetail: fieldsDetected.length > 0 };
+};
+
+const getItemEnrichmentStatus = (item = {}, missingField = "details") => {
+  const detail = getMeaningfulUserFields(item);
+  return {
+    complete: detail.hasMeaningfulUserDetail,
+    missing: detail.hasMeaningfulUserDetail ? [] : [missingField],
+    hasMeaningfulUserDetail: detail.hasMeaningfulUserDetail,
+    fieldsDetected: detail.fieldsDetected,
+  };
+};
+
+const getProjectEnrichmentStatus = (project = {}) => getItemEnrichmentStatus(project, "project_contribution");
+const getExperienceEnrichmentStatus = (experience = {}) => getItemEnrichmentStatus(experience, "experience_responsibilities");
+const getActivityEnrichmentStatus = (activity = {}) => getItemEnrichmentStatus(activity, "activity_contribution");
+
 const getEnrichmentSourceSignature = (entry = {}) => crypto.createHash("sha256").update(JSON.stringify({
   id: cleanText(entry?.id || entry?._id, 120),
   title: cleanText(entry?.title || entry?.name, 180),
@@ -67,14 +100,23 @@ const buildUserSourceEnrichmentFacts = (facts = {}, portfolioFacts = {}) => {
       entry?.userSourceDescription || portfolioEntry?.userSourceDescription,
       1600,
     );
+    const legacyUserContributions = [
+      ...(Array.isArray(entry?.contributions) ? entry.contributions : []),
+      ...(Array.isArray(entry?.tasks) ? entry.tasks : []),
+      ...(Array.isArray(entry?.responsibilities) ? entry.responsibilities : []),
+      ...(Array.isArray(entry?.achievements) ? entry.achievements.filter((item) => !isGeneratedPresentationItem(item)) : []),
+    ];
     const userContributions = [
       ...(Array.isArray(entry?.userSourceContributions) ? entry.userSourceContributions : []),
       ...(Array.isArray(portfolioEntry?.userSourceContributions) ? portfolioEntry.userSourceContributions : []),
+      ...legacyUserContributions,
     ].map((item) => cleanText(item?.text || item, 400)).filter(Boolean);
     return {
       ...entry,
       description: userDescription,
       details: userDescription,
+      userSourceDescription: userDescription,
+      userSourceContributions: userContributions,
       responsibilities: userContributions,
       contributions: userContributions,
       achievements: userContributions,
@@ -96,18 +138,20 @@ const buildEnrichmentDiagnostics = (facts = {}, state = {}) => {
   const questions = buildEnrichmentQuestions(facts, state);
   const eligible = new Set(questions.map((question) => question.fieldKey));
   return [
-    ["experiences", "experience_description", 950],
-    ["projects", "project_description", 900],
-    ["volunteering", "activity_description", 500],
-  ].flatMap(([section, type, baseScore]) => (Array.isArray(facts[section]) ? facts[section] : []).map((entry, index) => {
+    ["experiences", "experience_description", 950, getExperienceEnrichmentStatus],
+    ["projects", "project_description", 900, getProjectEnrichmentStatus],
+    ["volunteering", "activity_description", 500, getActivityEnrichmentStatus],
+  ].flatMap(([section, type, baseScore, getStatus]) => (Array.isArray(facts[section]) ? facts[section] : []).map((entry, index) => {
     const itemId = cleanText(entry?.id || entry?._id, 120) || `${section}-${index}`;
+    const status = getStatus(entry);
     return {
+      itemType: type,
       candidateSection: section,
       itemId,
-      userSourceHasMeaningfulDetail: Boolean(
-        hasMeaningfulResumeDetail(entry?.description || entry?.details)
-        || (entry?.userSourceContributions || []).some((item) => hasMeaningfulResumeDetail(item)),
-      ),
+      fieldsDetected: status.fieldsDetected,
+      hasMeaningfulUserDetail: status.hasMeaningfulUserDetail,
+      enrichmentComplete: status.complete,
+      missingFields: status.missing,
       generatedPresentationExists: Boolean(entry?.generatedPresentationExists),
       enrichmentEligible: eligible.has(`${type}:${itemId}`),
       priorityScore: section === "projects" && index > 0 ? 800 : baseScore,
@@ -132,17 +176,11 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     return persisted.sourceSignature !== getEnrichmentSourceSignature(entry);
   };
   const questions = [];
-  const hasContributions = (entry = {}) => Boolean(
-    hasMeaningfulResumeDetail(entry.description || entry.details)
-    || (Array.isArray(entry.responsibilities) && entry.responsibilities.some((item) => hasMeaningfulResumeDetail(item?.text || item)))
-    || (Array.isArray(entry.contributions) && entry.contributions.some((item) => hasMeaningfulResumeDetail(item?.text || item)))
-    || (Array.isArray(entry.achievements) && entry.achievements.some((item) => hasMeaningfulResumeDetail(item?.text || item)))
-  );
-  const addQuestion = ({ type, section, entry, index, prefix, question, reason, tip, impact }) => {
+  const addQuestion = ({ type, section, entry, index, prefix, question, reason, tip, impact, getStatus }) => {
     const title = cleanText(entry?.title || entry?.name, 140);
     const itemId = cleanText(entry?.id || entry?._id, 120) || `${prefix}-${index}-${title || "item"}`;
     const fieldKey = `${type}:${itemId}`;
-    if (!isPending(fieldKey, entry) || hasContributions(entry)) return false;
+    if (!isPending(fieldKey, entry) || getStatus(entry).complete) return false;
     questions.push({
       id: fieldKey,
       fieldKey,
@@ -171,6 +209,7 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     reason: "experience_description_missing",
     tip: "اذكر المهام اللي كنت تنفذها فعليًا، حتى لو كانت بسيطة.",
     impact: 950,
+    getStatus: getExperienceEnrichmentStatus,
   }));
   (Array.isArray(facts.projects) ? facts.projects : []).forEach((entry, index) => addQuestion({
     type: "project_description",
@@ -182,6 +221,7 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     reason: "project_description_missing",
     tip: "ركز على الخطوات اللي نفذتها بنفسك، وإذا استخدمت أداة معينة اذكرها.",
     impact: index === 0 ? 900 : 800,
+    getStatus: getProjectEnrichmentStatus,
   }));
   (Array.isArray(facts.volunteering) ? facts.volunteering : []).forEach((entry, index) => addQuestion({
     type: "activity_description",
@@ -193,6 +233,7 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     reason: "activity_description_missing",
     tip: "وش الشيء اللي شاركت فيه أو ساهمت بإنجازه؟",
     impact: 500,
+    getStatus: getActivityEnrichmentStatus,
   }));
   const hasHigherImpactQuestion = questions.some((question) => question.section === "experiences" || question.section === "projects");
   const eligibleQuestions = hasHigherImpactQuestion
@@ -331,7 +372,10 @@ module.exports = {
   buildEnrichmentQuestions,
   buildEnrichmentDiagnostics,
   buildUserSourceEnrichmentFacts,
+  getActivityEnrichmentStatus,
+  getExperienceEnrichmentStatus,
   getEnrichmentSourceSignature,
+  getProjectEnrichmentStatus,
   buildPendingProjectDescriptionQuestion,
   hasMeaningfulResumeDetail,
   mergeStructuredAnswersIntoFacts,
