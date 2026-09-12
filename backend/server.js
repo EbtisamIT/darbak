@@ -2072,6 +2072,9 @@ const sanitizePortfolioCertifications = (certifications = []) => {
       title: sanitizePortfolioText(certification.title, 100),
       provider: sanitizePortfolioText(certification.provider, 90),
       year: sanitizePortfolioText(certification.year, 20),
+      issueDate: sanitizePortfolioText(certification.issueDate, 20),
+      expirationDate: sanitizePortfolioText(certification.expirationDate, 20),
+      credentialId: sanitizePortfolioText(certification.credentialId, 90),
       credentialUrl: sanitizePortfolioUrl(certification.credentialUrl, 260),
     }))
     .filter(
@@ -2079,10 +2082,24 @@ const sanitizePortfolioCertifications = (certifications = []) => {
         certification.title ||
         certification.provider ||
         certification.year ||
+        certification.issueDate ||
+        certification.expirationDate ||
+        certification.credentialId ||
         certification.credentialUrl
     )
     .slice(0, 8);
 };
+
+const sanitizePortfolioCourses = (courses = []) => (Array.isArray(courses) ? courses : [])
+  .map((course = {}) => ({
+    id: sanitizePortfolioText(course.id, 90) || crypto.randomUUID(),
+    title: sanitizePortfolioText(course.title, 120),
+    provider: sanitizePortfolioText(course.provider, 100),
+    year: sanitizePortfolioText(course.year, 20),
+    url: sanitizePortfolioUrl(course.url, 260),
+  }))
+  .filter((course) => course.title || course.provider || course.year || course.url)
+  .slice(0, 10);
 
 const PORTFOLIO_EXPERIENCE_TYPES = new Set([
   "coop",
@@ -2090,6 +2107,9 @@ const PORTFOLIO_EXPERIENCE_TYPES = new Set([
   "summer_training",
   "work",
   "volunteering",
+]);
+const PORTFOLIO_ACTIVITY_TYPES = new Set([
+  "student_club", "volunteering", "competition", "hackathon", "conference", "community_activity", "other",
 ]);
 
 const sanitizePortfolioExperiences = (entries = [], maxItems = 8) =>
@@ -2113,6 +2133,7 @@ const sanitizePortfolioExperiences = (entries = [], maxItems = 8) =>
         experienceType: PORTFOLIO_EXPERIENCE_TYPES.has(entry.experienceType)
           ? entry.experienceType
           : "",
+        activityType: PORTFOLIO_ACTIVITY_TYPES.has(entry.activityType) ? entry.activityType : "",
         startDate: sanitizePortfolioDate(entry.startDate),
         endDate: entry.current ? "" : sanitizePortfolioDate(entry.endDate),
         current: Boolean(entry.current),
@@ -2172,10 +2193,14 @@ const sanitizePortfolioPayload = (body = {}, contact = "") => {
     expectedGraduationYear: sanitizePortfolioText(body.expectedGraduationYear, 12),
     gpa: sanitizePortfolioText(body.gpa, 20),
     gpaScale: sanitizePortfolioText(body.gpaScale, 20),
-    academicTrack: ["no_academic_track", "business_analytics", "data_analytics", "software_development", "artificial_intelligence", "cybersecurity", "computer_networks", "accounting", "finance", "marketing", "human_resources", "project_management", "supply_chain", "graphic_design"].includes(body.academicTrack)
+    academicTrack: body.academicTrack === "no_academic_track"
       ? body.academicTrack
+      : sanitizePortfolioText(body.academicTrack, 90),
+    academicTrackSource: ["selected", "custom", "none"].includes(body.academicTrackSource)
+      ? body.academicTrackSource
       : "",
     relevantCoursework: normalizePortfolioList(body.relevantCoursework, 10, 120),
+    honors: normalizePortfolioList(body.honors, 6, 140),
     professionalHeadline: sanitizePortfolioText(body.professionalHeadline, 140),
     phone: sanitizePortfolioText(body.phone, 40),
     readinessStatus:
@@ -2190,6 +2215,7 @@ const sanitizePortfolioPayload = (body = {}, contact = "") => {
     skills: normalizePortfolioList(body.skills, 12, 36),
     projects: sanitizePortfolioProjects(body.projects),
     certifications: sanitizePortfolioCertifications(body.certifications),
+    courses: sanitizePortfolioCourses(body.courses),
     experiences: sanitizePortfolioExperiences(body.experiences),
     volunteering: sanitizePortfolioExperiences(body.volunteering),
     languages: sanitizePortfolioLanguages(body.languages),
@@ -2270,7 +2296,9 @@ const serializePortfolio = (portfolio = {}, accessStatus = {}, req = null) => ({
   gpa: portfolio.gpa || "",
   gpaScale: portfolio.gpaScale || "",
   academicTrack: portfolio.academicTrack || "",
+  academicTrackSource: portfolio.academicTrackSource || "",
   relevantCoursework: Array.isArray(portfolio.relevantCoursework) ? portfolio.relevantCoursework : [],
+  honors: Array.isArray(portfolio.honors) ? portfolio.honors : [],
   professionalHeadline: portfolio.professionalHeadline || "",
   phone: portfolio.phone || "",
   readinessStatus: portfolio.readinessStatus || "",
@@ -2283,6 +2311,7 @@ const serializePortfolio = (portfolio = {}, accessStatus = {}, req = null) => ({
   certifications: Array.isArray(portfolio.certifications)
     ? portfolio.certifications
     : [],
+  courses: Array.isArray(portfolio.courses) ? portfolio.courses : [],
   experiences: Array.isArray(portfolio.experiences) ? portfolio.experiences : [],
   volunteering: Array.isArray(portfolio.volunteering) ? portfolio.volunteering : [],
   languages: Array.isArray(portfolio.languages) ? portfolio.languages : [],

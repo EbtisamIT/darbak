@@ -41,6 +41,7 @@ const experienceFacts = { experiences: [{ id: "experience-1", title: "تدريب
 const experienceAnswer = { fieldKey: "experience_description:experience-1", answer: "أعددت التقارير الأسبوعية ونظمت السجلات." };
 assert.strictEqual(applyExperienceDescriptionAnswer(experienceFacts, experienceAnswer), true);
 assert.strictEqual(experienceFacts.experiences[0].description, experienceAnswer.answer);
+assert.strictEqual(experienceFacts.experiences[0].responsibilities[0].text, experienceAnswer.answer);
 assert.strictEqual(mergeStructuredAnswersIntoFacts({ experiences: [{ id: "experience-1" }] }, [experienceAnswer]).experiences[0].description, experienceAnswer.answer);
 const legacyExperience = { experiences: [{ id: "", title: "تدريب محاسبي", description: "" }] };
 assert.strictEqual(applyExperienceDescriptionAnswer(legacyExperience, {
@@ -52,6 +53,7 @@ const activityFacts = { volunteering: [{ id: "activity-1", title: "النادي 
 const activityAnswer = { fieldKey: "activity_description:activity-1", answer: "نظمت لقاءات تعريفية للطلاب." };
 assert.strictEqual(applyActivityDescriptionAnswer(activityFacts, activityAnswer), true);
 assert.strictEqual(activityFacts.volunteering[0].description, activityAnswer.answer);
+assert.strictEqual(activityFacts.volunteering[0].responsibilities[0].text, activityAnswer.answer);
 assert.strictEqual(mergeStructuredAnswersIntoFacts({ volunteering: [{ id: "activity-1" }] }, [activityAnswer]).volunteering[0].description, activityAnswer.answer);
 
 const legacyPortfolio = { projects: [{ id: "", title: "تحليل رضا العملاء", description: "" }] };
@@ -89,5 +91,22 @@ assert.strictEqual(rankedQuestions.length, 3);
 assert.strictEqual(buildEnrichmentQuestions({ projects: [{ id: "project-1", title: "لوحة مبيعات" }] }, {
   skippedFieldKeys: ["project_description:project-1"],
 }).length, 0);
+
+const highImpactQuestions = buildEnrichmentQuestions({
+  projects: [
+    { id: "project-1", title: "لوحة مبيعات", technologies: "Power BI" },
+    { id: "project-2", title: "نظام حجوزات" },
+  ],
+  volunteering: [{ id: "activity-1", title: "النادي التقني" }],
+}, {});
+assert.deepStrictEqual(highImpactQuestions.map((question) => question.fieldKey), [
+  "project_description:project-1",
+  "project_description:project-2",
+  "activity_description:activity-1",
+]);
+assert.strictEqual(buildEnrichmentQuestions({
+  experiences: [{ id: "experience-complete", title: "تدريب", responsibilities: [{ id: "r1", text: "إعداد التقارير" }] }],
+  projects: [{ id: "project-complete", title: "لوحة", description: "حللت بيانات المبيعات وبنيت لوحة متابعة." }],
+}, {}).length, 0);
 
 console.log("resumeAgentAnswerLifecycle tests passed");

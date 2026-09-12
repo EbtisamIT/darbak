@@ -152,7 +152,17 @@ const createEmptyCertification = () => ({
   title: "",
   provider: "",
   year: "",
+  issueDate: "",
+  expirationDate: "",
+  credentialId: "",
   credentialUrl: "",
+});
+const createEmptyCourse = () => ({
+  id: createCollectionItemId("course"),
+  title: "",
+  provider: "",
+  year: "",
+  url: "",
 });
 const createEmptyResponsibility = () => ({
   id: createCollectionItemId("responsibility"),
@@ -173,8 +183,10 @@ const createEmptyExperience = () => ({
 });
 const emptyProject = createEmptyProject();
 const emptyCertification = createEmptyCertification();
+const emptyCourse = createEmptyCourse();
 const emptyExperience = createEmptyExperience();
 const emptyLanguage = { name: "", level: "" };
+const CUSTOM_ACADEMIC_TRACK = "custom_academic_track";
 
 const experienceTypeOptions = [
   ["", "نوع الخبرة"],
@@ -205,7 +217,10 @@ const emptyForm = {
   gpa: "",
   gpaScale: "",
   academicTrack: "",
+  academicTrackSource: "",
+  academicTrackOther: "",
   relevantCoursework: [],
+  honors: [],
   professionalHeadline: "",
   phone: "",
   readinessStatus: "مستعد ومؤهل للمقابلات الشخصية",
@@ -223,6 +238,7 @@ const emptyForm = {
   isPublished: false,
   projects: [createEmptyProject()],
   certifications: [createEmptyCertification()],
+  courses: [createEmptyCourse()],
   experiences: [createEmptyExperience()],
   volunteering: [createEmptyExperience()],
   languages: [{ ...emptyLanguage }],
@@ -256,10 +272,15 @@ const normalizeForm = (portfolio = {}) => ({
   expectedGraduationYear: portfolio.expectedGraduationYear || "",
   gpa: portfolio.gpa || "",
   gpaScale: portfolio.gpaScale || "",
-  academicTrack: isAcademicTrackSelection(portfolio.academicTrack) ? portfolio.academicTrack : "",
+  academicTrack: isAcademicTrackSelection(portfolio.academicTrack)
+    ? portfolio.academicTrack
+    : portfolio.academicTrack ? CUSTOM_ACADEMIC_TRACK : "",
+  academicTrackOther: isAcademicTrackSelection(portfolio.academicTrack) ? "" : portfolio.academicTrack || "",
+  academicTrackSource: portfolio.academicTrackSource || "",
   relevantCoursework: Array.isArray(portfolio.relevantCoursework)
     ? portfolio.relevantCoursework.map((course) => String(course || "")).filter(Boolean)
     : [],
+  honors: Array.isArray(portfolio.honors) ? portfolio.honors.map((honor) => String(honor || "")).filter(Boolean) : [],
   professionalHeadline: portfolio.professionalHeadline || "",
   phone: portfolio.phone || "",
   readinessStatus:
@@ -294,9 +315,15 @@ const normalizeForm = (portfolio = {}) => ({
           title: certification.title || "",
           provider: certification.provider || "",
           year: certification.year || "",
+          issueDate: certification.issueDate || "",
+          expirationDate: certification.expirationDate || "",
+          credentialId: certification.credentialId || "",
           credentialUrl: certification.credentialUrl || "",
         }))
       : [createEmptyCertification()],
+  courses: portfolio.courses?.length > 0
+    ? portfolio.courses.map((course) => ({ ...createEmptyCourse(), ...course, id: course.id || createCollectionItemId("course") }))
+    : [createEmptyCourse()],
   experiences:
     portfolio.experiences?.length > 0
       ? portfolio.experiences.map((entry) => ({
@@ -516,6 +543,7 @@ export default function PortfolioBuilderPage() {
   const pendingEmptyCollectionItemsRef = useRef({
     projects: new Set(),
     certifications: new Set(),
+    courses: new Set(),
     experiences: new Set(),
   });
 
@@ -665,23 +693,23 @@ export default function PortfolioBuilderPage() {
     setMessage("");
   };
 
-  const addExperienceResponsibility = (experienceIndex) => {
+  const addExperienceResponsibility = (experienceIndex, listName = "experiences") => {
     revisionRef.current += 1;
     dirtyRef.current = true;
     setForm((current) => ({
       ...current,
-      experiences: current.experiences.map((experience, index) => index === experienceIndex
+      [listName]: current[listName].map((experience, index) => index === experienceIndex
         ? { ...experience, responsibilities: [...(experience.responsibilities || []), createEmptyResponsibility()] }
         : experience),
     }));
   };
 
-  const updateExperienceResponsibility = (experienceIndex, responsibilityIndex, text) => {
+  const updateExperienceResponsibility = (experienceIndex, responsibilityIndex, text, listName = "experiences") => {
     revisionRef.current += 1;
     dirtyRef.current = true;
     setForm((current) => ({
       ...current,
-      experiences: current.experiences.map((experience, index) => index === experienceIndex
+      [listName]: current[listName].map((experience, index) => index === experienceIndex
         ? {
           ...experience,
           responsibilities: (experience.responsibilities || []).map((responsibility, itemIndex) =>
@@ -692,13 +720,13 @@ export default function PortfolioBuilderPage() {
     }));
   };
 
-  const removeExperienceResponsibility = (experienceIndex, responsibilityIndex) => {
+  const removeExperienceResponsibility = (experienceIndex, responsibilityIndex, listName = "experiences") => {
     revisionRef.current += 1;
     dirtyRef.current = true;
     immediateSaveRef.current = true;
     setForm((current) => ({
       ...current,
-      experiences: current.experiences.map((experience, index) => index === experienceIndex
+      [listName]: current[listName].map((experience, index) => index === experienceIndex
         ? {
           ...experience,
           responsibilities: (experience.responsibilities || []).length <= 1
@@ -763,6 +791,32 @@ export default function PortfolioBuilderPage() {
     }));
   };
 
+  const addHonor = () => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    immediateSaveRef.current = false;
+    setForm((current) => ({ ...current, honors: [...(current.honors || []), ""] }));
+  };
+
+  const updateHonor = (index, value) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    setForm((current) => ({
+      ...current,
+      honors: (current.honors || []).map((honor, honorIndex) => honorIndex === index ? value : honor),
+    }));
+  };
+
+  const removeHonor = (index) => {
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    immediateSaveRef.current = true;
+    setForm((current) => ({
+      ...current,
+      honors: (current.honors || []).filter((_, honorIndex) => honorIndex !== index),
+    }));
+  };
+
   const addListItem = (listName, emptyItem, maxItems = 6) => {
     // Keep a newer UI revision so an in-flight autosave cannot overwrite a
     // newly added empty row before the student has a chance to fill it in.
@@ -774,6 +828,8 @@ export default function PortfolioBuilderPage() {
           ? createEmptyProject()
           : listName === "certifications"
             ? createEmptyCertification()
+            : listName === "courses"
+              ? createEmptyCourse()
             : listName === "experiences" || listName === "volunteering"
               ? createEmptyExperience()
             : { ...emptyItem };
@@ -801,6 +857,8 @@ export default function PortfolioBuilderPage() {
                 ? createEmptyProject()
                 : listName === "certifications"
                   ? createEmptyCertification()
+                  : listName === "courses"
+                    ? createEmptyCourse()
                   : listName === "experiences" || listName === "volunteering"
                     ? createEmptyExperience()
                   : { ...emptyItem },
@@ -904,8 +962,14 @@ export default function PortfolioBuilderPage() {
     expectedGraduationYear: source.expectedGraduationYear,
     gpa: source.gpa,
     gpaScale: source.gpaScale,
-    academicTrack: source.academicTrack,
+    academicTrack: source.academicTrack === CUSTOM_ACADEMIC_TRACK
+      ? source.academicTrackOther
+      : source.academicTrack,
+    academicTrackSource: source.academicTrack === CUSTOM_ACADEMIC_TRACK
+      ? "custom"
+      : source.academicTrack === NO_ACADEMIC_TRACK ? "none" : source.academicTrack ? "selected" : "",
     relevantCoursework: source.relevantCoursework,
+    honors: source.honors,
     professionalHeadline: source.professionalHeadline,
     phone: source.phone,
     readinessStatus: source.readinessStatus === "أخرى" ? source.readinessOther : source.readinessStatus,
@@ -922,6 +986,7 @@ export default function PortfolioBuilderPage() {
     isPublished: source.isPublished,
     projects: source.projects,
     certifications: source.certifications,
+    courses: source.courses,
     experiences: source.experiences,
     volunteering: source.volunteering,
     languages: source.languages,
@@ -982,7 +1047,7 @@ export default function PortfolioBuilderPage() {
       if (!hasNewerChanges) {
         hasLoadedPortfolioRef.current = false;
         const normalizedPortfolio = normalizeForm(data.portfolio);
-        ["projects", "certifications", "experiences"].forEach((listName) => {
+        ["projects", "certifications", "courses", "experiences"].forEach((listName) => {
           const pendingIds = pendingEmptyCollectionItemsRef.current[listName];
           const pendingItems = source[listName].filter((item) => pendingIds?.has(item.id));
           if (!pendingItems.length) return;
@@ -992,6 +1057,8 @@ export default function PortfolioBuilderPage() {
               ? item.title || item.description || item.technologies || item.url
               : listName === "certifications"
                 ? item.title || item.provider || item.year || item.credentialUrl
+                : listName === "courses"
+                  ? item.title || item.provider || item.year || item.url
                 : item.title || item.organization || item.responsibilities?.some((responsibility) => responsibility.text)
           );
           normalizedPortfolio[listName] = [...persistedItems, ...pendingItems];
@@ -1486,9 +1553,9 @@ export default function PortfolioBuilderPage() {
               {stageSetupKeys.has("education") && <label>صياغة السيرة بالعربية<select value={form.grammaticalGender} onChange={(event) => updateField("grammaticalGender", event.target.value, { immediate: true })}><option value="">اختر الصياغة</option><option value="feminine">خريجة / طالبة</option><option value="masculine">خريج / طالب</option></select></label>}
               {stageSetupKeys.has("education") && form.degreeLevel === "أخرى" && <label>اكتب الدرجة<input value={form.degreeOther} onChange={(event) => updateField("degreeOther", event.target.value)} placeholder="مثال: شهادة مهنية" /></label>}
               {stageSetupKeys.has("education") && <label>سنة بداية الدراسة <small>اختياري</small><input value={form.studyStartYear} onChange={(event) => updateField("studyStartYear", event.target.value)} placeholder="مثال: 2023" inputMode="numeric" /></label>}
-              {stageSetupKeys.has("education") && <label>سنة التخرج <small>اختياري</small><input value={form.graduationYear} onChange={(event) => updateField("graduationYear", event.target.value)} placeholder="مثال: 2027" inputMode="numeric" /></label>}
-              {stageSetupKeys.has("education") && <label>سنة التخرج المتوقعة <small>اختياري</small><input value={form.expectedGraduationYear} onChange={(event) => updateField("expectedGraduationYear", event.target.value)} placeholder="مثال: 2027" inputMode="numeric" /></label>}
-              {stageSetupKeys.has("education") && <label>المعدل <small>اختياري</small><input value={form.gpa} onChange={(event) => updateField("gpa", event.target.value)} placeholder="مثال: 4.70" inputMode="decimal" /></label>}
+              {stageSetupKeys.has("education") && form.studentStatus !== "student" && <label>متى تخرجت؟ <small>اختياري</small><input value={form.graduationYear} onChange={(event) => updateField("graduationYear", event.target.value)} placeholder="مثال: 2026" inputMode="numeric" /></label>}
+              {stageSetupKeys.has("education") && form.studentStatus === "student" && <label>متى تتوقع التخرج؟<input value={form.expectedGraduationYear} onChange={(event) => updateField("expectedGraduationYear", event.target.value)} placeholder="مثال: 2027" inputMode="numeric" /></label>}
+              {stageSetupKeys.has("education") && <label>المعدل <small>اختياري</small><input value={form.gpa} onChange={(event) => updateField("gpa", event.target.value)} placeholder="مثال: 4.70" inputMode="decimal" /><small>أضفه إذا حاب يظهر في سيرتك، واكتب المقياس كما هو في سجلك.</small></label>}
               {stageSetupKeys.has("education") && <label>من أصل <small>اختياري</small><input value={form.gpaScale} onChange={(event) => updateField("gpaScale", event.target.value)} placeholder="مثال: 5" inputMode="decimal" /></label>}
               {stageSetupKeys.has("education") && (
                 <label className="is-wide">
@@ -1498,9 +1565,11 @@ export default function PortfolioBuilderPage() {
                     <option value="" disabled>اختر مسارك الأكاديمي</option>
                     <option value={NO_ACADEMIC_TRACK}>لا يوجد مسار أكاديمي</option>
                     {ACADEMIC_TRACK_OPTIONS.map((track) => <option key={track.value} value={track.value}>{track.ar}</option>)}
+                    <option value={CUSTOM_ACADEMIC_TRACK}>غير موجود؟ أضفه</option>
                   </select>
                 </label>
               )}
+              {stageSetupKeys.has("education") && form.academicTrack === CUSTOM_ACADEMIC_TRACK && <label className="is-wide">اكتب مسارك الأكاديمي<input value={form.academicTrackOther} onChange={(event) => updateField("academicTrackOther", event.target.value)} placeholder="اسم المسار كما تعلنه جامعتك" /></label>}
               {stageSetupKeys.has("education") && (
                 <div className="portfolio-resume-setup-collection is-wide">
                   <div className="portfolio-builder-section-head">
@@ -1513,6 +1582,12 @@ export default function PortfolioBuilderPage() {
                       <button type="button" onClick={() => removeRelevantCoursework(index)}>حذف المقرر</button>
                     </div>
                   ))}
+                </div>
+              )}
+              {stageSetupKeys.has("education") && (
+                <div className="portfolio-resume-setup-collection is-wide">
+                  <div className="portfolio-builder-section-head"><div><h3>مرتبة الشرف أو التميز</h3><p>اختياري، أضف فقط ما حصلت عليه فعليًا.</p></div><button type="button" onClick={addHonor}>+ إضافة</button></div>
+                  {(form.honors || []).map((honor, index) => <div className="portfolio-builder-repeat" key={`honor-${index}`}><input value={honor} onChange={(event) => updateHonor(index, event.target.value)} placeholder="مثال: مرتبة الشرف الأولى" /><button type="button" onClick={() => removeHonor(index)}>حذف</button></div>)}
                 </div>
               )}
               {stageSetupKeys.has("email") && <label>بريد التواصل<input id={getResumeSetupInputId("email")} type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" dir="ltr" /></label>}
@@ -1643,10 +1718,30 @@ export default function PortfolioBuilderPage() {
                 </button>
               </div>
               <div className="portfolio-resume-setup-collection is-wide">
+                <div className="portfolio-builder-section-head"><div><h3>الأنشطة والتطوع</h3><p>اختيارية؛ أضف مساهمتك الفعلية إن وجدت.</p></div><button type="button" onClick={() => addListItem("volunteering", emptyExperience, 8)}>+ إضافة نشاط</button></div>
+                {form.volunteering.map((activity, index) => (
+                  <div className="portfolio-experience-entry" key={activity.id || index}>
+                    <div className="portfolio-builder-repeat is-experience-details">
+                      <select value={activity.activityType || ""} onChange={(event) => updateListItem("volunteering", index, "activityType", event.target.value, { immediate: true })}><option value="">نوع النشاط</option><option value="student_club">نادي طلابي</option><option value="volunteering">تطوع</option><option value="competition">مسابقة</option><option value="hackathon">هاكاثون</option><option value="conference">مؤتمر</option><option value="community_activity">نشاط مجتمعي</option><option value="other">أخرى</option></select>
+                      <input value={activity.title} onChange={(event) => updateListItem("volunteering", index, "title", event.target.value)} placeholder="الدور أو اسم النشاط" />
+                      <input value={activity.organization} onChange={(event) => updateListItem("volunteering", index, "organization", event.target.value)} placeholder="الجهة أو الفعالية" />
+                      <input type="date" value={activity.startDate} onChange={(event) => updateListItem("volunteering", index, "startDate", event.target.value)} aria-label="بداية النشاط" />
+                      <input type="date" value={activity.endDate} onChange={(event) => updateListItem("volunteering", index, "endDate", event.target.value)} aria-label="نهاية النشاط" />
+                      <button type="button" onClick={() => removeListItem("volunteering", index, emptyExperience)}>حذف النشاط</button>
+                    </div>
+                    <div className="portfolio-experience-responsibilities"><strong>مساهماتك — اختيارية</strong>{(activity.responsibilities || []).map((item, itemIndex) => <div key={item.id || itemIndex}><input value={item.text} onChange={(event) => updateExperienceResponsibility(index, itemIndex, event.target.value, "volunteering")} placeholder="مثال: تنظيم فعالية أو تنفيذ مهمة محددة" /><button type="button" onClick={() => removeExperienceResponsibility(index, itemIndex, "volunteering")}>حذف</button></div>)}<button type="button" onClick={() => addExperienceResponsibility(index, "volunteering")}>+ إضافة مساهمة</button></div>
+                  </div>
+                ))}
+              </div>
+              <div className="portfolio-resume-setup-collection is-wide">
+                <div className="portfolio-builder-section-head"><div><h3>اللغات</h3><p>أضف اللغة ومستواك كما تعرفه.</p></div><button type="button" onClick={() => addListItem("languages", emptyLanguage, 6)}>+ إضافة لغة</button></div>
+                {form.languages.map((language, index) => <div className="portfolio-builder-repeat is-compact" key={`setup-language-${index}`}><input value={language.name} onChange={(event) => updateListItem("languages", index, "name", event.target.value)} placeholder="اللغة" /><input value={language.level} onChange={(event) => updateListItem("languages", index, "level", event.target.value)} placeholder="المستوى" /><button type="button" onClick={() => removeListItem("languages", index, emptyLanguage)}>حذف</button></div>)}
+              </div>
+              <div className="portfolio-resume-setup-collection is-wide">
                 <div className="portfolio-builder-section-head">
                   <div>
-                    <h3>الشهادات والدورات</h3>
-                    <p>اختيارية، ويمكنك إضافتها لاحقًا.</p>
+                    <h3>الشهادات المهنية</h3>
+                    <p>اختيارية، ولا تمنع بناء السيرة إذا تركت بياناتها الإضافية فارغة.</p>
                   </div>
                   <button type="button" onClick={() => addListItem("certifications", emptyCertification, 8)}>
                     + إضافة شهادة أخرى
@@ -1654,9 +1749,11 @@ export default function PortfolioBuilderPage() {
                 </div>
                 {form.certifications.map((certification, index) => (
                   <div className="portfolio-builder-repeat is-certification" key={certification.id || index}>
-                    <input value={certification.title} onChange={(event) => updateListItem("certifications", index, "title", event.target.value)} placeholder="اسم الشهادة أو الدورة" />
+                    <input value={certification.title} onChange={(event) => updateListItem("certifications", index, "title", event.target.value)} placeholder="اسم الشهادة المهنية" />
                     <input value={certification.provider} onChange={(event) => updateListItem("certifications", index, "provider", event.target.value)} placeholder="الجهة المانحة" />
-                    <input value={certification.year} onChange={(event) => updateListItem("certifications", index, "year", event.target.value)} placeholder="السنة أو التاريخ (اختياري)" />
+                    <input type="date" value={certification.issueDate} onChange={(event) => updateListItem("certifications", index, "issueDate", event.target.value)} aria-label="تاريخ إصدار الشهادة" />
+                    <input type="date" value={certification.expirationDate} onChange={(event) => updateListItem("certifications", index, "expirationDate", event.target.value)} aria-label="تاريخ انتهاء الشهادة الاختياري" />
+                    <input value={certification.credentialId} onChange={(event) => updateListItem("certifications", index, "credentialId", event.target.value)} placeholder="رقم الشهادة (اختياري)" />
                     <input value={certification.credentialUrl} onChange={(event) => updateListItem("certifications", index, "credentialUrl", event.target.value)} placeholder="رابط الشهادة (اختياري)" dir="ltr" />
                     <button type="button" onClick={() => removeListItem("certifications", index, emptyCertification)}>حذف الشهادة</button>
                   </div>
@@ -1673,6 +1770,10 @@ export default function PortfolioBuilderPage() {
                 >
                   ما عندي شهادات حاليًا
                 </button>
+              </div>
+              <div className="portfolio-resume-setup-collection is-wide">
+                <div className="portfolio-builder-section-head"><div><h3>الدورات</h3><p>الدورات منفصلة عن الشهادات المهنية.</p></div><button type="button" onClick={() => addListItem("courses", emptyCourse, 10)}>+ إضافة دورة</button></div>
+                {form.courses.map((course, index) => <div className="portfolio-builder-repeat is-certification" key={course.id || index}><input value={course.title} onChange={(event) => updateListItem("courses", index, "title", event.target.value)} placeholder="اسم الدورة" /><input value={course.provider} onChange={(event) => updateListItem("courses", index, "provider", event.target.value)} placeholder="الجهة المقدمة" /><input value={course.year} onChange={(event) => updateListItem("courses", index, "year", event.target.value)} placeholder="سنة الإكمال (اختياري)" /><input value={course.url} onChange={(event) => updateListItem("courses", index, "url", event.target.value)} placeholder="رابط الدورة (اختياري)" dir="ltr" /><button type="button" onClick={() => removeListItem("courses", index, emptyCourse)}>حذف الدورة</button></div>)}
               </div>
             </div>
           </section>

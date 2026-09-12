@@ -595,7 +595,7 @@ const ResumeAgentFlow = ({
             const key = getQuestionKey(question, index);
             return (
               <div key={key} className="resume-agent-question-card">
-                <span>{SECTION_LABELS[question.section] || question.section || "تفصيل مهم"}</span>
+                <span>{index + 1} من {questions.length} · {SECTION_LABELS[question.section] || question.section || "تفصيل مهم"}</span>
                 <strong>{question.question}</strong>
                 {question.whyNeeded && <small>{question.whyNeeded}</small>}
                 {question.inputType === "textarea" ? (

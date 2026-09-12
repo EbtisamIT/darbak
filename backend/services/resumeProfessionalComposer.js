@@ -286,6 +286,7 @@ const compactVerifiedResumeFacts = (facts = {}, answers = []) => {
     })),
     projects: list(mergedFacts.projects).map((entry) => ({ id: entry.id, title: entry.title, description: entry.description, url: entry.url, achievements: entry.achievements })),
     certifications: list(mergedFacts.certifications).map((entry) => ({ id: entry.id, title: entry.title, organization: entry.organization, period: entry.period })),
+    courses: list(mergedFacts.courses).map((entry) => ({ id: entry.id, title: entry.title, organization: entry.organization, period: entry.period, url: entry.url })),
     volunteering: list(mergedFacts.volunteering).map((entry) => ({ id: entry.id, title: entry.title, organization: entry.organization, period: entry.period, description: entry.description })),
     languages: list(mergedFacts.languages).map((entry) => ({ name: entry.name, level: entry.level })),
     skills: normalizeResumeSkills(list(mergedFacts.skills)),

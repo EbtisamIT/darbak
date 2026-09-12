@@ -52,11 +52,25 @@ const portfolioCertificationSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    issueDate: { type: String, default: "", trim: true },
+    expirationDate: { type: String, default: "", trim: true },
+    credentialId: { type: String, default: "", trim: true },
     credentialUrl: {
       type: String,
       default: "",
       trim: true,
     },
+  },
+  { _id: false }
+);
+
+const portfolioCourseSchema = new mongoose.Schema(
+  {
+    id: { type: String, default: "", trim: true },
+    title: { type: String, default: "", trim: true },
+    provider: { type: String, default: "", trim: true },
+    year: { type: String, default: "", trim: true },
+    url: { type: String, default: "", trim: true },
   },
   { _id: false }
 );
@@ -78,6 +92,12 @@ const portfolioExperienceSchema = new mongoose.Schema(
     current: { type: Boolean, default: false },
     period: { type: String, default: "", trim: true },
     description: { type: String, default: "", trim: true },
+    activityType: {
+      type: String,
+      enum: ["", "student_club", "volunteering", "competition", "hackathon", "conference", "community_activity", "other"],
+      default: "",
+      trim: true,
+    },
     responsibilities: {
       type: [{
         id: { type: String, default: "", trim: true },
@@ -177,10 +197,16 @@ const portfolioSchema = new mongoose.Schema(
     gpa: { type: String, default: "", trim: true },
     gpaScale: { type: String, default: "", trim: true },
     academicTrack: { type: String, default: "", trim: true },
+    academicTrackSource: {
+      type: String,
+      enum: ["", "selected", "custom", "none"],
+      default: "",
+    },
     relevantCoursework: {
       type: [String],
       default: [],
     },
+    honors: { type: [String], default: [] },
     professionalHeadline: { type: String, default: "", trim: true },
     phone: { type: String, default: "", trim: true },
     readinessStatus: {
@@ -209,6 +235,7 @@ const portfolioSchema = new mongoose.Schema(
       type: [portfolioCertificationSchema],
       default: [],
     },
+    courses: { type: [portfolioCourseSchema], default: [] },
     experiences: { type: [portfolioExperienceSchema], default: [] },
     volunteering: { type: [portfolioExperienceSchema], default: [] },
     languages: { type: [portfolioLanguageSchema], default: [] },

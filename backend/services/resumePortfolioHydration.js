@@ -23,8 +23,12 @@ const ACADEMIC_TRACK_IDS = new Set([
   "graphic_design",
 ]);
 
-const getAcademicTrackId = (value = "") =>
-  ACADEMIC_TRACK_IDS.has(cleanText(value, 80)) ? cleanText(value, 80) : "";
+const getAcademicTrackId = (value = "", source = "") => {
+  const normalized = cleanText(value, 80);
+  if (normalized === "no_academic_track") return "";
+  if (ACADEMIC_TRACK_IDS.has(normalized)) return normalized;
+  return source === "custom" ? normalized : "";
+};
 
 // These values are student facts, not resume presentation. Portfolio owns them
 // whenever it has a verified value; ResumeProfile only keeps a materialized
@@ -46,6 +50,7 @@ const PROTECTED_PERSONAL_FACT_KEYS = [
   "gpaScale",
   "academicTrack",
   "relevantCoursework",
+  "honors",
   "linkedinUrl",
   "githubUrl",
   "personalUrl",
@@ -247,6 +252,7 @@ const mapPortfolioEntry = (entry = {}, prefix = "portfolio-entry", index = 0) =>
     subtitle: organization,
     organization,
     experienceType: cleanText(entry.experienceType, 60),
+    ...(entry.activityType ? { activityType: cleanText(entry.activityType, 60) } : {}),
     period: cleanText(entry.period || entry.year, 90),
     startDate: cleanText(entry.startDate, 40),
     endDate: cleanText(entry.endDate || entry.year, 40),
@@ -255,7 +261,7 @@ const mapPortfolioEntry = (entry = {}, prefix = "portfolio-entry", index = 0) =>
     url: cleanText(entry.url || entry.credentialUrl || entry.link, 260),
     technologies: Array.isArray(entry.technologies)
       ? entry.technologies.map((technology) => cleanText(technology, 80)).filter(Boolean)
-      : [],
+      : cleanText(entry.technologies, 400).split(/[،,]/u).map((technology) => cleanText(technology, 80)).filter(Boolean),
     description,
     details: description,
     achievements: responsibilities.length
@@ -274,7 +280,7 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
   const frontendUrl = options.frontendUrl || "";
   const sectionOrder = options.sectionOrder || [];
   const portfolioUrl = portfolio.slug && frontendUrl ? `${frontendUrl}/p/${portfolio.slug}` : "";
-  const academicTrack = getAcademicTrackId(portfolio.academicTrack);
+  const academicTrack = getAcademicTrackId(portfolio.academicTrack, portfolio.academicTrackSource);
   const educationDescription = [
     portfolio.major,
     academicTrack && `Academic track: ${academicTrack}`,
@@ -283,6 +289,9 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
     portfolio.gpa && `المعدل: ${portfolio.gpa}${portfolio.gpaScale ? ` / ${portfolio.gpaScale}` : ""}`,
     ...(Array.isArray(portfolio.relevantCoursework) && portfolio.relevantCoursework.length
       ? [`مقررات ذات صلة: ${portfolio.relevantCoursework.join("، ")}`]
+      : []),
+    ...(Array.isArray(portfolio.honors) && portfolio.honors.length
+      ? [`التكريم: ${portfolio.honors.join("، ")}`]
       : []),
   ].filter(Boolean).join(" · ");
   const hasPracticalExperience = Array.isArray(portfolio.experiences) && portfolio.experiences.some((entry) =>
@@ -311,6 +320,7 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
       gpaScale: cleanText(portfolio.gpaScale, 20),
       academicTrack,
       relevantCoursework: uniqueText([], portfolio.relevantCoursework).map((course) => cleanText(course, 120)),
+      honors: uniqueText([], portfolio.honors).map((honor) => cleanText(honor, 140)),
       linkedinUrl: cleanText(portfolio.linkedinUrl, 260),
       headline: buildPortfolioHeadline(portfolio),
       portfolioUrl,
@@ -343,7 +353,17 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
     experiences: (portfolio.experiences || []).map((entry, index) => mapPortfolioEntry(entry, "portfolio-experience", index)),
     experience: (portfolio.experiences || []).map((entry, index) => mapPortfolioEntry(entry, "portfolio-experience", index)),
     projects: (portfolio.projects || []).map((entry, index) => mapPortfolioEntry(entry, "portfolio-project", index)),
-    certifications: (portfolio.certifications || []).map((entry, index) => mapPortfolioEntry(entry, "portfolio-certification", index)),
+    certifications: (portfolio.certifications || []).map((entry, index) => mapPortfolioEntry({
+      ...entry,
+      period: entry.issueDate || entry.year,
+      endDate: entry.expirationDate,
+    }, "portfolio-certification", index)),
+    courses: (portfolio.courses || []).map((entry, index) => mapPortfolioEntry({
+      ...entry,
+      organization: entry.provider,
+      period: entry.year,
+      url: entry.url,
+    }, "portfolio-course", index)),
     volunteering: (portfolio.volunteering || []).map((entry, index) => mapPortfolioEntry(entry, "portfolio-volunteering", index)),
     languages: (portfolio.languages || []).map((language, index) => ({
       id: language._id?.toString?.() || `portfolio-language-${index}`,
@@ -371,6 +391,7 @@ const buildVerifiedResumeFacts = (portfolio = {}, contact = "", options = {}) =>
     experiences: payload.experiences,
     projects: payload.projects,
     certifications: payload.certifications,
+    courses: payload.courses,
     volunteering: payload.volunteering,
     languages: payload.languages,
     links: payload.links,

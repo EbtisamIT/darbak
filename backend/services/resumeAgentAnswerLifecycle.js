@@ -24,11 +24,17 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     .filter(Boolean));
   const isPending = (fieldKey) => fieldKey && !answered.has(fieldKey) && !skipped.has(fieldKey);
   const questions = [];
-  const addQuestion = ({ type, section, entry, index, prefix, question, reason }) => {
+  const hasContributions = (entry = {}) => Boolean(
+    cleanText(entry.description || entry.details, 1600)
+    || (Array.isArray(entry.responsibilities) && entry.responsibilities.some((item) => cleanText(item?.text || item, 400)))
+    || (Array.isArray(entry.contributions) && entry.contributions.some((item) => cleanText(item?.text || item, 400)))
+    || (Array.isArray(entry.achievements) && entry.achievements.some((item) => cleanText(item, 400)))
+  );
+  const addQuestion = ({ type, section, entry, index, prefix, question, reason, tip, impact }) => {
     const title = cleanText(entry?.title || entry?.name, 140);
     const itemId = cleanText(entry?.id || entry?._id, 120) || `${prefix}-${index}-${title || "item"}`;
     const fieldKey = `${type}:${itemId}`;
-    if (!isPending(fieldKey) || cleanText(entry?.description || entry?.details, 1600)) return false;
+    if (!isPending(fieldKey) || hasContributions(entry)) return false;
     questions.push({
       id: fieldKey,
       fieldKey,
@@ -36,15 +42,17 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
       section,
       itemTitle: title,
       question: question(title),
-      whyNeeded: "إجابتك تساعدنا نصيغ محتوى أقوى، ويمكنك تخطي السؤال.",
+      whyNeeded: tip,
       reason,
       inputType: "textarea",
       options: [],
+      resumeValueImpact: impact,
+      stableOrder: index,
     });
     return true;
   };
 
-  (Array.isArray(facts.experiences) ? facts.experiences : []).some((entry, index) => addQuestion({
+  (Array.isArray(facts.experiences) ? facts.experiences : []).forEach((entry, index) => addQuestion({
     type: "experience_description",
     section: "experiences",
     entry,
@@ -52,8 +60,10 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     prefix: "portfolio-experience",
     question: (title) => `وش أبرز المهام اللي اشتغلت عليها في ${title || "هذه الخبرة"}؟`,
     reason: "experience_description_missing",
+    tip: "اذكر المهام اللي كنت تنفذها فعليًا، حتى لو كانت بسيطة.",
+    impact: 300,
   }));
-  (Array.isArray(facts.projects) ? facts.projects : []).some((entry, index) => addQuestion({
+  (Array.isArray(facts.projects) ? facts.projects : []).forEach((entry, index) => addQuestion({
     type: "project_description",
     section: "projects",
     entry,
@@ -61,8 +71,10 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     prefix: "portfolio-project",
     question: (title) => `وش سويت في مشروع ${title || "هذا المشروع"}؟`,
     reason: "project_description_missing",
+    tip: "ركز على دورك أنت، مو وصف المشروع بشكل عام.",
+    impact: 220 + (entry?.technologies || entry?.tools ? 20 : 0),
   }));
-  (Array.isArray(facts.volunteering) ? facts.volunteering : []).some((entry, index) => addQuestion({
+  (Array.isArray(facts.volunteering) ? facts.volunteering : []).forEach((entry, index) => addQuestion({
     type: "activity_description",
     section: "volunteering",
     entry,
@@ -70,8 +82,15 @@ const buildEnrichmentQuestions = (facts = {}, state = {}) => {
     prefix: "portfolio-volunteering",
     question: (title) => `وش أبرز مساهمة لك في ${title || "هذا النشاط"}؟`,
     reason: "activity_description_missing",
+    tip: "وش الشيء اللي شاركت فيه أو ساهمت بإنجازه؟",
+    impact: 120,
   }));
-  return questions.slice(0, 3);
+  return questions
+    .sort((left, right) => right.resumeValueImpact - left.resumeValueImpact
+      || left.section.localeCompare(right.section)
+      || left.stableOrder - right.stableOrder)
+    .slice(0, 3)
+    .map(({ resumeValueImpact, stableOrder, ...question }) => question);
 };
 
 const buildPendingProjectDescriptionQuestion = (facts = {}, state = {}) =>
@@ -115,12 +134,12 @@ const mergeStructuredAnswersIntoFacts = (facts = {}, answers = []) => {
     experiences: (Array.isArray(facts.experiences) ? facts.experiences : []).map((experience) => {
       const id = cleanText(experience?.id || experience?._id, 120);
       const answer = experienceAnswers.get(id);
-      return answer ? { ...experience, description: answer, details: answer } : experience;
+      return answer ? { ...experience, description: answer, details: answer, achievements: [answer] } : experience;
     }),
     volunteering: (Array.isArray(facts.volunteering) ? facts.volunteering : []).map((activity) => {
       const id = cleanText(activity?.id || activity?._id, 120);
       const answer = activityAnswers.get(id);
-      return answer ? { ...activity, description: answer, details: answer } : activity;
+      return answer ? { ...activity, description: answer, details: answer, achievements: [answer] } : activity;
     }),
   };
 };
@@ -152,6 +171,11 @@ const applyExperienceDescriptionAnswer = (source = {}, answer = {}) => {
   });
   if (!experience) return false;
   experience.description = value;
+  const responsibilityId = `enrichment-${parsed.itemId}`.slice(0, 120);
+  experience.responsibilities = Array.isArray(experience.responsibilities) ? experience.responsibilities : [];
+  if (!experience.responsibilities.some((item) => cleanText(item?.text || item) === value)) {
+    experience.responsibilities.push({ id: responsibilityId, text: value });
+  }
   if (Object.prototype.hasOwnProperty.call(experience, "details")) experience.details = value;
   return true;
 };
@@ -167,6 +191,11 @@ const applyActivityDescriptionAnswer = (source = {}, answer = {}) => {
   });
   if (!activity) return false;
   activity.description = value;
+  const contributionId = `enrichment-${parsed.itemId}`.slice(0, 120);
+  activity.responsibilities = Array.isArray(activity.responsibilities) ? activity.responsibilities : [];
+  if (!activity.responsibilities.some((item) => cleanText(item?.text || item) === value)) {
+    activity.responsibilities.push({ id: contributionId, text: value });
+  }
   if (Object.prototype.hasOwnProperty.call(activity, "details")) activity.details = value;
   return true;
 };
