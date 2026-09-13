@@ -65,6 +65,7 @@ const {
 const {
   runDarbakResumeAgent,
   regenerateProfessionalSummary,
+  getRequiredCoreMissing,
 } = require("./agents/darbakResumeAgent");
 const { compareResumeToJob } = require("./services/resumeMatchService");
 const { hasCompleteApplicationPack } = require("./services/applicationPackIntegrity");
@@ -7888,7 +7889,7 @@ const getResumeAiErrorResponse = (err = {}) => {
     return {
       status: 502,
       body: {
-        error: "تعذر اعتماد رد كاتب السيرة هذه المرة. حاول مرة أخرى.",
+        error: "تعذر إنشاء المسودة الآن، ومعلوماتك محفوظة. حاول مرة أخرى بعد قليل.",
         reason: "invalid_agent_response",
       },
     };
@@ -8294,6 +8295,12 @@ const revalidatePendingResumeAgentQuestions = async (session, access = {}) => {
     state,
     pendingQuestions: session.pendingQuestions,
     sourceFactsVersion: factsVersion,
+  });
+  const requiredCoreMissing = new Set(getRequiredCoreMissing(sourceFacts));
+  result.questions = result.questions.filter((question) => {
+    const fieldKey = String(question?.fieldKey || question?.id || "").split(":")[0];
+    return !["full_name", "major", "student_status"].includes(fieldKey)
+      || requiredCoreMissing.has(fieldKey);
   });
   const previousKeys = (session.pendingQuestions || []).map((question) => question.fieldKey || question.id).filter(Boolean);
   const nextKeys = result.questions.map((question) => question.fieldKey || question.id).filter(Boolean);

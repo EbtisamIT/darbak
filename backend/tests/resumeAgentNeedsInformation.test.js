@@ -3,6 +3,7 @@ const {
   filterConfirmedQuestions,
   ensureActionableNeedsInformation,
   normalizeNeedsInformationOutput,
+  getRequiredCoreMissing,
 } = require("../agents/darbakResumeAgent");
 
 const facts = {
@@ -51,9 +52,30 @@ const facts = {
   const actionable = ensureActionableNeedsInformation(unknown, {
     profile: {}, resume: {}, sources: [], answers: [],
   });
-  assert.strictEqual(actionable.status, "cannot_continue");
-  assert.strictEqual(actionable.questions.length, 0);
+  assert.strictEqual(actionable.status, "needs_information");
+  assert.deepStrictEqual(actionable.questions.map((question) => question.fieldKey), ["full_name", "student_status", "major"]);
   assert.ok(actionable.warnings.includes("AGENT_UNMAPPABLE_MISSING_INFORMATION"));
+}
+
+{
+  const completeCoreFacts = {
+    profile: { fullName: "Test User", major: "Computer Science", studentStatus: "student" },
+    resume: {}, sources: [], answers: [],
+  };
+  assert.deepStrictEqual(getRequiredCoreMissing(completeCoreFacts), []);
+  const normalized = normalizeNeedsInformationOutput({
+    status: "needs_information",
+    questions: [
+      { fieldKey: "major", section: "education", question: "ما تخصصك؟" },
+      { fieldKey: "student_status", section: "education", question: "هل أنت طالب أم خريج؟" },
+      { section: "general", question: "اذكر معلومات إضافية." },
+    ],
+  }, completeCoreFacts);
+  const actionable = ensureActionableNeedsInformation(filterConfirmedQuestions(normalized, completeCoreFacts), completeCoreFacts);
+  assert.strictEqual(actionable.status, "needs_information");
+  assert.strictEqual(actionable.nonBlockingNeedsInformation, true);
+  assert.deepStrictEqual(actionable.questions, []);
+  assert.ok(!actionable.message);
 }
 
 {

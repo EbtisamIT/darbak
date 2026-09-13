@@ -426,6 +426,56 @@ const BASE_MISSING_FIELD_KEYS = new Set([
   "major",
 ]);
 
+const getRequiredCoreValues = (facts = {}) => {
+  const personalInfo = facts.personalInfo || facts.resume?.personalInfo || {};
+  const profile = facts.profile || {};
+  return {
+    full_name: safeString(personalInfo.fullName || profile.fullName || profile.name, 180),
+    major: safeString(personalInfo.major || profile.major, 180),
+    student_status: safeString(personalInfo.studentStatus || profile.studentStatus || profile.educationStatus, 80),
+  };
+};
+
+const getRequiredCoreMissing = (facts = {}) => {
+  const values = getRequiredCoreValues(facts);
+  return [...BASE_MISSING_FIELD_KEYS].filter((fieldKey) => !values[fieldKey]);
+};
+
+const buildRequiredCoreQuestions = (facts = {}) => {
+  const labels = {
+    full_name: ["بياناتك", "اكتب اسمك الكامل كما تريده أن يظهر في السيرة.", "full_name_missing"],
+    major: ["التعليم", "اختر تخصصك الدراسي.", "major_missing"],
+    student_status: ["التعليم", "هل أنت طالب أم خريج؟", "student_status_missing"],
+  };
+  return getRequiredCoreMissing(facts).map((fieldKey) => ({
+    id: fieldKey,
+    fieldKey,
+    section: labels[fieldKey][0],
+    questionType: "required_core",
+    question: labels[fieldKey][1],
+    whyNeeded: "معلومة أساسية مطلوبة لبناء السيرة.",
+    reason: labels[fieldKey][2],
+    inputType: fieldKey === "student_status" ? "select" : "text",
+    options: fieldKey === "student_status" ? ["student", "graduate"] : [],
+  }));
+};
+
+const logMissingInformationDecision = ({ access = {}, trace = {}, enrichmentCandidates = [], draftBlockedBy = "" } = {}) => {
+  const accountSafeId = crypto
+    .createHash("sha256")
+    .update(safeString(access.contact || access.accessCodeHash, 320))
+    .digest("hex")
+    .slice(0, 12);
+  console.info("Resume missing-information decision", {
+    accountSafeId,
+    requiredCoreMissing: trace.requiredCoreMissing || [],
+    enrichmentCandidates: enrichmentCandidates.map((question) => question.fieldKey || question.id).filter(Boolean),
+    normalizedQuestionKeys: trace.normalizedQuestionKeys || [],
+    invalidQuestionKeys: trace.invalidQuestionKeys || [],
+    draftBlockedBy,
+  });
+};
+
 const OPTIONAL_MISSING_FIELD_KEYS = new Set([
   "phone",
   "professional_headline",
@@ -1105,8 +1155,9 @@ const isConfirmedQuestion = (question = {}, facts = {}) => {
   // An already persisted question can have a stable session id even when it
   // is not one of the public field-key aliases. Honour it before attempting
   // semantic inference so answered project questions are never repeated.
-  const fieldKey = safeString(question.fieldKey || question.id || getQuestionFieldKey(question), 120);
+  const fieldKey = safeString(question.fieldKey || question.id || getQuestionFieldKey(question, facts), 120);
   if (fieldKey && answeredQuestionIds.has(normalizeComparable(fieldKey))) return true;
+  if (BASE_MISSING_FIELD_KEYS.has(fieldKey) && !getRequiredCoreMissing(facts).includes(fieldKey)) return true;
   const text = normalizeComparable(`${question.question || ""} ${question.whyNeeded || ""}`);
   const profile = facts.profile || {};
   const resume = facts.resume || {};
@@ -1209,13 +1260,13 @@ const getFallbackMissingQuestion = (facts = {}) => {
 
 const ensureActionableNeedsInformation = (output = {}, facts = {}) => {
   if (output.status !== "needs_information" || (output.questions || []).length) return output;
-  const fallbackQuestion = getFallbackMissingQuestion(facts);
-  if (fallbackQuestion) return { ...output, questions: [fallbackQuestion] };
+  const requiredQuestions = buildRequiredCoreQuestions(facts);
+  if (requiredQuestions.length) return { ...output, questions: requiredQuestions };
 
   return {
     ...output,
-    status: "cannot_continue",
-    message: "نحتاج تحديد المعلومة الناقصة بدقة قبل متابعة بناء السيرة.",
+    message: "",
+    nonBlockingNeedsInformation: true,
     warnings: [...(output.warnings || []), "AGENT_UNMAPPABLE_MISSING_INFORMATION"].slice(0, 20),
   };
 };
@@ -2203,7 +2254,7 @@ const createDarbakResumeRepairAgent = () =>
     outputType: resumeQualityRepairSchema,
   });
 
-const buildAgentInput = ({ session, answers = [], verifiedResumeFacts = {} }) =>
+const buildAgentInput = ({ session, answers = [], verifiedResumeFacts = {}, forceDraft = false }) =>
   safeText(
     JSON.stringify({
       task: session.purpose,
@@ -2221,7 +2272,9 @@ const buildAgentInput = ({ session, answers = [], verifiedResumeFacts = {} }) =>
         answer: safeText(answer.answer || answer.value, MAX_ANSWER_LENGTH),
       })),
       instruction:
-        "اكتب من verifiedResumeFacts والإجابات المؤكدة فقط. لا تعيد سؤالًا تمت الإجابة عنه. إذا وجدت externalOpportunity فهي سياق الفرصة المعتمد ولا تطلب وصفها أو رابطًا مرة أخرى. في tailor_resume لا توقف المسودة لأهلية التدريب أو الجنسية أو المعدل أو فترة التدريب؛ ضعها كملاحظات مراجعة فقط.",
+        forceDraft
+          ? "الحقائق الأساسية تحققت حتميًا. أي نقص اختياري أو طلب غير قابل للربط بحقل قابل للتحرير غير حاجز. أعد draft_ready الآن من verifiedResumeFacts المتاحة، ولا تعد needs_information."
+          : "اكتب من verifiedResumeFacts والإجابات المؤكدة فقط. لا تعيد سؤالًا تمت الإجابة عنه. إذا وجدت externalOpportunity فهي سياق الفرصة المعتمد ولا تطلب وصفها أو رابطًا مرة أخرى. في tailor_resume لا توقف المسودة لأهلية التدريب أو الجنسية أو المعدل أو فترة التدريب؛ ضعها كملاحظات مراجعة فقط.",
     }),
     MAX_FACT_TEXT_LENGTH
   );
@@ -2518,6 +2571,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     rawVerifiedResumeFacts,
     collectedFacts.answers
   );
+  const requiredCoreMissing = getRequiredCoreMissing(verifiedResumeFacts);
   const generationSourceFactsVersion = getResumeFactsFreshness({
     verifiedFacts: verifiedResumeFacts,
     workflow: {},
@@ -2554,6 +2608,10 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     cachedDraftFactsVersion: session.collectedFacts?.agentOutputCache?.sourceFactsVersion || "",
     backendRefreshCompleted: true,
     cacheHit: false,
+    requiredCoreMissing,
+    normalizedQuestionKeys: [],
+    invalidQuestionKeys: [],
+    draftBlockedBy: "",
   };
   const portfolioUserFacts = buildVerifiedResumeFacts(profile || {}, access?.contact || "");
   const enrichmentSourceFacts = buildUserSourceEnrichmentFacts(rawVerifiedResumeFacts, portfolioUserFacts);
@@ -2562,6 +2620,7 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     ? buildEnrichmentQuestions(enrichmentSourceFacts, collectedFacts)
     : [];
   if (enrichmentQuestions.length) {
+    logMissingInformationDecision({ access, trace, enrichmentCandidates: enrichmentQuestions, draftBlockedBy: "enrichment" });
     return {
       output: {
         status: "needs_information",
@@ -2573,6 +2632,19 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       },
       lastResponseId: session.lastResponseId || "",
       usage: { ...trace, model: "", durationMs: Date.now() - startedAt },
+    };
+  }
+  if (requiredCoreMissing.length) {
+    logMissingInformationDecision({ access, trace, draftBlockedBy: "required_core" });
+    return {
+      output: {
+        status: "needs_information",
+        message: "أكمل المعلومات الأساسية التالية قبل تجهيز المسودة.",
+        questions: buildRequiredCoreQuestions(verifiedResumeFacts),
+        missingInformation: [], warnings: [], pendingDraftId: "",
+      },
+      lastResponseId: session.lastResponseId || "",
+      usage: { ...trace, draftBlockedBy: "required_core", durationMs: Date.now() - startedAt },
     };
   }
   let result = null;
@@ -2640,6 +2712,10 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
       filterConfirmedQuestions(normalizeNeedsInformationOutput(output, facts), facts),
       facts
     );
+    trace.normalizedQuestionKeys = (filteredOutput.questions || []).map((question) => question.fieldKey).filter(Boolean);
+    trace.invalidQuestionKeys = output.status === "needs_information"
+      ? (output.questions || []).filter((question) => !getQuestionFieldKey(question, facts)).map(() => "unmapped")
+      : [];
     if (session.purpose === "tailor_resume") {
       filteredOutput.eligibilityWarnings = getTailoringEligibilityWarnings(facts);
       tailoringRelevance = getTailoringRelevanceStrength(facts);
@@ -2647,6 +2723,36 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
   } catch (error) {
     throw buildAgentStageError("facts_loading", error, trace);
   }
+  if (filteredOutput.status === "needs_information" && filteredOutput.nonBlockingNeedsInformation) {
+    try {
+      trace.modelCallStarted = true;
+      trace.aiCalls += 1;
+      result = await run(agent, buildAgentInput({ session, answers, verifiedResumeFacts, forceDraft: true }), {
+        context,
+        maxTurns: 1,
+      });
+      trace.modelCallSucceeded = true;
+      const recovered = resumeAgentOutputSchema.parse(result.finalOutput);
+      const recoveredFacts = await loadFactsForContext(context);
+      filteredOutput = ensureActionableNeedsInformation(
+        filterConfirmedQuestions(normalizeNeedsInformationOutput(recovered, recoveredFacts), recoveredFacts),
+        recoveredFacts
+      );
+      if (filteredOutput.status === "needs_information" && filteredOutput.nonBlockingNeedsInformation) {
+        const error = new Error("Agent returned non-actionable missing information twice");
+        error.code = "INVALID_AGENT_RESPONSE";
+        trace.draftBlockedBy = "unmappable_missing_information";
+        throw error;
+      }
+    } catch (error) {
+      throw buildAgentStageError("needs_information_recovery", error, trace);
+    }
+  }
+  logMissingInformationDecision({
+    access,
+    trace,
+    draftBlockedBy: filteredOutput.status === "needs_information" ? "actionable_question" : "",
+  });
   if (["draft_ready", "tailored_draft_ready"].includes(filteredOutput.status) && filteredOutput.draft) {
     let composedDraft;
     let sourceMap;
@@ -2942,6 +3048,8 @@ module.exports = {
   filterConfirmedQuestions,
   ensureActionableNeedsInformation,
   normalizeNeedsInformationOutput,
+  getRequiredCoreMissing,
+  buildRequiredCoreQuestions,
   getQuestionFieldKey,
   isDeferredTailorQuestion,
   buildGenerationCacheKey,

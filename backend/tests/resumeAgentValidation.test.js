@@ -324,9 +324,8 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
 }
 
 {
-  // A needs-information response must always leave the student with an
-  // answerable field. A project can exist while its description is genuinely
-  // absent, so section-level deduplication must not leave an empty question UI.
+  // Optional project detail is handled by the deterministic enrichment step;
+  // it must not become a blocking fallback after model normalization.
   const actionable = ensureActionableNeedsInformation(
     {
       status: "needs_information",
@@ -341,16 +340,16 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
     }
   );
   assert.strictEqual(actionable.status, "needs_information");
-  assert.strictEqual(actionable.questions.length, 1);
-  assert.strictEqual(actionable.questions[0].fieldKey, "project_description:portfolio-project-1");
+  assert.deepStrictEqual(actionable.questions.map((question) => question.fieldKey), ["full_name", "student_status", "major"]);
 }
 
 {
-  const blocked = ensureActionableNeedsInformation(
+  const required = ensureActionableNeedsInformation(
     { status: "needs_information", questions: [] },
     { profile: {}, resume: {}, sources: [], answers: [] }
   );
-  assert.strictEqual(blocked.status, "cannot_continue");
+  assert.strictEqual(required.status, "needs_information");
+  assert.deepStrictEqual(required.questions.map((question) => question.fieldKey), ["full_name", "student_status", "major"]);
 }
 
 {
@@ -445,7 +444,7 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
   };
   assert.doesNotThrow(() => assertTranslationIntegrity(arabic, clone(arabic)));
   const changed = clone(arabic);
-  changed.projects[0].title = "Programmer";
+  changed.projects[0].startDate = "2024-01-01";
   assert.throws(() => assertTranslationIntegrity(arabic, changed));
 }
 
