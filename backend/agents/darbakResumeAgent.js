@@ -476,6 +476,25 @@ const logMissingInformationDecision = ({ access = {}, trace = {}, enrichmentCand
   });
 };
 
+const buildGenerationVerifiedFacts = ({ canonicalResume = {}, storedResume = {}, portfolio = {}, contact = "" } = {}) => {
+  if (canonicalResume.verifiedResumeFacts) return canonicalResume.verifiedResumeFacts;
+  if (storedResume?._id) {
+    return {
+      personalInfo: storedResume.personalInfo || {},
+      education: storedResume.education || [],
+      experiences: storedResume.experiences || storedResume.experience || [],
+      projects: storedResume.projects || [],
+      certifications: storedResume.certifications || [],
+      volunteering: storedResume.volunteering || [],
+      languages: storedResume.languages || [],
+      links: storedResume.links || [],
+      skills: storedResume.skills || [],
+      professionalContext: "",
+    };
+  }
+  return buildVerifiedResumeFacts(portfolio, contact);
+};
+
 const OPTIONAL_MISSING_FIELD_KEYS = new Set([
   "phone",
   "professional_headline",
@@ -2565,8 +2584,12 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     profile || {},
     access?.contact || "",
   );
-  const rawVerifiedResumeFacts = canonicalResume.verifiedResumeFacts
-    || buildVerifiedResumeFacts(profile || {}, access?.contact || "");
+  const rawVerifiedResumeFacts = buildGenerationVerifiedFacts({
+    canonicalResume,
+    storedResume,
+    portfolio: profile || {},
+    contact: access?.contact || "",
+  });
   const verifiedResumeFacts = compactVerifiedResumeFacts(
     rawVerifiedResumeFacts,
     collectedFacts.answers
@@ -3050,6 +3073,7 @@ module.exports = {
   normalizeNeedsInformationOutput,
   getRequiredCoreMissing,
   buildRequiredCoreQuestions,
+  buildGenerationVerifiedFacts,
   getQuestionFieldKey,
   isDeferredTailorQuestion,
   buildGenerationCacheKey,

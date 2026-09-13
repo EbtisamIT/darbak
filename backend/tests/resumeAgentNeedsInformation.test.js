@@ -4,6 +4,7 @@ const {
   ensureActionableNeedsInformation,
   normalizeNeedsInformationOutput,
   getRequiredCoreMissing,
+  buildGenerationVerifiedFacts,
 } = require("../agents/darbakResumeAgent");
 
 const facts = {
@@ -24,6 +25,23 @@ const facts = {
   assert.strictEqual(normalized.questions[0].fieldKey, "project_description:project-1");
   assert.strictEqual(normalized.questions[0].inputType, "textarea");
   assert.strictEqual(normalized.questions[0].reason, "project_description_missing");
+}
+
+{
+  const resumeOnlyFacts = buildGenerationVerifiedFacts({
+    canonicalResume: { verifiedResumeFacts: null },
+    storedResume: {
+      _id: "resume-only",
+      personalInfo: { fullName: "Test User", major: "Business Administration", studentStatus: "student" },
+      projects: [{ id: "p1", title: "Customer project", description: "Analyzed survey responses." }],
+      certifications: [{ id: "c1", title: "Course" }],
+    },
+    portfolio: {},
+    contact: "test@example.com",
+  });
+  assert.deepStrictEqual(getRequiredCoreMissing(resumeOnlyFacts), []);
+  assert.strictEqual(resumeOnlyFacts.projects.length, 1);
+  assert.strictEqual(resumeOnlyFacts.certifications.length, 1);
 }
 
 {
