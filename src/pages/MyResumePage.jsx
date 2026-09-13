@@ -52,6 +52,7 @@ import {
 } from "../features/resume/resumeJourneyPersistence";
 import { getResumeStorageScope } from "../features/resume/resumeStorageScope";
 import { getResumeEntryRedirect } from "../features/resume/resumeRouteState";
+import { RESUME_FEATURE_FLAGS } from "../features/resume/resumeFeatureFlags";
 
 const LEGACY_LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
 const APPLICATION_PACK_RESULT_LOAD_ATTEMPTS = 3;
@@ -1317,7 +1318,7 @@ const MyResumePage = () => {
                 <FiRefreshCw aria-hidden="true" />
                 {translating ? "جاري الترجمة..." : "ترجمة EN"}
               </button>
-              {!editingTailoredVersion && resume.settings?.language !== "en" && <button
+              {RESUME_FEATURE_FLAGS.improveSummary && !editingTailoredVersion && resume.settings?.language !== "en" && <button
                 type="button"
                 className="resume-icon-button"
                 onClick={handleImproveSummary}
@@ -1606,7 +1607,7 @@ const MyResumePage = () => {
           <FiRefreshCw aria-hidden="true" />
           EN
         </button>
-        {!editingTailoredVersion && resume.settings?.language !== "en" && <button type="button" onClick={handleImproveSummary} disabled={summaryImproving}>
+        {RESUME_FEATURE_FLAGS.improveSummary && !editingTailoredVersion && resume.settings?.language !== "en" && <button type="button" onClick={handleImproveSummary} disabled={summaryImproving}>
           <FiRefreshCw aria-hidden="true" />
           {summaryImproving ? "جاري التحسين..." : "تحسين النبذة"}
         </button>}
