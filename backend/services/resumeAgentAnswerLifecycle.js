@@ -96,8 +96,14 @@ const buildUserSourceEnrichmentFacts = (facts = {}, portfolioFacts = {}) => {
   const selectEntries = (section) => (Array.isArray(facts[section]) ? facts[section] : []).map((entry) => {
     const id = cleanText(entry?.id || entry?._id, 120);
     const portfolioEntry = portfolioBySection[section].get(id) || {};
+    // Portfolio descriptions are written by the student. The Portfolio schema
+    // does not persist the ResumeProfile-only `userSourceDescription` marker,
+    // so reading only that marker makes a saved enrichment answer disappear
+    // on the next build and the same question is asked again.
     const userDescription = cleanText(
-      entry?.userSourceDescription || portfolioEntry?.userSourceDescription,
+      entry?.userSourceDescription
+      || portfolioEntry?.userSourceDescription
+      || portfolioEntry?.description,
       1600,
     );
     const legacyUserContributions = [

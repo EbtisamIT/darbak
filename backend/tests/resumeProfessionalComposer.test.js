@@ -79,6 +79,41 @@ assert.deepStrictEqual(composed.skills.map((skill) => skill.name), ["React.js", 
 assert.strictEqual(composed.education[0].organization, "University of Jeddah");
 assert.deepStrictEqual(composed.languages.map((language) => language.name), ["Arabic", "English"]);
 
+const personalOnlyEducationFacts = compactVerifiedResumeFacts({
+  personalInfo: {
+    degree: "بكالوريوس",
+    major: "نظم المعلومات",
+    university: "جامعة جدة",
+    city: "جدة",
+    studentStatus: "student",
+    studyStartYear: "2023",
+    expectedGraduationYear: "2027",
+    gpa: "4.5",
+    gpaScale: "5",
+  },
+  education: [],
+}, []);
+assert.strictEqual(personalOnlyEducationFacts.education.length, 1, "verified education must not disappear when setup facts are stored on personalInfo");
+assert.deepStrictEqual(personalOnlyEducationFacts.education[0], {
+  id: "verified-education",
+  title: "بكالوريوس",
+  organization: "جامعة جدة",
+  period: "2023 – 2027",
+  location: "جدة",
+  description: "المعدل: 4.5/5",
+});
+const personalOnlyEducationDraft = composeProfessionalDraft({
+  language: "ar",
+  verifiedFacts: personalOnlyEducationFacts,
+  draft: {
+    professionalSummary: "طالب نظم معلومات لديه خبرة تطبيقية من خلال مشروع جامعي. يوظف ما تعلمه في تنفيذ أعمال تقنية واضحة.",
+    education: [], experiences: [], projects: [], skills: [], certifications: [], volunteering: [], languages: [],
+  },
+});
+assert.strictEqual(personalOnlyEducationDraft.education.length, 1);
+assert.strictEqual(personalOnlyEducationDraft.education[0].organization, "جامعة جدة");
+assert.strictEqual(personalOnlyEducationDraft.education[0].major, "نظم المعلومات");
+
 const quality = runProfessionalQualityGate({ draft: composed, verifiedFacts: facts, language: "en" });
 assert.strictEqual(quality.needsRepair, false);
 

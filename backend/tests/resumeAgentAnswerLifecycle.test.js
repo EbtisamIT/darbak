@@ -170,6 +170,26 @@ const answeredPollutedFacts = mergeStructuredAnswersIntoFacts(pollutedPresentati
 assert.strictEqual(answeredPollutedFacts.projects[0].userSourceDescription, explicitProjectAnswer);
 assert.strictEqual(buildEnrichmentQuestions(answeredPollutedFacts, {}).some((question) => question.fieldKey === "project_description:customer-satisfaction"), false);
 
+// Portfolio owns this source text, but its schema stores it as `description`
+// rather than the ResumeProfile provenance field. It must still suppress the
+// question after a save/reload cycle.
+const reloadedPortfolioAnswer = buildUserSourceEnrichmentFacts({
+  projects: [{
+    id: "portfolio-project-answer",
+    title: "لوحة متابعة المبيعات",
+    description: "صياغة عرض قديمة أنشأها الوكيل.",
+  }],
+}, {
+  projects: [{
+    id: "portfolio-project-answer",
+    title: "لوحة متابعة المبيعات",
+    description: "حللت بيانات المبيعات وأنشأت لوحة لمقارنة أداء الفروع.",
+  }],
+});
+assert.strictEqual(reloadedPortfolioAnswer.projects[0].userSourceDescription, "حللت بيانات المبيعات وأنشأت لوحة لمقارنة أداء الفروع.");
+assert.strictEqual(getProjectEnrichmentStatus(reloadedPortfolioAnswer.projects[0]).complete, true);
+assert.strictEqual(buildEnrichmentQuestions(reloadedPortfolioAnswer, {}).length, 0);
+
 const clubWithoutContribution = {
   id: "entrepreneurship-club",
   title: "عضو في نادي ريادة الأعمال",

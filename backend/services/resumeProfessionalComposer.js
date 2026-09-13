@@ -268,9 +268,35 @@ const buildDeterministicHeadline = (personalInfo = {}, language = "ar") => {
 
 const compactVerifiedResumeFacts = (facts = {}, answers = []) => {
   const mergedFacts = mergeStructuredAnswersIntoFacts(facts, answers);
+  const personalInfo = mergedFacts.personalInfo || {};
+  const education = list(mergedFacts.education);
+  const graduationYear = personalInfo.expectedGraduationYear || personalInfo.graduationYear || "";
+  const studyPeriod = [personalInfo.studyStartYear, graduationYear].filter(Boolean).join(" – ");
+  const educationDetails = [
+    personalInfo.academicTrack ? `المسار الأكاديمي: ${personalInfo.academicTrack}` : "",
+    personalInfo.gpa ? `المعدل: ${personalInfo.gpa}${personalInfo.gpaScale ? `/${personalInfo.gpaScale}` : ""}` : "",
+    list(personalInfo.relevantCoursework).length
+      ? `مقررات ذات صلة: ${list(personalInfo.relevantCoursework).join("، ")}`
+      : "",
+  ].filter(Boolean).join(" · ");
+  // Setup stores education facts on personalInfo. Older and partially built
+  // ResumeProfiles may not yet have a materialized education entry; never let
+  // that representation detail erase verified education from the draft.
+  const verifiedEducation = education.length
+    ? education
+    : [personalInfo.degree, personalInfo.major, personalInfo.university].some(Boolean)
+      ? [{
+          id: "verified-education",
+          title: personalInfo.degree || personalInfo.major || "",
+          organization: personalInfo.university || "",
+          period: studyPeriod || graduationYear,
+          location: personalInfo.city || "",
+          description: educationDetails,
+        }]
+      : [];
   return {
-    personalInfo: mergedFacts.personalInfo || {},
-    education: list(mergedFacts.education).map((entry) => ({ id: entry.id, title: entry.title, organization: entry.organization, period: entry.period, location: entry.location, description: entry.description })),
+    personalInfo,
+    education: verifiedEducation.map((entry) => ({ id: entry.id, title: entry.title, organization: entry.organization, period: entry.period, location: entry.location, description: entry.description })),
     experiences: list(mergedFacts.experiences).map((entry) => ({
     id: entry.id,
     title: entry.title,
