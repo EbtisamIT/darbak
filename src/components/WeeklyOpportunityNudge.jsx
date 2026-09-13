@@ -19,6 +19,7 @@ export default function WeeklyOpportunityNudge() {
   const [highlight, setHighlight] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
   const timerRef = useRef(null);
+  const shownThisVisitRef = useRef(false);
   const isEligiblePath = ![
     "/where-to-train",
     "/subscribe",
@@ -70,7 +71,7 @@ export default function WeeklyOpportunityNudge() {
 
   useEffect(() => {
     clearTimer();
-    if (!isEligiblePath || !highlight || isVisible) return undefined;
+    if (!isEligiblePath || !highlight || isVisible || shownThisVisitRef.current) return undefined;
 
     const tryToShow = () => {
       if (
@@ -80,6 +81,10 @@ export default function WeeklyOpportunityNudge() {
         timerRef.current = window.setTimeout(tryToShow, RETRY_DELAY_MS);
         return;
       }
+      // Record the impression before opening the modal. This prevents route
+      // changes or another attention layer from scheduling it again.
+      shownThisVisitRef.current = true;
+      markWeeklyOpportunityNudgeSeen(highlight.periodKey);
       setIsVisible(true);
     };
 

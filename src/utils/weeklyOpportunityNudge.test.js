@@ -26,14 +26,14 @@ describe("weekly opportunity nudge", () => {
     });
   });
 
-  test("shows the same weekly batch only once", () => {
+  test("shows only once ever, even when a newer weekly batch is published", () => {
     expect(wasWeeklyOpportunityNudgeSeen("2026-09-07")).toBe(false);
     markWeeklyOpportunityNudgeSeen("2026-09-07");
     expect(
       window.localStorage.getItem(WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY)
-    ).toBe("2026-09-07");
+    ).toBe("seen");
     expect(wasWeeklyOpportunityNudgeSeen("2026-09-07")).toBe(true);
-    expect(wasWeeklyOpportunityNudgeSeen("2026-09-14")).toBe(false);
+    expect(wasWeeklyOpportunityNudgeSeen("2026-09-14")).toBe(true);
   });
 
   test("detects subscription and daily-limit attention layers", () => {

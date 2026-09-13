@@ -31,15 +31,23 @@ export const hasBlockingAttentionLayer = (documentRef = document) =>
   );
 
 export const wasWeeklyOpportunityNudgeSeen = (
-  periodKey,
-  storage = window.localStorage
-) => Boolean(periodKey && storage.getItem(WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY) === periodKey);
-
-export const markWeeklyOpportunityNudgeSeen = (
-  periodKey,
+  _periodKey,
   storage = window.localStorage
 ) => {
-  if (periodKey) {
-    storage.setItem(WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY, periodKey);
+  try {
+    return Boolean(storage.getItem(WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY));
+  } catch {
+    return false;
+  }
+};
+
+export const markWeeklyOpportunityNudgeSeen = (
+  _periodKey,
+  storage = window.localStorage
+) => {
+  try {
+    storage.setItem(WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY, "seen");
+  } catch {
+    // The nudge is optional; restricted storage must not break the page.
   }
 };
