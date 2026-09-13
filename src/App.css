@@ -1654,6 +1654,14 @@ body {
   flex-wrap: wrap;
 }
 
+.premium-payment-help {
+  max-width: 520px;
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 .payment-logo {
   min-height: 34px;
   min-width: 78px;

@@ -126,6 +126,9 @@ const PaymentMethods = () => (
         <strong>Pay</strong>
       </span>
     </div>
+    <p className="premium-payment-help">
+      هذه الشعارات توضح وسائل الدفع المتاحة وليست أزرارًا. أدخل بياناتك ثم اضغط «انتقل للدفع الآمن الآن».
+    </p>
   </div>
 );
 
