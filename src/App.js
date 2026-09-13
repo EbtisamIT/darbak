@@ -51,6 +51,9 @@ const PremiumAccessGate = lazy(() => import("./components/PremiumAccessGate"));
 const AccountModal = lazy(() => import("./components/AccountModal"));
 const SavedItemsDrawer = lazy(() => import("./components/SavedItemsDrawer"));
 const DarbakAssistant = lazy(() => import("./components/DarbakAssistant"));
+const WeeklyOpportunityNudge = lazy(() =>
+  import("./components/WeeklyOpportunityNudge")
+);
 
 const ADMIN_REVIEW_PATH = "/darbak-owner-review-2026";
 
@@ -1362,6 +1365,7 @@ function AppLayout({ theme, setTheme }) {
           <AccountModal />
           <SavedItemsDrawer />
           <DarbakAssistant />
+          <WeeklyOpportunityNudge />
         </Suspense>
       )}
 

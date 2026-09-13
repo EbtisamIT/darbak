@@ -14591,6 +14591,51 @@ app.get('/api/opportunities', async (req, res) => {
   }
 });
 
+app.get('/api/opportunities/weekly-highlight', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    const dayFromMonday = (now.getUTCDay() + 6) % 7;
+    startOfWeek.setUTCDate(now.getUTCDate() - dayFromMonday);
+    startOfWeek.setUTCHours(0, 0, 0, 0);
+    const periodKey = startOfWeek.toISOString().slice(0, 10);
+    const cacheKey = `opportunities:weekly-highlight:${periodKey}`;
+    const cached = getReadCache(cacheKey);
+    if (cached) return res.json(cached);
+
+    const filter = {
+      status: "active",
+      createdAt: { $gte: startOfWeek },
+    };
+    const [count, recentOpportunities] = await Promise.all([
+      Opportunity.countDocuments(filter),
+      Opportunity.find(filter)
+        .select("organizationName")
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .lean(),
+    ]);
+    const organizationNames = uniqueTruthy(
+      recentOpportunities.map((item) => item.organizationName)
+    ).slice(0, 4);
+
+    return res.json(
+      setReadCache(
+        cacheKey,
+        { count, organizationNames, periodKey },
+        15 * 60 * 1000
+      )
+    );
+  } catch (err) {
+    console.error("❌ Weekly opportunities highlight error:", err);
+    return res.status(500).json({ error: "Unable to fetch weekly opportunities" });
+  }
+});
+
 app.get('/api/opportunities/:id', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
