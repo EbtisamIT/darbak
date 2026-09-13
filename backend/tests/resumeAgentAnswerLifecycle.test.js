@@ -12,6 +12,7 @@ const {
   buildPendingProjectDescriptionQuestion,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
+  removeResolvedEnrichmentQuestions,
   revalidateEnrichmentQuestionQueue,
   upsertAnswersByFieldKey,
   validateProjectDescriptionAnswer,
@@ -24,6 +25,29 @@ assert.deepStrictEqual(parseStructuredAnswerFieldKey(fieldKey), {
   type: "project_description",
   itemId: "project-customer-satisfaction",
 });
+
+const pendingQuestionsAfterAcceptedAnswer = removeResolvedEnrichmentQuestions([
+  { fieldKey: "project_description:project-1" },
+  { fieldKey: "activity_description:activity-1" },
+], {
+  answers: [{ fieldKey: "project_description:project-1", answer: "نفذت المشروع" }],
+});
+assert.deepStrictEqual(
+  pendingQuestionsAfterAcceptedAnswer.map((question) => question.fieldKey),
+  ["activity_description:activity-1"],
+  "accepted enrichment answers must close their question before generation",
+);
+
+const pendingQuestionsAfterSkip = removeResolvedEnrichmentQuestions([
+  { fieldKey: "project_description:project-1" },
+], {
+  skippedFieldKeys: ["project_description:project-1"],
+});
+assert.deepStrictEqual(
+  pendingQuestionsAfterSkip,
+  [],
+  "skipped enrichment questions must not return after a generation failure",
+);
 assert.strictEqual(validateProjectDescriptionAnswer(validAnswer).accepted, true);
 assert.strictEqual(validateProjectDescriptionAnswer("مشروع جامعي").accepted, true);
 

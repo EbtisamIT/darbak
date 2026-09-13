@@ -94,6 +94,7 @@ const {
   getEnrichmentSourceSignature,
   getProjectEnrichmentStatus,
   parseStructuredAnswerFieldKey,
+  removeResolvedEnrichmentQuestions,
   revalidateEnrichmentQuestionQueue,
   upsertAnswersByFieldKey,
   validateProjectDescriptionAnswer,
@@ -9269,6 +9270,9 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
       });
     }
 
+    const pendingQuestionsBeforeResolution = Array.isArray(session.pendingQuestions)
+      ? session.pendingQuestions.map((question) => question.toObject?.() || question)
+      : [];
     const persistence = await persistAcceptedResumeAgentAnswers(req.darbakAccess, answers);
     if (!persistence.answerPersisted) {
       session.collectedFacts = { ...(session.collectedFacts || {}), answers: mergedAnswers };
@@ -9276,16 +9280,6 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
       await session.save();
       const error = new Error("The accepted resume answer could not be persisted to its source item.");
       error.code = "RESUME_ANSWER_PERSISTENCE_FAILED";
-      throw error;
-    }
-    const enrichmentStatePersisted = await persistResumeEnrichmentStates(req.darbakAccess, {
-      answers,
-      skippedFieldKeys,
-      pendingQuestions: session.pendingQuestions,
-    });
-    if (!enrichmentStatePersisted && (answers.length || skippedFieldKeys.length)) {
-      const error = new Error("The resume enrichment state could not be persisted.");
-      error.code = "RESUME_ENRICHMENT_STATE_PERSISTENCE_FAILED";
       throw error;
     }
     const nextAnsweredIds = Array.from(
@@ -9304,9 +9298,29 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
       ])),
     };
     session.answeredQuestionIds = Array.from(new Set([...nextAnsweredIds, ...skippedFieldKeys]));
+    // Close accepted/skipped questions before generation begins. The answer is
+    // already persisted to the owned source item, so a later model/network
+    // failure must never resurrect the same enrichment question.
+    session.pendingQuestions = removeResolvedEnrichmentQuestions(
+      pendingQuestionsBeforeResolution,
+      { answers, skippedFieldKeys },
+    );
     session.status = "generating";
     session.expiresAt = getResumeAgentExpiry();
+    session.markModified("pendingQuestions");
+    session.markModified("collectedFacts");
     await session.save();
+
+    const enrichmentStatePersisted = await persistResumeEnrichmentStates(req.darbakAccess, {
+      answers,
+      skippedFieldKeys,
+      pendingQuestions: pendingQuestionsBeforeResolution,
+    });
+    if (!enrichmentStatePersisted && (answers.length || skippedFieldKeys.length)) {
+      const error = new Error("The resume enrichment state could not be persisted.");
+      error.code = "RESUME_ENRICHMENT_STATE_PERSISTENCE_FAILED";
+      throw error;
+    }
 
     const agentResult = await runDarbakResumeAgent({
       access: req.darbakAccess,

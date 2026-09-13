@@ -290,6 +290,21 @@ const upsertAnswersByFieldKey = (existing = [], incoming = []) => {
   return Array.from(byKey.values()).slice(-40);
 };
 
+const removeResolvedEnrichmentQuestions = (pendingQuestions = [], {
+  answers = [],
+  skippedFieldKeys = [],
+} = {}) => {
+  const resolved = new Set([
+    ...(Array.isArray(answers) ? answers : []).map((answer) =>
+      cleanText(answer?.fieldKey || answer?.questionId, 160)),
+    ...(Array.isArray(skippedFieldKeys) ? skippedFieldKeys : []).map((fieldKey) =>
+      cleanText(fieldKey, 160)),
+  ].filter(Boolean));
+
+  return (Array.isArray(pendingQuestions) ? pendingQuestions : []).filter((question) =>
+    !resolved.has(cleanText(question?.fieldKey || question?.id, 160)));
+};
+
 const mergeStructuredAnswersIntoFacts = (facts = {}, answers = []) => {
   const projectAnswers = new Map();
   const experienceAnswers = new Map();
@@ -410,6 +425,7 @@ module.exports = {
   hasMeaningfulResumeDetail,
   mergeStructuredAnswersIntoFacts,
   parseStructuredAnswerFieldKey,
+  removeResolvedEnrichmentQuestions,
   revalidateEnrichmentQuestionQueue,
   upsertAnswersByFieldKey,
   validateProjectDescriptionAnswer,
