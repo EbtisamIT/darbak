@@ -3,6 +3,11 @@ const crypto = require("crypto");
 const { zodTextFormat } = require("openai/helpers/zod");
 const { z } = require("zod");
 const { normalizeResumeSkills } = require("./resumeSkillNormalization");
+const {
+  MAX_RESUME_TRANSLATIONS,
+  resumeTextTranslationSchema,
+  validateResumeTranslationCoverage,
+} = require("./resumeTranslationContract");
 
 const DEFAULT_RESUME_MODEL = "gpt-5.6-terra";
 const DEFAULT_LIGHT_MODEL = "gpt-5.6-luna";
@@ -196,29 +201,6 @@ const resumeEntryPayloadSchema = z
   })
   .strict();
 
-// Translation deliberately asks the model for short text replacements only.
-// Resume structure, IDs, dates and contact data remain entirely server-owned.
-const resumeTextTranslationSchema = z
-  .object({
-    translations: z
-      .array(
-        z
-          .object({
-            id: shortString(180),
-            text: shortString(1600),
-          })
-          .strict()
-      )
-      .max(240)
-      .default([]),
-  })
-  .strict();
-
-const getResumeTextTranslationSchema = (expectedCount) =>
-  resumeTextTranslationSchema.extend({
-    translations: resumeTextTranslationSchema.shape.translations.length(expectedCount),
-  });
-
 const SYSTEM_PROMPT = `أنت كاتب سير ذاتية متخصص في طلاب الجامعات والخريجين الجدد والمتقدمين للتدريب التعاوني في السعودية.
 
 حوّل المعلومات الخام إلى محتوى سيرة ذاتية مهني، مختصر وطبيعي ومتوافق مع ATS.
@@ -316,8 +298,9 @@ const createStructuredResponse = async ({
   instructions = SYSTEM_PROMPT,
   maxOutputTokens = 5500,
   safetyIdentifier = "",
+  clientOverride = null,
 }) => {
-  const client = getClient();
+  const client = clientOverride || getClient();
   let response;
   try {
     response = await client.responses.parse({
@@ -762,7 +745,12 @@ const applyResumeTranslations = (resume, items, translations) => {
   return { resume: translatedResume, appliedCount };
 };
 
-const translateResumeToEnglish = async ({ resume, userKey, translationItems: requestedItems }) => {
+const translateResumeToEnglish = async ({
+  resume,
+  userKey,
+  translationItems: requestedItems,
+  clientOverride = null,
+}) => {
   const translationItems = Array.isArray(requestedItems)
     ? requestedItems
     : collectResumeTextForTranslation(resume);
@@ -771,15 +759,21 @@ const translateResumeToEnglish = async ({ resume, userKey, translationItems: req
     error.code = "RESUME_TRANSLATION_EMPTY";
     throw error;
   }
+  if (translationItems.length > MAX_RESUME_TRANSLATIONS) {
+    const error = new Error("تجاوزت دفعة الترجمة الحد المسموح.");
+    error.code = "RESUME_TRANSLATION_BATCH_TOO_LARGE";
+    throw error;
+  }
 
   const result = await createStructuredResponse({
     model:
       process.env.OPENAI_RESUME_AGENT_MODEL ||
       process.env.OPENAI_RESUME_LIGHT_MODEL ||
       DEFAULT_RESUME_MODEL,
-    schema: getResumeTextTranslationSchema(translationItems.length),
+    schema: resumeTextTranslationSchema,
     schemaName: "darbak_resume_text_translation_en",
     safetyIdentifier: userKey,
+    clientOverride,
     maxOutputTokens: Math.min(9000, Math.max(1800, translationItems.length * 70)),
     instructions: `${SYSTEM_PROMPT}
 
@@ -787,7 +781,8 @@ You translate only the provided resume text snippets into formal, practical, err
     input: `Translate every text item below. Return the same id for each translation and no new ids. This is a JSON translation task.\n\n${safeJsonInput({ items: translationItems.map(({ id, text }) => ({ id, text })) })}`,
   });
 
-  const merged = applyResumeTranslations(resume, translationItems, result.data.translations);
+  const completeTranslations = validateResumeTranslationCoverage(translationItems, result.data);
+  const merged = applyResumeTranslations(resume, translationItems, completeTranslations);
   if (!merged.appliedCount) {
     const error = new Error("لم تكتمل ترجمة النصوص المطلوبة.");
     error.code = "OPENAI_PARSE_EMPTY";
@@ -1147,5 +1142,8 @@ module.exports = {
   assertTranslationIntegrity,
   assertEnglishSummaryIntegrity,
   getEnglishSummaryIntegrityIssues,
+  resumeTextTranslationSchema,
+  MAX_RESUME_TRANSLATIONS,
+  validateResumeTranslationCoverage,
   tailoredResumeDraftSchema,
 };

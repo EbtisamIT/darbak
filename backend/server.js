@@ -10893,6 +10893,16 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       validationRule: err.validationRule || "",
     });
     const response = getResumeAiErrorResponse(err);
+    if (
+      response.status >= 500 ||
+      err.name === "ZodError" ||
+      String(err.code || "").startsWith("RESUME_TRANSLATION_")
+    ) {
+      return res.status(response.status >= 500 ? response.status : 502).json({
+        error: "تعذر تجهيز النسخة الإنجليزية الآن. سيرتك العربية محفوظة ولم تتأثر، حاول مرة أخرى بعد قليل.",
+        reason: "english_translation_failed",
+      });
+    }
     return res.status(response.status).json(response.body);
   }
 });
