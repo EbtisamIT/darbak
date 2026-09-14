@@ -452,10 +452,10 @@ const needsLocalizationReview = (resume, key, source, translated) => {
   const review = getReviewState(resume, key);
   const approved = review.status === "approved" || review.approved === true;
   if (!approved) return true;
-  const recordedSource = review.sourceText || review.source || "";
-  if (recordedSource) return recordedSource !== source;
   const expectedHash = resume.localizedDisplay?.sourceHashes?.[translationIdForReviewKey(key)];
   if (expectedHash && review.sourceHash) return expectedHash !== review.sourceHash;
+  const recordedSource = review.sourceText || review.source || "";
+  if (recordedSource) return recordedSource !== source;
   return true;
 };
 

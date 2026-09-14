@@ -93,6 +93,7 @@ const {
   applyActivityDescriptionAnswer,
   applyExperienceDescriptionAnswer,
   applyProjectDescriptionAnswer,
+  buildPresentationSourceHashes,
   buildUserSourceEnrichmentFacts,
   getEnrichmentSourceSignature,
   getProjectEnrichmentStatus,
@@ -9762,6 +9763,9 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
       sectionOrder: RESUME_SECTION_KEYS,
     });
     payload.workflow = buildLastBuiltFactsWorkflow(payload.workflow || {}, latestVerifiedResume.verifiedResumeFacts || {});
+    payload.workflow.presentationSourceHashes = buildPresentationSourceHashes(
+      buildUserSourceEnrichmentFacts(latestVerifiedResume.verifiedResumeFacts || {}),
+    );
 
     const resume = await ResumeProfile.findOneAndUpdate(
       {

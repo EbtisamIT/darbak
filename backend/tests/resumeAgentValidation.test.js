@@ -223,6 +223,38 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
 }
 
 {
+  const sourceOwnedBase = {
+    personalInfo: {
+      fullName: "Noura Abdullah Alotaibi",
+      major: "Business Administration",
+      studentStatus: "student",
+    },
+    projects: [{
+      id: "project-source-owned",
+      title: "تحليل رضا العملاء",
+      userSourceDescription: "حللت الاستبيان وصنفت أسباب عدم الرضا.",
+      userSourceContributions: ["عرضت النتائج في تقرير."],
+      technologies: ["Microsoft Excel"],
+    }],
+    settings: { language: "ar" },
+  };
+  const mapped = mapDraftToResumePayload({
+    ...validDraft,
+    projects: [{
+      sourceId: "project-source-owned",
+      name: "تحليل رضا العملاء",
+      description: "صياغة مهنية للمشروع.",
+      technologies: ["Microsoft Excel"],
+      bullets: ["حلّل بيانات الاستبيان وصنّف أبرز أسباب عدم الرضا."],
+    }],
+  }, sourceOwnedBase, { basic: sourceOwnedBase.personalInfo }, "ar");
+  assert.strictEqual(mapped.projects[0].description, "صياغة مهنية للمشروع.");
+  assert.strictEqual(mapped.projects[0].userSourceDescription, sourceOwnedBase.projects[0].userSourceDescription);
+  assert.deepStrictEqual(mapped.projects[0].userSourceContributions, sourceOwnedBase.projects[0].userSourceContributions);
+  assert.deepStrictEqual(mapped.projects[0].technologies, sourceOwnedBase.projects[0].technologies);
+}
+
+{
   const approvedDraft = {
     professionalSummary: "Approved professional summary marker.",
     experiences: [{ sourceId: "experience-1", bullets: ["Approved experience bullet marker."] }],

@@ -201,6 +201,7 @@ const resumeProfileSchema = new mongoose.Schema(
       lastBuiltFactsSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
       lastBuiltAt: { type: Date },
       enrichmentStates: { type: mongoose.Schema.Types.Mixed, default: {} },
+      presentationSourceHashes: { type: mongoose.Schema.Types.Mixed, default: {} },
     },
     rawDraftInput: {
       type: mongoose.Schema.Types.Mixed,

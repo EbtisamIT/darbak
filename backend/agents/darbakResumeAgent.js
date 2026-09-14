@@ -18,7 +18,14 @@ const {
   getQualityFailureSections,
 } = require("../services/resumeProfessionalComposer");
 const { buildVerifiedResumeFacts, composeCanonicalResume } = require("../services/resumePortfolioHydration");
-const { buildEnrichmentDiagnostics, buildEnrichmentQuestions, buildUserSourceEnrichmentFacts, upsertAnswersByFieldKey } = require("../services/resumeAgentAnswerLifecycle");
+const {
+  buildEnrichmentDiagnostics,
+  buildEnrichmentQuestions,
+  buildUserSourceEnrichmentFacts,
+  mergePresentationHashesFromEnrichmentStates,
+  preserveFreshApprovedPresentation,
+  upsertAnswersByFieldKey,
+} = require("../services/resumeAgentAnswerLifecycle");
 const { getResumeFactsFreshness } = require("../services/resumeFactsFreshness");
 
 setSensitiveDataLoggingEnabled(false);
@@ -2828,6 +2835,17 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
         language: session.language,
         preserveSummary: Boolean(summaryProvenance.summarySourceAtSave),
       });
+      const preservedPresentation = preserveFreshApprovedPresentation({
+        draft: composedDraft,
+        currentUserFacts: enrichmentSourceFacts,
+        approvedResume: storedResume || {},
+        presentationSourceHashes: mergePresentationHashesFromEnrichmentStates(
+          storedResume?.workflow?.presentationSourceHashes || {},
+          storedResume?.workflow?.enrichmentStates || {},
+        ),
+      });
+      composedDraft = preservedPresentation.draft;
+      trace.preservedPresentationItems = preservedPresentation.preservedItemKeys;
     } catch (error) {
       throw buildAgentStageError("professional_composer", error, trace);
     }
@@ -2916,6 +2934,18 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
           verifiedFacts: verifiedResumeFacts,
           language: session.language,
         });
+        const preservedRepairedPresentation = preserveFreshApprovedPresentation({
+          draft: repairedDraft,
+          currentUserFacts: enrichmentSourceFacts,
+          approvedResume: storedResume || {},
+          presentationSourceHashes: mergePresentationHashesFromEnrichmentStates(
+            storedResume?.workflow?.presentationSourceHashes || {},
+            storedResume?.workflow?.enrichmentStates || {},
+          ),
+        });
+        repairedDraft.projects = preservedRepairedPresentation.draft.projects;
+        repairedDraft.experiences = preservedRepairedPresentation.draft.experiences;
+        repairedDraft.volunteering = preservedRepairedPresentation.draft.volunteering;
         const repairedSourceMap = buildDeterministicSourceMap(repairedDraft, facts);
         const repairedValidation = validateResumeClaims({
           draft: repairedDraft,

@@ -88,6 +88,80 @@ const getEnrichmentSourceSignature = (entry = {}) => crypto.createHash("sha256")
     : cleanText(entry?.technologies || entry?.tools, 400),
 })).digest("hex");
 
+const PRESENTATION_SECTIONS = ["projects", "experiences", "volunteering"];
+
+const buildPresentationSourceHashes = (facts = {}) => Object.fromEntries(
+  PRESENTATION_SECTIONS.flatMap((section) => (Array.isArray(facts[section]) ? facts[section] : [])
+    .map((entry) => {
+      const itemId = cleanText(entry?.id || entry?._id, 120);
+      return itemId ? [`${section}:${itemId}`, getEnrichmentSourceSignature(entry)] : null;
+    })
+    .filter(Boolean)),
+);
+
+const mergePresentationHashesFromEnrichmentStates = (hashes = {}, states = {}) => {
+  const sectionByQuestionType = {
+    project_description: "projects",
+    experience_description: "experiences",
+    activity_description: "volunteering",
+  };
+  const merged = { ...(hashes || {}) };
+  Object.entries(states && typeof states === "object" ? states : {}).forEach(([fieldKey, state]) => {
+    const parsed = parseStructuredAnswerFieldKey(fieldKey);
+    const section = sectionByQuestionType[parsed?.type];
+    if (
+      section
+      && parsed?.itemId
+      && ["answered", "skipped"].includes(state?.status)
+      && state?.sourceSignature
+      && !merged[`${section}:${parsed.itemId}`]
+    ) {
+      merged[`${section}:${parsed.itemId}`] = state.sourceSignature;
+    }
+  });
+  return merged;
+};
+
+const preserveFreshApprovedPresentation = ({
+  draft = {},
+  currentUserFacts = {},
+  approvedResume = {},
+  presentationSourceHashes = {},
+} = {}) => {
+  if (approvedResume?.aiDraftStatus !== "approved") {
+    return { draft, preservedItemKeys: [] };
+  }
+  const nextDraft = { ...draft };
+  const preservedItemKeys = [];
+  PRESENTATION_SECTIONS.forEach((section) => {
+    const approvedEntries = section === "experiences"
+      ? approvedResume.experiences || approvedResume.experience || []
+      : approvedResume[section] || [];
+    const approvedById = new Map(approvedEntries.map((entry) => [cleanText(entry?.id || entry?._id, 120), entry]));
+    const factsById = new Map((Array.isArray(currentUserFacts[section]) ? currentUserFacts[section] : [])
+      .map((entry) => [cleanText(entry?.id || entry?._id, 120), entry]));
+    nextDraft[section] = (Array.isArray(draft[section]) ? draft[section] : []).map((entry) => {
+      const itemId = cleanText(entry?.sourceId || entry?.id || entry?._id, 120);
+      const itemKey = `${section}:${itemId}`;
+      const approvedEntry = approvedById.get(itemId);
+      const currentFact = factsById.get(itemId);
+      const approvedBullets = (Array.isArray(approvedEntry?.achievements) ? approvedEntry.achievements : [])
+        .map((item) => cleanText(item?.text || item, 600))
+        .filter(Boolean);
+      if (
+        !itemId
+        || !currentFact
+        || !approvedBullets.length
+        || !presentationSourceHashes[itemKey]
+        || presentationSourceHashes[itemKey] !== getEnrichmentSourceSignature(currentFact)
+      ) return entry;
+      preservedItemKeys.push(itemKey);
+      return { ...entry, bullets: approvedBullets };
+    });
+  });
+  return { draft: nextDraft, preservedItemKeys };
+};
+
 const buildUserSourceEnrichmentFacts = (facts = {}, portfolioFacts = {}) => {
   const portfolioBySection = Object.fromEntries(["projects", "experiences", "volunteering"].map((section) => [
     section,
@@ -416,6 +490,7 @@ module.exports = {
   applyActivityDescriptionAnswer,
   buildEnrichmentQuestions,
   buildEnrichmentDiagnostics,
+  buildPresentationSourceHashes,
   buildUserSourceEnrichmentFacts,
   getActivityEnrichmentStatus,
   getExperienceEnrichmentStatus,
@@ -424,7 +499,9 @@ module.exports = {
   buildPendingProjectDescriptionQuestion,
   hasMeaningfulResumeDetail,
   mergeStructuredAnswersIntoFacts,
+  mergePresentationHashesFromEnrichmentStates,
   parseStructuredAnswerFieldKey,
+  preserveFreshApprovedPresentation,
   removeResolvedEnrichmentQuestions,
   revalidateEnrichmentQuestionQueue,
   upsertAnswersByFieldKey,

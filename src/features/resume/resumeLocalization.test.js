@@ -494,6 +494,37 @@ describe("English resume presentation", () => {
     expect(resume.projects[0].title).toBe("نظام حجز مواعيد");
   });
 
+  it("never reopens an approved item with the same source hash after reload or an unrelated edit", () => {
+    const resume = {
+      ...englishResume,
+      projects: [{ id: "approved-project", title: "نظام حجز مواعيد", achievements: [] }],
+      localizedDisplay: {
+        entries: { "projects:approved-project": { title: "Appointment Booking System" } },
+        sourceHashes: { "projects:approved-project:title": "same-source-hash" },
+        review: {
+          "entries:projects:approved-project:title": {
+            status: "approved",
+            approvedByUser: true,
+            sourceHash: "same-source-hash",
+            targetText: "Appointment Booking System",
+          },
+        },
+      },
+    };
+
+    expect(getEnglishReviewItems(resume)).toEqual([]);
+    expect(getEnglishReviewItems({ ...resume, personalInfo: { ...resume.personalInfo, phone: "0550000000" } })).toEqual([]);
+
+    const changedSource = {
+      ...resume,
+      localizedDisplay: {
+        ...resume.localizedDisplay,
+        sourceHashes: { "projects:approved-project:title": "changed-source-hash" },
+      },
+    };
+    expect(getEnglishReviewItems(changedSource).some((item) => item.entryId === "approved-project")).toBe(true);
+  });
+
   it("uses canonical list values without asking for manual English localization", () => {
     const resume = {
       ...englishResume,

@@ -922,6 +922,24 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
           : masterSummary || draftSummary
     )
     : draftSummary;
+  const preserveSourceOwnedFacts = (entries = [], sourceEntries = []) => {
+    const sourceById = new Map((Array.isArray(sourceEntries) ? sourceEntries : [])
+      .map((entry) => [String(entry?.id || entry?._id || "").trim(), entry]));
+    return entries.map((entry) => {
+      const source = sourceById.get(String(entry?.id || "").trim());
+      if (!source) return entry;
+      return {
+        ...entry,
+        userSourceDescription: source.userSourceDescription || "",
+        userSourceContributions: Array.isArray(source.userSourceContributions)
+          ? source.userSourceContributions
+          : [],
+        technologies: Array.isArray(source.technologies)
+          ? source.technologies
+          : Array.isArray(source.tools) ? source.tools : [],
+      };
+    });
+  };
 
   const personalInfo = {
     ...(baseResume.personalInfo || {}),
@@ -1075,6 +1093,15 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
     payload.languages = baseResume.languages || [];
   }
   payload.skills = normalizeResumeSkills(payload.skills);
+  if (!options.preserveIdentity) {
+    payload.projects = preserveSourceOwnedFacts(payload.projects, baseResume.projects);
+    payload.experiences = preserveSourceOwnedFacts(
+      payload.experiences,
+      baseResume.experiences || baseResume.experience,
+    );
+    payload.experience = payload.experiences;
+    payload.volunteering = preserveSourceOwnedFacts(payload.volunteering, baseResume.volunteering);
+  }
   payload.summary = approvedPresentationSummary || payload.summary || fallbackSummary || "";
   return payload;
 };

@@ -4,6 +4,7 @@ const {
   applyExperienceDescriptionAnswer,
   applyActivityDescriptionAnswer,
   buildEnrichmentQuestions,
+  buildPresentationSourceHashes,
   buildUserSourceEnrichmentFacts,
   getEnrichmentSourceSignature,
   getActivityEnrichmentStatus,
@@ -11,7 +12,9 @@ const {
   getProjectEnrichmentStatus,
   buildPendingProjectDescriptionQuestion,
   mergeStructuredAnswersIntoFacts,
+  mergePresentationHashesFromEnrichmentStates,
   parseStructuredAnswerFieldKey,
+  preserveFreshApprovedPresentation,
   removeResolvedEnrichmentQuestions,
   revalidateEnrichmentQuestionQueue,
   upsertAnswersByFieldKey,
@@ -288,6 +291,78 @@ assert.deepStrictEqual(
 assert.deepStrictEqual(revalidatedAfterProjectEdit.staleQuestionKeys, [staleProjectQuestion.fieldKey]);
 assert.strictEqual(revalidatedAfterProjectEdit.staleQuestionRemoved, true);
 assert.strictEqual(revalidatedAfterProjectEdit.questions[0].sourceFactsVersion, "facts-after-edit");
+
+const approvedUserFacts = {
+  projects: [{
+    id: "project-preserved",
+    title: "تحليل رضا العملاء",
+    userSourceDescription: "حللت الاستبيان وصنفت أسباب عدم الرضا.",
+  }],
+  experiences: [{
+    id: "experience-preserved",
+    title: "متدرب إداري",
+    userSourceContributions: ["أعددت التقارير الأسبوعية."],
+  }],
+};
+const approvedPresentationHashes = buildPresentationSourceHashes(approvedUserFacts);
+assert.deepStrictEqual(mergePresentationHashesFromEnrichmentStates({}, {
+  "project_description:project-preserved": {
+    status: "answered",
+    sourceSignature: approvedPresentationHashes["projects:project-preserved"],
+  },
+}), {
+  "projects:project-preserved": approvedPresentationHashes["projects:project-preserved"],
+});
+const preservedAfterUnrelatedEdit = preserveFreshApprovedPresentation({
+  draft: {
+    projects: [{ sourceId: "project-preserved", bullets: ["صياغة جديدة غير معتمدة."] }],
+    experiences: [{ sourceId: "experience-preserved", bullets: ["صياغة خبرة جديدة غير معتمدة."] }],
+    volunteering: [],
+  },
+  currentUserFacts: approvedUserFacts,
+  approvedResume: {
+    aiDraftStatus: "approved",
+    projects: [{ id: "project-preserved", achievements: [{ text: "حلّل بيانات الاستبيان وصنّف أسباب عدم الرضا." }] }],
+    experiences: [{ id: "experience-preserved", achievements: [{ text: "إعداد التقارير الأسبوعية لدعم متابعة الأعمال." }] }],
+  },
+  presentationSourceHashes: approvedPresentationHashes,
+});
+assert.deepStrictEqual(preservedAfterUnrelatedEdit.draft.projects[0].bullets, [
+  "حلّل بيانات الاستبيان وصنّف أسباب عدم الرضا.",
+]);
+assert.deepStrictEqual(preservedAfterUnrelatedEdit.draft.experiences[0].bullets, [
+  "إعداد التقارير الأسبوعية لدعم متابعة الأعمال.",
+]);
+assert.deepStrictEqual(preservedAfterUnrelatedEdit.preservedItemKeys.sort(), [
+  "experiences:experience-preserved",
+  "projects:project-preserved",
+]);
+
+const changedProjectFacts = {
+  ...approvedUserFacts,
+  projects: [{
+    ...approvedUserFacts.projects[0],
+    userSourceDescription: "حللت الاستبيان وقدمت تقريرًا محدثًا للإدارة.",
+  }],
+};
+const staleProjectPresentation = preserveFreshApprovedPresentation({
+  draft: {
+    projects: [{ sourceId: "project-preserved", bullets: ["صياغة المشروع بعد تغير مصدره."] }],
+    experiences: [{ sourceId: "experience-preserved", bullets: ["صياغة خبرة جديدة غير معتمدة."] }],
+    volunteering: [],
+  },
+  currentUserFacts: changedProjectFacts,
+  approvedResume: {
+    aiDraftStatus: "approved",
+    projects: [{ id: "project-preserved", achievements: [{ text: "الصياغة القديمة للمشروع." }] }],
+    experiences: [{ id: "experience-preserved", achievements: [{ text: "إعداد التقارير الأسبوعية لدعم متابعة الأعمال." }] }],
+  },
+  presentationSourceHashes: approvedPresentationHashes,
+});
+assert.deepStrictEqual(staleProjectPresentation.draft.projects[0].bullets, ["صياغة المشروع بعد تغير مصدره."]);
+assert.deepStrictEqual(staleProjectPresentation.draft.experiences[0].bullets, [
+  "إعداد التقارير الأسبوعية لدعم متابعة الأعمال.",
+]);
 
 const removedProjectReappearsOnlyWhenIncomplete = revalidateEnrichmentQuestionQueue({
   facts: { projects: [{ id: "customer-satisfaction-stale", title: "تحليل رضا العملاء" }] },
