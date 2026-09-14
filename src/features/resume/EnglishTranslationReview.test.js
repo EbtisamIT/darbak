@@ -120,17 +120,17 @@ describe("English translation review state", () => {
       .toBe("Translated Project");
   });
 
-  test("one approval click produces exactly one mutation callback", async () => {
-    const onApproveGroup = jest.fn().mockResolvedValue({});
+  test("one approval click produces exactly one persistence write", async () => {
+    const persistenceWrite = jest.fn().mockResolvedValue({});
     render(
       <EnglishTranslationReview
         resume={{}}
-        onApproveGroup={onApproveGroup}
+        onApproveGroup={persistenceWrite}
         onOpenEditor={() => {}}
       />,
     );
 
     fireEvent.click(screen.getAllByRole("button", { name: "اعتماد" })[0]);
-    await waitFor(() => expect(onApproveGroup).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(persistenceWrite).toHaveBeenCalledTimes(1));
   });
 });

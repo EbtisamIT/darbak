@@ -109,6 +109,44 @@ assert.strictEqual(pendingQuestion.inputType, "textarea");
 assert.strictEqual(buildPendingProjectDescriptionQuestion(facts, { skippedFieldKeys: [fieldKey] }), null);
 assert.strictEqual(buildPendingProjectDescriptionQuestion(merged, { answers }), null);
 
+// Stability guard: persisted answered states survive a rebuild and an
+// unrelated personal-field edit without reopening the same item question.
+const answeredProjectEntry = {
+  id: "project-answered-rebuild",
+  title: "تحليل رضا العملاء",
+  userSourceDescription: validAnswer,
+};
+const answeredProjectState = JSON.parse(JSON.stringify({
+  enrichmentStates: {
+    "project_description:project-answered-rebuild": {
+      status: "answered",
+      sourceSignature: getEnrichmentSourceSignature(answeredProjectEntry),
+    },
+  },
+}));
+assert.strictEqual(buildEnrichmentQuestions({
+  personalInfo: { phone: "0500000000" },
+  projects: [answeredProjectEntry],
+}, answeredProjectState).length, 0, "an answered project question does not reappear on rebuild");
+
+const answeredExperienceEntry = {
+  id: "experience-answered-rebuild",
+  title: "تدريب إداري",
+  userSourceContributions: ["أعددت التقارير الأسبوعية ونظمت السجلات."],
+};
+const answeredExperienceState = JSON.parse(JSON.stringify({
+  enrichmentStates: {
+    "experience_description:experience-answered-rebuild": {
+      status: "answered",
+      sourceSignature: getEnrichmentSourceSignature(answeredExperienceEntry),
+    },
+  },
+}));
+assert.strictEqual(buildEnrichmentQuestions({
+  personalInfo: { gpa: "4.50", gpaScale: "5" },
+  experiences: [answeredExperienceEntry],
+}, answeredExperienceState).length, 0, "an answered experience question does not reappear on rebuild");
+
 const rankedQuestions = buildEnrichmentQuestions({
   experiences: [{ id: "experience-1", title: "تدريب محاسبي" }],
   projects: [{ id: "project-1", title: "لوحة مبيعات" }],
@@ -238,6 +276,9 @@ assert.strictEqual(buildEnrichmentQuestions({
   volunteering: [clubWithoutContribution],
   skills: ["Microsoft Excel", "Power BI"],
 }, persistedSkippedState).length, 0);
+assert.strictEqual(buildEnrichmentQuestions({
+  volunteering: [clubWithoutContribution],
+}, JSON.parse(JSON.stringify(persistedSkippedState))).length, 0, "a persisted skip does not reappear after reload");
 assert.deepStrictEqual(buildEnrichmentQuestions({
   volunteering: [{ ...clubWithoutContribution, title: "قائد فريق نادي ريادة الأعمال" }],
 }, persistedSkippedState).map((question) => question.fieldKey), [clubFieldKey]);
@@ -303,6 +344,11 @@ const approvedUserFacts = {
     title: "متدرب إداري",
     userSourceContributions: ["أعددت التقارير الأسبوعية."],
   }],
+  volunteering: [{
+    id: "activity-preserved",
+    title: "نادي ريادة الأعمال",
+    userSourceContributions: ["نظمت لقاءً تعريفيًا للطلاب."],
+  }],
 };
 const approvedPresentationHashes = buildPresentationSourceHashes(approvedUserFacts);
 assert.deepStrictEqual(mergePresentationHashesFromEnrichmentStates({}, {
@@ -317,13 +363,14 @@ const preservedAfterUnrelatedEdit = preserveFreshApprovedPresentation({
   draft: {
     projects: [{ sourceId: "project-preserved", bullets: ["صياغة جديدة غير معتمدة."] }],
     experiences: [{ sourceId: "experience-preserved", bullets: ["صياغة خبرة جديدة غير معتمدة."] }],
-    volunteering: [],
+    volunteering: [{ sourceId: "activity-preserved", bullets: ["صياغة نشاط جديدة غير معتمدة."] }],
   },
   currentUserFacts: approvedUserFacts,
   approvedResume: {
     aiDraftStatus: "approved",
     projects: [{ id: "project-preserved", achievements: [{ text: "حلّل بيانات الاستبيان وصنّف أسباب عدم الرضا." }] }],
     experiences: [{ id: "experience-preserved", achievements: [{ text: "إعداد التقارير الأسبوعية لدعم متابعة الأعمال." }] }],
+    volunteering: [{ id: "activity-preserved", achievements: [{ text: "تنظيم لقاء تعريفي لأعضاء النادي." }] }],
   },
   presentationSourceHashes: approvedPresentationHashes,
 });
@@ -333,9 +380,13 @@ assert.deepStrictEqual(preservedAfterUnrelatedEdit.draft.projects[0].bullets, [
 assert.deepStrictEqual(preservedAfterUnrelatedEdit.draft.experiences[0].bullets, [
   "إعداد التقارير الأسبوعية لدعم متابعة الأعمال.",
 ]);
+assert.deepStrictEqual(preservedAfterUnrelatedEdit.draft.volunteering[0].bullets, [
+  "تنظيم لقاء تعريفي لأعضاء النادي.",
+]);
 assert.deepStrictEqual(preservedAfterUnrelatedEdit.preservedItemKeys.sort(), [
   "experiences:experience-preserved",
   "projects:project-preserved",
+  "volunteering:activity-preserved",
 ]);
 
 const changedProjectFacts = {

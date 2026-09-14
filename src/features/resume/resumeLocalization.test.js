@@ -514,6 +514,10 @@ describe("English resume presentation", () => {
 
     expect(getEnglishReviewItems(resume)).toEqual([]);
     expect(getEnglishReviewItems({ ...resume, personalInfo: { ...resume.personalInfo, phone: "0550000000" } })).toEqual([]);
+    const afterRefresh = JSON.parse(JSON.stringify(resume));
+    const afterLogoutLogin = JSON.parse(JSON.stringify(afterRefresh));
+    expect(getEnglishReviewItems(afterRefresh)).toEqual([]);
+    expect(getEnglishReviewItems(afterLogoutLogin)).toEqual([]);
 
     const changedSource = {
       ...resume,
