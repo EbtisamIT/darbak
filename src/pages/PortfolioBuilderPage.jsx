@@ -15,6 +15,7 @@ import {
   saveAccessIdentity,
 } from "../utils/premiumAccess";
 import { getVisitorId, trackEvent } from "../utils/analytics";
+import { shouldHydrateFormSaveResponse } from "../utils/formAutosave";
 import {
   getResumeSetupCompleteness,
   getResumeSetupInputId,
@@ -1044,7 +1045,11 @@ export default function PortfolioBuilderPage() {
       );
 
       const hasNewerChanges = revisionRef.current !== snapshotRevision;
-      if (!hasNewerChanges) {
+      // Autosave responses contain server-normalized values (trimmed text,
+      // filtered empty rows and normalized lists). They are persistence
+      // acknowledgements, not a new editing source, so applying them while the
+      // student is typing can move the cursor or make partial text disappear.
+      if (shouldHydrateFormSaveResponse({ manual, hasNewerChanges })) {
         hasLoadedPortfolioRef.current = false;
         const normalizedPortfolio = normalizeForm(data.portfolio);
         ["projects", "certifications", "courses", "experiences"].forEach((listName) => {

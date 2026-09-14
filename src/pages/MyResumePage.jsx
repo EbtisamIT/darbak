@@ -20,6 +20,7 @@ import {
   getSubscriptionCapabilities,
 } from "../utils/premiumAccess";
 import { getVisitorId, trackEvent, trackEventOncePerSession } from "../utils/analytics";
+import { isCurrentAutosaveResponse } from "../utils/formAutosave";
 import ResumeAgentFlow, { getAgentSessionStorageKey } from "../features/resume/ResumeAgentFlow";
 import ResumeBuilder, { SettingsEditor } from "../features/resume/ResumeBuilder";
 import EnglishTranslationReview from "../features/resume/EnglishTranslationReview";
@@ -445,16 +446,21 @@ const MyResumePage = () => {
           const saved = normalizeResume(data.resume || resumeOverride);
           // Do not hydrate a late response over text the student typed after
           // this request started. The newer debounce will save that text next.
-          if (
-            requestId !== factsSaveRequestRef.current ||
-            latestResumeSnapshotRef.current !== submittedSnapshot
-          ) {
+          if (!isCurrentAutosaveResponse({
+            requestId,
+            latestRequestId: factsSaveRequestRef.current,
+            submittedSnapshot,
+            latestSnapshot: latestResumeSnapshotRef.current,
+          })) {
             return true;
           }
-          setResume(saved);
+          // Keep the live editor state authoritative while typing. The facts
+          // endpoint returns a normalized/composed payload which may trim a
+          // partial value or filter a newly added row; hydrating it here makes
+          // text and skill chips appear to disappear after the save delay.
           setLastServerResume(saved);
           setFactsFreshness(data.factsFreshness || { changed: true, changes: [] });
-          lastSavedSnapshotRef.current = getSnapshot(saved);
+          lastSavedSnapshotRef.current = submittedSnapshot;
           setSaveState("saved");
           return true;
         } catch (err) {
