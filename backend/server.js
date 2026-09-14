@@ -7261,7 +7261,7 @@ const buildEnglishLocalizedDisplay = (resume = {}, generatedResume = {}) => {
     if (/ماجستير/.test(value)) return "Master's Degree";
     return "";
   };
-  const localized = { personalInfo: {}, entries: {}, achievements: {} };
+  const localized = { personalInfo: {}, entries: {}, achievements: {}, skills: {}, languages: {} };
   if (personal.englishName) localized.personalInfo.fullName = personal.englishName;
   if (degree(personal.major || "")) localized.personalInfo.major = degree(personal.major);
   ["education", "experience", "projects", "certifications", "volunteering"].forEach((section) => {
@@ -7307,6 +7307,24 @@ const buildEnglishLocalizedDisplay = (resume = {}, generatedResume = {}) => {
         }
       });
     });
+  });
+  (generatedResume.skills || []).forEach((skill, index) => {
+    const value = sanitizeResumeText(typeof skill === "string" ? skill : skill?.name || "", 120);
+    if (value && !/[\u0600-\u06FF]/.test(value)) localized.skills[index] = value;
+  });
+  (generatedResume.languages || []).forEach((language, index) => {
+    if (typeof language === "string") {
+      const value = sanitizeResumeText(language, 120);
+      if (value && !/[\u0600-\u06FF]/.test(value)) localized.languages[index] = value;
+      return;
+    }
+    const name = sanitizeResumeText(language?.name || "", 80);
+    const level = sanitizeResumeText(language?.level || "", 80);
+    const values = {
+      ...(name && !/[\u0600-\u06FF]/.test(name) ? { name } : {}),
+      ...(level && !/[\u0600-\u06FF]/.test(level) ? { level } : {}),
+    };
+    if (Object.keys(values).length) localized.languages[index] = values;
   });
   return localized;
 };
@@ -10697,6 +10715,14 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
         ...(savedLocalizedDisplay.achievements || {}),
         ...(generatedLocalizedDisplay.achievements || {}),
       },
+      skills: {
+        ...(savedLocalizedDisplay.skills || {}),
+        ...(generatedLocalizedDisplay.skills || {}),
+      },
+      languages: {
+        ...(savedLocalizedDisplay.languages || {}),
+        ...(generatedLocalizedDisplay.languages || {}),
+      },
       sourceHashes: updatePlan.sourceHashes,
       review: retainedReview,
     };
@@ -10721,6 +10747,11 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
     const englishReadValidation = getEnglishVersionReadValidation(translatedPayload);
     const arabicViolationsAfter = englishReadValidation.arabicViolations || [];
     if (unresolvedFields.length || arabicViolationsAfter.length) {
+      console.warn("Resume English localization incomplete:", {
+        unresolvedFieldKeys: [...new Set([...unresolvedFields, ...arabicViolationsAfter])],
+        requestedFieldCount: updatePlan.changedItems.length,
+        localizedFieldCount: Number(result.translatedCount || 0),
+      });
       return res.status(422).json({
         error: "تعذر إكمال تحديث النسخة الإنجليزية لأن بعض القيم لم تُترجم بعد.",
         code: "english_localization_incomplete",

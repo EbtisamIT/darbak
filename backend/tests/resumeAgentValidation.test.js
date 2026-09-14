@@ -12,6 +12,9 @@ const {
 const {
   assertEnglishSummaryIntegrity,
   assertTranslationIntegrity,
+  collectResumeTextForTranslation,
+  applyResumeTranslations,
+  readTranslatedItemValue,
   mapDraftToResumePayload,
   approvedDraftNeedsRematerialization,
   resumeDraftSchema,
@@ -943,6 +946,65 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
     purpose: "tailor_resume",
   });
   assert.strictEqual(result.valid, true, result.errors.join("\n"));
+}
+
+{
+  const source = {
+    personalInfo: {
+      honors: ["مرتبة الشرف"],
+      relevantCoursework: ["تحليل الأعمال"],
+    },
+    summary: "طالبة لديها خبرة تطبيقية في تحليل البيانات.",
+    education: [],
+    experience: [],
+    projects: [],
+    certifications: [],
+    volunteering: [],
+    skills: ["تحليل البيانات", "Power BI"],
+    languages: [{ id: "arabic", name: "العربية", level: "اللغة الأم" }],
+  };
+  const items = collectResumeTextForTranslation(source);
+  const ids = items.map((item) => item.id);
+  assert.ok(ids.includes("personal:honors:0"), "honors are included in the same English batch");
+  assert.ok(ids.includes("skills:0"), "Arabic skills are included in the same English batch");
+  assert.ok(ids.includes("languages:0:name"), "language names are included in the same English batch");
+  assert.ok(ids.includes("languages:0:level"), "language levels are included in the same English batch");
+
+  const translations = items.map((item) => ({
+    id: item.id,
+    text: ({
+      "personal:honors:0": "Honors",
+      "personal:relevantCoursework:0": "Business Analysis",
+      summary: "Student with hands-on experience in data analysis.",
+      "skills:0": "Data Analysis",
+      "skills:1": "Power BI",
+      "languages:0:name": "Arabic",
+      "languages:0:level": "Native",
+    })[item.id],
+  }));
+  const translated = applyResumeTranslations(source, items, translations).resume;
+  assert.strictEqual(readTranslatedItemValue(translated, items.find((item) => item.id === "skills:0")), "Data Analysis");
+  assert.strictEqual(translated.languages[0].name, "Arabic");
+  assert.strictEqual(translated.languages[0].level, "Native");
+  const composedEnglishDisplay = {
+    ...source,
+    localizedDisplay: {
+      skills: { 0: "Data Analysis", 1: "Power BI" },
+      languages: { 0: { name: "Arabic", level: "Native" } },
+    },
+  };
+  assert.strictEqual(
+    readTranslatedItemValue(composedEnglishDisplay, items.find((item) => item.id === "skills:0")),
+    "Data Analysis",
+    "localized skill display wins when canonical composition restores the Arabic source skill",
+  );
+  assert.strictEqual(
+    readTranslatedItemValue(composedEnglishDisplay, items.find((item) => item.id === "languages:0:name")),
+    "Arabic",
+    "localized language display wins when canonical composition restores the Arabic source language",
+  );
+  assert.strictEqual(source.skills[0], "تحليل البيانات", "English localization never mutates the Arabic source");
+  assert.doesNotThrow(() => assertTranslationIntegrity(source, translated));
 }
 
 console.log("resumeAgentValidation tests passed");

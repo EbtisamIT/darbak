@@ -214,6 +214,11 @@ const resumeTextTranslationSchema = z
   })
   .strict();
 
+const getResumeTextTranslationSchema = (expectedCount) =>
+  resumeTextTranslationSchema.extend({
+    translations: resumeTextTranslationSchema.shape.translations.length(expectedCount),
+  });
+
 const SYSTEM_PROMPT = `أنت كاتب سير ذاتية متخصص في طلاب الجامعات والخريجين الجدد والمتقدمين للتدريب التعاوني في السعودية.
 
 حوّل المعلومات الخام إلى محتوى سيرة ذاتية مهني، مختصر وطبيعي ومتوافق مع ATS.
@@ -437,6 +442,15 @@ const collectResumeTextForTranslation = (resume = {}) => {
   };
 
   add("summary", resume.summary, { kind: "root", key: "summary" });
+  (Array.isArray(resume.personalInfo?.honors) ? resume.personalInfo.honors : []).forEach(
+    (honor, index) => {
+      add(`personal:honors:${index}`, honor, {
+        kind: "personalList",
+        key: "honors",
+        index,
+      });
+    },
+  );
   (Array.isArray(resume.personalInfo?.relevantCoursework)
     ? resume.personalInfo.relevantCoursework
     : []
@@ -490,6 +504,21 @@ const collectResumeTextForTranslation = (resume = {}) => {
     }
   );
 
+  (Array.isArray(resume.skills) ? resume.skills : []).forEach((skill, index) => {
+    add(`skills:${index}`, typeof skill === "string" ? skill : skill?.name, {
+      kind: "skill",
+      index,
+    });
+  });
+  (Array.isArray(resume.languages) ? resume.languages : []).forEach((language, index) => {
+    if (typeof language === "string") {
+      add(`languages:${index}`, language, { kind: "languageString", index });
+      return;
+    }
+    add(`languages:${index}:name`, language?.name, { kind: "language", index, key: "name" });
+    add(`languages:${index}:level`, language?.level, { kind: "language", index, key: "level" });
+  });
+
   return items;
 };
 
@@ -513,6 +542,21 @@ const readTranslatedItemValue = (resume = {}, item = {}) => {
       (candidate, index) => (candidate?.id || `${index}`) === target.bulletId,
     )?.text
       || resume.localizedDisplay?.achievements?.[`${target.section}:${target.entryId}:${target.bulletId}`]
+      || "";
+  }
+  if (target.kind === "skill") {
+    const skill = resume.skills?.[target.index];
+    return resume.localizedDisplay?.skills?.[target.index]
+      || (typeof skill === "string" ? skill : skill?.name || "");
+  }
+  if (target.kind === "languageString") {
+    return resume.localizedDisplay?.languages?.[target.index]
+      || resume.languages?.[target.index]
+      || "";
+  }
+  if (target.kind === "language") {
+    return resume.localizedDisplay?.languages?.[target.index]?.[target.key]
+      || resume.languages?.[target.index]?.[target.key]
       || "";
   }
   return "";
@@ -563,8 +607,16 @@ const buildResumeTranslationUpdatePlan = ({ resume = {}, existingEnglishResume =
 
 const translationStructure = (resume = {}) => ({
   personalInfo: resume.personalInfo || {},
-  skills: Array.isArray(resume.skills) ? resume.skills : [],
-  languages: Array.isArray(resume.languages) ? resume.languages : [],
+  // Skills and languages are display text in an English version. Protect
+  // their shape and stable ids while allowing their labels to be localized.
+  skills: (Array.isArray(resume.skills) ? resume.skills : []).map((skill) => ({
+    kind: typeof skill === "string" ? "string" : "object",
+    id: typeof skill === "object" ? skill?.id || "" : "",
+  })),
+  languages: (Array.isArray(resume.languages) ? resume.languages : []).map((language) => ({
+    kind: typeof language === "string" ? "string" : "object",
+    id: typeof language === "object" ? language?.id || "" : "",
+  })),
   entries: ["education", "experience", "projects", "certifications", "volunteering"].map(
     (section) =>
       getResumeEntries(resume, section).map((entry) => ({
@@ -725,7 +777,7 @@ const translateResumeToEnglish = async ({ resume, userKey, translationItems: req
       process.env.OPENAI_RESUME_AGENT_MODEL ||
       process.env.OPENAI_RESUME_LIGHT_MODEL ||
       DEFAULT_RESUME_MODEL,
-    schema: resumeTextTranslationSchema,
+    schema: getResumeTextTranslationSchema(translationItems.length),
     schemaName: "darbak_resume_text_translation_en",
     safetyIdentifier: userKey,
     maxOutputTokens: Math.min(9000, Math.max(1800, translationItems.length * 70)),
