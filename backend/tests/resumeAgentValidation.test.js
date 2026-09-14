@@ -449,6 +449,29 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
 }
 
 {
+  assert.doesNotThrow(() => assertEnglishSummaryIntegrity({
+    personalInfo: { studentStatus: "student" },
+    summary: "Computer Science student with web project experience, expected to graduate in 2027.",
+  }));
+  assert.doesNotThrow(() => assertEnglishSummaryIntegrity({
+    personalInfo: { studentStatus: "graduate" },
+    summary: "Business Administration graduate with experience supporting student activities and event coordination.",
+  }));
+  assert.throws(() => assertEnglishSummaryIntegrity({
+    personalInfo: { studentStatus: "student" },
+    summary: "Business Administration graduate with internship experience.",
+  }), (error) => error.code === "RESUME_TRANSLATION_SUMMARY_INVALID" && error.validationRule === "status_identity_conflict");
+  assert.throws(() => assertEnglishSummaryIntegrity({
+    personalInfo: { studentStatus: "graduate" },
+    summary: "Computer Science student with project experience.",
+  }), (error) => error.code === "RESUME_TRANSLATION_SUMMARY_INVALID" && error.validationRule === "status_identity_conflict");
+  assert.throws(() => assertEnglishSummaryIntegrity({
+    personalInfo: { studentStatus: "student" },
+    summary: "طالبة علوم حاسب with project experience.",
+  }), (error) => error.validationRule === "arabic_script");
+}
+
+{
   // NITC may ask for Graphic Design, but that target must never become the
   // student's title or major in a tailored version.
   const masterResume = {

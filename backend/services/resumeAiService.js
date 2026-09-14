@@ -588,14 +588,34 @@ const assertTranslationIntegrity = (source, translated) => {
   }
 };
 
-const assertEnglishSummaryIntegrity = (resume = {}) => {
+const getEnglishSummaryIntegrityIssues = (resume = {}) => {
   const summary = String(resume.summary || "").trim();
   const status = resume.personalInfo?.studentStatus || "";
-  if (/[؀-ۿ]/.test(summary) ||
-    (status === "graduate" && /\bstudent\b/i.test(summary)) ||
-    (status === "student" && /\bgraduate\b/i.test(summary))) {
+  const firstClause = summary.split(/[,.!?;:]/, 1)[0].trim().slice(0, 180).toLowerCase();
+  const studentIndex = firstClause.search(/\bstudent\b/);
+  const graduateIndex = firstClause.search(/\bgraduate\b/);
+  // Compare the leading professional identity, not unrelated uses of the
+  // words later in the summary. A student may correctly say "expected to
+  // graduate", and a graduate may describe work supporting student services.
+  const statusConflict = status === "graduate"
+    ? studentIndex >= 0 && (graduateIndex < 0 || studentIndex < graduateIndex)
+    : status === "student"
+      ? graduateIndex >= 0 && (studentIndex < 0 || graduateIndex < studentIndex) &&
+        !/\b(?:expected|expects?|planning|scheduled)\s+to\s+graduate\b/.test(firstClause)
+      : false;
+
+  return {
+    arabicScript: /[؀-ۿ]/.test(summary),
+    statusConflict,
+  };
+};
+
+const assertEnglishSummaryIntegrity = (resume = {}) => {
+  const issues = getEnglishSummaryIntegrityIssues(resume);
+  if (issues.arabicScript || issues.statusConflict) {
     const error = new Error("تعذر التحقق من اتساق نبذة النسخة الإنجليزية.");
     error.code = "RESUME_TRANSLATION_SUMMARY_INVALID";
+    error.validationRule = issues.arabicScript ? "arabic_script" : "status_identity_conflict";
     throw error;
   }
 };
@@ -1074,5 +1094,6 @@ module.exports = {
   applyResumeTranslations,
   assertTranslationIntegrity,
   assertEnglishSummaryIntegrity,
+  getEnglishSummaryIntegrityIssues,
   tailoredResumeDraftSchema,
 };

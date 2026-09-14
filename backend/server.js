@@ -7949,6 +7949,16 @@ const getResumeAiErrorResponse = (err = {}) => {
     };
   }
 
+  if (err.code === "RESUME_TRANSLATION_SUMMARY_INVALID") {
+    return {
+      status: 422,
+      body: {
+        error: "تعذر اعتماد النبذة الإنجليزية هذه المرة. معلوماتك محفوظة ويمكنك إعادة الترجمة.",
+        reason: "invalid_english_summary",
+      },
+    };
+  }
+
   if (err.status === 429) {
     const openAiCode = (err.code || err.type || "").toString();
     const openAiMessage = (err.message || "").toString().toLowerCase();
@@ -10849,6 +10859,7 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       param: err.param || "",
       responseStatus: err.responseStatus || "",
       incompleteReason: err.incompleteReason || "",
+      validationRule: err.validationRule || "",
     });
     const response = getResumeAiErrorResponse(err);
     return res.status(response.status).json(response.body);
