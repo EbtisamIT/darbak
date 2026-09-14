@@ -47,23 +47,16 @@ const groupItems = (items) => items.reduce((groups, item) => {
 }, {});
 
 export const getEnglishReviewGroups = (resume = {}) => {
-  const pendingGroups = groupItems(getEnglishReviewItems(resume));
-  const savedReviews = resume.localizedDisplay?.review || {};
-  const approvedGroups = Object.entries(savedReviews)
-    .filter(([key, record]) => key.startsWith("groups:") && record?.approved && !pendingGroups[key])
-    .map(([key, record]) => ({
-      key,
-      section: record.section,
-      entryId: record.entryId,
-      label: record.label || sectionLabel[record.section] || "عنصر",
-      items: Array.isArray(record.items) ? record.items : [],
-      status: record.status || "approved",
-    }));
-
-  return [...Object.values(pendingGroups), ...approvedGroups];
+  return Object.values(groupItems(getEnglishReviewItems(resume)));
 };
 
-export const applyEnglishReviewGroup = (resume, group, values = {}, status = "approved") => {
+export const applyEnglishReviewGroup = (
+  resume,
+  group,
+  values = {},
+  status = "approved",
+  persistedRecords = {},
+) => {
   // Never record an empty approval. An empty generated value is a missing
   // translation and must be edited once, not returned as the same question.
   if (!canApproveEnglishReviewGroup(group, values)) return resume;
@@ -87,9 +80,17 @@ export const applyEnglishReviewGroup = (resume, group, values = {}, status = "ap
         [item.field]: nextValue,
       };
     }
-    localizedDisplay.review[reviewKeyForItem(item)] = {
-      source: item.value,
+    const reviewKey = reviewKeyForItem(item);
+    localizedDisplay.review[reviewKey] = persistedRecords[reviewKey] || {
+      key: reviewKey,
+      itemId: item.entryId,
+      field: item.field,
+      sourceText: item.value,
+      targetText: nextValue,
+      status: "approved",
       approved: true,
+      approvedByUser: true,
+      updatedAt: new Date().toISOString(),
     };
   });
 
@@ -115,13 +116,14 @@ const currentLocalizedValue = (resume, item) => {
   return resume.localizedDisplay?.entries?.[entryKey]?.[item.field] || item.generatedValue || "";
 };
 
-const EnglishTranslationReview = ({ resume, onChange, onOpenEditor }) => {
+const EnglishTranslationReview = ({ resume, onApproveGroup, onOpenEditor }) => {
   const groups = useMemo(() => getEnglishReviewGroups(resume), [resume]);
   const [editingKey, setEditingKey] = useState("");
   const [values, setValues] = useState({});
   const [activeKey, setActiveKey] = useState("");
+  const [savingKey, setSavingKey] = useState("");
+  const [saveError, setSaveError] = useState("");
   const pendingGroups = groups.filter((group) => group.status === "pending");
-  const approvedCount = groups.length - pendingGroups.length;
 
   useEffect(() => {
     if (!activeKey || !groups.some((group) => group.key === activeKey && group.status === "pending")) {
@@ -137,12 +139,20 @@ const EnglishTranslationReview = ({ resume, onChange, onOpenEditor }) => {
     ])));
   };
 
-  const approve = (group, edited = false) => {
-    const nextResume = applyEnglishReviewGroup(resume, group, values, edited ? "edited_and_approved" : "approved");
-    onChange(nextResume);
-    setEditingKey("");
-    const nextPending = groups.find((candidate) => candidate.status === "pending" && candidate.key !== group.key);
-    setActiveKey(nextPending?.key || "");
+  const approve = async (group, edited = false) => {
+    if (savingKey) return;
+    try {
+      setSavingKey(group.key);
+      setSaveError("");
+      await onApproveGroup?.(group, values, edited ? "edited_and_approved" : "approved");
+      setEditingKey("");
+      const nextPending = groups.find((candidate) => candidate.status === "pending" && candidate.key !== group.key);
+      setActiveKey(nextPending?.key || "");
+    } catch (error) {
+      setSaveError(error?.response?.data?.error || "تعذر حفظ الاعتماد، حاول مرة أخرى.");
+    } finally {
+      setSavingKey("");
+    }
   };
 
   if (!groups.length || !pendingGroups.length) {
@@ -164,8 +174,9 @@ const EnglishTranslationReview = ({ resume, onChange, onOpenEditor }) => {
         <span>مراجعة النسخة الإنجليزية</span>
         <h2>راجع الترجمات التالية</h2>
         <p>دربك جهز الترجمة لك، راجعها واعتمدها أو عدّلها إذا احتجت.</p>
-        <strong>{approvedCount} من {groups.length} تمت مراجعتها</strong>
+        <strong>باقي {pendingGroups.length} عناصر للمراجعة</strong>
       </header>
+      {saveError && <p className="english-review-error">{saveError}</p>}
       <div className="english-review-list">
         {groups.map((group) => {
           const isEditing = editingKey === group.key;
@@ -194,12 +205,12 @@ const EnglishTranslationReview = ({ resume, onChange, onOpenEditor }) => {
                         />
                       </label>
                     ))}
-                    <button type="button" className="english-review-primary" disabled={!canApprove} onClick={() => approve(group, true)}>اعتماد التعديل</button>
+                    <button type="button" className="english-review-primary" disabled={!canApprove || savingKey === group.key} onClick={() => approve(group, true)}>{savingKey === group.key ? "جارٍ الحفظ..." : "اعتماد التعديل"}</button>
                   </div>
                 ) : (
                   <div className="english-review-actions">
                     {canApprove ? <>
-                      <button type="button" className="english-review-primary" onClick={() => approve(group)}>اعتماد</button>
+                      <button type="button" className="english-review-primary" disabled={savingKey === group.key} onClick={() => approve(group)}>{savingKey === group.key ? "جارٍ الحفظ..." : "اعتماد"}</button>
                       <button type="button" onClick={() => beginEdit(group)}>تعديل</button>
                     </> : (
                       <button type="button" className="english-review-primary" onClick={() => beginEdit(group)}>أضف الترجمة</button>

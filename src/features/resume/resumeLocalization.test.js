@@ -609,6 +609,9 @@ describe("English resume presentation", () => {
       "Web Development",
     ]);
     expect(localized.summary).toMatch(/^Information Technology Graduate\./);
+    expect(localized.projects[0].title).toBe("Darbak");
+    expect(getEnglishReviewItems(resume).some((item) => item.value === "دربك")).toBe(false);
+    expect(assertNoArabicScript(localized)).toBe(true);
     expect(localized.projects[0].achievements).toHaveLength(2);
     expect(resume.skills).toContain("Git HUb");
     expect(resume.education).toHaveLength(2);

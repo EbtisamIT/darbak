@@ -23,7 +23,9 @@ import { getVisitorId, trackEvent, trackEventOncePerSession } from "../utils/ana
 import { isCurrentAutosaveResponse } from "../utils/formAutosave";
 import ResumeAgentFlow, { getAgentSessionStorageKey } from "../features/resume/ResumeAgentFlow";
 import ResumeBuilder, { SettingsEditor } from "../features/resume/ResumeBuilder";
-import EnglishTranslationReview from "../features/resume/EnglishTranslationReview";
+import EnglishTranslationReview, {
+  applyEnglishReviewGroup,
+} from "../features/resume/EnglishTranslationReview";
 import ResumePdfDocument from "../features/resume/ResumePdfDocument";
 import ResumePreview from "../features/resume/ResumePreview";
 import ResumeJobMatchPanel from "../features/resume/ResumeJobMatchPanel";
@@ -372,7 +374,7 @@ const MyResumePage = () => {
             setSaveState("saving");
             const { data } = await axios.put(
               `${API_BASE_URL}/api/resume-agent/tailored-versions/${editingVersionId}`,
-              prepareResumeForSave(resume),
+              prepareResumeForSave(resumeToSave),
               { headers: getAccessHeaders({ itemKey: `resume-version:${editingVersionId}` }) }
             );
             const savedResume = normalizeResume({ ...data.resume, access: resume.access });
@@ -423,6 +425,32 @@ const MyResumePage = () => {
     },
     [editingTailoredVersion, editingVersionId, editingVersionType, resume, resumeMode]
   );
+
+  const approveEnglishReviewGroup = useCallback(async (group, values = {}, status = "approved") => {
+    if (!editingVersionId || editingVersionType !== "translation") {
+      throw new Error("النسخة الإنجليزية غير موجودة.");
+    }
+    const items = group.items.map((item) => ({
+      section: item.section,
+      entryId: item.entryId,
+      field: item.field,
+      achievementId: item.achievementId,
+      index: item.index,
+      sourceText: item.value,
+      targetText: Object.prototype.hasOwnProperty.call(values, item.fieldKey)
+        ? values[item.fieldKey]
+        : item.generatedValue,
+    }));
+    const { data } = await axios.patch(
+      `${API_BASE_URL}/api/resume/english/localizations/${encodeURIComponent(group.key)}`,
+      { versionId: editingVersionId, status: "approved", items },
+      { headers: getAccessHeaders({ itemKey: `resume-localization:${editingVersionId}:${group.key}` }) },
+    );
+    setResume((current) => normalizeResume(
+      applyEnglishReviewGroup(current, group, values, status, data.records || {}),
+    ));
+    return data;
+  }, [editingVersionId, editingVersionType]);
 
   const setPersistedJourneyProgress = useCallback((progress) => {
     const saved = writeResumeJourneyProgress(progress, resumeStorageScope);
@@ -729,7 +757,7 @@ const MyResumePage = () => {
     if (
       !hasLoadedRef.current ||
       resumeMode !== "editor" ||
-      (editingTailoredVersion && editingVersionType !== "translation")
+      editingTailoredVersion
     ) return undefined;
 
     const snapshot = getSnapshot(resume);
@@ -1390,11 +1418,7 @@ const MyResumePage = () => {
         englishReviewOpen ? (
           <EnglishTranslationReview
             resume={resume}
-            onChange={(nextResume) => {
-              const normalized = normalizeResume(nextResume);
-              setResume(normalized);
-              saveResume({ manual: true, resumeOverride: normalized, silent: true });
-            }}
+            onApproveGroup={approveEnglishReviewGroup}
             onOpenEditor={() => setEnglishReviewOpen(false)}
           />
         ) : (
@@ -1506,7 +1530,7 @@ const MyResumePage = () => {
           {englishReviewOpen ? (
             <EnglishTranslationReview
               resume={resume}
-              onChange={(nextResume) => setResume(normalizeResume(nextResume))}
+              onApproveGroup={approveEnglishReviewGroup}
               onOpenEditor={() => setEnglishReviewOpen(false)}
             />
           ) : <>

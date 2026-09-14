@@ -85,6 +85,9 @@ const {
   buildEnglishSummaryFreshness,
   mergeMasterSummaryProvenance,
 } = require("./services/resumeSummaryFreshness");
+const {
+  buildEnglishLocalizationApprovalUpdate,
+} = require("./services/resumeLocalizationApproval");
 const { getResumeFactsFreshness } = require("./services/resumeFactsFreshness");
 const {
   applyActivityDescriptionAnswer,
@@ -10095,6 +10098,60 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
   }
 });
 
+app.patch('/api/resume/english/localizations/:key', requireResumeAccess, async (req, res) => {
+  try {
+    const versionId = String(req.body?.versionId || "");
+    if (!mongoose.Types.ObjectId.isValid(versionId)) {
+      return res.status(400).json({ error: "النسخة الإنجليزية غير موجودة." });
+    }
+    const version = await ResumeTailoredVersion.findOne({
+      _id: versionId,
+      contact: req.darbakAccess.contact,
+      accessCodeHash: req.darbakAccess.accessCodeHash,
+      status: "approved",
+      variantType: "translation",
+      language: "en",
+    }).lean();
+    if (!version) return res.status(404).json({ error: "النسخة الإنجليزية غير موجودة." });
+
+    const approval = buildEnglishLocalizationApprovalUpdate({
+      versionPayload: version.resumePayload || {},
+      groupKey: req.params.key,
+      items: req.body?.items,
+    });
+    const saved = await ResumeTailoredVersion.findOneAndUpdate(
+      {
+        _id: version._id,
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+        status: "approved",
+        variantType: "translation",
+        language: "en",
+      },
+      { $set: approval.set },
+      { new: true, runValidators: true },
+    ).lean();
+    if (!saved) return res.status(404).json({ error: "النسخة الإنجليزية غير موجودة." });
+
+    return res.json({
+      records: approval.records,
+      message: "تم اعتماد الترجمة.",
+    });
+  } catch (err) {
+    console.error("❌ English localization approval error:", {
+      code: err.code || "",
+      name: err.name || "",
+    });
+    if (["INVALID_LOCALIZATION_KEY", "INVALID_LOCALIZATION_ITEMS", "INVALID_LOCALIZATION_ITEM", "INVALID_LOCALIZATION_TARGET"].includes(err.code)) {
+      return res.status(400).json({ error: err.message });
+    }
+    if (err.code === "STALE_LOCALIZATION_SOURCE") {
+      return res.status(409).json({ error: err.message });
+    }
+    return res.status(500).json({ error: "تعذر حفظ الاعتماد، حاول مرة أخرى." });
+  }
+});
+
 app.put('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -10649,6 +10706,24 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
     const generatedLocalizedDisplay = buildEnglishLocalizedDisplay(translatedPayload, translatedPresentation);
     const savedLocalizedDisplay = translatedPresentation.localizedDisplay || {};
     const existingReview = existingEnglishVersion?.resumePayload?.localizedDisplay?.review || {};
+    const reviewMatchesCurrentSource = (review = {}, translationId = "") => {
+      const expectedHash = updatePlan.sourceHashes[translationId];
+      if (!expectedHash) return false;
+      if (review.sourceHash) return review.sourceHash === expectedHash;
+      const sourceText = review.sourceText || review.source || "";
+      if (!sourceText) return false;
+      return crypto.createHash("sha256")
+        .update(String(sourceText).trim())
+        .digest("hex")
+        .slice(0, 16) === expectedHash;
+    };
+    const approvedReviewValue = (reviewKey, translationId, fallback = "") => {
+      const review = existingReview[reviewKey] || {};
+      const approved = review.status === "approved" || review.approved === true;
+      if (!approved || !reviewMatchesCurrentSource(review, translationId)) return "";
+      const target = sanitizeResumeText(review.targetText || fallback, 1600);
+      return target && !/[\u0600-\u06FF]/.test(target) ? target : "";
+    };
     const reviewItemMatchesCurrentSource = (item = {}) => {
       const section = String(item.section || "");
       const entryId = String(item.entryId || "");
@@ -10675,14 +10750,7 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
           : achievementMatch
             ? `${achievementMatch[1]}:${achievementMatch[2]}:achievement:${achievementMatch[3]}`
             : "";
-        if (translationId && review?.source) {
-          const sourceHash = crypto.createHash("sha256")
-            .update(String(review.source).trim())
-            .digest("hex")
-            .slice(0, 16);
-          return updatePlan.sourceHashes[translationId] === sourceHash;
-        }
-        return false;
+        return Boolean(translationId && reviewMatchesCurrentSource(review, translationId));
       }),
     );
     const {
@@ -10705,16 +10773,32 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       entries: Object.entries(savedLocalizedDisplay.entries || {}).reduce(
         (entries, [key, value]) => ({
           ...entries,
-          // The new localized value must win when a source item changed. The
-          // update plan already reuses approved values for unchanged items.
-          [key]: { ...(value || {}), ...(generatedLocalizedDisplay.entries?.[key] || {}) },
+          [key]: Object.entries({ ...(value || {}), ...(generatedLocalizedDisplay.entries?.[key] || {}) })
+            .reduce((entry, [field, generatedValue]) => {
+              const [section, entryId] = key.split(":");
+              const translationId = `${section}:${entryId}:${field}`;
+              const approvedValue = approvedReviewValue(
+                `entries:${key}:${field}`,
+                translationId,
+                value?.[field],
+              );
+              return { ...entry, [field]: approvedValue || generatedValue };
+            }, {}),
         }),
         { ...(generatedLocalizedDisplay.entries || {}) },
       ),
-      achievements: {
+      achievements: Object.entries({
         ...(savedLocalizedDisplay.achievements || {}),
         ...(generatedLocalizedDisplay.achievements || {}),
-      },
+      }).reduce((achievements, [key, generatedValue]) => {
+        const [section, entryId, achievementId] = key.split(":");
+        const approvedValue = approvedReviewValue(
+          `achievements:${key}`,
+          `${section}:${entryId}:achievement:${achievementId}`,
+          savedLocalizedDisplay.achievements?.[key],
+        );
+        return { ...achievements, [key]: approvedValue || generatedValue };
+      }, {}),
       skills: {
         ...(savedLocalizedDisplay.skills || {}),
         ...(generatedLocalizedDisplay.skills || {}),

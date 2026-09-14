@@ -207,6 +207,7 @@ const englishActivityLabels = {
 
 const englishOrganizationLabels = {
   "نادي انجاز": "Injaz Club",
+  "دربك": "Darbak",
 };
 
 const localizedDegree = (value = "") => {
@@ -382,6 +383,9 @@ const localizedActivity = (value = "") => englishActivityLabels[normalizeLookupV
 
 const localizedOrganization = (value = "") => englishOrganizationLabels[normalizeLookupValue(value)] || "";
 
+const localizedBrand = (value = "") =>
+  normalizeLookupValue(value) === normalizeLookupValue("دربك") ? "Darbak" : "";
+
 const mergeLocalizedValues = (generated = {}, saved = {}) =>
   Object.entries(saved || {}).reduce(
     (merged, [key, value]) => (value === "" || value == null ? merged : { ...merged, [key]: value }),
@@ -434,10 +438,25 @@ const getSourceEntry = (resume = {}, section, entry = {}) => {
 const getReviewState = (resume = {}, key) =>
   resume.localizedDisplay?.review?.[key] || {};
 
+const translationIdForReviewKey = (key = "") => {
+  const entry = key.match(/^entries:([^:]+):([^:]+):([^:]+)$/);
+  if (entry) return `${entry[1]}:${entry[2]}:${entry[3]}`;
+  const achievement = key.match(/^achievements:([^:]+):([^:]+):(.+)$/);
+  if (achievement) return `${achievement[1]}:${achievement[2]}:achievement:${achievement[3]}`;
+  if (key.startsWith("personal:")) return key;
+  return "";
+};
+
 const needsLocalizationReview = (resume, key, source, translated) => {
   if (!source || !translated || arabicPattern.test(translated)) return false;
   const review = getReviewState(resume, key);
-  return review.source !== source || review.approved !== true;
+  const approved = review.status === "approved" || review.approved === true;
+  if (!approved) return true;
+  const recordedSource = review.sourceText || review.source || "";
+  if (recordedSource) return recordedSource !== source;
+  const expectedHash = resume.localizedDisplay?.sourceHashes?.[translationIdForReviewKey(key)];
+  if (expectedHash && review.sourceHash) return expectedHash !== review.sourceHash;
+  return true;
 };
 
 const derivedEnglishHeadline = (personal = {}, display = {}) => {
@@ -602,6 +621,7 @@ export const getEnglishReviewItems = (resume = {}) => {
         const sourceValue = sourceEntry[field] || entry[field] || "";
         const translatedValue = values[field] || (!arabicPattern.test(sourceValue) ? entry[field] || "" : "");
         const isCanonicalValue = Boolean(
+          localizedBrand(sourceValue) ||
           (field === "title" && localizedDegree(sourceValue)) ||
           (field === "organization" && localizedUniversity(sourceValue)) ||
           (field === "organization" && localizedOrganization(sourceValue)) ||

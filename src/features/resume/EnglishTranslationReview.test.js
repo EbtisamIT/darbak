@@ -1,8 +1,9 @@
-import {
+import EnglishTranslationReview, {
   applyEnglishReviewGroup,
   canApproveEnglishReviewGroup,
   getEnglishReviewGroups,
 } from "./EnglishTranslationReview";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 jest.mock("./resumeLocalization", () => ({
   getEnglishReviewItems: jest.fn(),
@@ -75,12 +76,11 @@ describe("English translation review state", () => {
 
     const afterFirst = applyEnglishReviewGroup({}, groups[0]);
     const afterFirstGroups = getEnglishReviewGroups(afterFirst);
-    expect(afterFirstGroups.filter((group) => group.status !== "pending")).toHaveLength(1);
+    expect(afterFirstGroups).toHaveLength(3);
 
     const afterAll = afterFirstGroups
-      .filter((group) => group.status === "pending")
       .reduce((current, group) => applyEnglishReviewGroup(current, group), afterFirst);
-    expect(getEnglishReviewGroups(afterAll).every((group) => group.status !== "pending")).toBe(true);
+    expect(getEnglishReviewGroups(afterAll)).toEqual([]);
   });
 
   test("an edited approval persists the English value and status", () => {
@@ -91,7 +91,7 @@ describe("English translation review state", () => {
 
     expect(next.localizedDisplay.entries["projects:project-1"].title).toBe("Appointments Platform");
     expect(next.localizedDisplay.review["groups:projects:project-1"].status).toBe("edited_and_approved");
-    expect(getEnglishReviewGroups(next).find((candidate) => candidate.key === group.key).status).toBe("edited_and_approved");
+    expect(getEnglishReviewGroups(next).find((candidate) => candidate.key === group.key)).toBeUndefined();
   });
 
   test("does not persist an empty approval that would repeat the same review question", () => {
@@ -118,5 +118,19 @@ describe("English translation review state", () => {
     });
     expect(approved.localizedDisplay.entries["projects:project-missing-title"].title)
       .toBe("Translated Project");
+  });
+
+  test("one approval click produces exactly one mutation callback", async () => {
+    const onApproveGroup = jest.fn().mockResolvedValue({});
+    render(
+      <EnglishTranslationReview
+        resume={{}}
+        onApproveGroup={onApproveGroup}
+        onOpenEditor={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "اعتماد" })[0]);
+    await waitFor(() => expect(onApproveGroup).toHaveBeenCalledTimes(1));
   });
 });

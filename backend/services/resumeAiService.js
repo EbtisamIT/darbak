@@ -408,6 +408,9 @@ const cloneResumePayload = (resume = {}) => JSON.parse(JSON.stringify(resume || 
 const translationSourceHash = (value = "") =>
   crypto.createHash("sha256").update(String(value || "").trim()).digest("hex").slice(0, 16);
 
+const isCanonicalDarbakBrand = (value = "") =>
+  String(value || "").trim().toLowerCase() === "darbak" || String(value || "").trim() === "دربك";
+
 const getResumeEntries = (resume = {}, section) => {
   if (section === "experience") {
     if (Array.isArray(resume.experience) && resume.experience.length) return resume.experience;
@@ -421,7 +424,7 @@ const collectResumeTextForTranslation = (resume = {}) => {
   const items = [];
   const add = (id, text, target) => {
     const cleanText = typeof text === "string" ? text.trim() : "";
-    if (cleanText) items.push({ id, text: cleanText, target });
+    if (cleanText && !isCanonicalDarbakBrand(cleanText)) items.push({ id, text: cleanText, target });
   };
 
   add("summary", resume.summary, { kind: "root", key: "summary" });

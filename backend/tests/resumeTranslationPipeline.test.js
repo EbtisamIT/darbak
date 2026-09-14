@@ -10,6 +10,10 @@ const {
   readTranslatedItemValue,
   translateResumeToEnglish,
 } = require("../services/resumeAiService");
+const {
+  buildEnglishLocalizationApprovalUpdate,
+  hashLocalizationSource,
+} = require("../services/resumeLocalizationApproval");
 
 const arabicPattern = /[\u0600-\u06FF]/;
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -84,6 +88,12 @@ const run = async () => {
     requestedItems.every((item) => !canonicalValues.includes(item.text)),
     "canonical profile facts bypass free-text AI translation",
   );
+  const brandResume = clone(sourceResume);
+  brandResume.volunteering[0].organization = "دربك";
+  assert.ok(
+    collectResumeTextForTranslation(brandResume).every((item) => item.text !== "دربك"),
+    "the Darbak brand bypasses AI translation",
+  );
 
   let providerCalls = 0;
   let requestInput = "";
@@ -143,6 +153,40 @@ const run = async () => {
     existingEnglishResume: savedEnglish,
   });
   assert.strictEqual(unchangedPlan.changedItems.length, 0, "fresh translations are reused on refresh/open");
+
+  const approvalSource = sourceResume.projects[0].title;
+  const approvalHash = hashLocalizationSource(approvalSource);
+  const versionBeforeApproval = {
+    ...savedEnglish,
+    localizedDisplay: {
+      ...(savedEnglish.localizedDisplay || {}),
+      sourceHashes: {
+        ...(savedEnglish.localizedDisplay?.sourceHashes || {}),
+        "projects:project-1:title": approvalHash,
+      },
+    },
+  };
+  const arabicBeforeApproval = clone(sourceResume);
+  const approval = buildEnglishLocalizationApprovalUpdate({
+    versionPayload: versionBeforeApproval,
+    groupKey: "groups:projects:project-1",
+    items: [{
+      section: "projects",
+      entryId: "project-1",
+      field: "title",
+      sourceText: approvalSource,
+      targetText: "Sales Performance Dashboard",
+    }],
+  });
+  assert.strictEqual(
+    approval.set["resumePayload.localizedDisplay.entries.projects:project-1.title"],
+    "Sales Performance Dashboard",
+  );
+  assert.strictEqual(
+    approval.records["entries:projects:project-1:title"].approvedByUser,
+    true,
+  );
+  assert.deepStrictEqual(sourceResume, arabicBeforeApproval, "approval is isolated from the Arabic Resume payload");
 
   const changedSource = clone(sourceResume);
   changedSource.projects[0].description = "حللت بيانات المبيعات وصممت لوحة مؤشرات تفاعلية.";
