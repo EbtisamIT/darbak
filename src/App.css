@@ -9129,6 +9129,43 @@ body {
 .resume-dashboard-start-grid span { color: var(--app-text-muted); line-height: 1.65; }
 .resume-dashboard-disabled-option { opacity: 0.58; }
 
+/* Resume Data V5: compact source-facts form used by setup and review. */
+.resume-data-v5 { width: min(100%, 1040px); }
+.resume-data-quick-nav { position: sticky; top: 76px; z-index: 15; display: flex; gap: 7px; padding: 8px; overflow-x: auto; border: 1px solid var(--app-border); border-radius: 13px; background: color-mix(in srgb, var(--app-surface) 94%, transparent); backdrop-filter: blur(12px); }
+.resume-data-quick-nav button { flex: 0 0 auto; min-height: 34px; border: 0; border-radius: 9px; padding: 0 11px; background: transparent; color: var(--app-text-muted); font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
+.resume-data-quick-nav button:hover, .resume-data-quick-nav button:focus-visible { background: var(--app-brand-soft); color: var(--app-brand); }
+.resume-data-simple-form { display: grid; gap: 12px; }
+.resume-data-section { scroll-margin-top: 132px; padding: 17px; }
+.resume-data-rows { display: grid; gap: 9px; }
+.resume-data-row { display: grid; gap: 11px; padding: 13px; border: 1px solid var(--app-border); border-radius: 13px; background: var(--app-surface); }
+.resume-data-row-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.resume-data-row-head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--app-text); }
+.resume-data-row-head button { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 9px; background: rgba(239, 68, 68, .08); color: #ef6666; cursor: pointer; }
+.resume-data-row textarea { min-height: 86px; resize: vertical; line-height: 1.65; }
+.resume-data-more { margin-top: 4px; border-top: 1px solid var(--app-border); padding-top: 9px; }
+.resume-data-more summary { width: fit-content; color: var(--app-brand); font-size: 12px; font-weight: 900; cursor: pointer; }
+.resume-data-more[open] summary { margin-bottom: 10px; }
+.resume-data-more > label { display: grid; gap: 7px; color: var(--app-text-soft); font-size: 13px; font-weight: 900; }
+.resume-data-more input { width: 100%; box-sizing: border-box; border: 1px solid var(--app-border); border-radius: 13px; background: var(--app-input-bg); color: var(--app-text); font: inherit; padding: 11px 12px; }
+.resume-data-tags { display: grid; gap: 8px; margin-top: 10px; }
+.resume-data-tags > strong { color: var(--app-text-soft); font-size: 13px; }
+.resume-data-summary-grid { display: flex !important; flex-wrap: wrap; gap: 7px !important; }
+.resume-data-summary-grid span { padding: 7px 10px; border-radius: 99px; background: var(--app-brand-soft); color: var(--app-brand); font-size: 12px; font-weight: 900; }
+.resume-setup-review-summary > small { color: var(--app-text-muted); }
+.resume-data-final-actions { position: sticky; bottom: 10px; z-index: 14; padding: 10px; border: 1px solid var(--app-border); border-radius: 13px; background: color-mix(in srgb, var(--app-surface) 94%, transparent); box-shadow: 0 12px 30px var(--app-shadow); backdrop-filter: blur(12px); }
+
+@media (max-width: 720px) {
+  .resume-data-quick-nav { top: 64px; margin-inline: -4px; }
+  .resume-data-section { padding: 13px; }
+  .resume-data-row { padding: 11px; }
+  .resume-data-simple-form .resume-form-grid { grid-template-columns: 1fr; }
+  .resume-data-simple-form .resume-grid-wide { grid-column: auto; }
+  .resume-data-simple-form .resume-simple-row { align-items: stretch; flex-direction: column; }
+  .resume-data-final-actions { grid-template-columns: 1fr; }
+  .resume-data-final-actions > span { display: none; }
+  .resume-data-final-actions button { width: 100%; }
+}
+
 .resume-match-panel {
   max-width: 980px;
   margin: 8px auto 42px;

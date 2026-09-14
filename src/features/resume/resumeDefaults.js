@@ -71,6 +71,7 @@ export const emptyAchievement = () => ({
 export const emptyEntry = (prefix = "entry") => ({
   id: makeId(prefix),
   title: "",
+  entryType: "",
   subtitle: "",
   organization: "",
   period: "",
@@ -206,6 +207,7 @@ export const normalizeEntry = (entry = {}, prefix = "entry") => {
   return {
     id: entry.id || entry._id || makeId(prefix),
     title: entry.title || "",
+    entryType: entry.entryType || "",
     subtitle: entry.subtitle || "",
     organization: entry.organization || entry.subtitle || "",
     period: entry.period || "",
@@ -310,6 +312,7 @@ export const prepareResumeForSave = (resume = {}) => {
     hiddenSections: normalized.hiddenSections,
     settings: normalized.settings,
     localizedDisplay: normalized.localizedDisplay || {},
+    workflow: normalized.workflow || {},
   };
 };
 

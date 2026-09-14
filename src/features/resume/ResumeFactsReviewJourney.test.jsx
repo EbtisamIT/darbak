@@ -2,12 +2,7 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ResumeFactsReviewJourney from "./ResumeFactsReviewJourney";
 
-jest.mock("./ResumeBuilder", () => ({ resume, onChange, visibleSections, showPersonalInfo, showEducationFacts }) => (
-  <div>
-    <span data-testid="review-editor">{showPersonalInfo ? "personal" : (showEducationFacts ? "education" : (visibleSections || []).join(","))}</span>
-    <button type="button" onClick={() => onChange({ ...resume, summary: "قيمة محدثة" })}>تعديل قيمة</button>
-  </div>
-));
+jest.mock("./ResumeDataSimpleForm", () => () => <div data-testid="review-simple-form">saved values</div>);
 
 describe("resume facts review journey", () => {
   const resume = {
@@ -21,35 +16,16 @@ describe("resume facts review journey", () => {
     languages: [{ id: "language-1", name: "العربية", level: "اللغة الأم" }],
   };
 
-  beforeEach(() => {
-    window.localStorage.clear();
-    window.scrollTo = jest.fn();
+  it("reuses the same simple source-facts form for returning students", () => {
+    render(<ResumeFactsReviewJourney resume={resume} onChange={jest.fn()} onAutosave={jest.fn()} onBack={jest.fn()} onRebuild={jest.fn()} />);
+    expect(screen.getByTestId("review-simple-form")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "تحديث المسودة" })).toBeInTheDocument();
   });
 
-  it("reuses the setup fields as a step-by-step review flow", async () => {
-    const onAutosave = jest.fn().mockResolvedValue(true);
-    render(<ResumeFactsReviewJourney resume={resume} onChange={jest.fn()} onAutosave={onAutosave} onBack={jest.fn()} onRebuild={jest.fn()} storageScope="qa" />);
-
-    expect(screen.getByTestId("review-editor")).toHaveTextContent("personal");
-    fireEvent.click(screen.getByRole("button", { name: /التالي/ }));
-    await waitFor(() => expect(screen.getByTestId("review-editor")).toHaveTextContent("education"));
-    expect(onAutosave).toHaveBeenCalledTimes(1);
-  });
-
-  it("restores the last review step after refresh", () => {
-    window.localStorage.setItem("darbak_resume_facts_review_step:qa", "projects");
-    render(<ResumeFactsReviewJourney resume={resume} onChange={jest.fn()} onAutosave={jest.fn().mockResolvedValue(true)} onBack={jest.fn()} onRebuild={jest.fn()} storageScope="qa" />);
-    expect(screen.getByTestId("review-editor")).toHaveTextContent("projects");
-  });
-
-  it("runs rebuild only from the final explicit CTA after saving", async () => {
+  it("runs rebuild only after the latest ResumeProfile facts save", async () => {
     const onAutosave = jest.fn().mockResolvedValue(true);
     const onRebuild = jest.fn();
-    window.localStorage.setItem("darbak_resume_facts_review_step:qa", "review");
-    render(<ResumeFactsReviewJourney resume={resume} onChange={jest.fn()} onAutosave={onAutosave} onBack={jest.fn()} onRebuild={onRebuild} storageScope="qa" />);
-
-    expect(screen.getByText("1 مشروع")).toBeInTheDocument();
-    expect(screen.getByText("Python")).toBeInTheDocument();
+    render(<ResumeFactsReviewJourney resume={resume} onChange={jest.fn()} onAutosave={onAutosave} onBack={jest.fn()} onRebuild={onRebuild} />);
     fireEvent.click(screen.getByRole("button", { name: /تحديث المسودة/ }));
     await waitFor(() => expect(onAutosave).toHaveBeenCalledTimes(1));
     expect(onRebuild).toHaveBeenCalledTimes(1);

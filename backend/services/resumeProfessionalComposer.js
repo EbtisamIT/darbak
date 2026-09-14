@@ -302,7 +302,7 @@ const compactVerifiedResumeFacts = (facts = {}, answers = []) => {
     title: entry.title,
     organization: entry.organization,
     location: entry.location,
-    experienceType: entry.experienceType || "",
+      experienceType: entry.experienceType || entry.entryType || "",
     startDate: entry.startDate || "",
     endDate: entry.endDate || "",
     isCurrent: Boolean(entry.isCurrent),

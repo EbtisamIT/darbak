@@ -1,6 +1,11 @@
 import React from "react";
 import { FiPlus } from "react-icons/fi";
 import { ACADEMIC_TRACK_OPTIONS, NO_ACADEMIC_TRACK } from "../../data/academicTracks";
+import {
+  resumeCityOptions,
+  resumeMajorOptions,
+  resumeUniversityOptions,
+} from "../../data/resumeCanonicalOptions";
 
 const DEGREES = ["دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"];
 
@@ -33,9 +38,9 @@ const ResumeEducationFactsEditor = ({ resume, onChange }) => {
             {personal.degree && !DEGREES.includes(personal.degree) ? <option value={personal.degree}>{personal.degree}</option> : null}
           </select>
         </label>
-        <label>التخصص<input value={personal.major || ""} onChange={(event) => updatePersonal("major", event.target.value)} placeholder="مثال: علوم الحاسب" /></label>
-        <label>الجامعة<input value={personal.university || ""} onChange={(event) => updatePersonal("university", event.target.value)} placeholder="اسم الجامعة" /></label>
-        <label>المدينة<input value={personal.city || ""} onChange={(event) => updatePersonal("city", event.target.value)} placeholder="مثال: الرياض" /></label>
+        <label>التخصص<input list="resume-major-options" value={personal.major || ""} onChange={(event) => updatePersonal("major", event.target.value)} placeholder="ابحث أو اكتب تخصصك" /></label>
+        <label>الجامعة<input list="resume-university-options" value={personal.university || ""} onChange={(event) => updatePersonal("university", event.target.value)} placeholder="ابحث أو اكتب جامعتك" /></label>
+        <label>المدينة<input list="resume-city-options" value={personal.city || ""} onChange={(event) => updatePersonal("city", event.target.value)} placeholder="ابحث أو اكتب مدينتك" /></label>
         <label>
           الحالة الدراسية
           <select value={personal.studentStatus || ""} onChange={(event) => updatePersonal("studentStatus", event.target.value)}>
@@ -67,7 +72,11 @@ const ResumeEducationFactsEditor = ({ resume, onChange }) => {
           </select>
         </label>
       </div>
-      <div className="resume-coursework-editor">
+      <datalist id="resume-major-options">{resumeMajorOptions.map((value) => <option key={value} value={value} />)}</datalist>
+      <datalist id="resume-university-options">{resumeUniversityOptions.map((value) => <option key={value} value={value} />)}</datalist>
+      <datalist id="resume-city-options">{resumeCityOptions.map((value) => <option key={value} value={value} />)}</datalist>
+      <details className="resume-data-more resume-coursework-editor">
+        <summary>تفاصيل إضافية</summary>
         <div className="resume-mini-title">
           <div><strong>مقررات ذات صلة</strong><small>اختياري — لا نضيف مقررات من التخصص تلقائيًا.</small></div>
           <button type="button" onClick={() => updatePersonal("relevantCoursework", [...coursework, ""])}><FiPlus aria-hidden="true" /> إضافة مقرر</button>
@@ -78,7 +87,7 @@ const ResumeEducationFactsEditor = ({ resume, onChange }) => {
             <button type="button" onClick={() => updatePersonal("relevantCoursework", coursework.filter((_, courseIndex) => courseIndex !== index))}>حذف</button>
           </div>
         ))}
-      </div>
+      </details>
     </section>
   );
 };

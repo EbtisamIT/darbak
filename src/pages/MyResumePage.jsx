@@ -432,7 +432,6 @@ const MyResumePage = () => {
   }, [resumeStorageScope]);
 
   const saveJourneyDraft = useCallback(async (resumeOverride = resume) => {
-    if (journeyView === "review") {
       const saveLatestFacts = async () => {
         try {
           const submittedSnapshot = getSnapshot(resumeOverride);
@@ -471,13 +470,7 @@ const MyResumePage = () => {
         .then(saveLatestFacts);
       factsSaveQueueRef.current = queuedSave;
       return queuedSave;
-    }
-    const queuedSave = factsSaveQueueRef.current
-      .catch(() => true)
-      .then(() => saveResume({ manual: true, resumeOverride, silent: true }));
-    factsSaveQueueRef.current = queuedSave;
-    return queuedSave;
-  }, [journeyView, resume, saveResume]);
+  }, [resume]);
 
   const loadFreshMasterResume = useCallback(async () => {
     const { data } = await axios.get(`${API_BASE_URL}/api/resume/me`, {

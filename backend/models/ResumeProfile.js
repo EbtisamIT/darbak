@@ -4,6 +4,7 @@ const resumeEntrySchema = new mongoose.Schema(
   {
     id: { type: String, default: "", trim: true },
     title: { type: String, default: "", trim: true },
+    entryType: { type: String, default: "", trim: true },
     subtitle: { type: String, default: "", trim: true },
     organization: { type: String, default: "", trim: true },
     period: { type: String, default: "", trim: true },

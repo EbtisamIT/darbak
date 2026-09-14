@@ -1,4 +1,4 @@
-import { formatResumeDateRange, normalizeResume } from "./resumeDefaults";
+import { formatResumeDateRange, normalizeResume, prepareResumeForSave } from "./resumeDefaults";
 
 describe("tailored resume reload", () => {
   it("formats experience ISO dates as month and year in Arabic and English", () => {
@@ -41,5 +41,15 @@ describe("tailored resume reload", () => {
     expect(resume.projects[0].description).toBe("صياغة مولدة قديمة");
     expect(resume.projects[0].userSourceDescription).toBe("مشروع جامعي");
     expect(resume.projects[0].userSourceContributions).toEqual([]);
+  });
+
+  it("keeps ResumeProfile ownership and compact row type in facts autosaves", () => {
+    const payload = prepareResumeForSave({
+      workflow: { factsOwner: "resume", isSetupComplete: true, lastStep: "review" },
+      experience: [{ id: "experience-1", title: "متدربة", entryType: "internship" }],
+    });
+
+    expect(payload.workflow).toMatchObject({ factsOwner: "resume", isSetupComplete: true });
+    expect(payload.experience[0].entryType).toBe("internship");
   });
 });

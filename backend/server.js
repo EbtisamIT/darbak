@@ -7114,6 +7114,7 @@ const sanitizeResumeEntry = (entry = {}) => {
   return {
     id: sanitizeResumeId(entry.id) || `entry-${Date.now().toString(36)}`,
     title: sanitizePortfolioText(entry.title, 140),
+    entryType: sanitizePortfolioText(entry.entryType || entry.experienceType, 40),
     subtitle: sanitizePortfolioText(entry.subtitle, 180),
     organization: sanitizePortfolioText(entry.organization || entry.subtitle, 160),
     period: sanitizePortfolioText(entry.period, 90),
@@ -8846,10 +8847,14 @@ app.put('/api/resume/me/facts', requireResumeAccess, async (req, res) => {
     const { contact, accessCodeHash, user } = req.darbakAccess;
     const incoming = sanitizeResumePayload(req.body || {});
     const existingResume = await ResumeProfile.findOne({ contact, accessCodeHash }).select("workflow").lean();
+    const requestedWorkflow = req.body?.workflow && typeof req.body.workflow === "object"
+      ? req.body.workflow
+      : {};
     const workflow = {
       ...(existingResume?.workflow || {}),
       factsOwner: "resume",
-      lastStep: "review",
+      lastStep: sanitizePortfolioText(requestedWorkflow.lastStep, 40) || "review",
+      isSetupComplete: requestedWorkflow.isSetupComplete === true || Boolean(existingResume?.workflow?.isSetupComplete),
     };
     const savedResume = await ResumeProfile.findOneAndUpdate(
       { contact, accessCodeHash },
