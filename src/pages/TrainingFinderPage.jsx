@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   useLocation,
@@ -29,6 +29,7 @@ import { trackEvent } from "../utils/analytics";
 import {
   PREMIUM_STATUS_EVENT,
   getAccessHeaders,
+  getStoredAccessIdentity,
   hasCoreAccess,
   isPremiumGateEnabled,
   requestPremiumAccess,
@@ -54,6 +55,15 @@ import {
   hasSeenSearchSummary,
   markSearchSummarySeen,
 } from "../utils/searchSummarySession";
+import {
+  getTrainingFinderInitialFilters,
+  getTrainingFinderPreferenceKey,
+} from "../utils/trainingFinderPreferences";
+import {
+  getStoredJourneyPreferences,
+  hasJourneyPreferences,
+  saveStoredJourneyPreferences,
+} from "../utils/studentJourneyPreferences";
 
 const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_FINDER_FAQ = false;
@@ -1507,8 +1517,16 @@ export default function TrainingFinderPage() {
   const queryCity = searchParams.get("city") || "";
   const queryOrganization =
     searchParams.get("organization") || searchParams.get("company") || "";
-  const initialSpecialty = routeSpecialty || querySpecialty;
-  const initialCity = routeCity || queryCity;
+  const storedJourneyPreferences = getStoredJourneyPreferences();
+  const initialFinderFilters = getTrainingFinderInitialFilters({
+    routeSpecialty,
+    querySpecialty,
+    routeCity,
+    queryCity,
+    preferences: storedJourneyPreferences,
+  });
+  const initialSpecialty = initialFinderFilters.specialty;
+  const initialCity = initialFinderFilters.city;
   const seoPath = buildTrainingFinderSeoPath({
     city: routeCity,
     specialty: routeSpecialty,
@@ -1555,6 +1573,70 @@ export default function TrainingFinderPage() {
     () => !isPremiumGateEnabled() || hasCoreAccess()
   );
   const handledRouteOpportunityIdRef = useRef("");
+  const lastSavedJourneyPreferenceKeyRef = useRef(
+    getTrainingFinderPreferenceKey({
+      major: storedJourneyPreferences.preferredMajor,
+      city: storedJourneyPreferences.preferredCity,
+    })
+  );
+  const [preferencesVersion, setPreferencesVersion] = useState(0);
+
+  const persistJourneyPreferences = useCallback((major = "", cityValue = "") => {
+    const nextPreferences = {
+      preferredMajor: String(major || "").trim(),
+      preferredCity: String(cityValue || "").trim(),
+    };
+
+    if (!hasJourneyPreferences(nextPreferences)) return;
+
+    const preferenceKey = getTrainingFinderPreferenceKey({
+      major: nextPreferences.preferredMajor,
+      city: nextPreferences.preferredCity,
+    });
+    if (lastSavedJourneyPreferenceKeyRef.current === preferenceKey) return;
+
+    lastSavedJourneyPreferenceKeyRef.current = preferenceKey;
+    saveStoredJourneyPreferences(nextPreferences);
+
+    const identity = getStoredAccessIdentity();
+    if (!identity.contact || !identity.accessCode) return;
+
+    axios
+      .post(
+        `${API_BASE_URL}/api/account/student-preferences`,
+        {
+          major: nextPreferences.preferredMajor,
+          city: nextPreferences.preferredCity,
+        },
+        { headers: getAccessHeaders() }
+      )
+      .catch(() => null);
+  }, []);
+
+  const hydrateJourneyPreferences = useCallback(() => {
+    const identity = getStoredAccessIdentity();
+    if (!identity.contact || !identity.accessCode) return;
+
+    axios
+      .get(`${API_BASE_URL}/api/account/student-preferences`, {
+        headers: getAccessHeaders(),
+      })
+      .then(({ data }) => {
+        const preferences = {
+          preferredMajor: data?.preferences?.major || "",
+          preferredCity: data?.preferences?.city || "",
+        };
+        if (!hasJourneyPreferences(preferences)) return;
+
+        const saved = saveStoredJourneyPreferences(preferences);
+        lastSavedJourneyPreferenceKeyRef.current = getTrainingFinderPreferenceKey({
+          major: saved.preferredMajor,
+          city: saved.preferredCity,
+        });
+        setPreferencesVersion((version) => version + 1);
+      })
+      .catch(() => null);
+  }, []);
 
   useEffect(() => {
     const updateSavedItems = () => setSavedItemIds(getSavedItemIds());
@@ -1572,6 +1654,26 @@ export default function TrainingFinderPage() {
     return () =>
       window.removeEventListener(PREMIUM_STATUS_EVENT, refreshGuideContactAccess);
   }, []);
+
+  useEffect(() => {
+    hydrateJourneyPreferences();
+    window.addEventListener(PREMIUM_STATUS_EVENT, hydrateJourneyPreferences);
+    window.addEventListener("darbak:free-account-saved", hydrateJourneyPreferences);
+    return () => {
+      window.removeEventListener(PREMIUM_STATUS_EVENT, hydrateJourneyPreferences);
+      window.removeEventListener("darbak:free-account-saved", hydrateJourneyPreferences);
+    };
+  }, [hydrateJourneyPreferences]);
+
+  useEffect(() => {
+    if (!selectedSpecialty || !city) return undefined;
+
+    const saveTimer = window.setTimeout(() => {
+      persistJourneyPreferences(selectedSpecialty, city);
+    }, 350);
+
+    return () => window.clearTimeout(saveTimer);
+  }, [city, persistJourneyPreferences, selectedSpecialty]);
 
   useEffect(() => {
     if (!selectedOpportunity && !selectedGuideOrganization) return undefined;
@@ -2180,8 +2282,16 @@ export default function TrainingFinderPage() {
   useEffect(() => {
     if (routeOpportunityId) return;
 
-    const nextMajor = routeSpecialty || querySpecialty;
-    const nextCity = routeCity || queryCity;
+    const savedPreferences = getStoredJourneyPreferences();
+    const nextFilters = getTrainingFinderInitialFilters({
+      routeSpecialty,
+      querySpecialty,
+      routeCity,
+      queryCity,
+      preferences: savedPreferences,
+    });
+    const nextMajor = nextFilters.specialty;
+    const nextCity = nextFilters.city;
     const nextOrganization = queryOrganization;
     const hasKnownMajor = specializationOptions.some(
       (option) => option.value === nextMajor
@@ -2212,6 +2322,7 @@ export default function TrainingFinderPage() {
     queryCity,
     queryOrganization,
     querySpecialty,
+    preferencesVersion,
     routeCity,
     routeOpportunityId,
     routeSpecialty,
