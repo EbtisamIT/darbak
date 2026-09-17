@@ -21,6 +21,10 @@ const Portfolio = require('./models/Portfolio');
 const PortfolioAsset = require('./models/PortfolioAsset');
 const CompanyApplicationFile = require('./models/CompanyApplicationFile');
 const {
+  DIRECTORY_COMPANY_SEEDS,
+  companyAliasesMatchName,
+} = require("./services/companyDirectorySeeds");
+const {
   getPdfIntegrity,
   matchesStoredPdfIntegrity,
 } = require("./services/companyApplicationFileIntegrity");
@@ -2606,13 +2610,28 @@ const getCompanyAliases = (company = {}) =>
 
 const getCompanyAliasRegexFilter = (company = {}) => {
   const aliases = getCompanyAliases(company);
-  const regexes = aliases.map((alias) => new RegExp(`^${escapeRegex(alias)}$`, "i"));
+  // Organisation names are often entered with a longer legal prefix/suffix,
+  // e.g. "شركة أرامكو السعودية" or "Saudi Arabian Oil Company". Match an
+  // alias as a phrase rather than requiring the whole stored name to match.
+  const regexes = aliases
+    .filter((alias) => normalizeSearchText(alias).length >= 3)
+    .map((alias) => new RegExp(`(^|[\\s\\-_/|()]+)${escapeRegex(alias)}(?=$|[\\s\\-_/|()]+)`, "i"));
   return regexes.length ? { organizationName: { $in: regexes } } : { _id: null };
+};
+
+const getCompanyContentFilter = (company = {}) => {
+  if (!company?._id) return { _id: null };
+  return {
+    $or: [
+      { companyId: company._id },
+      getCompanyAliasRegexFilter(company),
+    ],
+  };
 };
 
 const linkCompanyContent = async (company = {}) => {
   if (!company?._id) return { experiences: 0, interviews: 0, opportunities: 0 };
-  const match = getCompanyAliasRegexFilter(company);
+  const match = getCompanyContentFilter(company);
   const [experiences, interviews, opportunities] = await Promise.all([
     Experience.updateMany(match, { $set: { companyId: company._id } }),
     InterviewQuestion.updateMany(match, { $set: { companyId: company._id } }),
@@ -2623,6 +2642,53 @@ const linkCompanyContent = async (company = {}) => {
     interviews: Number(interviews.modifiedCount || 0),
     opportunities: Number(opportunities.modifiedCount || 0),
   };
+};
+
+const seedPublicCompanyDirectory = async () => {
+  if (mongoose.connection.readyState !== 1) return;
+
+  const results = await Promise.all(
+    DIRECTORY_COMPANY_SEEDS.map(async (seed) => {
+      const existing = await Company.findOne({ slug: seed.slug }).lean();
+      const company = existing
+        ? await Company.findByIdAndUpdate(
+            existing._id,
+            {
+              $set: {
+                nameAr: existing.nameAr || seed.nameAr || seed.name,
+                nameEn: existing.nameEn || seed.nameEn || "",
+                sector: existing.sector || seed.sector,
+                website: existing.website || seed.website,
+                shortDescription: existing.shortDescription || seed.shortDescription,
+                city: "",
+                status: existing.status === "inactive" ? "inactive" : "active",
+                isPublished: true,
+                showInStudentDirectory: true,
+                aliases: Array.from(new Set([...(existing.aliases || []), ...seed.aliases])).slice(0, 20),
+                contentAliases: Array.from(new Set([...(existing.contentAliases || []), ...seed.aliases])).slice(0, 20),
+              },
+            },
+            { new: true }
+          ).lean()
+        : (await Company.create({
+            ...seed,
+            nameAr: seed.nameAr || seed.name,
+            city: "",
+            status: "active",
+            isPublished: true,
+            showInStudentDirectory: true,
+            contentAliases: seed.aliases,
+            portalAccessToken: createCompanyPortalAccessToken(),
+          })).toObject();
+
+      // Existing admin edits always win. We only backfill matching content.
+      const linked = await linkCompanyContent(company);
+      return { slug: seed.slug, created: !existing, linked };
+    })
+  );
+
+  const created = results.filter((item) => item.created).length;
+  if (created) console.log(`🧭 Seeded ${created} public directory companies`);
 };
 
 const sanitizeCompanyPayload = (body = {}) => {
@@ -2789,24 +2855,24 @@ app.get('/api/companies/:slug/content', async (req, res) => {
     }).lean();
     if (!company) return res.status(404).json({ error: "الشركة غير متاحة في الدليل." });
 
-    const companyId = company._id;
+    const companyContentFilter = getCompanyContentFilter(company);
     const [experiences, experienceInterviews, questionInterviews, opportunities] = await Promise.all([
-      Experience.find({ ...getApprovedExperiencesFilter(), companyId })
+      Experience.find({ ...getApprovedExperiencesFilter(), ...companyContentFilter })
         .select(EXPERIENCE_PUBLIC_FIELDS)
         .sort({ createdAt: -1 })
         .limit(60)
         .lean(),
-      Experience.find({ ...getApprovedExperiencesFilter(), companyId, interviewQuestions: { $exists: true, $ne: [] } })
+      Experience.find({ ...getApprovedExperiencesFilter(), ...companyContentFilter, interviewQuestions: { $exists: true, $ne: [] } })
         .select("organizationName city major majorCategory interviewQuestions createdAt")
         .sort({ createdAt: -1 })
         .limit(400)
         .lean(),
-      InterviewQuestion.find({ status: "approved", companyId })
+      InterviewQuestion.find({ status: "approved", ...companyContentFilter })
         .select("organizationName city major majorCategory questions createdAt")
         .sort({ createdAt: -1 })
         .limit(400)
         .lean(),
-      Opportunity.find({ companyId, status: { $in: ["active", "expired"] } })
+      Opportunity.find({ ...companyContentFilter, status: { $in: ["active", "expired"] } })
         .select(`${OPPORTUNITY_PUBLIC_FIELDS} applicationUrl note keywords`)
         .sort({ featured: -1, createdAt: -1 })
         .limit(60)
@@ -6570,6 +6636,10 @@ mongoose.connect(process.env.MONGO_URI, {
 // Debug مهم جدًا
 mongoose.connection.on("connected", () => {
   console.log("🟢 Mongoose connected");
+  seedPublicCompanyDirectory().catch((err) => {
+    // The directory is an enhancement; a failed seed must never block the API.
+    console.error("❌ Public company directory seed error:", err.message);
+  });
 });
 
 mongoose.connection.on("error", (err) => {
@@ -16042,7 +16112,7 @@ const getCompanySuggestionKey = (organizationName = "", companies = []) => {
   // Prefer an existing Company before the generic alias dictionary. This keeps
   // a reviewed company visible as one row even when it is also a known alias.
   const matchedCompany = companies.find((company) =>
-    getCompanyAliases(company).some((alias) => normalizeSearchText(alias) === normalized)
+    companyAliasesMatchName(company, organizationName)
   );
   if (matchedCompany) return `company:${matchedCompany._id}`;
   const known = SMART_ASSISTANT_ORG_ALIASES.find((group) =>
