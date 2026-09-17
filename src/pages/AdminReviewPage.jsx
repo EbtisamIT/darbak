@@ -1209,9 +1209,11 @@ export default function AdminReviewPage() {
       : adminView === "contactMessages"
       ? "رسالة تواصل"
       : adminView === "companyApplications"
-      ? "طلب شركة"
+      ? "طلب تقديم"
       : adminView === "companyCampaigns"
-      ? "برنامج تقديم"
+      ? "برنامج للجهات"
+      : adminView === "companies"
+      ? "جهة في الدليل"
       : adminView === "interviewQuestions"
       ? "أسئلة مقابلة"
       : adminView === "opportunities"
@@ -2229,12 +2231,6 @@ export default function AdminReviewPage() {
       setMessage("تم دمج الشركتين وربط المحتوى بالشركة المختارة.");
       fetchCompanies();
     } catch (err) { setMessage(err.response?.data?.error || "تعذر دمج الشركتين."); }
-  };
-
-  const addProgramForCompany = (company) => {
-    setCompanyCampaignForm({ ...defaultCompanyCampaignForm, companyId: company.id || company._id, organizationName: company.name || "", organizationLogoUrl: company.logoUrl || "", applicationNotificationEmail: company.contactEmail || "", city: company.city || "", cities: company.city ? [company.city] : [] });
-    setEditingCompanyCampaignId(null);
-    setAdminView("companyCampaigns");
   };
 
   const reviewCompanyRequest = async (id, action) => {
@@ -4750,10 +4746,10 @@ export default function AdminReviewPage() {
           <option value="experiences">التجارب</option>
           <option value="suggestions">الاقتراحات</option>
           <option value="contactMessages">رسائل التواصل</option>
-          <option value="companies">الشركات</option>
-          <option value="companyCampaigns">برامج التقديم</option>
-          <option value="companyRequests">طلبات الشركات</option>
-          <option value="companyApplications">طلبات المتقدمين</option>
+          <option value="companies">دليل الشركات</option>
+          <option value="companyCampaigns">برامج التقديم للجهات</option>
+          <option value="companyRequests">طلبات نشر برامج الجهات</option>
+          <option value="companyApplications">طلبات التقديم</option>
           <option value="opportunities">الفرص</option>
           <option value="interviewQuestions">أسئلة المقابلات</option>
           <option value="telegramContent">محتوى قناة التليجرام</option>
@@ -5616,21 +5612,35 @@ export default function AdminReviewPage() {
             </div>
           </section>
           <form onSubmit={saveCompany} style={{ ...cardStyle, display: "grid", gap: 12 }}>
-            <div><h2 style={{ color: adminColors.brand, margin: "0 0 6px" }}>{editingCompanyId ? "تعديل الشركة" : "إضافة شركة"}</h2><p style={{ color: adminColors.muted, margin: 0 }}>الشركة تجمع برامجها وروابط مراجعة المتقدمين في بوابة واحدة خاصة.</p></div>
+            <div>
+              <h2 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
+                {editingCompanyId ? "تعديل جهة في الدليل" : "إضافة جهة إلى الدليل"}
+              </h2>
+              <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.8 }}>
+                هذا القسم خاص بصفحات الجهات التي يراها الطلاب ومحتواها في دربك فقط. برامج التقديم وطلبات المتقدمين تُدار من القسمين المنفصلين أعلاه.
+              </p>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
-              {[["name","اسم الشركة"],["slug","الرابط المختصر"],["logoUrl","رابط الشعار"],["city","المدينة"],["website","الموقع الإلكتروني"],["contactName","اسم مسؤول التواصل"],["contactEmail","بريد إشعارات الطلبات"]].map(([field,label]) => <label key={field} style={{ color: adminColors.textSoft, fontSize: 13 }}>{label}<input value={companyForm[field]} onChange={(event) => setCompanyForm((prev) => ({ ...prev, [field]: event.target.value }))} style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit", boxSizing: "border-box" }} /></label>)}
-              <label style={{ color: adminColors.textSoft, fontSize: 13 }}>الحالة<select value={companyForm.status} onChange={(event) => setCompanyForm((prev) => ({ ...prev, status: event.target.value }))} style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit" }}><option value="trial">تجربة</option><option value="active">نشطة</option><option value="inactive">غير نشطة</option></select></label>
+              {[["name", "اسم الجهة"], ["slug", "رابط صفحة الجهة"], ["logoUrl", "رابط الشعار"], ["city", "المدينة (اختياري)"], ["website", "الموقع الإلكتروني"]].map(([field, label]) => (
+                <label key={field} style={{ color: adminColors.textSoft, fontSize: 13 }}>
+                  {label}
+                  <input
+                    value={companyForm[field] || ""}
+                    onChange={(event) => setCompanyForm((prev) => ({ ...prev, [field]: event.target.value }))}
+                    style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit", boxSizing: "border-box" }}
+                  />
+                </label>
+              ))}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>{[["nameAr","الاسم العربي"],["nameEn","الاسم الإنجليزي"],["sector","القطاع"]].map(([field,label]) => <label key={field} style={{ color: adminColors.textSoft, fontSize: 13 }}>{label}<input value={companyForm[field] || ""} onChange={(event) => setCompanyForm((prev) => ({ ...prev, [field]: event.target.value }))} style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit", boxSizing: "border-box" }} /></label>)}</div>
             <label style={{ color: adminColors.textSoft, fontSize: 13 }}>الأسماء البديلة<textarea value={companyForm.aliases || companyForm.contentAliases} onChange={(event) => setCompanyForm((prev) => ({ ...prev, aliases: event.target.value, contentAliases: event.target.value }))} rows={2} placeholder="مثال: أرامكو، Aramco، Saudi Aramco" style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit", boxSizing: "border-box" }} /><small style={{ color: adminColors.muted }}>افصلي الأسماء بفاصلة. ستُربط التجارب والمقابلات والفرص تلقائيًا عند الحفظ.</small></label>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 9, color: adminColors.textSoft, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={Boolean(companyForm.isPublished)} onChange={(event) => setCompanyForm((prev) => ({ ...prev, isPublished: event.target.checked, showInStudentDirectory: event.target.checked }))} style={{ marginTop: 3 }} /><span><strong style={{ color: adminColors.text }}>نشرها في صفحة الشركات للطلاب</strong><br />البيانات الإدارية وبوابة الشركة الخاصة لا تظهر للطلاب.</span></label>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 9, color: adminColors.textSoft, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={Boolean(companyForm.demoPortalEnabled)} onChange={(event) => setCompanyForm((prev) => ({ ...prev, demoPortalEnabled: event.target.checked }))} style={{ marginTop: 3 }} /><span><strong style={{ color: adminColors.text }}>تفعيل بيانات تجريبية للبوابة</strong><br />تظهر للعرض فقط، ولا تدخل في الطلبات الحقيقية أو التصدير أو التحليلات. تختفي تلقائيًا عند وصول أول متقدم حقيقي.</span></label>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 9, color: adminColors.textSoft, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={Boolean(companyForm.isPublished)} onChange={(event) => setCompanyForm((prev) => ({ ...prev, isPublished: event.target.checked, showInStudentDirectory: event.target.checked }))} style={{ marginTop: 3 }} /><span><strong style={{ color: adminColors.text }}>نشرها في صفحة الشركات للطلاب</strong><br />سيتمكن الطلاب من فتح الصفحة العامة ورؤية التجارب والمقابلات والفرص المرتبطة بهذه الجهة.</span></label>
             <label style={{ color: adminColors.textSoft, fontSize: 13 }}>وصف مختصر<textarea value={companyForm.shortDescription} onChange={(event) => setCompanyForm((prev) => ({ ...prev, shortDescription: event.target.value }))} rows={2} style={{ width: "100%", marginTop: 6, background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, color: adminColors.text, padding: "10px 11px", fontFamily: "inherit", boxSizing: "border-box" }} /></label>
             <div style={{ display: "flex", gap: 8 }}><button type="submit" disabled={savingCompany} style={{ background: adminColors.brand, color: "#07100e", border: "none", borderRadius: 10, padding: "10px 16px", cursor: "pointer", fontFamily: "inherit", fontWeight: 900 }}>{savingCompany ? "جار الحفظ..." : editingCompanyId ? "حفظ التعديل" : "إضافة الشركة"}</button>{editingCompanyId && <button type="button" onClick={() => { setEditingCompanyId(""); setCompanyForm(defaultCompanyForm); }} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, padding: "10px 16px", cursor: "pointer", fontFamily: "inherit" }}>إلغاء</button>}</div>
           </form>
           <section style={{ ...cardStyle, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}><strong style={{ color: adminColors.text }}>دمج شركتين</strong><select value={mergeTargetId} onChange={(event) => setMergeTargetId(event.target.value)} style={{ ...adminSelectStyle, flex: "1 1 240px" }}><option value="">اختاري الشركة التي ستبقى</option>{companies.map((company) => <option key={company.id || company._id} value={company.id || company._id}>{company.name}</option>)}</select><small style={{ color: adminColors.muted }}>بعد الاختيار استخدمي زر «دمج» في الشركة المكررة.</small></section>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 12 }}>
-            {companies.map((company) => <article key={company.id || company._id} style={cardStyle}><div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><div><h3 style={{ color: adminColors.brand, margin: "0 0 5px" }}>{company.name}</h3><p style={{ color: adminColors.muted, margin: 0 }}>{company.city || "بدون مدينة"}</p></div><strong style={{ color: adminColors.textSoft }}>{company.programCount || 0} برامج</strong></div><p style={{ color: adminColors.textSoft, minHeight: 35 }}>{company.shortDescription || "لا يوجد وصف مختصر."}</p>{company.showInStudentDirectory && <small style={{ display: "inline-block", marginBottom: 10, color: adminColors.brand }}>ظاهرة للطلاب في صفحة الشركات</small>}{company.demoPortalEnabled && <small style={{ display: "inline-block", marginBottom: 10, color: adminColors.brand }}>بيانات تجريبية مفعلة للبوابة</small>}<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button type="button" onClick={() => addProgramForCompany(company)} style={{ background: adminColors.brand, color: "#07100e", border: "none", borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 800 }}>إضافة برنامج</button><button type="button" onClick={() => editCompany(company)} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>تعديل</button><button type="button" onClick={() => linkCompanyContent(company.id || company._id)} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>ربط المحتوى</button><button type="button" disabled={!mergeTargetId || mergeTargetId === (company.id || company._id)} onClick={() => mergeCompanies(company.id || company._id)} style={{ background: "transparent", color: "#fbbf24", border: "1px solid rgba(251,191,36,.45)", borderRadius: 9, padding: "8px 10px", cursor: !mergeTargetId || mergeTargetId === (company.id || company._id) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: !mergeTargetId || mergeTargetId === (company.id || company._id) ? .55 : 1 }}>دمج في المختارة</button><button type="button" onClick={() => navigator.clipboard?.writeText(company.portalUrl || "").then(() => setMessage("تم نسخ رابط بوابة الشركة."))} style={{ background: "transparent", color: adminColors.brand, border: `1px solid ${adminColors.brand}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>نسخ بوابة الشركة</button></div></article>)}
+            {companies.map((company) => <article key={company.id || company._id} style={cardStyle}><div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><div><h3 style={{ color: adminColors.brand, margin: "0 0 5px" }}>{company.name}</h3><p style={{ color: adminColors.muted, margin: 0 }}>{company.sector || "جهة تدريب"}</p></div><small style={{ color: company.isPublished || company.showInStudentDirectory ? adminColors.brand : adminColors.muted }}>{company.isPublished || company.showInStudentDirectory ? "منشورة للطلاب" : "غير منشورة"}</small></div><p style={{ color: adminColors.textSoft, minHeight: 35 }}>{company.shortDescription || "لا يوجد وصف مختصر."}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button type="button" onClick={() => editCompany(company)} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>تعديل الدليل</button><button type="button" onClick={() => linkCompanyContent(company.id || company._id)} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>ربط المحتوى</button><button type="button" disabled={!mergeTargetId || mergeTargetId === (company.id || company._id)} onClick={() => mergeCompanies(company.id || company._id)} style={{ background: "transparent", color: "#fbbf24", border: "1px solid rgba(251,191,36,.45)", borderRadius: 9, padding: "8px 10px", cursor: !mergeTargetId || mergeTargetId === (company.id || company._id) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: !mergeTargetId || mergeTargetId === (company.id || company._id) ? .55 : 1 }}>دمج في المختارة</button></div></article>)}
           </div>
         </div>
       ) : adminView === "companyRequests" ? (
@@ -5649,12 +5659,12 @@ export default function AdminReviewPage() {
             <div>
               <h2 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
                 {editingCompanyCampaignId
-                  ? "تعديل برنامج تقديم"
-                  : "إنشاء برنامج تقديم شركة"}
+                  ? "تعديل برنامج تقديم للجهة"
+                  : "إنشاء برنامج تقديم للجهة"}
               </h2>
               <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.8 }}>
-                هذا البرنامج يولد رابطًا مثل /apply/company-program، والطالب يقدم
-                عليه مباشرة بنموذج بسيط وسيرة PDF.
+                هذا القسم مستقل عن دليل الشركات: أنشئي هنا رابط تقديم للطلاب واستقبلي
+                طلباتهم، ولا يغيّر محتوى صفحة الجهة العامة في الدليل.
               </p>
             </div>
 
@@ -6122,9 +6132,15 @@ export default function AdminReviewPage() {
         </div>
       ) : adminView === "companyApplications" ? (
         <div style={{ display: "grid", gap: "12px" }}>
+          <section style={cardStyle}>
+            <h2 style={{ color: adminColors.brand, margin: "0 0 6px" }}>طلبات التقديم للبرامج</h2>
+            <p style={{ color: adminColors.muted, margin: 0, lineHeight: 1.8 }}>
+              هذه طلبات الطلاب الواردة من روابط برامج التقديم فقط، وليست جزءًا من دليل الشركات أو محتواه العام.
+            </p>
+          </section>
           {companyApplications.length === 0 && !loading ? (
             <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>
-              لا توجد طلبات شركات في هذا العرض.
+              لا توجد طلبات تقديم للبرامج في هذا العرض.
             </div>
           ) : (
             companyApplications.map((item) => (
