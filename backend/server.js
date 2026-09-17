@@ -2644,51 +2644,64 @@ const linkCompanyContent = async (company = {}) => {
   };
 };
 
+let publicCompanyDirectorySeeded = false;
+let publicCompanyDirectorySeedPromise = null;
+
 const seedPublicCompanyDirectory = async () => {
   if (mongoose.connection.readyState !== 1) return;
+  if (publicCompanyDirectorySeeded) return;
+  if (publicCompanyDirectorySeedPromise) return publicCompanyDirectorySeedPromise;
 
-  const results = await Promise.all(
-    DIRECTORY_COMPANY_SEEDS.map(async (seed) => {
-      const existing = await Company.findOne({ slug: seed.slug }).lean();
-      const company = existing
-        ? await Company.findByIdAndUpdate(
-            existing._id,
-            {
-              $set: {
-                nameAr: existing.nameAr || seed.nameAr || seed.name,
-                nameEn: existing.nameEn || seed.nameEn || "",
-                sector: existing.sector || seed.sector,
-                website: existing.website || seed.website,
-                shortDescription: existing.shortDescription || seed.shortDescription,
-                city: "",
-                status: existing.status === "inactive" ? "inactive" : "active",
-                isPublished: true,
-                showInStudentDirectory: true,
-                aliases: Array.from(new Set([...(existing.aliases || []), ...seed.aliases])).slice(0, 20),
-                contentAliases: Array.from(new Set([...(existing.contentAliases || []), ...seed.aliases])).slice(0, 20),
+  publicCompanyDirectorySeedPromise = (async () => {
+    const results = await Promise.all(
+      DIRECTORY_COMPANY_SEEDS.map(async (seed) => {
+        const existing = await Company.findOne({ slug: seed.slug }).lean();
+        const company = existing
+          ? await Company.findByIdAndUpdate(
+              existing._id,
+              {
+                $set: {
+                  nameAr: existing.nameAr || seed.nameAr || seed.name,
+                  nameEn: existing.nameEn || seed.nameEn || "",
+                  sector: existing.sector || seed.sector,
+                  website: existing.website || seed.website,
+                  shortDescription: existing.shortDescription || seed.shortDescription,
+                  city: "",
+                  status: existing.status === "inactive" ? "inactive" : "active",
+                  isPublished: true,
+                  showInStudentDirectory: true,
+                  aliases: Array.from(new Set([...(existing.aliases || []), ...seed.aliases])).slice(0, 20),
+                  contentAliases: Array.from(new Set([...(existing.contentAliases || []), ...seed.aliases])).slice(0, 20),
+                },
               },
-            },
-            { new: true }
-          ).lean()
-        : (await Company.create({
-            ...seed,
-            nameAr: seed.nameAr || seed.name,
-            city: "",
-            status: "active",
-            isPublished: true,
-            showInStudentDirectory: true,
-            contentAliases: seed.aliases,
-            portalAccessToken: createCompanyPortalAccessToken(),
-          })).toObject();
+              { new: true }
+            ).lean()
+          : (await Company.create({
+              ...seed,
+              nameAr: seed.nameAr || seed.name,
+              city: "",
+              status: "active",
+              isPublished: true,
+              showInStudentDirectory: true,
+              contentAliases: seed.aliases,
+              portalAccessToken: createCompanyPortalAccessToken(),
+            })).toObject();
 
-      // Existing admin edits always win. We only backfill matching content.
-      const linked = await linkCompanyContent(company);
-      return { slug: seed.slug, created: !existing, linked };
-    })
-  );
+        const linked = await linkCompanyContent(company);
+        return { slug: seed.slug, created: !existing, linked };
+      })
+    );
 
-  const created = results.filter((item) => item.created).length;
-  if (created) console.log(`🧭 Seeded ${created} public directory companies`);
+    const created = results.filter((item) => item.created).length;
+    if (created) console.log(`🧭 Seeded ${created} public directory companies`);
+    publicCompanyDirectorySeeded = true;
+  })();
+
+  try {
+    await publicCompanyDirectorySeedPromise;
+  } finally {
+    publicCompanyDirectorySeedPromise = null;
+  }
 };
 
 const sanitizeCompanyPayload = (body = {}) => {
@@ -2773,6 +2786,7 @@ const serializeStudentDirectoryCompany = (company = {}) => ({
 // access tokens, contacts and program-management data never leave this route.
 app.get('/api/companies', async (req, res) => {
   try {
+    await seedPublicCompanyDirectory();
     const companies = await Company.find({
       $or: [{ isPublished: true }, { showInStudentDirectory: true }],
       status: { $in: ["trial", "active"] },
