@@ -18313,3 +18313,10 @@ app.delete('/api/admin/company-applications/:id', requireAdmin, async (req, res)
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+// Keep public API reads available to the Darbak frontend even when an edge cache
+// serves a GET response without the header injected by the generic CORS middleware.
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.append("Vary", "Origin");
+  next();
+});
