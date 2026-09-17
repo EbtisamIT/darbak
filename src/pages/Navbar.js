@@ -309,6 +309,9 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       <Link to="/interviews" role="menuitem" onClick={() => setMoreMenuOpen(false)}>
         <FiMessageCircle aria-hidden="true" /> <span>مقابلات</span>
       </Link>
+      <Link to="/companies" role="menuitem" onClick={() => setMoreMenuOpen(false)}>
+        <FiBriefcase aria-hidden="true" /> <span>الشركات</span>
+      </Link>
       <button type="button" role="menuitem" onClick={openPortfolio}>
         <FiBriefcase aria-hidden="true" /> <span>Portfolio</span>
       </button>

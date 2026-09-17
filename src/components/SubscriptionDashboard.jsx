@@ -284,14 +284,25 @@ const SubscriptionDashboard = ({ data, loading, onRefresh, onOpenUsers }) => {
       )}
 
       {activeTab === "content" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
-          <CompactList title="أكثر 5 تجارب قراءة" items={content.experiences} />
-          <CompactList title="أكثر 5 فرص فتحًا" items={content.opportunities} />
-          <CompactList title="أكثر 5 شركات بحثًا" items={content.companies} />
-          <CompactList title="أكثر التخصصات" items={content.majors} />
-          <CompactList title="أكثر المدن" items={content.cities} />
-          <CompactList title="أكثر مصادر بدء checkout" items={dashboard.attribution} />
-        </div>
+        <>
+          <Section title="إحصائيات صفحات الشركات" description="تبدأ من لحظة نشر هذا التحديث. الأرقام الكبيرة مستخدمون فريدون، والصغير عدد الأحداث.">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+              {metricCard("فتح دليل الشركات", formatNumber(content.companyDirectory?.directory?.users), `${formatNumber(content.companyDirectory?.directory?.events)} زيارة`)}
+              {metricCard("فتح صفحات الشركات", formatNumber(content.companyDirectory?.pages?.users), `${formatNumber(content.companyDirectory?.pages?.events)} فتح`)}
+              {metricCard("فتح محتوى داخل الشركات", formatNumber(content.companyDirectory?.contentOpens?.users), `${formatNumber(content.companyDirectory?.contentOpens?.events)} فتح`)}
+              {metricCard("التنقل بين الأقسام", formatNumber(content.companyDirectory?.tabs?.users), `${formatNumber(content.companyDirectory?.tabs?.events)} تفاعل`)}
+            </div>
+          </Section>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
+            <CompactList title="أكثر صفحات الشركات زيارة" items={content.companyDirectory?.companies} />
+            <CompactList title="أكثر 5 تجارب قراءة" items={content.experiences} />
+            <CompactList title="أكثر 5 فرص فتحًا" items={content.opportunities} />
+            <CompactList title="أكثر 5 شركات بحثًا" items={content.companies} />
+            <CompactList title="أكثر التخصصات" items={content.majors} />
+            <CompactList title="أكثر المدن" items={content.cities} />
+            <CompactList title="أكثر مصادر بدء checkout" items={dashboard.attribution} />
+          </div>
+        </>
       )}
 
       {activeTab === "users" && (

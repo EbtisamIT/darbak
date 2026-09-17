@@ -32,5 +32,6 @@ AnalyticsEventSchema.index({ eventName: 1, actorId: 1, createdAt: -1 });
 AnalyticsEventSchema.index({ eventName: 1, "metadata.experienceId": 1 });
 AnalyticsEventSchema.index({ eventName: 1, "metadata.opportunityId": 1 });
 AnalyticsEventSchema.index({ eventName: 1, "metadata.organizationName": 1 });
+AnalyticsEventSchema.index({ eventName: 1, "metadata.companySlug": 1, createdAt: -1 });
 
 module.exports = mongoose.model("AnalyticsEvent", AnalyticsEventSchema);

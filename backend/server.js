@@ -2575,13 +2575,66 @@ const createCompanyApplicationShareToken = () =>
 
 const createCompanyPortalAccessToken = () => crypto.randomBytes(32).toString("hex");
 
+const sanitizeCompanyContentAliases = (value = []) => {
+  const rawAliases = Array.isArray(value)
+    ? value
+    : value.toString().split(/[\n,،|]/);
+  return Array.from(
+    new Set(
+      rawAliases
+        .map((alias) => alias.toString().trim().replace(/\s+/g, " ").slice(0, 160))
+        .filter(Boolean)
+    )
+  ).slice(0, 20);
+};
+
+const getCompanyAliases = (company = {}) =>
+  Array.from(
+    new Set(
+      [
+        company.name,
+        company.nameAr,
+        company.nameEn,
+        ...(Array.isArray(company.aliases) ? company.aliases : []),
+        ...(Array.isArray(company.contentAliases) ? company.contentAliases : []),
+      ]
+        .map((value) => value?.toString().trim())
+        .filter(Boolean)
+        .flatMap((value) => getOrganizationSearchTerms(value))
+    )
+  );
+
+const getCompanyAliasRegexFilter = (company = {}) => {
+  const aliases = getCompanyAliases(company);
+  const regexes = aliases.map((alias) => new RegExp(`^${escapeRegex(alias)}$`, "i"));
+  return regexes.length ? { organizationName: { $in: regexes } } : { _id: null };
+};
+
+const linkCompanyContent = async (company = {}) => {
+  if (!company?._id) return { experiences: 0, interviews: 0, opportunities: 0 };
+  const match = getCompanyAliasRegexFilter(company);
+  const [experiences, interviews, opportunities] = await Promise.all([
+    Experience.updateMany(match, { $set: { companyId: company._id } }),
+    InterviewQuestion.updateMany(match, { $set: { companyId: company._id } }),
+    Opportunity.updateMany(match, { $set: { companyId: company._id } }),
+  ]);
+  return {
+    experiences: Number(experiences.modifiedCount || 0),
+    interviews: Number(interviews.modifiedCount || 0),
+    opportunities: Number(opportunities.modifiedCount || 0),
+  };
+};
+
 const sanitizeCompanyPayload = (body = {}) => {
   const name = (body.name || "").toString().trim().replace(/\s+/g, " ").slice(0, 180);
   return {
     name,
+    nameAr: (body.nameAr || body.name || "").toString().trim().slice(0, 180),
+    nameEn: (body.nameEn || "").toString().trim().slice(0, 180),
     slug: normalizeCompanyApplicationSlug(body.slug || name),
     logoUrl: sanitizeExternalUrl(body.logoUrl || body.organizationLogoUrl || ""),
     shortDescription: (body.shortDescription || "").toString().trim().slice(0, 600),
+    sector: (body.sector || "").toString().trim().slice(0, 120),
     city: (body.city || "").toString().trim().slice(0, 120),
     website: sanitizeExternalUrl(body.website || ""),
     contactName: (body.contactName || "").toString().trim().slice(0, 160),
@@ -2591,6 +2644,14 @@ const sanitizeCompanyPayload = (body = {}) => {
     status: ["trial", "active", "inactive"].includes(body.status)
       ? body.status
       : "trial",
+    showInStudentDirectory:
+      body.isPublished === true || body.isPublished === "true" ||
+      body.showInStudentDirectory === true || body.showInStudentDirectory === "true",
+    aliases: sanitizeCompanyContentAliases(body.aliases || body.contentAliases),
+    contentAliases: sanitizeCompanyContentAliases(body.aliases || body.contentAliases),
+    isPublished:
+      body.isPublished === true || body.isPublished === "true" ||
+      body.showInStudentDirectory === true || body.showInStudentDirectory === "true",
     demoPortalEnabled:
       body.demoPortalEnabled === true || body.demoPortalEnabled === "true",
   };
@@ -2603,14 +2664,21 @@ const serializeCompany = (company = {}, extra = {}) => {
     id,
     _id: id,
     name: company.name || "",
+    nameAr: company.nameAr || company.name || "",
+    nameEn: company.nameEn || "",
     slug: company.slug || "",
     logoUrl: company.logoUrl || "",
     shortDescription: company.shortDescription || "",
+    sector: company.sector || "",
     city: company.city || "",
     website: company.website || "",
     contactName: company.contactName || "",
     contactEmail: company.contactEmail || "",
     status: company.status || "trial",
+    showInStudentDirectory: Boolean(company.isPublished || company.showInStudentDirectory),
+    isPublished: Boolean(company.isPublished || company.showInStudentDirectory),
+    aliases: Array.isArray(company.aliases) && company.aliases.length ? company.aliases : (company.contentAliases || []),
+    contentAliases: Array.isArray(company.aliases) && company.aliases.length ? company.aliases : (company.contentAliases || []),
     demoPortalEnabled: Boolean(company.demoPortalEnabled),
     programCount: Number(extra.programCount || 0),
     pendingRequestCount: Number(extra.pendingRequestCount || 0),
@@ -2621,6 +2689,142 @@ const serializeCompany = (company = {}, extra = {}) => {
     updatedAt: company.updatedAt,
   };
 };
+
+const serializeStudentDirectoryCompany = (company = {}) => ({
+  id: company._id?.toString?.() || company.id || "",
+  slug: company.slug || "",
+  name: company.name || "",
+  nameAr: company.nameAr || company.name || "",
+  nameEn: company.nameEn || "",
+  logoUrl: company.logoUrl || "",
+  shortDescription: company.shortDescription || "",
+  sector: company.sector || "",
+  website: company.website || "",
+  aliases: getCompanyAliases(company),
+});
+
+// The public directory intentionally exposes only presentation fields. Portal
+// access tokens, contacts and program-management data never leave this route.
+app.get('/api/companies', async (req, res) => {
+  try {
+    const companies = await Company.find({
+      $or: [{ isPublished: true }, { showInStudentDirectory: true }],
+      status: { $in: ["trial", "active"] },
+    })
+      .sort({ name: 1 })
+      .select("name nameAr nameEn slug logoUrl shortDescription sector website aliases contentAliases")
+      .lean();
+    res.json({ data: companies.map(serializeStudentDirectoryCompany) });
+  } catch (err) {
+    console.error("❌ Public companies fetch error:", err);
+    res.status(500).json({ error: "تعذر تحميل الشركات حاليًا." });
+  }
+});
+
+app.get('/api/companies/:slug', async (req, res) => {
+  try {
+    const slug = normalizeCompanyApplicationSlug(req.params.slug || "");
+    const company = await Company.findOne({
+      slug,
+      $or: [{ isPublished: true }, { showInStudentDirectory: true }],
+      status: { $in: ["trial", "active"] },
+    })
+      .select("name nameAr nameEn slug logoUrl shortDescription sector website aliases contentAliases")
+      .lean();
+    if (!company) return res.status(404).json({ error: "الشركة غير متاحة في الدليل." });
+    res.json({ data: serializeStudentDirectoryCompany(company) });
+  } catch (err) {
+    console.error("❌ Public company fetch error:", err);
+    res.status(500).json({ error: "تعذر تحميل الشركة حاليًا." });
+  }
+});
+
+const buildCompanyInterviewGroups = (experienceRows = [], questionRows = []) => {
+  const groups = new Map();
+  const rows = [
+    ...experienceRows.map((item) => ({ ...item, questions: item.interviewQuestions, kind: "experience" })),
+    ...questionRows.map((item) => ({ ...item, kind: "interview_question" })),
+  ];
+  rows.forEach((item) => {
+    const key = `${normalizeSearchText(item.organizationName)}|${normalizeSearchText(item.major || "")}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        organizationName: item.organizationName || "",
+        major: item.major || "غير محدد",
+        majorCategory: item.majorCategory || "",
+        cities: new Set(),
+        questions: [],
+        questionKeys: new Set(),
+        latestCreatedAt: item.createdAt,
+      });
+    }
+    const group = groups.get(key);
+    if (item.city) group.cities.add(item.city);
+    if (item.createdAt && new Date(item.createdAt) > new Date(group.latestCreatedAt || 0)) group.latestCreatedAt = item.createdAt;
+    normalizeInterviewQuestions(item.questions || []).forEach((question) => {
+      const questionKey = normalizeSearchText(question);
+      if (!questionKey || group.questionKeys.has(questionKey)) return;
+      group.questionKeys.add(questionKey);
+      group.questions.push(question);
+    });
+  });
+  return Array.from(groups.values()).map((group) => ({
+    organizationName: group.organizationName,
+    major: group.major,
+    majorCategory: group.majorCategory,
+    cities: Array.from(group.cities),
+    questions: group.questions.slice(0, 12),
+    questionsCount: group.questions.length,
+    latestCreatedAt: group.latestCreatedAt,
+  }));
+};
+
+app.get('/api/companies/:slug/content', async (req, res) => {
+  try {
+    const slug = normalizeCompanyApplicationSlug(req.params.slug || "");
+    const company = await Company.findOne({
+      slug,
+      $or: [{ isPublished: true }, { showInStudentDirectory: true }],
+      status: { $in: ["trial", "active"] },
+    }).lean();
+    if (!company) return res.status(404).json({ error: "الشركة غير متاحة في الدليل." });
+
+    const companyId = company._id;
+    const [experiences, experienceInterviews, questionInterviews, opportunities] = await Promise.all([
+      Experience.find({ ...getApprovedExperiencesFilter(), companyId })
+        .select(EXPERIENCE_PUBLIC_FIELDS)
+        .sort({ createdAt: -1 })
+        .limit(60)
+        .lean(),
+      Experience.find({ ...getApprovedExperiencesFilter(), companyId, interviewQuestions: { $exists: true, $ne: [] } })
+        .select("organizationName city major majorCategory interviewQuestions createdAt")
+        .sort({ createdAt: -1 })
+        .limit(400)
+        .lean(),
+      InterviewQuestion.find({ status: "approved", companyId })
+        .select("organizationName city major majorCategory questions createdAt")
+        .sort({ createdAt: -1 })
+        .limit(400)
+        .lean(),
+      Opportunity.find({ companyId, status: { $in: ["active", "expired"] } })
+        .select(`${OPPORTUNITY_PUBLIC_FIELDS} applicationUrl note keywords`)
+        .sort({ featured: -1, createdAt: -1 })
+        .limit(60)
+        .lean(),
+    ]);
+    res.json({
+      company: serializeStudentDirectoryCompany(company),
+      data: {
+        experiences,
+        interviews: buildCompanyInterviewGroups(experienceInterviews, questionInterviews),
+        opportunities,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Public company content fetch error:", err);
+    res.status(500).json({ error: "تعذر تحميل محتوى الشركة حاليًا." });
+  }
+});
 
 const ensureCompanyPortalAccessToken = async (company = {}) => {
   if (company.portalAccessToken) return company;
@@ -2792,6 +2996,9 @@ const hydrateDarbakOpportunityFromCampaign = async (payload = {}) => {
 
   return {
     ...payload,
+    // The campaign is the trusted source for the company relation. Keeping the
+    // legacy organizationName alongside it preserves existing opportunity code.
+    companyId: campaign.companyId || null,
     organizationName: serialized.organizationName,
     title: serialized.opportunityTitle,
     city: serialized.city,
@@ -15829,6 +16036,105 @@ app.get('/api/admin/companies', requireAdmin, async (req, res) => {
   }
 });
 
+const getCompanySuggestionKey = (organizationName = "", companies = []) => {
+  const normalized = normalizeSearchText(organizationName);
+  if (!normalized) return "";
+  // Prefer an existing Company before the generic alias dictionary. This keeps
+  // a reviewed company visible as one row even when it is also a known alias.
+  const matchedCompany = companies.find((company) =>
+    getCompanyAliases(company).some((alias) => normalizeSearchText(alias) === normalized)
+  );
+  if (matchedCompany) return `company:${matchedCompany._id}`;
+  const known = SMART_ASSISTANT_ORG_ALIASES.find((group) =>
+    [group.label, ...group.aliases].some((alias) => normalizeSearchText(alias) === normalized)
+  );
+  if (known) return `known:${normalizeSearchText(known.label)}`;
+  return `name:${normalized}`;
+};
+
+const getCompanySuggestions = async () => {
+  const [companies, experienceRows, experienceInterviewRows, interviewRows, opportunityRows] = await Promise.all([
+    Company.find({}).lean(),
+    Experience.aggregate([
+      { $match: getApprovedExperiencesFilter() },
+      { $group: { _id: "$organizationName", count: { $sum: 1 } } },
+    ]),
+    Experience.aggregate([
+      { $match: { ...getApprovedExperiencesFilter(), interviewQuestions: { $exists: true, $ne: [] } } },
+      { $group: { _id: "$organizationName", count: { $sum: 1 } } },
+    ]),
+    InterviewQuestion.aggregate([
+      { $match: { status: "approved" } },
+      { $group: { _id: "$organizationName", count: { $sum: 1 } } },
+    ]),
+    Opportunity.aggregate([
+      { $match: { status: { $in: ["active", "draft", "expired"] } } },
+      { $group: { _id: "$organizationName", count: { $sum: 1 } } },
+    ]),
+  ]);
+  const grouped = new Map();
+  const addRows = (rows, field) => rows.forEach((row) => {
+    const rawName = (row._id || "").toString().trim();
+    if (!rawName) return;
+    const key = getCompanySuggestionKey(rawName, companies);
+    if (!key) return;
+    if (!grouped.has(key)) {
+      const known = key.startsWith("known:")
+        ? SMART_ASSISTANT_ORG_ALIASES.find((item) => `known:${normalizeSearchText(item.label)}` === key)
+        : null;
+      const existingCompany = key.startsWith("company:")
+        ? companies.find((item) => `company:${item._id}` === key)
+        : null;
+      grouped.set(key, {
+        key,
+        suggestedName: existingCompany?.name || known?.label || rawName,
+        aliases: new Set(existingCompany ? getCompanyAliases(existingCompany) : (known ? [known.label, ...known.aliases] : [])),
+        experiencesCount: 0,
+        interviewsCount: 0,
+        opportunitiesCount: 0,
+        company: existingCompany || null,
+      });
+    }
+    const item = grouped.get(key);
+    item.aliases.add(rawName);
+    item[field] += Number(row.count || 0);
+  });
+  addRows(experienceRows, "experiencesCount");
+  addRows(experienceInterviewRows, "interviewsCount");
+  addRows(interviewRows, "interviewsCount");
+  addRows(opportunityRows, "opportunitiesCount");
+  return Array.from(grouped.values())
+    .map((item) => {
+      const aliases = Array.from(item.aliases).slice(0, 20);
+      const normalizedAliases = new Set(aliases.map(normalizeSearchText).filter(Boolean));
+      const hasDuplicateCompany = item.company && companies.some((candidate) => {
+        if (candidate._id.toString() === item.company._id.toString()) return false;
+        return getCompanyAliases(candidate).some((alias) => normalizedAliases.has(normalizeSearchText(alias)));
+      });
+      return {
+        ...item,
+        aliases,
+        company: item.company ? serializeCompany(item.company) : null,
+        needsReview: (!item.company && aliases.length > 1) || Boolean(hasDuplicateCompany),
+      };
+    })
+    .sort((a, b) => (
+      Number(Boolean(a.company)) - Number(Boolean(b.company)) ||
+      (b.experiencesCount + b.interviewsCount + b.opportunitiesCount) -
+        (a.experiencesCount + a.interviewsCount + a.opportunitiesCount)
+    ));
+};
+
+app.get('/api/admin/company-suggestions', requireAdmin, async (req, res) => {
+  try {
+    const data = await getCompanySuggestions();
+    res.json({ data });
+  } catch (err) {
+    console.error("❌ Company suggestions fetch error:", err);
+    res.status(500).json({ error: "تعذر جمع الجهات من المحتوى." });
+  }
+});
+
 app.post('/api/admin/companies', requireAdmin, async (req, res) => {
   try {
     const payload = sanitizeCompanyPayload(req.body || {});
@@ -15839,7 +16145,9 @@ app.post('/api/admin/companies', requireAdmin, async (req, res) => {
       ...payload,
       portalAccessToken: createCompanyPortalAccessToken(),
     });
-    res.status(201).json(serializeCompany(company.toObject(), { includePortalUrl: true }));
+    const companyData = company.toObject();
+    const linked = await linkCompanyContent(companyData);
+    res.status(201).json(serializeCompany(companyData, { includePortalUrl: true, linked }));
   } catch (err) {
     if (err?.code === 11000) {
       return res.status(409).json({ error: "الرابط المختصر للشركة مستخدم مسبقًا." });
@@ -15868,11 +16176,54 @@ app.patch('/api/admin/companies/:id', requireAdmin, async (req, res) => {
     ).lean();
     if (!company) return res.status(404).json({ error: "الشركة غير موجودة." });
     const secured = await ensureCompanyPortalAccessToken(company);
-    res.json(serializeCompany(secured, { includePortalUrl: true }));
+    const linked = await linkCompanyContent(secured);
+    res.json(serializeCompany(secured, { includePortalUrl: true, linked }));
   } catch (err) {
     if (err?.code === 11000) return res.status(409).json({ error: "الرابط المختصر للشركة مستخدم مسبقًا." });
     console.error("❌ Admin company edit error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/companies/:id/link-content', requireAdmin, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "معرّف الشركة غير صحيح." });
+    }
+    const company = await Company.findById(req.params.id).lean();
+    if (!company) return res.status(404).json({ error: "الشركة غير موجودة." });
+    const linked = await linkCompanyContent(company);
+    res.json({ success: true, linked });
+  } catch (err) {
+    console.error("❌ Company content link error:", err);
+    res.status(500).json({ error: "تعذر ربط محتوى الشركة." });
+  }
+});
+
+app.post('/api/admin/companies/:targetId/merge/:sourceId', requireAdmin, async (req, res) => {
+  try {
+    const { targetId, sourceId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(targetId) || !mongoose.Types.ObjectId.isValid(sourceId) || targetId === sourceId) {
+      return res.status(400).json({ error: "اختيار الدمج غير صحيح." });
+    }
+    const [target, source] = await Promise.all([Company.findById(targetId).lean(), Company.findById(sourceId).lean()]);
+    if (!target || !source) return res.status(404).json({ error: "إحدى الشركتين غير موجودة." });
+    const aliases = Array.from(new Set([...getCompanyAliases(target), ...getCompanyAliases(source)])).slice(0, 20);
+    const merged = await Company.findByIdAndUpdate(targetId, {
+      $set: { aliases, contentAliases: aliases },
+    }, { new: true }).lean();
+    await Promise.all([
+      Experience.updateMany({ companyId: source._id }, { $set: { companyId: merged._id } }),
+      InterviewQuestion.updateMany({ companyId: source._id }, { $set: { companyId: merged._id } }),
+      Opportunity.updateMany({ companyId: source._id }, { $set: { companyId: merged._id } }),
+      CompanyApplicationCampaign.updateMany({ companyId: source._id }, { $set: { companyId: merged._id } }),
+    ]);
+    const linked = await linkCompanyContent(merged);
+    await Company.findByIdAndDelete(sourceId);
+    res.json({ success: true, data: serializeCompany(merged, { includePortalUrl: true, linked }) });
+  } catch (err) {
+    console.error("❌ Company merge error:", err);
+    res.status(500).json({ error: "تعذر دمج الشركتين." });
   }
 });
 

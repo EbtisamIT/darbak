@@ -6,6 +6,12 @@ const experienceSchema = new mongoose.Schema(
       type: String,
       required: true, // اسم الجهة
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "companies",
+      default: null,
+      index: true,
+    },
     city: {
       type: String,
       required: true, // المدينة
@@ -204,6 +210,7 @@ experienceSchema.index({ status: 1, city: 1, createdAt: -1 });
 experienceSchema.index({ status: 1, major: 1, createdAt: -1 });
 experienceSchema.index({ status: 1, majorCategory: 1, createdAt: -1 });
 experienceSchema.index({ status: 1, organizationName: 1 });
+experienceSchema.index({ status: 1, companyId: 1, createdAt: -1 });
 experienceSchema.index({ status: 1, hadReward: 1, trainingEnvironment: 1 });
 
 // ✅ إنشاء العنوان تلقائيًا قبل الحفظ

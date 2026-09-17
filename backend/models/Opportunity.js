@@ -7,6 +7,12 @@ const opportunitySchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "companies",
+      default: null,
+      index: true,
+    },
     title: {
       type: String,
       required: true,
@@ -127,5 +133,6 @@ opportunitySchema.index({ status: 1, majorCategories: 1, createdAt: -1 });
 opportunitySchema.index({ status: 1, keywords: 1, createdAt: -1 });
 opportunitySchema.index({ organizationName: 1 });
 opportunitySchema.index({ companyApplicationCampaignId: 1, isDarbakApplication: 1 });
+opportunitySchema.index({ status: 1, companyId: 1, createdAt: -1 });
 
 module.exports = mongoose.model("opportunities", opportunitySchema);

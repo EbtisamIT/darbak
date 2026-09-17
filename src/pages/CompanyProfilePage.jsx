@@ -1,0 +1,312 @@
+import React, { useEffect, useMemo, useState } from "react";
+import axios from "axios";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  FiArrowLeft,
+  FiBriefcase,
+  FiClock,
+  FiMessageCircle,
+  FiStar,
+} from "react-icons/fi";
+import API_BASE_URL from "../config/api";
+import { getOrganizationLogoUrl } from "../data/organizationLogos";
+import { trackEvent } from "../utils/analytics";
+import "./CompaniesPage.css";
+
+const formatDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("ar-SA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const getOpportunityCities = (opportunity) => {
+  const cities = Array.isArray(opportunity.cities)
+    ? opportunity.cities.filter(Boolean)
+    : [];
+  return cities.length > 0 ? cities : opportunity.city ? [opportunity.city] : [];
+};
+
+const getOpportunityPath = (opportunity) =>
+  opportunity?._id || opportunity?.id
+    ? `/where-to-train/opportunity/${opportunity._id || opportunity.id}`
+    : "/where-to-train";
+
+function CompanyLogo({ company, logoUrl }) {
+  const [hasFailed, setHasFailed] = useState(false);
+
+  return (
+    <span className="company-profile-logo" aria-hidden="true">
+      {logoUrl && !hasFailed ? (
+        <img src={logoUrl} alt="" onError={() => setHasFailed(true)} />
+      ) : (
+        company.name.slice(0, 1)
+      )}
+    </span>
+  );
+}
+
+function EmptyCompanyState({ label, companyName = "هذه الجهة" }) {
+  return (
+    <div className="company-content-empty">
+      <span>لا يوجد {label} حاليًا لـ{companyName}</span>
+      <small>نضيف المحتوى المعتمد إلى هذه الصفحة أولًا بأول.</small>
+    </div>
+  );
+}
+
+function ExperienceCard({ experience, company, onOpen }) {
+  const navigate = useNavigate();
+  const experienceId = experience._id || experience.id;
+  const summary = String(experience.description || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return (
+    <article
+      className="company-content-card company-experience-card"
+      role="button"
+      tabIndex={0}
+      onClick={() => { onOpen?.("experience", experienceId); if (experienceId) navigate(`/experiences/${experienceId}`); }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && experienceId) { onOpen?.("experience", experienceId); navigate(`/experiences/${experienceId}`); }
+      }}
+    >
+      <div className="company-card-topline">
+        <span className="company-card-icon"><FiStar aria-hidden="true" /></span>
+        {experience.starRating ? <small>{experience.starRating}/5</small> : null}
+      </div>
+      <h3>{experience.title || `تجربة تدريب في ${company.name}`}</h3>
+      <p>{[experience.major || experience.majorCategory, experience.city].filter(Boolean).join(" · ")}</p>
+      {summary ? <em>{summary.slice(0, 122)}{summary.length > 122 ? "..." : ""}</em> : null}
+      <span className="company-card-link">اقرأ التجربة <FiArrowLeft aria-hidden="true" /></span>
+    </article>
+  );
+}
+
+function InterviewCard({ interview, onOpen, company }) {
+  return (
+    <article className="company-content-card company-interview-card">
+      <div className="company-card-topline">
+        <span className="company-card-icon"><FiMessageCircle aria-hidden="true" /></span>
+        <small>{interview.questionsCount || interview.questions?.length || 0} سؤال</small>
+      </div>
+      <h3>{interview.major || "تخصصات متعددة"}</h3>
+      <p>{Array.isArray(interview.cities) && interview.cities.length ? interview.cities.join("، ") : "مقابلة تدريب"}</p>
+      <button type="button" className="company-outline-button" onClick={() => onOpen(interview, company)}>
+        عرض الأسئلة <FiArrowLeft aria-hidden="true" />
+      </button>
+    </article>
+  );
+}
+
+function OpportunityCard({ opportunity, logoUrl, onOpen, company }) {
+  const navigate = useNavigate();
+  const cities = getOpportunityCities(opportunity);
+  const isClosed =
+    opportunity.status === "expired" ||
+    (opportunity.deadline && new Date(opportunity.deadline) < new Date());
+
+  return (
+    <article
+      className="company-content-card company-opportunity-card"
+      role="button"
+      tabIndex={0}
+      onClick={() => { onOpen?.("opportunity", opportunity._id || opportunity.id); navigate(getOpportunityPath(opportunity)); }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") { onOpen?.("opportunity", opportunity._id || opportunity.id); navigate(getOpportunityPath(opportunity)); }
+      }}
+    >
+      <div className="company-opportunity-heading">
+        <span className="company-opportunity-mini-logo" aria-hidden="true">
+          {logoUrl ? <img src={logoUrl} alt="" /> : "أ"}
+        </span>
+        <span className={isClosed ? "company-status is-closed" : "company-status"}>
+          {isClosed ? "مغلق" : "مفتوح"}
+        </span>
+      </div>
+      <h3>{opportunity.title || "فرصة تدريب"}</h3>
+      <p>{cities.join("، ") || company.name}</p>
+      <em>
+        {(opportunity.specialties || opportunity.majorCategories || []).slice(0, 2).join("، ") || "تخصصات متعددة"}
+      </em>
+      {opportunity.deadline ? (
+        <small className="company-deadline"><FiClock aria-hidden="true" /> ينتهي {formatDate(opportunity.deadline)}</small>
+      ) : null}
+      <span className="company-card-link">عرض الفرصة <FiArrowLeft aria-hidden="true" /></span>
+    </article>
+  );
+}
+
+export default function CompanyProfilePage() {
+  const { companySlug } = useParams();
+  const [company, setCompany] = useState(null);
+  const [activeTab, setActiveTab] = useState("experiences");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [content, setContent] = useState({
+    experiences: [],
+    interviews: [],
+    opportunities: [],
+  });
+  const [selectedInterview, setSelectedInterview] = useState(null);
+  const logoUrl = useMemo(() => company ? (company.logoUrl || getOrganizationLogoUrl({ name: company.name, url: company.website })) : "", [company]);
+
+  useEffect(() => {
+    let active = true;
+    const loadContent = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const companyResponse = await axios.get(`${API_BASE_URL}/api/companies/${companySlug}/content`);
+        const nextCompany = companyResponse.data?.company;
+        if (!nextCompany) throw new Error("missing company");
+        if (!active) return;
+        setCompany(nextCompany);
+        setContent({
+          experiences: Array.isArray(companyResponse.data?.data?.experiences) ? companyResponse.data.data.experiences : [],
+          interviews: Array.isArray(companyResponse.data?.data?.interviews) ? companyResponse.data.data.interviews : [],
+          opportunities: Array.isArray(companyResponse.data?.data?.opportunities) ? companyResponse.data.data.opportunities : [],
+        });
+      } catch (requestError) {
+        if (active) setError("تعذر تحميل محتوى الشركة حاليًا. حاول مرة أخرى.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadContent();
+
+    return () => {
+      active = false;
+    };
+  }, [companySlug]);
+
+  useEffect(() => {
+    if (!company) return;
+    trackEvent("company_page_viewed", { metadata: { companySlug: company.slug, companyName: company.name } });
+  }, [company]);
+
+  const tabs = [
+    { id: "experiences", label: "التجارب", count: content.experiences.length },
+    { id: "interviews", label: "المقابلات", count: content.interviews.length },
+    { id: "opportunities", label: "الفرص", count: content.opportunities.length },
+  ];
+
+  const renderTab = () => {
+    if (loading) return <div className="company-content-state">جارِ تحميل المحتوى...</div>;
+    if (error) return <div className="company-content-state is-error">{error}</div>;
+
+    if (activeTab === "experiences") {
+      return content.experiences.length ? (
+        <div className="company-content-grid">
+          {content.experiences.map((experience) => (
+            <ExperienceCard
+              key={experience._id || experience.id}
+              experience={experience}
+              company={company}
+              onOpen={(contentType, itemId) => trackEvent("company_content_opened", { metadata: { companySlug: company.slug, companyName: company.name, contentType, itemId } })}
+            />
+          ))}
+        </div>
+      ) : <EmptyCompanyState label="تجارب" companyName={company?.name} />;
+    }
+
+    if (activeTab === "interviews") {
+      return content.interviews.length ? (
+        <div className="company-content-grid company-interviews-grid">
+          {content.interviews.map((interview) => (
+            <InterviewCard
+              key={`${interview.organizationName}-${interview.major}`}
+              interview={interview}
+              company={company}
+              onOpen={(item) => { trackEvent("company_content_opened", { metadata: { companySlug: company.slug, companyName: company.name, contentType: "interview" } }); setSelectedInterview(item); }}
+            />
+          ))}
+        </div>
+      ) : <EmptyCompanyState label="مقابلات" companyName={company?.name} />;
+    }
+
+    return content.opportunities.length ? (
+      <div className="company-content-grid">
+        {content.opportunities.map((opportunity) => (
+          <OpportunityCard
+            key={opportunity._id || opportunity.id}
+            opportunity={opportunity}
+            logoUrl={opportunity.logoUrl || logoUrl}
+            company={company}
+            onOpen={(contentType, itemId) => trackEvent("company_content_opened", { metadata: { companySlug: company.slug, companyName: company.name, contentType, itemId } })}
+          />
+        ))}
+      </div>
+    ) : <EmptyCompanyState label="فرص حالية" companyName={company?.name} />;
+  };
+
+  if (!company && loading) return <main className="company-profile-page" dir="rtl"><div className="company-content-state">جارِ تحميل الشركة...</div></main>;
+  if (!company) return <main className="company-profile-page" dir="rtl"><Link className="company-back-link" to="/companies"><FiArrowLeft aria-hidden="true" /> الشركات</Link><div className="company-content-state is-error">هذه الشركة غير متاحة في الدليل حاليًا.</div></main>;
+
+  return (
+    <main className="company-profile-page" dir="rtl">
+      <Link className="company-back-link" to="/companies">
+        <FiArrowLeft aria-hidden="true" /> الشركات
+      </Link>
+
+      <section className="company-profile-hero">
+        <CompanyLogo company={company} logoUrl={logoUrl} />
+        <div>
+          <span className="company-profile-eyebrow">صفحة جهة تدريب</span>
+          <h1>{company.name}</h1>
+          <p>{company.shortDescription || `استكشف ما شاركه طلاب دربك عن التدريب والمقابلات والفرص المرتبطة بـ${company.name}.`}</p>
+          <div className="company-profile-meta">
+            <span><FiBriefcase aria-hidden="true" /> جهة تدريب في دربك</span>
+          </div>
+        </div>
+      </section>
+
+      <div className="company-tabs" role="tablist" aria-label={`محتوى ${company.name}`}>
+        {tabs.map((tab) => (
+          <button
+            type="button"
+            key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={activeTab === tab.id ? "is-active" : ""}
+            onClick={() => { setActiveTab(tab.id); trackEvent("company_tab_viewed", { metadata: { companySlug: company.slug, companyName: company.name, tab: tab.id } }); }}
+          >
+            {tab.label}
+            {!loading && <small>{tab.count}</small>}
+          </button>
+        ))}
+      </div>
+
+      <section className="company-content-section">{renderTab()}</section>
+
+      {selectedInterview && (
+        <div className="company-interview-overlay" onMouseDown={() => setSelectedInterview(null)}>
+          <article className="company-interview-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="company-modal-close"
+              onClick={() => setSelectedInterview(null)}
+              aria-label="إغلاق"
+            >
+              ×
+            </button>
+            <span>أسئلة مقابلة {company.name}</span>
+            <h2>{selectedInterview.major || "تخصصات متعددة"}</h2>
+            <p>{selectedInterview.cities?.length ? selectedInterview.cities.join("، ") : "شاركها طلاب سابقون"}</p>
+            <div className="company-interview-questions">
+              {(selectedInterview.questions || []).map((question, index) => (
+                <p key={`${question}-${index}`}>{question}</p>
+              ))}
+            </div>
+          </article>
+        </div>
+      )}
+    </main>
+  );
+}

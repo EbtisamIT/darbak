@@ -7,6 +7,12 @@ const interviewQuestionSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "companies",
+      default: null,
+      index: true,
+    },
     city: {
       type: String,
       default: "",
@@ -53,5 +59,7 @@ const interviewQuestionSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+interviewQuestionSchema.index({ status: 1, companyId: 1, createdAt: -1 });
 
 module.exports = mongoose.model("interview_questions", interviewQuestionSchema);

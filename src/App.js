@@ -44,6 +44,8 @@ const CompanyApplyPage = lazy(() => import("./pages/CompanyApplyPage"));
 const CompanyApplicationsSharePage = lazy(() => import("./pages/CompanyApplicationsSharePage"));
 const CompanyPortalPage = lazy(() => import("./pages/CompanyPortalPage"));
 const CompanyProgramOverviewPage = lazy(() => import("./pages/CompanyProgramOverviewPage"));
+const CompaniesPage = lazy(() => import("./pages/CompaniesPage"));
+const CompanyProfilePage = lazy(() => import("./pages/CompanyProfilePage"));
 const MyApplicationsPage = lazy(() => import("./pages/MyApplicationsPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
 const MyResumePage = lazy(() => import("./pages/MyResumePage"));
@@ -1384,6 +1386,8 @@ function AppLayout({ theme, setTheme }) {
               />
               <Route path="/experiences/:experienceId" element={<ExperiencesPage />} />
               <Route path="/interviews" element={<InterviewsPage />} />
+              <Route path="/companies" element={<CompaniesPage />} />
+              <Route path="/companies/:companySlug" element={<CompanyProfilePage />} />
               <Route path="/where-to-train" element={<TrainingFinderPage />} />
               <Route path="/subscribe" element={<SubscribeRoute />} />
               <Route path="/my-resume" element={<MyResumePage />} />

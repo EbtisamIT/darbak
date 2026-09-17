@@ -248,6 +248,21 @@ const getTopGroups = (AnalyticsEvent, match, expression, limit = 5) =>
     { $project: { _id: 0, label: "$_id", count: 1 } },
   ]);
 
+const getCompanyDirectoryStats = async (AnalyticsEvent, match) => {
+  const [directory, pages, contentOpens, tabs, companies] = await Promise.all([
+    getUniqueEventStats(AnalyticsEvent, ["company_directory_viewed"], match),
+    getUniqueEventStats(AnalyticsEvent, ["company_page_viewed"], match),
+    getUniqueEventStats(AnalyticsEvent, ["company_content_opened"], match),
+    getUniqueEventStats(AnalyticsEvent, ["company_tab_viewed"], match),
+    getTopGroups(
+      AnalyticsEvent,
+      { ...match, eventName: "company_page_viewed" },
+      { $ifNull: ["$metadata.companyName", "$metadata.companySlug"] }
+    ),
+  ]);
+  return { directory, pages, contentOpens, tabs, companies };
+};
+
 const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, days }) => {
   const range = getRange(days);
   const eventMatch = { createdAt: { $gte: range.start, $lt: range.end } };
@@ -278,7 +293,7 @@ const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, 
   ]);
 
   const activeActorIds = activeSubscribers.map((user) => String(user._id));
-  const [todayUsage, periodUsage, lastWeekUsage, resumeStats, sessionRows, weeklyUsers, monthlyUsers, returningRows, sourceRows, topExperiences, topOpportunities, topCompanies, topMajors, topCities] = await Promise.all([
+  const [todayUsage, periodUsage, lastWeekUsage, resumeStats, sessionRows, weeklyUsers, monthlyUsers, returningRows, sourceRows, topExperiences, topOpportunities, topCompanies, topMajors, topCities, companyDirectory] = await Promise.all([
     getEventStatsByKey(AnalyticsEvent, todayMatch, activeActorIds),
     getEventStatsByKey(AnalyticsEvent, eventMatch, activeActorIds),
     getEventStatsByKey(AnalyticsEvent, { createdAt: { $gte: range.weekStart, $lt: range.end } }, activeActorIds),
@@ -305,6 +320,7 @@ const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, 
     getTopGroups(AnalyticsEvent, { ...eventMatch, "metadata.organizationName": { $type: "string", $ne: "" } }, "$metadata.organizationName"),
     getTopGroups(AnalyticsEvent, { ...eventMatch, major: { $type: "string", $ne: "" } }, "$major"),
     getTopGroups(AnalyticsEvent, { ...eventMatch, city: { $type: "string", $ne: "" } }, "$city"),
+    getCompanyDirectoryStats(AnalyticsEvent, eventMatch),
   ]);
 
   const featureKeys = Object.keys(FEATURE_EVENTS);
@@ -433,7 +449,7 @@ const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, 
     },
     funnel,
     attribution: sourceRows,
-    content: { experiences: topExperiences, opportunities: topOpportunities, companies: topCompanies, majors: topMajors, cities: topCities },
+    content: { experiences: topExperiences, opportunities: topOpportunities, companies: topCompanies, majors: topMajors, cities: topCities, companyDirectory },
     risk: { benefiting: engagedIds.length, inactive: inactive7, atRisk },
   };
 };
