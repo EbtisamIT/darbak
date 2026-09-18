@@ -19,7 +19,11 @@ import { getResumeEducationDisplay } from "./resumeEducationDisplay";
 
 // React PDF fetches fonts outside the normal React asset pipeline. Using an
 // absolute URL keeps the font available in local development and production.
-const pdfFontBaseUrl = typeof window !== "undefined" ? window.location.origin : "";
+const pdfFontBaseUrl = process.env.NODE_ENV === "test"
+  ? `${process.cwd()}/public`
+  : typeof window !== "undefined"
+    ? window.location.origin
+    : "";
 
 Font.register({
   family: "Tajawal",
@@ -90,11 +94,7 @@ const createStyles = (resume = {}) => {
       fontWeight: 700,
       marginBottom: 7,
     },
-    contactRow: {
-      display: "flex",
-      flexDirection: direction === "rtl" ? "row-reverse" : "row",
-      flexWrap: "wrap",
-      gap: 8,
+    contactLine: {
       color: MUTED,
       fontSize: sizes.body - 1,
     },
@@ -119,60 +119,33 @@ const createStyles = (resume = {}) => {
       marginBottom: isCompact ? 6 : 8,
       breakInside: "avoid",
     },
-    entryHead: {
-      display: "flex",
-      flexDirection: direction === "rtl" ? "row-reverse" : "row",
-      justifyContent: "space-between",
-      gap: 10,
-      marginBottom: 1,
-    },
     entryTitle: {
       fontWeight: 700,
       color: INK,
-      maxWidth: "72%",
+      marginBottom: 1,
     },
     entryDate: {
       color: MUTED,
       fontSize: sizes.body - 1,
-      maxWidth: "28%",
+      marginBottom: 2,
     },
     entrySub: {
       color: MUTED,
       fontSize: sizes.body - 0.5,
       marginBottom: 2,
     },
-    bullet: {
-      display: "flex",
-      flexDirection: direction === "rtl" ? "row-reverse" : "row",
-      gap: 4,
+    bulletLine: {
       marginTop: 2,
-    },
-    bulletMark: {
-      color: accent,
-      fontWeight: 700,
-      width: 8,
-    },
-    bulletText: {
-      flex: 1,
-    },
-    chips: {
-      display: "flex",
-      flexDirection: direction === "rtl" ? "row-reverse" : "row",
-      flexWrap: "wrap",
-      gap: 5,
+      color: INK,
     },
     languageList: {
       display: "flex",
       flexDirection: "column",
       gap: 3,
     },
-    chip: {
-      paddingVertical: 2,
-      paddingHorizontal: 6,
-      borderWidth: 1,
-      borderColor: LINE,
-      borderRadius: 8,
+    skillsLine: {
       color: INK,
+      lineHeight: 1.6,
     },
     link: {
       color: "#167a73",
@@ -197,7 +170,7 @@ const sectionTitles = {
     experience: "الخبرات",
     projects: "المشاريع",
     skills: "المهارات",
-    certifications: "الدورات والشهادات",
+    certifications: "الشهادات",
     volunteering: "الأنشطة والتطوع",
     languages: "اللغات",
   },
@@ -255,17 +228,14 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
 
     return (
       <View key={entry.id || entry.title} style={styles.entry} wrap={false}>
-        <View style={styles.entryHead}>
-          <Text style={styles.entryTitle}>{title}</Text>
-          {date && !education ? <Text style={styles.entryDate}>{date}</Text> : null}
-        </View>
+        <Text style={styles.entryTitle}>{title}</Text>
+        {date && !education ? <Text style={styles.entryDate}>{date}</Text> : null}
         {subtitle ? <Text style={styles.entrySub}>{subtitle}</Text> : null}
         {facts.length ? <Text style={styles.entrySub}>{facts.join(" | ")}</Text> : null}
         {!education && getAchievementLines(entry).map((line, index) => (
-          <View key={`${entry.id || entry.title}-${index}`} style={styles.bullet}>
-            <Text style={styles.bulletMark}>•</Text>
-            <Text style={styles.bulletText}>{line}</Text>
-          </View>
+          <Text key={`${entry.id || entry.title}-${index}`} style={styles.bulletLine}>
+            {`• ${line}`}
+          </Text>
         ))}
       </View>
     );
@@ -311,13 +281,7 @@ const ResumePdfDocument = ({ resume = {} }) => {
     if (sectionKey === "skills" && resume.skills?.length) {
       return (
         <ResumeSection key={sectionKey} title={titles.skills} styles={styles}>
-          <View style={styles.chips}>
-            {resume.skills.map((skill) => (
-              <Text key={skill} style={styles.chip}>
-                {skill}
-              </Text>
-            ))}
-          </View>
+          <Text style={styles.skillsLine}>{resume.skills.join(" | ")}</Text>
         </ResumeSection>
       );
     }
@@ -347,11 +311,7 @@ const ResumePdfDocument = ({ resume = {} }) => {
         <View style={styles.header}>
           <Text style={styles.name}>{personal.fullName || (language === "en" ? "Student Name" : "اسم الطالب")}</Text>
           <Text style={styles.headline}>{headline}</Text>
-          <View style={styles.contactRow}>
-            {contactItems.map((item) => (
-              <Text key={item}>{item}</Text>
-            ))}
-          </View>
+          <Text style={styles.contactLine}>{contactItems.join(" | ")}</Text>
         </View>
 
         {order.map(renderSection)}
