@@ -30,6 +30,9 @@ const {
   slugifyCompanyName,
 } = require("./services/companyEnrichment");
 const {
+  buildRealOpportunityFilter,
+} = require("./services/companyHubContent");
+const {
   getPdfIntegrity,
   matchesStoredPdfIntegrity,
 } = require("./services/companyApplicationFileIntegrity");
@@ -2829,7 +2832,7 @@ app.get('/api/companies', async (req, res) => {
     const [experienceCounts, interviewCounts, opportunityCounts] = await Promise.all([
       Experience.aggregate([{ $match: { companyId: { $in: companyIds }, status: "approved" } }, { $group: { _id: "$companyId", count: { $sum: 1 } } }]),
       InterviewQuestion.aggregate([{ $match: { companyId: { $in: companyIds }, status: "approved" } }, { $group: { _id: "$companyId", count: { $sum: 1 } } }]),
-      Opportunity.aggregate([{ $match: { companyId: { $in: companyIds }, status: { $in: ["active", "expired"] } } }, { $group: { _id: "$companyId", count: { $sum: 1 }, openCount: { $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] } } } }]),
+      Opportunity.aggregate([{ $match: { companyId: { $in: companyIds }, ...buildRealOpportunityFilter() } }, { $group: { _id: "$companyId", count: { $sum: 1 }, openCount: { $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] } } } }]),
     ]);
     const countsByCompany = new Map();
     const applyCounts = (items, key) => items.forEach((item) => {
@@ -2905,7 +2908,7 @@ const buildCompanyInterviewGroups = (experienceRows = [], questionRows = []) => 
   }));
 };
 
-const buildCompanyContentOverview = ({ experiences = [], interviews = [], opportunities = [] }) => {
+const buildCompanyContentOverview = ({ experiences = [], interviews = [], opportunities = [], applicationSuggestions = [] }) => {
   const countValues = (values = []) => {
     const counts = new Map();
     values.filter(Boolean).forEach((value) => {
@@ -2938,6 +2941,7 @@ const buildCompanyContentOverview = ({ experiences = [], interviews = [], opport
     interviewsCount: interviews.length,
     opportunitiesCount: opportunities.length,
     openOpportunitiesCount: openOpportunities,
+    applicationSuggestionsCount: applicationSuggestions.length,
     cities,
     majors,
   };
@@ -2971,20 +2975,23 @@ app.get('/api/companies/:slug/content', async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(400)
         .lean(),
-      Opportunity.find({ ...companyContentFilter, status: { $in: ["active", "expired"] } })
+      Opportunity.find(buildRealOpportunityFilter(companyContentFilter))
         .select(`${OPPORTUNITY_PUBLIC_FIELDS} applicationUrl note keywords`)
         .sort({ featured: -1, createdAt: -1 })
         .limit(60)
         .lean(),
     ]);
     const interviews = buildCompanyInterviewGroups(experienceInterviews, questionInterviews);
+    const typedExperiences = experiences.map((item) => ({ ...item, sourceType: "experience" }));
+    const typedInterviews = interviews.map((item) => ({ ...item, sourceType: "interview" }));
+    const typedOpportunities = opportunities.map((item) => ({ ...item, sourceType: "opportunity" }));
     res.json({
       company: serializeStudentDirectoryCompany(company),
       data: {
-        experiences,
-        interviews,
-        opportunities,
-        overview: buildCompanyContentOverview({ experiences, interviews, opportunities }),
+        experiences: typedExperiences,
+        interviews: typedInterviews,
+        opportunities: typedOpportunities,
+        overview: buildCompanyContentOverview({ experiences: typedExperiences, interviews: typedInterviews, opportunities: typedOpportunities }),
       },
     });
   } catch (err) {

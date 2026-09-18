@@ -10,6 +10,10 @@ import {
 } from "react-icons/fi";
 import API_BASE_URL from "../config/api";
 import { getOrganizationLogoUrl } from "../data/organizationLogos";
+import { darbakGuideOrganizations } from "../data/darbakGuideSuggestions";
+import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirectory";
+import { healthHospitalSuggestions } from "../data/healthHospitalSuggestions";
+import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDirectory";
 import { trackEvent } from "../utils/analytics";
 import "./CompaniesPage.css";
 
@@ -35,6 +39,40 @@ const getOpportunityPath = (opportunity) =>
   opportunity?._id || opportunity?.id
     ? `/where-to-train/opportunity/${opportunity._id || opportunity.id}`
     : "/where-to-train";
+
+const normalizeCompanyName = (value = "") =>
+  String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[أإآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getApplicationSuggestionsForCompany = (company = {}) => {
+  const aliases = [company.name, company.nameAr, company.nameEn, ...(company.aliases || [])]
+    .map(normalizeCompanyName)
+    .filter((alias) => alias.length >= 3);
+  if (!aliases.length) return [];
+  const allSuggestions = [
+    ...darbakGuideOrganizations,
+    ...darbakContactDirectoryOrganizations,
+    ...healthHospitalSuggestions,
+    ...trainingInteractiveOrganizations,
+  ];
+  const seen = new Set();
+  return allSuggestions.filter((item) => {
+    const name = normalizeCompanyName(item.name);
+    const matches = name && aliases.some((alias) => name === alias || name.includes(alias) || alias.includes(name));
+    const key = `${name}|${item.email || (item.emails || [])[0] || item.applicationUrl || item.url || ""}`;
+    if (!matches || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((item) => ({ ...item, sourceType: "application_suggestion" }));
+};
 
 function CompanyLogo({ company, logoUrl }) {
   const [hasFailed, setHasFailed] = useState(false);
@@ -142,6 +180,20 @@ function OpportunityCard({ opportunity, logoUrl, onOpen, company }) {
   );
 }
 
+function ApplicationSuggestionCard({ suggestion, company }) {
+  const applicationPath = `/where-to-train?organization=${encodeURIComponent(suggestion.name || company.name)}`;
+  const contactLabel = suggestion.contactType || (suggestion.email || suggestion.emails?.length ? "بريد للتقديم أو التواصل" : "طريقة تقديم من دليل دربك");
+  return (
+    <article className="company-content-card company-suggestion-card">
+      <div className="company-card-topline"><span className="company-card-icon"><FiBriefcase aria-hidden="true" /></span><small>طريقة تقديم</small></div>
+      <h3>{suggestion.name || company.name}</h3>
+      <p>{contactLabel}</p>
+      <em>{suggestion.note || "هذه قناة تقديم أو تواصل من دليل دربك وليست فرصة تدريب منشورة."}</em>
+      <Link className="company-card-link" to={applicationPath}>عرض طريقة التقديم في وين أتدرب <FiArrowLeft aria-hidden="true" /></Link>
+    </article>
+  );
+}
+
 export default function CompanyProfilePage() {
   const { companySlug } = useParams();
   const [company, setCompany] = useState(null);
@@ -153,6 +205,7 @@ export default function CompanyProfilePage() {
     interviews: [],
     opportunities: [],
     overview: null,
+    applicationSuggestions: [],
   });
   const [experienceCity, setExperienceCity] = useState("");
   const [experienceMajor, setExperienceMajor] = useState("");
@@ -170,11 +223,13 @@ export default function CompanyProfilePage() {
         if (!nextCompany) throw new Error("missing company");
         if (!active) return;
         setCompany(nextCompany);
+        const applicationSuggestions = getApplicationSuggestionsForCompany(nextCompany);
         setContent({
           experiences: Array.isArray(companyResponse.data?.data?.experiences) ? companyResponse.data.data.experiences : [],
           interviews: Array.isArray(companyResponse.data?.data?.interviews) ? companyResponse.data.data.interviews : [],
           opportunities: Array.isArray(companyResponse.data?.data?.opportunities) ? companyResponse.data.data.opportunities : [],
-          overview: companyResponse.data?.data?.overview || null,
+          overview: { ...(companyResponse.data?.data?.overview || {}), applicationSuggestionsCount: applicationSuggestions.length },
+          applicationSuggestions,
         });
       } catch (requestError) {
         if (active) setError("تعذر تحميل محتوى الشركة حاليًا. حاول مرة أخرى.");
@@ -248,6 +303,7 @@ export default function CompanyProfilePage() {
             <article><strong>{overview.openOpportunitiesCount || 0}</strong><span>فرصة مفتوحة</span></article>
             <article><strong>{overview.interviewsCount || 0}</strong><span>مراجعة مقابلة</span></article>
           </div>
+          {overview.applicationSuggestionsCount ? <div className="company-application-methods-note">طرق تقديم متاحة في وين أتدرب: {overview.applicationSuggestionsCount}</div> : null}
           <div className="company-overview-grid">
             <article className="company-overview-panel"><h2>المدن التي ظهر فيها التدريب</h2><div className="company-tags">{overview.cities?.length ? overview.cities.map((item) => <span key={item.label}>{item.label}<small>{item.count}</small></span>) : <p>تظهر المدن هنا عند توفرها داخل تجارب وفرص الجهة.</p>}</div></article>
             <article className="company-overview-panel"><h2>التخصصات الأكثر ظهورًا</h2><div className="company-tags">{overview.majors?.length ? overview.majors.map((item) => <span key={item.label}>{item.label}<small>{item.count}</small></span>) : <p>تظهر التخصصات هنا عند توفر محتوى مرتبط بالجهة.</p>}</div></article>
@@ -296,8 +352,8 @@ export default function CompanyProfilePage() {
       ) : <EmptyCompanyState label="مقابلات" companyName={company?.name} />;
     }
 
-    return content.opportunities.length ? (
-      <div className="company-content-grid">
+    return <div className="company-opportunities-section">
+      {content.opportunities.length ? <div className="company-content-grid">
         {content.opportunities.map((opportunity) => (
           <OpportunityCard
             key={opportunity._id || opportunity.id}
@@ -307,8 +363,9 @@ export default function CompanyProfilePage() {
             onOpen={(contentType, itemId) => trackEvent("company_content_opened", { metadata: { companySlug: company.slug, companyName: company.name, contentType, itemId } })}
           />
         ))}
-      </div>
-    ) : <EmptyCompanyState label="فرص حالية" companyName={company?.name} />;
+      </div> : <EmptyCompanyState label="فرص منشورة" companyName={company?.name} />}
+      {content.applicationSuggestions.length ? <section className="company-application-suggestions"><div><h2>طرق التقديم على الجهة</h2><p>هذه قنوات من «وين أتدرب» وليست فرصًا منشورة حاليًا.</p></div><div className="company-content-grid">{content.applicationSuggestions.slice(0, 6).map((suggestion, index) => <ApplicationSuggestionCard key={`${suggestion.id || suggestion.name}-${index}`} suggestion={suggestion} company={company} />)}</div></section> : null}
+    </div>;
   };
 
   if (!company && loading) return <main className="company-profile-page" dir="rtl"><div className="company-content-state">جارِ تحميل الشركة...</div></main>;

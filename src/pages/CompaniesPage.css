@@ -287,6 +287,16 @@
 
 .company-overview-stats span { color: var(--app-text-soft); font-size: 13px; font-weight: 800; }
 
+.company-application-methods-note {
+  padding: 11px 13px;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 12px;
+  background: var(--app-brand-soft);
+  color: var(--app-text-soft);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .company-overview-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -392,6 +402,17 @@
   color: var(--app-muted);
   font-size: 11px;
 }
+
+.company-opportunities-section { display: grid; gap: 20px; }
+.company-application-suggestions {
+  display: grid;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--app-border);
+}
+.company-application-suggestions h2 { margin: 0; color: var(--app-text); font-size: 18px; }
+.company-application-suggestions > div:first-child > p { margin: 5px 0 0; color: var(--app-muted); font-size: 13px; }
+.company-suggestion-card { min-height: 176px; background: var(--app-input-bg); }
 
 .company-content-card h3 {
   margin: 1px 0 0;
