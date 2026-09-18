@@ -49,6 +49,30 @@ const companySchema = new mongoose.Schema(
       },
     },
     isPublished: { type: Boolean, default: false, index: true },
+    // Kept separate from the company-portal status. Directory enrichment is
+    // always reviewed before it can be published to students.
+    enrichmentStatus: {
+      type: String,
+      enum: ["draft", "approved", "ignored"],
+      default: "approved",
+      index: true,
+    },
+    linkedinUrl: { type: String, default: "", trim: true, maxlength: 500 },
+    isFeatured: { type: Boolean, default: false, index: true },
+    fieldProvenance: {
+      type: Map,
+      of: { type: String, enum: ["manual", "auto"] },
+      default: {},
+    },
+    enrichment: {
+      confidence: { type: String, enum: ["high", "medium", "low"], default: "medium" },
+      score: { type: Number, min: 0, max: 100, default: 0 },
+      sources: {
+        type: [{ type: { type: String }, label: { type: String }, url: { type: String } }],
+        default: [],
+      },
+      lastEnrichedAt: { type: Date, default: null },
+    },
     demoPortalEnabled: { type: Boolean, default: false },
     demoPortalDismissedAt: { type: Date, default: null },
     portalAccessToken: {

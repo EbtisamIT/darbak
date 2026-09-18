@@ -25,6 +25,11 @@ const {
   companyAliasesMatchName,
 } = require("./services/companyDirectorySeeds");
 const {
+  buildCompanyEnrichment,
+  mergeAutoEnrichment,
+  slugifyCompanyName,
+} = require("./services/companyEnrichment");
+const {
   getPdfIntegrity,
   matchesStoredPdfIntegrity,
 } = require("./services/companyApplicationFileIntegrity");
@@ -2733,6 +2738,8 @@ const sanitizeCompanyPayload = (body = {}) => {
       body.showInStudentDirectory === true || body.showInStudentDirectory === "true",
     demoPortalEnabled:
       body.demoPortalEnabled === true || body.demoPortalEnabled === "true",
+    linkedinUrl: sanitizeExternalUrl(body.linkedinUrl || ""),
+    isFeatured: body.isFeatured === true || body.isFeatured === "true",
   };
 };
 
@@ -2759,6 +2766,16 @@ const serializeCompany = (company = {}, extra = {}) => {
     aliases: Array.isArray(company.aliases) && company.aliases.length ? company.aliases : (company.contentAliases || []),
     contentAliases: Array.isArray(company.aliases) && company.aliases.length ? company.aliases : (company.contentAliases || []),
     demoPortalEnabled: Boolean(company.demoPortalEnabled),
+    linkedinUrl: company.linkedinUrl || "",
+    isFeatured: Boolean(company.isFeatured),
+    enrichmentStatus: company.enrichmentStatus || "approved",
+    fieldProvenance: company.fieldProvenance || {},
+    enrichment: {
+      confidence: company.enrichment?.confidence || "",
+      score: Number(company.enrichment?.score || 0),
+      sources: Array.isArray(company.enrichment?.sources) ? company.enrichment.sources : [],
+      lastEnrichedAt: company.enrichment?.lastEnrichedAt || null,
+    },
     programCount: Number(extra.programCount || 0),
     pendingRequestCount: Number(extra.pendingRequestCount || 0),
     ...(extra.includePortalUrl && portalAccessToken
@@ -16289,6 +16306,142 @@ app.get('/api/admin/company-suggestions', requireAdmin, async (req, res) => {
   }
 });
 
+const getAvailableCompanySlug = async (baseSlug = "company") => {
+  const normalized = slugifyCompanyName(baseSlug) || "company";
+  let candidate = normalized;
+  let suffix = 2;
+  while (await Company.exists({ slug: candidate })) {
+    candidate = `${normalized}-${suffix}`.slice(0, 120);
+    suffix += 1;
+  }
+  return candidate;
+};
+
+// Builds review-only records from the existing content inventory. This does
+// not publish, link, or overwrite a reviewed company.
+app.post('/api/admin/companies/enrichment/batch', requireAdmin, async (req, res) => {
+  try {
+    const requestedLimit = Number(req.body?.limit || 20);
+    const limit = Math.min(Math.max(requestedLimit, 1), 50);
+    const suggestions = await getCompanySuggestions();
+    const candidates = suggestions.filter((item) => !item.company).slice(0, limit);
+    const created = [];
+
+    for (const suggestion of candidates) {
+      const enrichment = buildCompanyEnrichment(suggestion);
+      const duplicate = await Company.findOne({
+        $or: [
+          { slug: enrichment.slug },
+          { aliases: { $in: enrichment.aliases } },
+          { contentAliases: { $in: enrichment.aliases } },
+        ],
+      }).lean();
+      if (duplicate) continue;
+
+      const slug = await getAvailableCompanySlug(enrichment.slug);
+      const company = await Company.create({
+        ...mergeAutoEnrichment({}, { ...enrichment, slug }),
+        name: enrichment.name,
+        nameAr: enrichment.nameAr,
+        nameEn: enrichment.nameEn,
+        slug,
+        city: "",
+        status: "trial",
+        isPublished: false,
+        showInStudentDirectory: false,
+        portalAccessToken: createCompanyPortalAccessToken(),
+      });
+      created.push(serializeCompany(company.toObject(), {
+        experiencesCount: suggestion.experiencesCount,
+        interviewsCount: suggestion.interviewsCount,
+        opportunitiesCount: suggestion.opportunitiesCount,
+      }));
+    }
+
+    res.status(201).json({
+      success: true,
+      requested: candidates.length,
+      created: created.length,
+      skipped: candidates.length - created.length,
+      data: created,
+    });
+  } catch (err) {
+    console.error("❌ Company enrichment batch error:", err);
+    res.status(500).json({ error: "تعذر تجهيز مسودات الشركات." });
+  }
+});
+
+app.post('/api/admin/companies/:id/re-enrich', requireAdmin, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "معرّف الشركة غير صحيح." });
+    }
+    const [company, suggestions] = await Promise.all([
+      Company.findById(req.params.id).lean(),
+      getCompanySuggestions(),
+    ]);
+    if (!company) return res.status(404).json({ error: "الشركة غير موجودة." });
+    const suggestion = suggestions.find((item) => item.company?._id === company._id.toString() || item.company?.id === company._id.toString()) || {
+      suggestedName: company.name,
+      aliases: getCompanyAliases(company),
+      experiencesCount: 0,
+      interviewsCount: 0,
+      opportunitiesCount: 0,
+    };
+    const enrichment = buildCompanyEnrichment(suggestion);
+    const updated = await Company.findByIdAndUpdate(
+      company._id,
+      { $set: mergeAutoEnrichment(company, { ...enrichment, slug: company.slug || enrichment.slug }) },
+      { new: true, runValidators: true }
+    ).lean();
+    res.json({ success: true, data: serializeCompany(updated) });
+  } catch (err) {
+    console.error("❌ Company re-enrichment error:", err);
+    res.status(500).json({ error: "تعذر إعادة تجهيز بيانات الشركة." });
+  }
+});
+
+app.post('/api/admin/companies/:id/approve-enrichment', requireAdmin, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "معرّف الشركة غير صحيح." });
+    }
+    const company = await Company.findByIdAndUpdate(
+      req.params.id,
+      { $set: { enrichmentStatus: "approved", isPublished: true, showInStudentDirectory: true } },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!company) return res.status(404).json({ error: "الشركة غير موجودة." });
+    // A high-confidence alias match is safe to link; medium and low records
+    // remain reviewable through the existing explicit “ربط المحتوى” action.
+    const linked = company.enrichment?.confidence === "high"
+      ? await linkCompanyContent(company)
+      : { experiences: 0, interviews: 0, opportunities: 0 };
+    res.json({ success: true, data: serializeCompany(company, { linked }) });
+  } catch (err) {
+    console.error("❌ Company enrichment approval error:", err);
+    res.status(500).json({ error: "تعذر اعتماد الشركة." });
+  }
+});
+
+app.post('/api/admin/companies/:id/ignore-enrichment', requireAdmin, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "معرّف الشركة غير صحيح." });
+    }
+    const company = await Company.findByIdAndUpdate(
+      req.params.id,
+      { $set: { enrichmentStatus: "ignored", isPublished: false, showInStudentDirectory: false } },
+      { new: true }
+    ).lean();
+    if (!company) return res.status(404).json({ error: "الشركة غير موجودة." });
+    res.json({ success: true, data: serializeCompany(company) });
+  } catch (err) {
+    console.error("❌ Company enrichment ignore error:", err);
+    res.status(500).json({ error: "تعذر تجاهل مسودة الشركة." });
+  }
+});
+
 app.post('/api/admin/companies', requireAdmin, async (req, res) => {
   try {
     const payload = sanitizeCompanyPayload(req.body || {});
@@ -16297,6 +16450,8 @@ app.post('/api/admin/companies', requireAdmin, async (req, res) => {
     }
     const company = await Company.create({
       ...payload,
+      fieldProvenance: Object.keys(payload).reduce((provenance, field) => ({ ...provenance, [field]: "manual" }), {}),
+      enrichmentStatus: "approved",
       portalAccessToken: createCompanyPortalAccessToken(),
     });
     const companyData = company.toObject();
@@ -16320,10 +16475,13 @@ app.patch('/api/admin/companies/:id', requireAdmin, async (req, res) => {
     if (!payload.name || !payload.slug) {
       return res.status(400).json({ error: "اسم الشركة والرابط المختصر مطلوبان." });
     }
+    const existing = await Company.findById(req.params.id).lean();
+    if (!existing) return res.status(404).json({ error: "الشركة غير موجودة." });
+    const manualProvenance = Object.keys(payload).reduce((provenance, field) => ({ ...provenance, [field]: "manual" }), existing.fieldProvenance || {});
     const company = await Company.findByIdAndUpdate(
       req.params.id,
       {
-        $set: payload,
+        $set: { ...payload, fieldProvenance: manualProvenance },
         ...(payload.demoPortalEnabled ? { $unset: { demoPortalDismissedAt: 1 } } : {}),
       },
       { new: true, runValidators: true }

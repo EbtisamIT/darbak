@@ -108,6 +108,7 @@ const defaultCompanyForm = {
   aliases: "",
   contentAliases: "",
   demoPortalEnabled: false,
+  linkedinUrl: "",
 };
 
 const defaultRejectionReason =
@@ -1101,6 +1102,7 @@ export default function AdminReviewPage() {
   const [companyForm, setCompanyForm] = useState(defaultCompanyForm);
   const [editingCompanyId, setEditingCompanyId] = useState("");
   const [savingCompany, setSavingCompany] = useState(false);
+  const [enrichmentBusy, setEnrichmentBusy] = useState(false);
   const [companyCampaignStatus, setCompanyCampaignStatus] = useState("");
   const [companyCampaignSearch, setCompanyCampaignSearch] = useState("");
   const [companyCampaignForm, setCompanyCampaignForm] = useState(
@@ -2197,6 +2199,7 @@ export default function AdminReviewPage() {
       aliases: (company.aliases || company.contentAliases || []).join("، "),
       contentAliases: (company.aliases || company.contentAliases || []).join("، "),
       demoPortalEnabled: Boolean(company.demoPortalEnabled),
+      linkedinUrl: company.linkedinUrl || "",
     });
   };
 
@@ -2220,6 +2223,63 @@ export default function AdminReviewPage() {
       setMessage(`تم ربط ${linked.experiences || 0} تجربة و${linked.interviews || 0} مقابلة و${linked.opportunities || 0} فرصة.`);
       fetchCompanies();
     } catch (err) { setMessage(err.response?.data?.error || "تعذر ربط محتوى الشركة."); }
+  };
+
+  const enrichCompanyBatch = async () => {
+    try {
+      setEnrichmentBusy(true);
+      setMessage("");
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/companies/enrichment/batch`,
+        { limit: 20 },
+        { headers: authHeaders }
+      );
+      setMessage(`تم تجهيز ${data.created || 0} مسودة للمراجعة. لم تُنشر أي جهة تلقائيًا.`);
+      fetchCompanies();
+    } catch (err) {
+      setMessage(err.response?.data?.error || "تعذر تجهيز مسودات الشركات.");
+    } finally {
+      setEnrichmentBusy(false);
+    }
+  };
+
+  const reviewEnrichedCompany = async (companyId, action) => {
+    const messages = {
+      approve: "اعتماد هذه الشركة ونشرها للطلاب؟",
+      ignore: "تجاهل هذه المسودة؟ لن تظهر للطلاب.",
+    };
+    if (messages[action] && !window.confirm(messages[action])) return;
+    try {
+      setEnrichmentBusy(true);
+      const endpoint = action === "refresh"
+        ? "re-enrich"
+        : action === "approve"
+          ? "approve-enrichment"
+          : "ignore-enrichment";
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/companies/${companyId}/${endpoint}`,
+        {},
+        { headers: authHeaders }
+      );
+      const updated = data.data;
+      if (updated) {
+        setCompanies((previous) => previous.map((item) =>
+          (item.id || item._id) === companyId ? { ...item, ...updated } : item
+        ));
+      }
+      setMessage(
+        action === "approve"
+          ? "تم اعتماد الشركة ونشرها."
+          : action === "refresh"
+            ? "تم تجهيز اقتراحات البيانات من جديد دون لمس حقولك اليدوية."
+            : "تم تجاهل المسودة."
+      );
+      fetchCompanies();
+    } catch (err) {
+      setMessage(err.response?.data?.error || "تعذر تنفيذ إجراء المراجعة.");
+    } finally {
+      setEnrichmentBusy(false);
+    }
   };
 
   const mergeCompanies = async (sourceId) => {
@@ -5602,6 +5662,45 @@ export default function AdminReviewPage() {
         </div>
       ) : adminView === "companies" ? (
         <div style={{ display: "grid", gap: "14px" }}>
+          <section style={{ ...cardStyle, display: "grid", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <div>
+                <h2 style={{ color: adminColors.brand, margin: "0 0 5px" }}>مراجعة بيانات الشركات</h2>
+                <p style={{ color: adminColors.muted, margin: 0 }}>تُجهّز من محتوى دربك كمسودات، ثم تراجعينها قبل النشر.</p>
+              </div>
+              <button type="button" onClick={enrichCompanyBatch} disabled={enrichmentBusy} style={{ background: adminColors.brand, color: "#07100e", border: 0, borderRadius: 9, padding: "9px 12px", cursor: enrichmentBusy ? "wait" : "pointer", fontFamily: "inherit", fontWeight: 900, opacity: enrichmentBusy ? .7 : 1 }}>
+                {enrichmentBusy ? "جارٍ التجهيز..." : "تجهيز 20 شركة جديدة"}
+              </button>
+            </div>
+            <small style={{ color: adminColors.textSoft }}>الشعار لا يُضاف إلا من مصدر موثوق. عندما لا يتوفر مصدر رسمي سيظهر مكانه بديل بسيط حتى ترفعين الشعار.</small>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>
+              {companySuggestions.filter((item) => item.company?.enrichmentStatus === "draft").slice(0, 20).map((item) => {
+                const company = item.company;
+                const confidence = company.enrichment?.confidence || "medium";
+                const confidenceColor = confidence === "high" ? adminColors.brand : confidence === "medium" ? "#fbbf24" : "#f87171";
+                const sources = company.enrichment?.sources || [];
+                return <article key={`draft-${company.id || company._id}`} style={{ border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, padding: 12, display: "grid", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    {company.logoUrl ? <img src={company.logoUrl} alt="" style={{ width: 42, height: 42, objectFit: "contain", background: "#fff", borderRadius: 8 }} /> : <span style={{ width: 42, height: 42, display: "grid", placeItems: "center", borderRadius: 8, color: adminColors.brand, background: adminColors.inputBg, fontWeight: 900 }}>{(company.name || "ج").slice(0, 1)}</span>}
+                    <div><strong style={{ color: adminColors.text }}>{company.nameAr || company.name}</strong><small style={{ display: "block", color: adminColors.muted }}>{company.nameEn || "اسم إنجليزي يحتاج مراجعة"}</small></div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><small style={{ color: confidenceColor }}>ثقة {confidence === "high" ? "مرتفعة" : confidence === "medium" ? "متوسطة" : "منخفضة"} {company.enrichment?.score ? `(${company.enrichment.score}%)` : ""}</small><small style={{ color: adminColors.muted }}>{company.sector || "القطاع يحتاج مراجعة"}</small></div>
+                  <small style={{ color: adminColors.textSoft }}>{company.shortDescription || "لم نجد وصفًا موثوقًا بعد."}</small>
+                  {company.website ? <a href={company.website} target="_blank" rel="noreferrer" style={{ color: adminColors.brand, fontSize: 12, overflowWrap: "anywhere" }}>{company.website}</a> : null}
+                  <small style={{ color: adminColors.muted }}>تجارب {item.experiencesCount} · مقابلات {item.interviewsCount} · فرص {item.opportunitiesCount}</small>
+                  <small style={{ color: adminColors.textSoft, lineHeight: 1.6 }}>الأسماء: {(company.aliases || []).join(" · ") || "لا توجد"}</small>
+                  <small style={{ color: adminColors.muted, lineHeight: 1.6 }}>المصادر: {sources.map((source) => source.label).filter(Boolean).join(" · ") || "محتوى دربك"}</small>
+                  <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                    <button type="button" onClick={() => reviewEnrichedCompany(company.id || company._id, "approve")} disabled={enrichmentBusy} style={{ background: adminColors.brand, color: "#07100e", border: 0, borderRadius: 8, padding: "7px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 800 }}>اعتماد ونشر</button>
+                    <button type="button" onClick={() => editCompany(company)} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", fontFamily: "inherit" }}>تعديل</button>
+                    <button type="button" onClick={() => reviewEnrichedCompany(company.id || company._id, "refresh")} disabled={enrichmentBusy} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", fontFamily: "inherit" }}>إعادة جلب</button>
+                    <button type="button" onClick={() => reviewEnrichedCompany(company.id || company._id, "ignore")} disabled={enrichmentBusy} style={{ background: "transparent", color: "#fca5a5", border: "1px solid rgba(248,113,113,.35)", borderRadius: 8, padding: "7px 10px", cursor: "pointer", fontFamily: "inherit" }}>تجاهل</button>
+                  </div>
+                </article>;
+              })}
+              {!companySuggestions.some((item) => item.company?.enrichmentStatus === "draft") ? <small style={{ color: adminColors.muted }}>لا توجد مسودات جاهزة الآن. ابدئي بزر «تجهيز 20 شركة جديدة».</small> : null}
+            </div>
+          </section>
           <section style={{ ...cardStyle, display: "grid", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
               <div><h2 style={{ color: adminColors.brand, margin: "0 0 5px" }}>جهات مقترحة من محتوى دربك</h2><p style={{ color: adminColors.muted, margin: 0 }}>تُجمع من التجارب والمقابلات والفرص، ولا تظهر للطلاب قبل النشر.</p></div>
