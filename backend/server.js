@@ -2769,7 +2769,7 @@ const serializeCompany = (company = {}, extra = {}) => {
   };
 };
 
-const serializeStudentDirectoryCompany = (company = {}) => ({
+const serializeStudentDirectoryCompany = (company = {}, extra = {}) => ({
   id: company._id?.toString?.() || company.id || "",
   slug: company.slug || "",
   name: company.name || "",
@@ -2780,6 +2780,10 @@ const serializeStudentDirectoryCompany = (company = {}) => ({
   sector: company.sector || "",
   website: company.website || "",
   aliases: getCompanyAliases(company),
+  experiencesCount: Number(extra.experiencesCount || 0),
+  interviewsCount: Number(extra.interviewsCount || 0),
+  opportunitiesCount: Number(extra.opportunitiesCount || 0),
+  openOpportunitiesCount: Number(extra.openOpportunitiesCount || 0),
 });
 
 const setPublicCompanyResponseHeaders = (res) => {
@@ -2804,7 +2808,21 @@ app.get('/api/companies', async (req, res) => {
       .sort({ name: 1 })
       .select("name nameAr nameEn slug logoUrl shortDescription sector website aliases contentAliases")
       .lean();
-    res.json({ data: companies.map(serializeStudentDirectoryCompany) });
+    const companyIds = companies.map((company) => company._id);
+    const [experienceCounts, interviewCounts, opportunityCounts] = await Promise.all([
+      Experience.aggregate([{ $match: { companyId: { $in: companyIds }, status: "approved" } }, { $group: { _id: "$companyId", count: { $sum: 1 } } }]),
+      InterviewQuestion.aggregate([{ $match: { companyId: { $in: companyIds }, status: "approved" } }, { $group: { _id: "$companyId", count: { $sum: 1 } } }]),
+      Opportunity.aggregate([{ $match: { companyId: { $in: companyIds }, status: { $in: ["active", "expired"] } } }, { $group: { _id: "$companyId", count: { $sum: 1 }, openCount: { $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] } } } }]),
+    ]);
+    const countsByCompany = new Map();
+    const applyCounts = (items, key) => items.forEach((item) => {
+      const id = item._id?.toString?.() || "";
+      countsByCompany.set(id, { ...(countsByCompany.get(id) || {}), [key]: Number(item.count || 0), ...(key === "opportunitiesCount" ? { openOpportunitiesCount: Number(item.openCount || 0) } : {}) });
+    });
+    applyCounts(experienceCounts, "experiencesCount");
+    applyCounts(interviewCounts, "interviewsCount");
+    applyCounts(opportunityCounts, "opportunitiesCount");
+    res.json({ data: companies.map((company) => serializeStudentDirectoryCompany(company, countsByCompany.get(company._id?.toString?.()) || {})) });
   } catch (err) {
     console.error("❌ Public companies fetch error:", err);
     res.status(500).json({ error: "تعذر تحميل الشركات حاليًا." });
