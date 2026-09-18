@@ -145,14 +145,17 @@ function OpportunityCard({ opportunity, logoUrl, onOpen, company }) {
 export default function CompanyProfilePage() {
   const { companySlug } = useParams();
   const [company, setCompany] = useState(null);
-  const [activeTab, setActiveTab] = useState("experiences");
+  const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [content, setContent] = useState({
     experiences: [],
     interviews: [],
     opportunities: [],
+    overview: null,
   });
+  const [experienceCity, setExperienceCity] = useState("");
+  const [experienceMajor, setExperienceMajor] = useState("");
   const [selectedInterview, setSelectedInterview] = useState(null);
   const logoUrl = useMemo(() => company ? (company.logoUrl || getOrganizationLogoUrl({ name: company.name, url: company.website })) : "", [company]);
 
@@ -171,6 +174,7 @@ export default function CompanyProfilePage() {
           experiences: Array.isArray(companyResponse.data?.data?.experiences) ? companyResponse.data.data.experiences : [],
           interviews: Array.isArray(companyResponse.data?.data?.interviews) ? companyResponse.data.data.interviews : [],
           opportunities: Array.isArray(companyResponse.data?.data?.opportunities) ? companyResponse.data.data.opportunities : [],
+          overview: companyResponse.data?.data?.overview || null,
         });
       } catch (requestError) {
         if (active) setError("تعذر تحميل محتوى الشركة حاليًا. حاول مرة أخرى.");
@@ -187,24 +191,80 @@ export default function CompanyProfilePage() {
   }, [companySlug]);
 
   useEffect(() => {
+    if (!company) return undefined;
+    const previousTitle = document.title;
+    const description = company.shortDescription || `تجارب وفرص التدريب في ${company.name} | دربك`;
+    document.title = `تجارب وفرص التدريب في ${company.name} | دربك`;
+    let meta = document.querySelector('meta[name="description"]');
+    const createdMeta = !meta;
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "description";
+      document.head.appendChild(meta);
+    }
+    const previousDescription = meta.content;
+    meta.content = description;
+    return () => {
+      document.title = previousTitle;
+      if (createdMeta) meta.remove(); else meta.content = previousDescription;
+    };
+  }, [company]);
+
+  useEffect(() => {
     if (!company) return;
     trackEvent("company_page_viewed", { metadata: { companySlug: company.slug, companyName: company.name } });
   }, [company]);
 
   const tabs = [
+    { id: "overview", label: "نظرة عامة" },
     { id: "experiences", label: "التجارب", count: content.experiences.length },
     { id: "interviews", label: "المقابلات", count: content.interviews.length },
     { id: "opportunities", label: "الفرص", count: content.opportunities.length },
   ];
 
+  const experienceCities = useMemo(
+    () => Array.from(new Set(content.experiences.map((item) => item.city).filter(Boolean))).sort(),
+    [content.experiences]
+  );
+  const experienceMajors = useMemo(
+    () => Array.from(new Set(content.experiences.map((item) => item.major || item.majorCategory).filter(Boolean))).sort(),
+    [content.experiences]
+  );
+  const filteredExperiences = useMemo(() => content.experiences.filter((item) =>
+    (!experienceCity || item.city === experienceCity) &&
+    (!experienceMajor || (item.major || item.majorCategory) === experienceMajor)
+  ), [content.experiences, experienceCity, experienceMajor]);
+
   const renderTab = () => {
     if (loading) return <div className="company-content-state">جارِ تحميل المحتوى...</div>;
     if (error) return <div className="company-content-state is-error">{error}</div>;
 
+    if (activeTab === "overview") {
+      const overview = content.overview || {};
+      return (
+        <div className="company-overview">
+          <div className="company-overview-stats">
+            <article><strong>{overview.experiencesCount || 0}</strong><span>تجربة منشورة</span></article>
+            <article><strong>{overview.openOpportunitiesCount || 0}</strong><span>فرصة مفتوحة</span></article>
+            <article><strong>{overview.interviewsCount || 0}</strong><span>مراجعة مقابلة</span></article>
+          </div>
+          <div className="company-overview-grid">
+            <article className="company-overview-panel"><h2>المدن التي ظهر فيها التدريب</h2><div className="company-tags">{overview.cities?.length ? overview.cities.map((item) => <span key={item.label}>{item.label}<small>{item.count}</small></span>) : <p>تظهر المدن هنا عند توفرها داخل تجارب وفرص الجهة.</p>}</div></article>
+            <article className="company-overview-panel"><h2>التخصصات الأكثر ظهورًا</h2><div className="company-tags">{overview.majors?.length ? overview.majors.map((item) => <span key={item.label}>{item.label}<small>{item.count}</small></span>) : <p>تظهر التخصصات هنا عند توفر محتوى مرتبط بالجهة.</p>}</div></article>
+          </div>
+        </div>
+      );
+    }
+
     if (activeTab === "experiences") {
-      return content.experiences.length ? (
-        <div className="company-content-grid">
-          {content.experiences.map((experience) => (
+      return content.experiences.length ? (<>
+        <div className="company-content-filters">
+          <select value={experienceCity} onChange={(event) => setExperienceCity(event.target.value)}><option value="">كل المدن</option>{experienceCities.map((city) => <option key={city} value={city}>{city}</option>)}</select>
+          <select value={experienceMajor} onChange={(event) => setExperienceMajor(event.target.value)}><option value="">كل التخصصات</option>{experienceMajors.map((major) => <option key={major} value={major}>{major}</option>)}</select>
+          {(experienceCity || experienceMajor) && <button type="button" onClick={() => { setExperienceCity(""); setExperienceMajor(""); }}>إلغاء التصفية</button>}
+        </div>
+        {filteredExperiences.length ? <div className="company-content-grid">
+          {filteredExperiences.map((experience) => (
             <ExperienceCard
               key={experience._id || experience.id}
               experience={experience}
@@ -212,8 +272,8 @@ export default function CompanyProfilePage() {
               onOpen={(contentType, itemId) => trackEvent("company_content_opened", { metadata: { companySlug: company.slug, companyName: company.name, contentType, itemId } })}
             />
           ))}
-        </div>
-      ) : <EmptyCompanyState label="تجارب" companyName={company?.name} />;
+        </div> : <EmptyCompanyState label="تجارب مطابقة" companyName={company?.name} />}
+      </>) : <EmptyCompanyState label="تجارب" companyName={company?.name} />;
     }
 
     if (activeTab === "interviews") {
@@ -278,7 +338,7 @@ export default function CompanyProfilePage() {
             onClick={() => { setActiveTab(tab.id); trackEvent("company_tab_viewed", { metadata: { companySlug: company.slug, companyName: company.name, tab: tab.id } }); }}
           >
             {tab.label}
-            {!loading && <small>{tab.count}</small>}
+            {!loading && tab.id !== "overview" && <small>{tab.count}</small>}
           </button>
         ))}
       </div>

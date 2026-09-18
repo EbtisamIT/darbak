@@ -226,6 +226,83 @@
 
 .company-tabs .is-active small { background: rgba(7, 24, 20, .12); }
 
+.company-overview {
+  display: grid;
+  gap: 14px;
+}
+
+.company-overview-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.company-overview-stats article,
+.company-overview-panel {
+  border: 1px solid var(--app-border);
+  border-radius: 15px;
+  background: var(--app-surface);
+  box-shadow: 0 10px 25px var(--app-shadow);
+}
+
+.company-overview-stats article {
+  display: grid;
+  gap: 4px;
+  padding: 17px;
+}
+
+.company-overview-stats strong {
+  color: var(--app-brand);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.company-overview-stats span { color: var(--app-text-soft); font-size: 13px; font-weight: 800; }
+
+.company-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.company-overview-panel { padding: 17px; }
+.company-overview-panel h2 { margin: 0 0 12px; color: var(--app-text); font-size: 15px; }
+.company-overview-panel p { margin: 0; color: var(--app-muted); font-size: 13px; line-height: 1.75; }
+
+.company-tags { display: flex; flex-wrap: wrap; gap: 7px; }
+.company-tags span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: var(--app-input-bg);
+  color: var(--app-text-soft);
+  font-size: 12px;
+}
+.company-tags small { color: var(--app-brand); font-weight: 900; }
+
+.company-content-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.company-content-filters select,
+.company-content-filters button {
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+  color: var(--app-text-soft);
+  font: inherit;
+  font-size: 13px;
+}
+.company-content-filters button { color: var(--app-brand); cursor: pointer; }
+
 .company-content-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -443,4 +520,10 @@
   .company-tabs button { min-width: 102px; }
   .company-content-grid { grid-template-columns: 1fr; gap: 9px; }
   .company-content-card { min-height: 164px; }
+  .company-overview-stats { gap: 8px; }
+  .company-overview-stats article { padding: 13px 10px; }
+  .company-overview-stats strong { font-size: 25px; }
+  .company-overview-stats span { font-size: 11px; }
+  .company-overview-grid { grid-template-columns: 1fr; gap: 9px; }
+  .company-content-filters > * { flex: 1 1 145px; }
 }

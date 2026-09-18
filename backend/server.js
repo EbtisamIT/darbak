@@ -2859,6 +2859,44 @@ const buildCompanyInterviewGroups = (experienceRows = [], questionRows = []) => 
   }));
 };
 
+const buildCompanyContentOverview = ({ experiences = [], interviews = [], opportunities = [] }) => {
+  const countValues = (values = []) => {
+    const counts = new Map();
+    values.filter(Boolean).forEach((value) => {
+      const label = String(value).trim();
+      if (!label) return;
+      counts.set(label, (counts.get(label) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "ar"))
+      .slice(0, 6)
+      .map(([label, count]) => ({ label, count }));
+  };
+
+  const cities = countValues([
+    ...experiences.map((item) => item.city),
+    ...interviews.flatMap((item) => item.cities || []),
+    ...opportunities.flatMap((item) => Array.isArray(item.cities) && item.cities.length ? item.cities : [item.city]),
+  ]);
+  const majors = countValues([
+    ...experiences.map((item) => item.major || item.majorCategory),
+    ...interviews.map((item) => item.major || item.majorCategory),
+    ...opportunities.flatMap((item) => item.specialties || item.majorCategories || []),
+  ]);
+  const openOpportunities = opportunities.filter((item) =>
+    item.status !== "expired" && (!item.deadline || new Date(item.deadline) >= new Date())
+  ).length;
+
+  return {
+    experiencesCount: experiences.length,
+    interviewsCount: interviews.length,
+    opportunitiesCount: opportunities.length,
+    openOpportunitiesCount: openOpportunities,
+    cities,
+    majors,
+  };
+};
+
 app.get('/api/companies/:slug/content', async (req, res) => {
   try {
     const slug = normalizeCompanyApplicationSlug(req.params.slug || "");
@@ -2892,12 +2930,14 @@ app.get('/api/companies/:slug/content', async (req, res) => {
         .limit(60)
         .lean(),
     ]);
+    const interviews = buildCompanyInterviewGroups(experienceInterviews, questionInterviews);
     res.json({
       company: serializeStudentDirectoryCompany(company),
       data: {
         experiences,
-        interviews: buildCompanyInterviewGroups(experienceInterviews, questionInterviews),
+        interviews,
         opportunities,
+        overview: buildCompanyContentOverview({ experiences, interviews, opportunities }),
       },
     });
   } catch (err) {
