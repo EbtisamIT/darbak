@@ -1103,6 +1103,8 @@ export default function AdminReviewPage() {
   const [editingCompanyId, setEditingCompanyId] = useState("");
   const [savingCompany, setSavingCompany] = useState(false);
   const [enrichmentBusy, setEnrichmentBusy] = useState(false);
+  const [companyLinkAudit, setCompanyLinkAudit] = useState(null);
+  const [companyLinkAuditBusy, setCompanyLinkAuditBusy] = useState(false);
   const [companyCampaignStatus, setCompanyCampaignStatus] = useState("");
   const [companyCampaignSearch, setCompanyCampaignSearch] = useState("");
   const [companyCampaignForm, setCompanyCampaignForm] = useState(
@@ -2279,6 +2281,24 @@ export default function AdminReviewPage() {
       setMessage(err.response?.data?.error || "تعذر تنفيذ إجراء المراجعة.");
     } finally {
       setEnrichmentBusy(false);
+    }
+  };
+
+  const auditCompanyLinks = async (apply = false) => {
+    if (apply && !window.confirm("سيتم فك ارتباط السجلات التي لا يطابق اسم جهتها الشركة المرتبطة بها. لن تُحذف التجارب أو الفرص. متابعة؟")) return;
+    try {
+      setCompanyLinkAuditBusy(true);
+      const request = apply
+        ? axios.post(`${API_BASE_URL}/api/admin/companies/link-audit/cleanup`, { confirm: true }, { headers: authHeaders })
+        : axios.get(`${API_BASE_URL}/api/admin/companies/link-audit`, { headers: authHeaders });
+      const { data } = await request;
+      setCompanyLinkAudit(data);
+      setMessage(apply ? `تم فك ${data.removed || 0} رابط خاطئ دون حذف أي محتوى.` : `وجدنا ${data.total || 0} رابطًا يحتاج مراجعة.`);
+      if (apply) fetchCompanies();
+    } catch (err) {
+      setMessage(err.response?.data?.error || "تعذر تدقيق روابط الشركات.");
+    } finally {
+      setCompanyLinkAuditBusy(false);
     }
   };
 
@@ -5688,7 +5708,8 @@ export default function AdminReviewPage() {
                   <small style={{ color: adminColors.textSoft }}>{company.shortDescription || "لم نجد وصفًا موثوقًا بعد."}</small>
                   {company.website ? <a href={company.website} target="_blank" rel="noreferrer" style={{ color: adminColors.brand, fontSize: 12, overflowWrap: "anywhere" }}>{company.website}</a> : null}
                   <small style={{ color: adminColors.muted }}>تجارب {item.experiencesCount} · مقابلات {item.interviewsCount} · فرص {item.opportunitiesCount}</small>
-                  <small style={{ color: adminColors.textSoft, lineHeight: 1.6 }}>الأسماء: {(company.aliases || []).join(" · ") || "لا توجد"}</small>
+                  <small style={{ color: adminColors.textSoft, lineHeight: 1.6 }}>الأسماء المعتمدة: {(company.aliases || []).join(" · ") || "لا توجد"}</small>
+                  {company.suggestedAliases?.length ? <small style={{ color: "#fbbf24", lineHeight: 1.6 }}>أسماء مقترحة للمراجعة: {company.suggestedAliases.join(" · ")}</small> : null}
                   <small style={{ color: adminColors.muted, lineHeight: 1.6 }}>المصادر: {sources.map((source) => source.label).filter(Boolean).join(" · ") || "محتوى دربك"}</small>
                   <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
                     <button type="button" onClick={() => reviewEnrichedCompany(company.id || company._id, "approve")} disabled={enrichmentBusy} style={{ background: adminColors.brand, color: "#07100e", border: 0, borderRadius: 8, padding: "7px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 800 }}>اعتماد ونشر</button>
@@ -5700,6 +5721,13 @@ export default function AdminReviewPage() {
               })}
               {!companySuggestions.some((item) => item.company?.enrichmentStatus === "draft") ? <small style={{ color: adminColors.muted }}>لا توجد مسودات جاهزة الآن. ابدئي بزر «تجهيز 20 شركة جديدة».</small> : null}
             </div>
+          </section>
+          <section style={{ ...cardStyle, display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div><strong style={{ color: adminColors.text }}>تدقيق روابط المحتوى</strong><small style={{ display: "block", color: adminColors.muted, marginTop: 3 }}>يفحص الاسم الأصلي مقابل الشركة المرتبطة ويعرض الروابط المشبوهة قبل فكها.</small></div>
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}><button type="button" onClick={() => auditCompanyLinks(false)} disabled={companyLinkAuditBusy} style={{ background: "transparent", color: adminColors.brand, border: `1px solid ${adminColors.brand}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", fontFamily: "inherit" }}>{companyLinkAuditBusy ? "جارٍ التدقيق..." : "فحص الروابط"}</button>{companyLinkAudit?.total ? <button type="button" onClick={() => auditCompanyLinks(true)} disabled={companyLinkAuditBusy} style={{ background: "rgba(248,113,113,.14)", color: "#fca5a5", border: "1px solid rgba(248,113,113,.35)", borderRadius: 8, padding: "7px 10px", cursor: "pointer", fontFamily: "inherit" }}>فك الروابط الخاطئة ({companyLinkAudit.total})</button> : null}</div>
+            </div>
+            {companyLinkAudit ? <small style={{ color: adminColors.textSoft, lineHeight: 1.7 }}>النتيجة: {companyLinkAudit.total || 0} رابط مشتبه. {Object.entries(companyLinkAudit.byCompany || {}).slice(0, 5).map(([name, count]) => `${name} (${count})`).join(" · ") || "لا توجد روابط خاطئة."}</small> : null}
           </section>
           <section style={{ ...cardStyle, display: "grid", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>

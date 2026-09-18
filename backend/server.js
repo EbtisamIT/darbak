@@ -23,6 +23,7 @@ const CompanyApplicationFile = require('./models/CompanyApplicationFile');
 const {
   DIRECTORY_COMPANY_SEEDS,
   companyAliasesMatchName,
+  isSafeCompanyAlias,
 } = require("./services/companyDirectorySeeds");
 const {
   buildCompanyEnrichment,
@@ -2622,12 +2623,103 @@ const getCompanyAliasRegexFilter = (company = {}) => {
   // e.g. "شركة أرامكو السعودية" or "Saudi Arabian Oil Company". Match an
   // alias as a phrase rather than requiring the whole stored name to match.
   const regexes = aliases
-    .filter((alias) => normalizeSearchText(alias).length >= 3)
+    .filter((alias) => normalizeSearchText(alias).length >= 3 && isSafeCompanyAlias(alias))
     .map((alias) => new RegExp(`(^|[\\s\\-_/|()]+)${escapeRegex(alias)}(?=$|[\\s\\-_/|()]+)`, "i"));
   return regexes.length ? { organizationName: { $in: regexes } } : { _id: null };
 };
 
-const getCompanyContentFilter = (company = {}) => {
+const companyContentBelongsTo = (company = {}, record = {}) =>
+  Boolean(company?._id) && companyAliasesMatchName(company, record.organizationName || "");
+
+const filterVerifiedCompanyContent = (company = {}, records = []) =>
+  records.filter((record) => companyContentBelongsTo(company, record));
+
+const auditCompanyContentLinks = async ({ apply = false } = {}) => {
+  const companies = await Company.find({}).select("name nameAr nameEn aliases contentAliases").lean();
+  const companyById = new Map(companies.map((company) => [company._id.toString(), company]));
+  const collections = [
+    { key: "experiences", Model: Experience },
+    { key: "interviews", Model: InterviewQuestion },
+    { key: "opportunities", Model: Opportunity },
+  ];
+  const report = { total: 0, removed: 0, byCompany: {}, records: [] };
+
+  for (const { key, Model } of collections) {
+    const rows = await Model.find({ companyId: { $ne: null } })
+      .select("organizationName companyId")
+      .lean();
+    const invalidIds = [];
+    rows.forEach((row) => {
+      const company = companyById.get(row.companyId?.toString?.());
+      if (!company || companyContentBelongsTo(company, row)) return;
+      invalidIds.push(row._id);
+      report.total += 1;
+      const companyName = company?.name || "جهة محذوفة";
+      report.byCompany[companyName] = (report.byCompany[companyName] || 0) + 1;
+      report.records.push({ type: key, id: row._id.toString(), companyName, originalCompanyName: row.organizationName || "" });
+    });
+    if (apply && invalidIds.length) {
+      const result = await Model.updateMany({ _id: { $in: invalidIds } }, { $set: { companyId: null } });
+      report.removed += Number(result.modifiedCount || 0);
+    }
+  }
+  return report;
+};
+
+const getVerifiedCompanyDirectoryCounts = async (companies = []) => {
+  const companyIds = companies.map((company) => company._id).filter(Boolean);
+  const counts = new Map();
+  if (!companyIds.length) return counts;
+  const byId = new Map(companies.map((company) => [company._id.toString(), company]));
+  const [experiences, experienceInterviews, questionInterviews, opportunities] = await Promise.all([
+    Experience.find({ companyId: { $in: companyIds }, ...getApprovedExperiencesFilter() })
+      .select("companyId organizationName")
+      .lean(),
+    Experience.find({
+      companyId: { $in: companyIds },
+      ...getApprovedExperiencesFilter(),
+      interviewQuestions: { $exists: true, $ne: [] },
+    })
+      .select("companyId organizationName city major majorCategory interviewQuestions createdAt")
+      .lean(),
+    InterviewQuestion.find({ companyId: { $in: companyIds }, status: "approved" })
+      .select("companyId organizationName city major majorCategory questions createdAt")
+      .lean(),
+    Opportunity.find({ companyId: { $in: companyIds }, ...buildRealOpportunityFilter() })
+      .select("companyId organizationName status")
+      .lean(),
+  ]);
+  const increment = (row, key) => {
+    const id = row.companyId?.toString?.();
+    const company = byId.get(id);
+    if (!company || !companyContentBelongsTo(company, row)) return;
+    const current = counts.get(id) || { experiencesCount: 0, interviewsCount: 0, opportunitiesCount: 0, openOpportunitiesCount: 0 };
+    current[key] += 1;
+    if (key === "opportunitiesCount" && row.status === "active") current.openOpportunitiesCount += 1;
+    counts.set(id, current);
+  };
+  experiences.forEach((row) => increment(row, "experiencesCount"));
+  opportunities.forEach((row) => increment(row, "opportunitiesCount"));
+  const verifiedExperienceInterviews = experienceInterviews.filter((row) => {
+    const company = byId.get(row.companyId?.toString?.());
+    return companyContentBelongsTo(company, row);
+  });
+  const verifiedQuestionInterviews = questionInterviews.filter((row) => {
+    const company = byId.get(row.companyId?.toString?.());
+    return companyContentBelongsTo(company, row);
+  });
+  buildCompanyInterviewGroups(verifiedExperienceInterviews, verifiedQuestionInterviews).forEach((group) => {
+    const matchingCompany = companies.find((company) => companyAliasesMatchName(company, group.organizationName));
+    const id = matchingCompany?._id?.toString?.();
+    if (!id) return;
+    const current = counts.get(id) || { experiencesCount: 0, interviewsCount: 0, opportunitiesCount: 0, openOpportunitiesCount: 0 };
+    current.interviewsCount += 1;
+    counts.set(id, current);
+  });
+  return counts;
+};
+
+const getCompanyLinkFilter = (company = {}) => {
   if (!company?._id) return { _id: null };
   return {
     $or: [
@@ -2637,9 +2729,14 @@ const getCompanyContentFilter = (company = {}) => {
   };
 };
 
+// Public hubs read canonical links only. Text aliases are used exclusively by
+// the explicit linking workflow, never as a fallback that can mix companies.
+const getCompanyContentFilter = (company = {}) =>
+  company?._id ? { companyId: company._id } : { _id: null };
+
 const linkCompanyContent = async (company = {}) => {
   if (!company?._id) return { experiences: 0, interviews: 0, opportunities: 0 };
-  const match = getCompanyContentFilter(company);
+  const match = getCompanyLinkFilter(company);
   const [experiences, interviews, opportunities] = await Promise.all([
     Experience.updateMany(match, { $set: { companyId: company._id } }),
     InterviewQuestion.updateMany(match, { $set: { companyId: company._id } }),
@@ -2714,7 +2811,7 @@ const seedPublicCompanyDirectory = async () => {
 
 const sanitizeCompanyPayload = (body = {}) => {
   const name = (body.name || "").toString().trim().replace(/\s+/g, " ").slice(0, 180);
-  return {
+  const payload = {
     name,
     nameAr: (body.nameAr || body.name || "").toString().trim().slice(0, 180),
     nameEn: (body.nameEn || "").toString().trim().slice(0, 180),
@@ -2744,6 +2841,10 @@ const sanitizeCompanyPayload = (body = {}) => {
     linkedinUrl: sanitizeExternalUrl(body.linkedinUrl || ""),
     isFeatured: body.isFeatured === true || body.isFeatured === "true",
   };
+  if (Object.prototype.hasOwnProperty.call(body, "suggestedAliases")) {
+    payload.suggestedAliases = sanitizeCompanyContentAliases(body.suggestedAliases);
+  }
+  return payload;
 };
 
 const serializeCompany = (company = {}, extra = {}) => {
@@ -2768,6 +2869,7 @@ const serializeCompany = (company = {}, extra = {}) => {
     isPublished: Boolean(company.isPublished || company.showInStudentDirectory),
     aliases: Array.isArray(company.aliases) && company.aliases.length ? company.aliases : (company.contentAliases || []),
     contentAliases: Array.isArray(company.aliases) && company.aliases.length ? company.aliases : (company.contentAliases || []),
+    suggestedAliases: Array.isArray(company.suggestedAliases) ? company.suggestedAliases : [],
     demoPortalEnabled: Boolean(company.demoPortalEnabled),
     linkedinUrl: company.linkedinUrl || "",
     isFeatured: Boolean(company.isFeatured),
@@ -2828,20 +2930,7 @@ app.get('/api/companies', async (req, res) => {
       .sort({ name: 1 })
       .select("name nameAr nameEn slug logoUrl shortDescription sector website aliases contentAliases")
       .lean();
-    const companyIds = companies.map((company) => company._id);
-    const [experienceCounts, interviewCounts, opportunityCounts] = await Promise.all([
-      Experience.aggregate([{ $match: { companyId: { $in: companyIds }, status: "approved" } }, { $group: { _id: "$companyId", count: { $sum: 1 } } }]),
-      InterviewQuestion.aggregate([{ $match: { companyId: { $in: companyIds }, status: "approved" } }, { $group: { _id: "$companyId", count: { $sum: 1 } } }]),
-      Opportunity.aggregate([{ $match: { companyId: { $in: companyIds }, ...buildRealOpportunityFilter() } }, { $group: { _id: "$companyId", count: { $sum: 1 }, openCount: { $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] } } } }]),
-    ]);
-    const countsByCompany = new Map();
-    const applyCounts = (items, key) => items.forEach((item) => {
-      const id = item._id?.toString?.() || "";
-      countsByCompany.set(id, { ...(countsByCompany.get(id) || {}), [key]: Number(item.count || 0), ...(key === "opportunitiesCount" ? { openOpportunitiesCount: Number(item.openCount || 0) } : {}) });
-    });
-    applyCounts(experienceCounts, "experiencesCount");
-    applyCounts(interviewCounts, "interviewsCount");
-    applyCounts(opportunityCounts, "opportunitiesCount");
+    const countsByCompany = await getVerifiedCompanyDirectoryCounts(companies);
     res.json({ data: companies.map((company) => serializeStudentDirectoryCompany(company, countsByCompany.get(company._id?.toString?.()) || {})) });
   } catch (err) {
     console.error("❌ Public companies fetch error:", err);
@@ -2932,9 +3021,9 @@ const buildCompanyContentOverview = ({ experiences = [], interviews = [], opport
     ...interviews.map((item) => item.major || item.majorCategory),
     ...opportunities.flatMap((item) => item.specialties || item.majorCategories || []),
   ]);
-  const openOpportunities = opportunities.filter((item) =>
-    item.status !== "expired" && (!item.deadline || new Date(item.deadline) >= new Date())
-  ).length;
+  // Keep this definition identical to the company-directory card: only active
+  // canonical opportunities are considered open.
+  const openOpportunities = opportunities.filter((item) => item.status === "active").length;
 
   return {
     experiencesCount: experiences.length,
@@ -2981,10 +3070,14 @@ app.get('/api/companies/:slug/content', async (req, res) => {
         .limit(60)
         .lean(),
     ]);
-    const interviews = buildCompanyInterviewGroups(experienceInterviews, questionInterviews);
-    const typedExperiences = experiences.map((item) => ({ ...item, sourceType: "experience" }));
+    const verifiedExperiences = filterVerifiedCompanyContent(company, experiences);
+    const verifiedExperienceInterviews = filterVerifiedCompanyContent(company, experienceInterviews);
+    const verifiedQuestionInterviews = filterVerifiedCompanyContent(company, questionInterviews);
+    const verifiedOpportunities = filterVerifiedCompanyContent(company, opportunities);
+    const interviews = buildCompanyInterviewGroups(verifiedExperienceInterviews, verifiedQuestionInterviews);
+    const typedExperiences = verifiedExperiences.map((item) => ({ ...item, sourceType: "experience" }));
     const typedInterviews = interviews.map((item) => ({ ...item, sourceType: "interview" }));
-    const typedOpportunities = opportunities.map((item) => ({ ...item, sourceType: "opportunity" }));
+    const typedOpportunities = verifiedOpportunities.map((item) => ({ ...item, sourceType: "opportunity" }));
     res.json({
       company: serializeStudentDirectoryCompany(company),
       data: {
@@ -16310,6 +16403,29 @@ app.get('/api/admin/company-suggestions', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("❌ Company suggestions fetch error:", err);
     res.status(500).json({ error: "تعذر جمع الجهات من المحتوى." });
+  }
+});
+
+app.get('/api/admin/companies/link-audit', requireAdmin, async (req, res) => {
+  try {
+    const report = await auditCompanyContentLinks();
+    res.json({ ...report, records: report.records.slice(0, 150) });
+  } catch (err) {
+    console.error("❌ Company link audit error:", err);
+    res.status(500).json({ error: "تعذر تدقيق روابط محتوى الشركات." });
+  }
+});
+
+app.post('/api/admin/companies/link-audit/cleanup', requireAdmin, async (req, res) => {
+  try {
+    if (req.body?.confirm !== true) {
+      return res.status(400).json({ error: "أكدي عملية التنظيف أولًا." });
+    }
+    const report = await auditCompanyContentLinks({ apply: true });
+    res.json({ success: true, ...report, records: report.records.slice(0, 150) });
+  } catch (err) {
+    console.error("❌ Company link cleanup error:", err);
+    res.status(500).json({ error: "تعذر تنظيف روابط المحتوى الخاطئة." });
   }
 });
 

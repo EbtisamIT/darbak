@@ -48,6 +48,16 @@ const companySchema = new mongoose.Schema(
         message: "يمكن إضافة 20 اسمًا بديلًا كحد أقصى.",
       },
     },
+    // Suggestions are visible to admins only and never participate in matching
+    // until an admin moves them into aliases/contentAliases.
+    suggestedAliases: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (items) => Array.isArray(items) && items.length <= 20,
+        message: "يمكن اقتراح 20 اسمًا بديلًا كحد أقصى.",
+      },
+    },
     isPublished: { type: Boolean, default: false, index: true },
     // Kept separate from the company-portal status. Directory enrichment is
     // always reviewed before it can be published to students.

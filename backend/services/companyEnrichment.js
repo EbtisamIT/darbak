@@ -25,7 +25,8 @@ const buildInternalSource = (suggestion = {}) => ({
 
 const buildCompanyEnrichment = (suggestion = {}) => {
   const seed = findTrustedSeed(suggestion);
-  const aliases = Array.from(new Set([...(seed?.aliases || []), ...(suggestion.aliases || [])])).slice(0, 20);
+  const candidateAliases = Array.from(new Set(suggestion.aliases || [])).slice(0, 20);
+  const aliases = Array.from(new Set(seed?.aliases || [])).slice(0, 20);
   const contentScore =
     Number(suggestion.experiencesCount || 0) +
     Number(suggestion.interviewsCount || 0) +
@@ -41,6 +42,7 @@ const buildCompanyEnrichment = (suggestion = {}) => {
       website: seed.website || "",
       shortDescription: seed.shortDescription || "",
       aliases,
+      suggestedAliases: candidateAliases.filter((alias) => !aliases.includes(alias)),
       confidence: "high",
       score: 92,
       sources: [
@@ -60,7 +62,8 @@ const buildCompanyEnrichment = (suggestion = {}) => {
     sector: "",
     website: "",
     shortDescription: "",
-    aliases,
+    aliases: [],
+    suggestedAliases: candidateAliases,
     confidence,
     score: confidence === "medium" ? 64 : 34,
     sources: [buildInternalSource(suggestion)],
@@ -83,6 +86,10 @@ const mergeAutoEnrichment = (company = {}, enrichment = {}) => {
     patch.aliases = enrichment.aliases || [];
     patch.contentAliases = enrichment.aliases || [];
     nextProvenance.aliases = "auto";
+  }
+  if (provenance.suggestedAliases !== "manual") {
+    patch.suggestedAliases = enrichment.suggestedAliases || [];
+    nextProvenance.suggestedAliases = "auto";
   }
 
   return {

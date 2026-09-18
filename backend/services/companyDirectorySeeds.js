@@ -13,9 +13,28 @@ const normalizeCompanyComparable = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+const COMPANY_MATCH_STOPWORDS = new Set([
+  "السعوديه", "السعودي", "العربيه", "شركه", "مجموعه", "القابضه", "مؤسسه", "هيئه", "بنك", "الوطنيه", "الدوليه",
+  "saudi", "arabia", "company", "group", "holding", "corporation", "international", "bank",
+]);
+
+const getDistinctiveCompanyTokens = (value = "") =>
+  normalizeCompanyComparable(value)
+    .split(" ")
+    .filter((token) => token.length >= 2 && !COMPANY_MATCH_STOPWORDS.has(token));
+
+const isSafeCompanyAlias = (value = "") =>
+  getDistinctiveCompanyTokens(value).length > 0;
+
+const sameTokens = (left = [], right = []) =>
+  left.length === right.length && left.every((token) => right.includes(token));
+
 const companyAliasesMatchName = (company = {}, organizationName = "") => {
   const candidate = normalizeCompanyComparable(organizationName);
   if (!candidate) return false;
+
+  const candidateTokens = getDistinctiveCompanyTokens(organizationName);
+  if (!candidateTokens.length) return false;
 
   const aliases = [
     company.name,
@@ -27,7 +46,14 @@ const companyAliasesMatchName = (company = {}, organizationName = "") => {
     .map(normalizeCompanyComparable)
     .filter((value) => value.length >= 3);
 
-  return aliases.some((alias) => candidate === alias || candidate.includes(alias));
+  return aliases.some((alias) => {
+    if (candidate === alias) return true;
+    const aliasTokens = getDistinctiveCompanyTokens(alias);
+    // Never link on a generic suffix such as “السعودية” or “Saudi”. A legal
+    // prefix/suffix is safe only when the remaining distinctive identity is
+    // exactly the same on both sides.
+    return aliasTokens.length > 0 && sameTokens(candidateTokens, aliasTokens);
+  });
 };
 
 // These are public directory records, not company-portal accounts. The city is
@@ -185,7 +211,7 @@ const DIRECTORY_COMPANY_SEEDS = [
     sector: "الطيران",
     website: "https://www.saudia.com/",
     shortDescription: "تجارب ومقابلات وفرص التدريب في الخطوط السعودية.",
-    aliases: ["الخطوط السعودية", "الخطوط السعوديه", "السعودية", "السعوديه", "Saudia", "Saudi Arabian Airlines"],
+    aliases: ["الخطوط السعودية", "الخطوط السعوديه", "Saudia", "Saudi Airlines", "Saudi Arabian Airlines"],
   },
   {
     name: "طيران ناس",
@@ -218,6 +244,9 @@ const DIRECTORY_COMPANY_SEEDS = [
 
 module.exports = {
   DIRECTORY_COMPANY_SEEDS,
+  COMPANY_MATCH_STOPWORDS,
   companyAliasesMatchName,
+  getDistinctiveCompanyTokens,
+  isSafeCompanyAlias,
   normalizeCompanyComparable,
 };
