@@ -2782,9 +2782,19 @@ const serializeStudentDirectoryCompany = (company = {}) => ({
   aliases: getCompanyAliases(company),
 });
 
+const setPublicCompanyResponseHeaders = (res) => {
+  // These routes are called directly from the static frontend on a different
+  // Render host. Set headers on the response itself so edge caching cannot
+  // return a stale response that the browser rejects as cross-origin.
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.append("Vary", "Origin");
+};
+
 // The public directory intentionally exposes only presentation fields. Portal
 // access tokens, contacts and program-management data never leave this route.
 app.get('/api/companies', async (req, res) => {
+  setPublicCompanyResponseHeaders(res);
   try {
     await seedPublicCompanyDirectory();
     const companies = await Company.find({
@@ -2802,6 +2812,7 @@ app.get('/api/companies', async (req, res) => {
 });
 
 app.get('/api/companies/:slug', async (req, res) => {
+  setPublicCompanyResponseHeaders(res);
   try {
     const slug = normalizeCompanyApplicationSlug(req.params.slug || "");
     const company = await Company.findOne({
@@ -2898,6 +2909,7 @@ const buildCompanyContentOverview = ({ experiences = [], interviews = [], opport
 };
 
 app.get('/api/companies/:slug/content', async (req, res) => {
+  setPublicCompanyResponseHeaders(res);
   try {
     const slug = normalizeCompanyApplicationSlug(req.params.slug || "");
     const company = await Company.findOne({
