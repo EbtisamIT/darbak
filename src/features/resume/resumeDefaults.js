@@ -250,7 +250,7 @@ export const normalizeResume = (resume = {}) => {
   };
   settings.language = settings.language === "en" ? "en" : "ar";
   settings.direction = settings.language === "en" ? "ltr" : settings.direction || "rtl";
-  settings.template = ["clean", "modern", "formal"].includes(settings.template)
+  settings.template = ["clean", "modern", "formal", "ats-classic"].includes(settings.template)
     ? settings.template
     : "clean";
 

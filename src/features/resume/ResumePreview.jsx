@@ -9,6 +9,11 @@ import {
 import { estimateResumePages } from "./resumeValidation";
 import { getLocalizedResumeForDisplay } from "./resumeLocalization";
 import { getResumeEducationDisplay } from "./resumeEducationDisplay";
+import {
+  getAtsClassicSectionOrder,
+  getResumeEntryTools,
+  isAtsClassicTemplate,
+} from "./resumeAtsClassic";
 
 const labels = {
   ar: {
@@ -46,7 +51,7 @@ const getCertificationDetails = (entry = {}) => {
   return [entry.organization || entry.subtitle, year].filter(Boolean).join(" | ");
 };
 
-const EntryPreview = ({ entry, language, sectionKey, personal, resume }) => {
+const EntryPreview = ({ entry, language, sectionKey, personal, resume, atsClassic }) => {
   const education = sectionKey === "education"
     ? getResumeEducationDisplay(entry, personal, language, resume)
     : null;
@@ -54,18 +59,22 @@ const EntryPreview = ({ entry, language, sectionKey, personal, resume }) => {
   const date = isCertification ? "" : formatResumeDateRange(entry, language);
   const subtitle = education?.subtitle || (isCertification
     ? getCertificationDetails(entry)
-    : [entry.organization || entry.subtitle, entry.location].filter(Boolean).join(" • "));
+    : [entry.organization || entry.subtitle, entry.location].filter(Boolean).join(atsClassic ? " - " : " • "));
   const title = education?.title || entry.title || entry.subtitle;
   const facts = education?.facts || [];
+  const tools = sectionKey === "projects" ? getResumeEntryTools(entry) : [];
+  const displayDate = atsClassic ? date.replace(/ – /g, " - ") : date;
 
   return (
     <article className="resume-paper-entry">
       <div className="resume-paper-entry-head">
         <strong>{title}</strong>
-        {date && !education && <span>{date}</span>}
+        {!atsClassic && displayDate && !education && <span>{displayDate}</span>}
       </div>
       {subtitle && <p className="resume-paper-muted">{subtitle}</p>}
+      {atsClassic && displayDate && !education && <p className="resume-paper-muted">{displayDate}</p>}
       {facts.length > 0 && <p className="resume-paper-muted">{facts.join(" | ")}</p>}
+      {atsClassic && tools.length > 0 && <p className="resume-paper-muted">{tools.join(", ")}</p>}
       {!education && getAchievementLines(entry).length > 0 && (
         <ul>
           {getAchievementLines(entry).map((line, index) => (
@@ -79,6 +88,7 @@ const EntryPreview = ({ entry, language, sectionKey, personal, resume }) => {
 
 const ResumePreview = ({ resume }) => {
   resume = getLocalizedResumeForDisplay(resume);
+  const atsClassic = isAtsClassicTemplate(resume);
   const language = resume.settings?.language === "en" ? "en" : "ar";
   const direction = getResumeDirection(resume);
   const titles = labels[language];
@@ -114,7 +124,7 @@ const ResumePreview = ({ resume }) => {
         <section className="resume-paper-section" key={sectionKey}>
           <h3>{titles[sectionKey]}</h3>
           {visibleEntries.map((entry) => (
-            <EntryPreview key={entry.id || entry.title} entry={entry} language={language} sectionKey={sectionKey} personal={personal} resume={resume} />
+            <EntryPreview key={entry.id || entry.title} entry={entry} language={language} sectionKey={sectionKey} personal={personal} resume={resume} atsClassic={atsClassic} />
           ))}
         </section>
       );
@@ -124,11 +134,13 @@ const ResumePreview = ({ resume }) => {
       return (
         <section className="resume-paper-section" key={sectionKey}>
           <h3>{titles.skills}</h3>
-          <div className="resume-paper-chips">
-            {resume.skills.map((skill) => (
-              <span key={skill}>{skill}</span>
-            ))}
-          </div>
+          {atsClassic
+            ? <p className="resume-paper-skills-line">{resume.skills.join(" | ")}</p>
+            : <div className="resume-paper-chips">
+              {resume.skills.map((skill) => (
+                <span key={skill}>{skill}</span>
+              ))}
+            </div>}
         </section>
       );
     }
@@ -141,7 +153,7 @@ const ResumePreview = ({ resume }) => {
           <h3>{titles.languages}</h3>
           <div className="resume-paper-language-list">
             {languages.map((item) => (
-              <span key={item.id}>{[item.name, item.level].filter(Boolean).join(" — ")}</span>
+              <span key={item.id}>{[item.name, item.level].filter(Boolean).join(atsClassic ? " - " : " — ")}</span>
             ))}
           </div>
         </section>
@@ -162,14 +174,12 @@ const ResumePreview = ({ resume }) => {
       <header className="resume-paper-header">
         <h2>{personal.fullName || (language === "en" ? "Student Name" : "اسم الطالب")}</h2>
         <p>{headline}</p>
-        <div>
-          {contactItems.map((item) => (
-            <span key={item}>{item}</span>
-          ))}
-        </div>
+        {atsClassic
+          ? <div className="resume-paper-contact-line">{contactItems.join(" | ")}</div>
+          : <div>{contactItems.map((item) => <span key={item}>{item}</span>)}</div>}
       </header>
 
-      {getVisibleSectionOrder(resume).map(renderSection)}
+      {(atsClassic ? getAtsClassicSectionOrder(resume) : getVisibleSectionOrder(resume)).map(renderSection)}
 
       {!resume.summary &&
         !resume.skills.length &&

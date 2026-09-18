@@ -662,9 +662,10 @@ export const SettingsEditor = ({ resume, onChange }) => {
         <p>اختر الشكل أولًا، ثم افتح التخصيصات عند الحاجة.</p>
       </div>
       <div className="resume-template-cards" role="radiogroup" aria-label="قالب السيرة">
-        {[["clean", "نظيف"], ["modern", "حديث"], ["formal", "رسمي"]].map(([value, label]) => (
+        {[["clean", "نظيف"], ["modern", "حديث"], ["formal", "رسمي"], ["ats-classic", "Darbak ATS Classic"]].map(([value, label]) => (
           <button key={value} type="button" className={settings.template === value ? "is-active" : ""} onClick={() => updateSetting("template", value)}>
             <span className={`resume-template-mini is-${value}`}><i /><i /><i /></span><strong>{label}</strong>
+            {value === "ats-classic" ? <><em>موصى به لأنظمة ATS</em><small>محسن للقراءة بواسطة أنظمة ATS</small></> : null}
           </button>
         ))}
       </div>

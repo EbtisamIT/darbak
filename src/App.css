@@ -5738,7 +5738,7 @@ body {
 
 .resume-template-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 9px;
 }
 
@@ -5761,6 +5761,23 @@ body {
   color: var(--app-brand);
 }
 
+.resume-template-cards button em {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: rgba(22, 135, 125, 0.12);
+  color: #16877d;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.resume-template-cards button small {
+  color: var(--app-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .resume-template-mini {
   height: 58px;
   display: grid;
@@ -5780,6 +5797,9 @@ body {
 .resume-template-mini.is-modern i:first-child { grid-row: 1 / -1; width: auto; height: auto; }
 .resume-template-mini.is-modern i:nth-child(2), .resume-template-mini.is-modern i:nth-child(3) { width: 100%; align-self: center; }
 .resume-template-mini.is-formal i:first-child { width: 100%; background: #27384f; }
+.resume-template-mini.is-ats-classic { gap: 4px; padding: 9px 8px; }
+.resume-template-mini.is-ats-classic i { width: 100%; height: 3px; border-radius: 0; background: #c8d6d3; }
+.resume-template-mini.is-ats-classic i:first-child { width: 62%; height: 6px; background: #16877d; }
 
 .resume-more-settings { margin-top: 13px; border-top: 1px solid var(--app-border); padding-top: 12px; }
 .resume-more-settings summary { cursor: pointer; color: var(--app-text-soft); font-weight: 900; }
@@ -7951,6 +7971,84 @@ body {
 .resume-paper.template-formal .resume-paper-section h3 {
   color: #1f2d2b;
   text-transform: uppercase;
+}
+
+.resume-paper.template-ats-classic {
+  padding: 42px 48px;
+  border-radius: 2px;
+  font-family: Arial, "Tajawal", sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.resume-paper.template-ats-classic .resume-paper-header {
+  border-bottom-width: 1px;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+.resume-paper.template-ats-classic .resume-paper-header h2 {
+  font-size: 28px;
+  line-height: 1.15;
+  margin-bottom: 4px;
+}
+
+.resume-paper.template-ats-classic .resume-paper-header p {
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.resume-paper.template-ats-classic .resume-paper-contact-line {
+  display: block;
+  color: #65706f;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.resume-paper.template-ats-classic .resume-paper-section {
+  margin-bottom: 14px;
+}
+
+.resume-paper.template-ats-classic .resume-paper-section h3 {
+  margin-bottom: 6px;
+  padding-bottom: 3px;
+  background: transparent;
+  border-bottom: 1px solid #d9e5e2;
+  color: #16877d;
+  font-size: 16px;
+}
+
+.resume-paper.template-ats-classic .resume-paper-entry {
+  margin-bottom: 9px;
+  break-inside: avoid;
+}
+
+.resume-paper.template-ats-classic .resume-paper-entry-head {
+  display: block;
+}
+
+.resume-paper.template-ats-classic .resume-paper-entry-head strong {
+  font-size: 14px;
+}
+
+.resume-paper.template-ats-classic .resume-paper-muted {
+  margin: 2px 0;
+}
+
+.resume-paper.template-ats-classic .resume-paper-entry ul {
+  margin-top: 4px;
+}
+
+.resume-paper.template-ats-classic .resume-paper-skills-line {
+  margin: 0;
+  color: #17201f;
+  line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .resume-template-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .resume-paper.template-ats-classic { padding: 24px 18px; }
+  .resume-paper.template-ats-classic .resume-paper-header h2 { font-size: 25px; }
 }
 
 .resume-sticky-actions {
