@@ -5,6 +5,7 @@ import { FiArrowLeft } from "react-icons/fi";
 import API_BASE_URL from "../config/api";
 import { getOrganizationLogoUrl } from "../data/organizationLogos";
 import { trackEvent } from "../utils/analytics";
+import { setPageSeo } from "../utils/seoMetadata";
 import "./CompaniesPage.css";
 
 export default function CompaniesPage() {
@@ -16,6 +17,11 @@ export default function CompaniesPage() {
   const [onlyInterviews, setOnlyInterviews] = useState(false);
 
   useEffect(() => {
+    setPageSeo({
+      title: "جهات التدريب في السعودية | تجارب وفرص ومقابلات",
+      description: "تصفح الجهات التي يشارك عنها الطلاب تجارب التدريب والمقابلات والفرص في دربك.",
+      path: "/companies",
+    });
     let active = true;
     axios.get(`${API_BASE_URL}/api/companies`)
       .then(({ data }) => {
@@ -47,8 +53,8 @@ export default function CompaniesPage() {
     <main className="companies-page" dir="rtl">
       <section className="companies-intro">
         <span>جهات التدريب</span>
-        <h1>استكشف الجهات في دربك</h1>
-        <p>تجارب ومقابلات وفرص مجمعة لكل جهة في مكان واحد.</p>
+        <h1>استكشف جهات التدريب في دربك</h1>
+        <p>تصفح الجهات التي يشارك عنها الطلاب تجارب التدريب والمقابلات والفرص في دربك.</p>
       </section>
 
       <section className="companies-filters" aria-label="بحث وفلاتر الجهات">

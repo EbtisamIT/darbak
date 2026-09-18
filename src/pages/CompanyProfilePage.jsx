@@ -15,6 +15,7 @@ import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirect
 import { healthHospitalSuggestions } from "../data/healthHospitalSuggestions";
 import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDirectory";
 import { trackEvent } from "../utils/analytics";
+import { setCompanySeo } from "../utils/companySeo";
 import "./CompaniesPage.css";
 
 const formatDate = (value) => {
@@ -196,6 +197,7 @@ function ApplicationSuggestionCard({ suggestion, company }) {
 
 export default function CompanyProfilePage() {
   const { companySlug } = useParams();
+  const navigate = useNavigate();
   const [company, setCompany] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
@@ -218,7 +220,13 @@ export default function CompanyProfilePage() {
       try {
         setLoading(true);
         setError("");
-        const companyResponse = await axios.get(`${API_BASE_URL}/api/companies/${companySlug}/content`);
+        const resolved = await axios.get(`${API_BASE_URL}/api/companies/resolve/${encodeURIComponent(companySlug)}`);
+        const canonicalSlug = resolved.data?.data?.slug || companySlug;
+        if (canonicalSlug !== companySlug) {
+          navigate(`/companies/${canonicalSlug}`, { replace: true });
+          return;
+        }
+        const companyResponse = await axios.get(`${API_BASE_URL}/api/companies/${canonicalSlug}/content`);
         const nextCompany = companyResponse.data?.company;
         if (!nextCompany) throw new Error("missing company");
         if (!active) return;
@@ -243,27 +251,12 @@ export default function CompanyProfilePage() {
     return () => {
       active = false;
     };
-  }, [companySlug]);
+  }, [companySlug, navigate]);
 
   useEffect(() => {
     if (!company) return undefined;
-    const previousTitle = document.title;
-    const description = company.shortDescription || `تجارب وفرص التدريب في ${company.name} | دربك`;
-    document.title = `تجارب وفرص التدريب في ${company.name} | دربك`;
-    let meta = document.querySelector('meta[name="description"]');
-    const createdMeta = !meta;
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.name = "description";
-      document.head.appendChild(meta);
-    }
-    const previousDescription = meta.content;
-    meta.content = description;
-    return () => {
-      document.title = previousTitle;
-      if (createdMeta) meta.remove(); else meta.content = previousDescription;
-    };
-  }, [company]);
+    return setCompanySeo(company, content.overview || {});
+  }, [company, content.overview]);
 
   useEffect(() => {
     if (!company) return;
@@ -381,7 +374,7 @@ export default function CompanyProfilePage() {
         <CompanyLogo company={company} logoUrl={logoUrl} />
         <div>
           <span className="company-profile-eyebrow">صفحة جهة تدريب</span>
-          <h1>{company.name}</h1>
+          <h1>التدريب في {company.name}</h1>
           <p>{company.shortDescription || `استكشف ما شاركه طلاب دربك عن التدريب والمقابلات والفرص المرتبطة بـ${company.name}.`}</p>
           <div className="company-profile-meta">
             <span><FiBriefcase aria-hidden="true" /> جهة تدريب في دربك</span>
@@ -406,6 +399,10 @@ export default function CompanyProfilePage() {
       </div>
 
       <section className="company-content-section">{renderTab()}</section>
+
+      <Link className="company-add-experience" to={`/add-experience?companyId=${encodeURIComponent(company.id || company._id || "")}&companyName=${encodeURIComponent(company.name)}`}>
+        أضف تجربتك مع {company.name}
+      </Link>
 
       {selectedInterview && (
         <div className="company-interview-overlay" onMouseDown={() => setSelectedInterview(null)}>

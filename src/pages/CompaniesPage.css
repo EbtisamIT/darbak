@@ -169,6 +169,19 @@
 
 .company-back-link:hover { color: var(--app-brand); }
 
+.company-add-experience {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+  padding: 13px 16px;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 12px;
+  background: var(--app-brand-soft);
+  color: var(--app-brand);
+  font-weight: 900;
+  text-decoration: none;
+}
+
 .company-profile-hero {
   display: flex;
   align-items: flex-start;

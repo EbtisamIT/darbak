@@ -2938,6 +2938,50 @@ app.get('/api/companies', async (req, res) => {
   }
 });
 
+const escapeXml = (value = "") => String(value)
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&apos;");
+
+// This stays dynamic so publishing/unpublishing a company immediately updates
+// the company sitemap without shipping a new frontend bundle.
+app.get('/sitemap-companies.xml', async (req, res) => {
+  try {
+    const companies = await Company.find({
+      $or: [{ isPublished: true }, { showInStudentDirectory: true }],
+      status: { $in: ["trial", "active"] },
+    }).select("slug updatedAt").lean();
+    const urls = [
+      { loc: "https://darbak.space/companies", lastmod: "" },
+      ...companies.filter((company) => company.slug).map((company) => ({
+        loc: `https://darbak.space/companies/${company.slug}`,
+        lastmod: company.updatedAt ? new Date(company.updatedAt).toISOString().slice(0, 10) : "",
+      })),
+    ];
+    res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((item) => `  <url><loc>${escapeXml(item.loc)}</loc>${item.lastmod ? `<lastmod>${item.lastmod}</lastmod>` : ""}<changefreq>weekly</changefreq></url>`).join("\n")}\n</urlset>`);
+  } catch (err) {
+    console.error("❌ Company sitemap error:", err);
+    res.status(500).type("application/xml").send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\" />");
+  }
+});
+
+app.get('/api/companies/resolve/:identifier', async (req, res) => {
+  try {
+    const identifier = decodeURIComponent(req.params.identifier || "").trim();
+    const companies = await Company.find({
+      $or: [{ isPublished: true }, { showInStudentDirectory: true }],
+      status: { $in: ["trial", "active"] },
+    }).select("slug name nameAr nameEn aliases contentAliases").lean();
+    const company = companies.find((item) => companyAliasesMatchName(item, identifier));
+    if (!company) return res.status(404).json({ error: "الشركة غير متاحة في الدليل." });
+    res.json({ data: { slug: company.slug } });
+  } catch (err) {
+    res.status(500).json({ error: "تعذر تحديد الشركة." });
+  }
+});
+
 app.get('/api/companies/:slug', async (req, res) => {
   setPublicCompanyResponseHeaders(res);
   try {
