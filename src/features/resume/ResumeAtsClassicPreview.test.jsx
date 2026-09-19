@@ -46,7 +46,7 @@ describe("Darbak ATS Classic preview", () => {
   test("renders a single-flow preview with plain contact, tools, and skills text", () => {
     const { container } = render(<ResumePreview resume={resume} />);
 
-    expect(container.querySelector(".resume-paper.template-ats-classic")).toBeTruthy();
+    expect(container.querySelector(".resume-paper.template-ats-classic.ats-density-short")).toBeTruthy();
     expect(screen.getByText("rahaf@example.com | 0501234567 | Riyadh")).toBeInTheDocument();
     expect(screen.getByText("Power BI, Microsoft Excel")).toBeInTheDocument();
     expect(screen.getByText("Microsoft Excel | Power BI | SQL")).toBeInTheDocument();

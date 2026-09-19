@@ -17,6 +17,7 @@ import {
 import { getLocalizedResumeForDisplay } from "./resumeLocalization";
 import { getResumeEducationDisplay } from "./resumeEducationDisplay";
 import {
+  getAtsClassicDensityMode,
   getAtsClassicSectionOrder,
   getResumeEntryTools,
   isAtsClassicTemplate,
@@ -46,6 +47,42 @@ const ATS_MUTED = "#65727d";
 const ATS_LINE = "#cfdcda";
 const ATS_ACCENT = "#2a9b90";
 
+const atsDensityStyles = {
+  short: {
+    pageVerticalPadding: 46,
+    lineHeight: 1.36,
+    sectionBefore: 17,
+    headingAfter: 7,
+    itemGap: 10.5,
+    headerPadding: 14,
+    headerAfter: 12,
+    nameAfter: 4,
+    headlineAfter: 8,
+  },
+  medium: {
+    pageVerticalPadding: 43,
+    lineHeight: 1.32,
+    sectionBefore: 12,
+    headingAfter: 5,
+    itemGap: 8,
+    headerPadding: 12,
+    headerAfter: 10,
+    nameAfter: 3,
+    headlineAfter: 6,
+  },
+  long: {
+    pageVerticalPadding: 40,
+    lineHeight: 1.27,
+    sectionBefore: 10,
+    headingAfter: 4,
+    itemGap: 6.5,
+    headerPadding: 10,
+    headerAfter: 8,
+    nameAfter: 2,
+    headlineAfter: 5,
+  },
+};
+
 const fontSizes = {
   small: {
     body: 9.2,
@@ -70,6 +107,8 @@ const fontSizes = {
 const createStyles = (resume = {}) => {
   const direction = getResumeDirection(resume);
   const isAtsClassic = isAtsClassicTemplate(resume);
+  const atsDensity = isAtsClassic ? getAtsClassicDensityMode(resume) : "medium";
+  const atsSpacing = atsDensityStyles[atsDensity];
   const isArabic = resume.settings?.language !== "en";
   const isCompact = !isAtsClassic && resume.settings?.density === "compact";
   const sizes = isAtsClassic
@@ -89,26 +128,26 @@ const createStyles = (resume = {}) => {
 
   return StyleSheet.create({
     page: {
-      paddingTop: isAtsClassic ? 43 : isCompact ? 28 : 34,
+      paddingTop: isAtsClassic ? atsSpacing.pageVerticalPadding : isCompact ? 28 : 34,
       paddingHorizontal: isAtsClassic ? 48 : isCompact ? 34 : 40,
-      paddingBottom: isAtsClassic ? 43 : isCompact ? 26 : 32,
+      paddingBottom: isAtsClassic ? atsSpacing.pageVerticalPadding : isCompact ? 26 : 32,
       fontFamily: isAtsClassic && !isArabic ? "Helvetica" : "Tajawal",
       fontSize: sizes.body,
       color: ink,
-      lineHeight: isAtsClassic ? 1.32 : 1.45,
+      lineHeight: isAtsClassic ? atsSpacing.lineHeight : 1.45,
       direction,
       textAlign: direction === "rtl" ? "right" : "left",
     },
     header: {
-      paddingBottom: isAtsClassic ? 12 : 12,
+      paddingBottom: isAtsClassic ? atsSpacing.headerPadding : 12,
       borderBottomWidth: isAtsClassic ? 1 : 2,
       borderBottomColor: accent,
-      marginBottom: isAtsClassic ? 10 : isCompact ? 10 : 14,
+      marginBottom: isAtsClassic ? atsSpacing.headerAfter : isCompact ? 10 : 14,
     },
     name: {
       fontSize: sizes.name,
       fontWeight: 700,
-      marginBottom: isAtsClassic ? 3 : 3,
+      marginBottom: isAtsClassic ? atsSpacing.nameAfter : 3,
       color: ink,
       letterSpacing: isAtsClassic && !isArabic ? -0.15 : 0,
     },
@@ -116,7 +155,7 @@ const createStyles = (resume = {}) => {
       fontSize: sizes.title,
       color: isAtsClassic ? "#304353" : accent,
       fontWeight: isAtsClassic ? 400 : 700,
-      marginBottom: isAtsClassic ? 6 : 7,
+      marginBottom: isAtsClassic ? atsSpacing.headlineAfter : 7,
     },
     contactLine: {
       color: muted,
@@ -124,14 +163,14 @@ const createStyles = (resume = {}) => {
       lineHeight: isAtsClassic ? 1.35 : 1.45,
     },
     section: {
-      marginTop: isAtsClassic ? 12 : isCompact ? 8 : 12,
+      marginTop: isAtsClassic ? atsSpacing.sectionBefore : isCompact ? 8 : 12,
       breakInside: "avoid",
     },
     sectionTitle: {
       fontSize: sizes.section,
       fontWeight: 700,
       color: isAtsClassic ? ink : accent,
-      marginBottom: isAtsClassic ? 5 : 5,
+      marginBottom: isAtsClassic ? atsSpacing.headingAfter : 5,
       paddingBottom: isAtsClassic ? 3 : 3,
       borderBottomWidth: 1,
       borderBottomColor: line,
@@ -141,7 +180,7 @@ const createStyles = (resume = {}) => {
       marginBottom: isAtsClassic ? 2 : 3,
     },
     entry: {
-      marginBottom: isAtsClassic ? 8 : isCompact ? 6 : 8,
+      marginBottom: isAtsClassic ? atsSpacing.itemGap : isCompact ? 6 : 8,
       breakInside: "avoid",
     },
     entryTitle: {

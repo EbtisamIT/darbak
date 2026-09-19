@@ -3,15 +3,38 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import React from "react";
-import pdfParse from "pdf-parse";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { renderToBuffer } from "@react-pdf/renderer";
 import ResumePdfDocument from "../src/features/resume/ResumePdfDocument.jsx";
+import { getAtsClassicDensityMode } from "../src/features/resume/resumeAtsClassic.js";
 
 const templates = ["clean", "ats-classic"];
+const standardFontDataUrl = `${path.resolve("node_modules/pdfjs-dist/standard_fonts")}${path.sep}`;
 
-const makeResume = (language, template) => {
+const extractPdfText = async (buffer) => {
+  const loadingTask = getDocument({
+    data: new Uint8Array(buffer),
+    disableWorker: true,
+    standardFontDataUrl,
+  });
+  const document = await loadingTask.promise;
+  const pages = [];
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber);
+    const content = await page.getTextContent();
+    pages.push(content.items.map((item) => item.str).join(" "));
+  }
+  const result = {
+    numpages: document.numPages,
+    text: pages.join(" "),
+  };
+  await loadingTask.destroy();
+  return result;
+};
+
+const makeResume = (language, template, densityScenario = "short") => {
   const english = language === "en";
-  return {
+  const resume = {
     personalInfo: {
       fullName: english ? "Rahaf Alqahtani" : "رهف القحطاني",
       headline: english ? "Information Systems Student" : "طالبة نظم معلومات",
@@ -92,11 +115,69 @@ const makeResume = (language, template) => {
       accentColor: "#42cfc3",
     },
   };
+
+  if (["medium", "long"].includes(densityScenario)) {
+    resume.experience = [{
+      id: "experience-1",
+      title: english ? "Business Analysis Intern" : "متدربة تحليل أعمال",
+      organization: english ? "Example Company" : "شركة مثال",
+      location: english ? "Riyadh" : "الرياض",
+      startDate: "2026-01-01",
+      endDate: "2026-04-01",
+      achievements: [{
+        id: "experience-bullet-1",
+        text: english
+          ? "Reviewed weekly operational reports and organized source data."
+          : "راجعت التقارير التشغيلية الأسبوعية ونظمت البيانات المصدرية.",
+      }, {
+        id: "experience-bullet-2",
+        text: english
+          ? "Documented findings for the weekly team review."
+          : "وثقت النتائج للمراجعة الأسبوعية مع الفريق.",
+      }],
+    }];
+  }
+
+  if (densityScenario === "long") {
+    resume.experience.push({
+      id: "experience-2",
+      title: english ? "Data Operations Trainee" : "متدربة عمليات بيانات",
+      organization: english ? "Second Company" : "الشركة الثانية",
+      location: english ? "Jeddah" : "جدة",
+      startDate: "2025-06-01",
+      endDate: "2025-09-01",
+      achievements: Array.from({ length: 5 }, (_, index) => ({
+        id: `long-experience-bullet-${index + 1}`,
+        text: english
+          ? `Documented and reviewed operational data workflow ${index + 1}.`
+          : `وثقت وراجعت مسار عمل البيانات التشغيلية ${index + 1}.`,
+      })),
+    });
+    resume.projects.push(...Array.from({ length: 3 }, (_, projectIndex) => ({
+      id: `long-project-${projectIndex + 1}`,
+      title: english ? `Applied Analytics Project ${projectIndex + 1}` : `مشروع تحليلي تطبيقي ${projectIndex + 1}`,
+      technologies: ["SQL", "Microsoft Excel"],
+      achievements: Array.from({ length: 4 }, (_, bulletIndex) => ({
+        id: `long-project-${projectIndex + 1}-bullet-${bulletIndex + 1}`,
+        text: english
+          ? `Completed a documented analysis task ${bulletIndex + 1} for the applied solution.`
+          : `أنجزت مهمة تحليل موثقة ${bulletIndex + 1} ضمن الحل التطبيقي.`,
+      })),
+    })));
+  }
+
+  return resume;
 };
 
 const normalizeExtractedText = (value = "") => value.replace(/\s+/g, " ").trim();
 const compactArabicText = (value = "") => value
   .replace(/\s+/g, "")
+  .replace(/\.ساهمت/g, "ساهمت")
+  .replace(/طلابية\./g, "طلابية")
+  // PDF.js can return the lam/alef/hamza glyph order as "األ" even when the
+  // visible and source text is "الأ". Normalize that extractor-only form.
+  .replace(/األ/g, "الأ")
+  .replace(/طالبية/g, "طلابية")
   // pdf.js can reverse Arabic word runs around the conjunction in this
   // heading while preserving every glyph and the section position.
   .replace(/اتوالشهاداتالدور/g, "الدوراتوالشهادات");
@@ -119,14 +200,42 @@ const assertInReadingOrder = (text, values) => {
   });
 };
 
-const renderAndExtract = async (language, template) => {
-  const buffer = await renderToBuffer(<ResumePdfDocument resume={makeResume(language, template)} />);
-  const parsed = await pdfParse(buffer);
+const renderAndExtract = async (language, template, densityScenario = "short") => {
+  const resume = makeResume(language, template, densityScenario);
+  const buffer = await renderToBuffer(<ResumePdfDocument resume={resume} />);
+  if (process.env.DEBUG_PDF_ATS === "1") {
+    const debugDir = path.resolve("tmp/pdfs/density-debug");
+    await fs.mkdir(debugDir, { recursive: true });
+    await fs.writeFile(path.join(debugDir, `${template}-${densityScenario}-${language}.pdf`), buffer);
+  }
+  const parsed = await extractPdfText(buffer);
   return {
     buffer,
+    density: template === "ats-classic" ? getAtsClassicDensityMode(resume) : null,
     pageCount: parsed.numpages,
     text: normalizeExtractedText(parsed.text),
   };
+};
+
+const verifyDensityScenario = (result, language, scenario) => {
+  const english = language === "en";
+  const text = english ? result.text : compactArabicText(result.text);
+  const experienceHeading = english ? "Experience" : "الخبرات";
+  const educationHeading = english ? "Education" : "التعليم";
+  const projectHeading = english ? "Projects" : "المشاريع";
+  const mediumMarkers = english
+    ? ["Business Analysis Intern", "Example Company", "Reviewed weekly operational reports"]
+    : ["متدربةتحليلأعمال", "شركةمثال", "راجعتالتقاريرالتشغيليةالأسبوعية"];
+  const longMarkers = english
+    ? ["Data Operations Trainee", "Second Company", "Applied Analytics Project 3"]
+    : ["متدربةعملياتبيانات", "الشركةالثانية", "مشروعتحليليتطبيقي3"];
+  const markers = scenario === "long" ? [...mediumMarkers, ...longMarkers] : mediumMarkers;
+
+  assert.equal(result.density, scenario, `Expected ${scenario} ATS density mode for ${language}`);
+  assertPresent(text, markers);
+  assertOnce(text, markers);
+  assertInReadingOrder(text, [experienceHeading, educationHeading, projectHeading]);
+  return markers.length;
 };
 
 const verifyEnglish = (result) => {
@@ -203,7 +312,7 @@ const verifyArabic = (result, template) => {
     "أساسياتتحليلالبيانات",
     "الأنشطةوالتطوع",
     "عضوةنادينظمالمعلومات",
-    "ساهمتفيتنظيمفعاليةتقنيةطلابية.",
+    "ساهمتفيتنظيمفعاليةتقنيةطلابية",
     "اللغات",
     "العر",
     "بية",
@@ -226,7 +335,7 @@ const verifyArabic = (result, template) => {
     "أساسياتتحليلالبيانات",
     "الأنشطةوالتطوع",
     "عضوةنادينظمالمعلومات",
-    "ساهمتفيتنظيمفعاليةتقنيةطلابية.",
+    "ساهمتفيتنظيمفعاليةتقنيةطلابية",
     "اللغات",
   ]);
   assertInReadingOrder(text, [
@@ -260,6 +369,19 @@ const main = async () => {
     }
   }
 
+  const densityScenarios = {};
+  for (const scenario of ["medium", "long"]) {
+    densityScenarios[scenario] = {};
+    for (const language of ["en", "ar"]) {
+      const result = await renderAndExtract(language, "ats-classic", scenario);
+      const expectedFieldCount = verifyDensityScenario(result, language, scenario);
+      densityScenarios[scenario][language] = {
+        ...result,
+        coverage: `${expectedFieldCount}/${expectedFieldCount}`,
+      };
+    }
+  }
+
   if (process.argv.includes("--write-artifact")) {
     const outputDir = path.resolve("output/pdf");
     await fs.mkdir(outputDir, { recursive: true });
@@ -278,6 +400,15 @@ const main = async () => {
       coverage: result.coverage,
       pageCount: result.pageCount,
       text: result.text,
+    }])),
+  ]));
+  report.densityScenarios = Object.fromEntries(Object.entries(densityScenarios).map(([scenario, languages]) => [
+    scenario,
+    Object.fromEntries(Object.entries(languages).map(([language, result]) => [language, {
+      pass: true,
+      density: result.density,
+      coverage: result.coverage,
+      pageCount: result.pageCount,
     }])),
   ]));
   process.stdout.write(JSON.stringify(report, null, 2));

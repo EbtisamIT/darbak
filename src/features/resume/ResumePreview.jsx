@@ -10,6 +10,7 @@ import { estimateResumePages } from "./resumeValidation";
 import { getLocalizedResumeForDisplay } from "./resumeLocalization";
 import { getResumeEducationDisplay } from "./resumeEducationDisplay";
 import {
+  getAtsClassicDensityMode,
   getAtsClassicSectionOrder,
   getResumeEntryTools,
   isAtsClassicTemplate,
@@ -89,6 +90,7 @@ const EntryPreview = ({ entry, language, sectionKey, personal, resume, atsClassi
 const ResumePreview = ({ resume }) => {
   resume = getLocalizedResumeForDisplay(resume);
   const atsClassic = isAtsClassicTemplate(resume);
+  const atsDensity = atsClassic ? getAtsClassicDensityMode(resume) : "";
   const language = resume.settings?.language === "en" ? "en" : "ar";
   const direction = getResumeDirection(resume);
   const titles = labels[language];
@@ -167,7 +169,7 @@ const ResumePreview = ({ resume }) => {
     <div
       className={`resume-paper density-${resume.settings?.density || "comfortable"} font-${
         resume.settings?.fontSize || "medium"
-      } template-${resume.settings?.template || "clean"}`}
+      } template-${resume.settings?.template || "clean"}${atsClassic ? ` ats-density-${atsDensity}` : ""}`}
       dir={direction}
       style={{ "--resume-accent": accentColor }}
     >
