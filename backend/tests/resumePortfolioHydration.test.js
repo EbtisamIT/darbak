@@ -3,6 +3,7 @@ const {
   mapPortfolioToResumePayload,
   buildVerifiedResumeFacts,
   composeCanonicalResume,
+  composeEnglishResumeVersion,
   isolateArabicMasterPresentation,
   hydrateResumeFromPortfolio,
 } = require("../services/resumePortfolioHydration");
@@ -50,6 +51,70 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.deepStrictEqual(result.resume.skills, ["React.js", "UI/UX"]);
   assert.strictEqual(result.resume.education[0].endDate, "2027");
   assert.strictEqual(result.resume.education[0].isCurrent, false);
+}
+
+// Opening a partial or stale English version overlays its saved presentation
+// onto the latest complete master structure without mutating the master.
+{
+  const master = {
+    workflow: { factsOwner: "resume" },
+    personalInfo: {
+      fullName: "ابتسام علي",
+      major: "تقنية المعلومات",
+      university: "جامعة الإمام محمد بن سعود الإسلامية",
+      studentStatus: "graduate",
+    },
+    summary: "خريجة تقنية المعلومات ولديها خبرة تطبيقية.",
+    education: [{ id: "education-1", title: "بكالوريوس", organization: "جامعة الإمام محمد بن سعود الإسلامية" }],
+    experiences: [{
+      id: "experience-1",
+      title: "متدربة تقنية معلومات",
+      organization: "جهة تدريب",
+      achievements: [{ id: "experience-bullet-1", text: "أعدت التقارير الأسبوعية." }],
+    }],
+    projects: [{
+      id: "project-1",
+      title: "منصة رقمية",
+      description: "وصف عربي محدث للمشروع.",
+      achievements: [{ id: "project-bullet-1", text: "طورت نموذجًا أوليًا." }],
+    }],
+    certifications: [{ id: "certification-1", title: "شهادة مهنية" }],
+    volunteering: [{ id: "activity-1", title: "نادي تقنية المعلومات" }],
+    languages: [{ id: "language-1", name: "العربية", level: "اللغة الأم" }],
+    skills: ["تحليل البيانات"],
+    settings: { language: "ar", direction: "rtl" },
+  };
+  const englishVersion = {
+    summary: "Information Technology graduate with practical project experience.",
+    projects: [{
+      id: "project-1",
+      description: "Built a digital platform prototype.",
+      achievements: [{ id: "project-bullet-1", text: "Developed the initial user flow." }],
+    }],
+    localizedDisplay: {
+      entries: {
+        "experience:experience-1": { title: "Information Technology Intern", organization: "Training Organization" },
+        "projects:project-1": { title: "Digital Platform" },
+        "certifications:certification-1": { title: "Professional Certification" },
+        "volunteering:activity-1": { title: "Information Technology Club" },
+      },
+      achievements: {
+        "experience:experience-1:experience-bullet-1": "Prepared weekly reports.",
+      },
+    },
+    settings: { language: "en", direction: "ltr" },
+  };
+  const masterBefore = JSON.parse(JSON.stringify(master));
+  const composed = composeEnglishResumeVersion({ masterResume: master, englishVersionPayload: englishVersion });
+
+  assert.strictEqual(composed.summary, englishVersion.summary);
+  assert.deepStrictEqual(composed.education.map((item) => item.id), ["education-1"]);
+  assert.deepStrictEqual(composed.experience.map((item) => item.id), ["experience-1"]);
+  assert.deepStrictEqual(composed.projects.map((item) => item.id), ["project-1"]);
+  assert.deepStrictEqual(composed.certifications.map((item) => item.id), ["certification-1"]);
+  assert.deepStrictEqual(composed.volunteering.map((item) => item.id), ["activity-1"]);
+  assert.strictEqual(composed.projects[0].description, "Built a digital platform prototype.");
+  assert.deepStrictEqual(master, masterBefore, "English hydration is read-only for ResumeProfile data");
 }
 
 // Student enrichment facts are optional, persist from Portfolio, and influence

@@ -547,6 +547,79 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
   };
 };
 
+const composeEnglishResumeVersion = ({
+  masterResume = {},
+  englishVersionPayload = {},
+  portfolio = {},
+  contact = "",
+  options = {},
+} = {}) => {
+  const master = composeCanonicalResume(masterResume, portfolio, contact, {
+    ...options,
+    language: "ar",
+  });
+  const english = englishVersionPayload || {};
+  const englishEntriesFor = (section) => {
+    const entries = section === "experience"
+      ? english.experience || english.experiences || []
+      : english[section] || [];
+    return new Map((Array.isArray(entries) ? entries : []).map((entry) => [entry?.id, entry]));
+  };
+  const mergeEntries = (section, masterEntries = []) => {
+    const englishById = englishEntriesFor(section);
+    return (Array.isArray(masterEntries) ? masterEntries : []).map((sourceEntry) => {
+      const presentation = englishById.get(sourceEntry?.id) || {};
+      const presentationDescription = cleanText(presentation.description || presentation.details, 1800);
+      const presentationAchievements = (Array.isArray(presentation.achievements) ? presentation.achievements : [])
+        .filter((item) => {
+          const text = cleanText(item?.text || item?.html || "", 1800);
+          return text && !hasArabicText(text);
+        });
+      return {
+        ...sourceEntry,
+        description: presentationDescription && !hasArabicText(presentationDescription)
+          ? presentationDescription
+          : sourceEntry.description || sourceEntry.details || "",
+        details: presentationDescription && !hasArabicText(presentationDescription)
+          ? presentationDescription
+          : sourceEntry.details || sourceEntry.description || "",
+        achievements: presentationAchievements.length
+          ? presentationAchievements
+          : sourceEntry.achievements || [],
+      };
+    });
+  };
+  const experiences = mergeEntries("experience", master.experience || master.experiences || []);
+  const savedSummary = cleanText(english.summary, 1800);
+
+  return {
+    ...master,
+    summary: savedSummary && !hasArabicText(savedSummary) ? savedSummary : "",
+    education: mergeEntries("education", master.education),
+    experience: experiences,
+    experiences,
+    projects: mergeEntries("projects", master.projects),
+    certifications: mergeEntries("certifications", master.certifications),
+    volunteering: mergeEntries("volunteering", master.volunteering),
+    skills: Array.isArray(english.skills) && english.skills.length ? english.skills : master.skills || [],
+    languages: Array.isArray(english.languages) && english.languages.length ? english.languages : master.languages || [],
+    sectionOrder: Array.isArray(english.sectionOrder) && english.sectionOrder.length
+      ? english.sectionOrder
+      : master.sectionOrder,
+    hiddenSections: Array.isArray(english.hiddenSections)
+      ? english.hiddenSections
+      : master.hiddenSections,
+    localizedDisplay: english.localizedDisplay || {},
+    summaryProvenance: english.summaryProvenance || {},
+    settings: {
+      ...(master.settings || {}),
+      ...(english.settings || {}),
+      language: "en",
+      direction: "ltr",
+    },
+  };
+};
+
 const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
   if (!resume) return { resume: portfolioResume, patch: portfolioResume, changed: true };
 
@@ -602,6 +675,7 @@ module.exports = {
   mapPortfolioToResumePayload,
   buildVerifiedResumeFacts,
   composeCanonicalResume,
+  composeEnglishResumeVersion,
   isolateArabicMasterPresentation,
   hydrateResumeFromPortfolio,
 };

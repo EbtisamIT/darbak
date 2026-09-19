@@ -91,6 +91,7 @@ const {
   mapPortfolioToResumePayload: mapPortfolioToResumeHydration,
   buildVerifiedResumeFacts,
   composeCanonicalResume,
+  composeEnglishResumeVersion,
   isolateArabicMasterPresentation,
   hydrateResumeFromPortfolio,
 } = require("./services/resumePortfolioHydration");
@@ -10514,16 +10515,25 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
     ]);
     // Versions own presentation only. Recompose immutable facts from Portfolio
     // for both translations and tailored versions before anything reaches UI.
-    const composedVersionPayload = composeCanonicalResume(
-      version.resumePayload || {},
-      portfolio || {},
-      req.darbakAccess.contact,
-      {
-        frontendUrl: getFrontendUrl(),
-        sectionOrder: RESUME_SECTION_KEYS,
-        language: version.language || version.resumePayload?.settings?.language || "ar",
-      },
-    );
+    const isEnglishTranslation = version.variantType === "translation" && version.language === "en";
+    const composedVersionPayload = isEnglishTranslation && masterResume
+      ? composeEnglishResumeVersion({
+          masterResume,
+          englishVersionPayload: version.resumePayload || {},
+          portfolio: portfolio || {},
+          contact: req.darbakAccess.contact,
+          options: { frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS },
+        })
+      : composeCanonicalResume(
+          version.resumePayload || {},
+          portfolio || {},
+          req.darbakAccess.contact,
+          {
+            frontendUrl: getFrontendUrl(),
+            sectionOrder: RESUME_SECTION_KEYS,
+            language: version.language || version.resumePayload?.settings?.language || "ar",
+          },
+        );
     const synchronizedPersonal = composedVersionPayload.personalInfo || {};
     const existingLocalizedDisplay = version.resumePayload?.localizedDisplay || {};
     const {
