@@ -8139,6 +8139,11 @@ body {
 }
 
 @media (max-width: 720px) {
+  .admin-subscription-detail-grid,
+  .admin-subscription-compensation-form {
+    grid-template-columns: 1fr !important;
+  }
+
   .resume-template-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .resume-paper.template-ats-classic { padding: 24px 18px; }
   .resume-paper.template-ats-classic .resume-paper-header h2 { font-size: 25px; }

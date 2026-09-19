@@ -3,6 +3,7 @@ import axios from "axios";
 import API_BASE_URL from "../config/api";
 import majors from "../majors";
 import SubscriptionDashboard from "../components/SubscriptionDashboard";
+import AdminSubscriptionManagement from "../components/AdminSubscriptionManagement";
 
 const adminColors = {
   brand: "#66d0c3",
@@ -1145,7 +1146,7 @@ export default function AdminReviewPage() {
     defaultManualSubscriptionForm
   );
   const [savingManualSubscription, setSavingManualSubscription] = useState(false);
-  const [resendingPaymentEmailId, setResendingPaymentEmailId] = useState("");
+  const [, setResendingPaymentEmailId] = useState("");
   const [testingAdminEmail, setTestingAdminEmail] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -4414,163 +4415,15 @@ export default function AdminReviewPage() {
           )}
         </section>
 
-        <section style={cardStyle}>
-          <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>
-            الاشتراكات
-          </h3>
-          <p style={{ color: adminColors.muted, margin: "0 0 12px", lineHeight: 1.7 }}>
-            آخر الاشتراكات وحالتها. لا يتم عرض رمز الدخول لأنه محفوظ بطريقة مشفرة.
-          </p>
-
-          <div style={{ overflowX: "auto" }}>
-            <table
-              style={{
-                width: "100%",
-                minWidth: 900,
-                borderCollapse: "collapse",
-                color: adminColors.text,
-              }}
-            >
-              <thead>
-                <tr style={{ color: adminColors.muted, fontSize: 12 }}>
-                  <th style={{ textAlign: "right", padding: "10px" }}>الحساب</th>
-                  <th style={{ textAlign: "right", padding: "10px" }}>الحالة</th>
-                  <th style={{ textAlign: "right", padding: "10px" }}>الباقة</th>
-                  <th style={{ textAlign: "right", padding: "10px" }}>القيمة</th>
-                  <th style={{ textAlign: "right", padding: "10px" }}>ينتهي في</th>
-                  <th style={{ textAlign: "right", padding: "10px" }}>مزود الدفع</th>
-                  <th style={{ textAlign: "right", padding: "10px" }}>آخر تحديث</th>
-                  <th style={{ textAlign: "right", padding: "10px" }}>إجراء</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptions.length === 0 ? (
-                  <tr>
-                    <td colSpan="8" style={{ padding: "14px", color: adminColors.muted }}>
-                      لا توجد اشتراكات في هذا العرض.
-                    </td>
-                  </tr>
-                ) : (
-                  subscriptions.map((subscription) => {
-                    const statusTone =
-                      subscription.status === "active"
-                        ? "active"
-                        : subscription.status === "pending"
-                        ? "pending"
-                        : subscription.status === "expired"
-                        ? "expired"
-                        : "neutral";
-                    const canResendPaymentEmail =
-                      Boolean(subscription.providerPaymentId) &&
-                      ["active", "expired"].includes(subscription.status);
-                    const isResendingPaymentEmail =
-                      resendingPaymentEmailId === subscription.id;
-
-                    return (
-                      <tr
-                        key={subscription.id}
-                        style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
-                      >
-                        <td style={{ padding: "10px", whiteSpace: "nowrap" }}>
-                          {subscription.email || "-"}
-                        </td>
-                        <td style={{ padding: "10px" }}>
-                          {renderStatusBadge(
-                            getSubscriptionStatusLabel(subscription),
-                            statusTone
-                          )}
-                        </td>
-                        <td style={{ padding: "10px" }}>
-                          {getSubscriptionPlanLabel(subscription.planId)}
-                        </td>
-                        <td style={{ padding: "10px" }}>
-                          {formatAdminCurrency(subscription.priceSar)}
-                        </td>
-                        <td style={{ padding: "10px" }}>
-                          {formatAdminDateTime(subscription.expiresAt)}
-                        </td>
-                        <td style={{ padding: "10px" }}>
-                          {subscription.provider || "-"}
-                        </td>
-                        <td style={{ padding: "10px" }}>
-                          {formatAdminDateTime(subscription.updatedAt)}
-                        </td>
-                        <td style={{ padding: "10px" }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "7px",
-                              flexWrap: "wrap",
-                              alignItems: "center",
-                            }}
-                          >
-                            <button
-                              type="button"
-                              onClick={() =>
-                                prefillManualSubscriptionContact(subscription.email)
-                              }
-                              style={{
-                                background: "rgba(102,208,195,0.1)",
-                                border: `1px solid ${adminColors.inputBorder}`,
-                                borderRadius: "999px",
-                                color: adminColors.brand,
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                                fontSize: 12,
-                                fontWeight: 800,
-                                padding: "7px 10px",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              استخدم الحساب
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => resendPaymentEmail(subscription)}
-                              disabled={!canResendPaymentEmail || isResendingPaymentEmail}
-                              title={
-                                canResendPaymentEmail
-                                  ? "إعادة إرسال إيميل الدفع للإدارة"
-                                  : "متاح فقط للاشتراكات المفعلة ولديها رقم عملية دفع"
-                              }
-                              style={{
-                                background: canResendPaymentEmail
-                                  ? "rgba(142,231,220,0.14)"
-                                  : "rgba(255,255,255,0.035)",
-                                border: `1px solid ${
-                                  canResendPaymentEmail
-                                    ? "rgba(142,231,220,0.35)"
-                                    : "rgba(255,255,255,0.08)"
-                                }`,
-                                borderRadius: "999px",
-                                color: canResendPaymentEmail
-                                  ? adminColors.brandStrong
-                                  : adminColors.muted,
-                                cursor:
-                                  !canResendPaymentEmail || isResendingPaymentEmail
-                                    ? "not-allowed"
-                                    : "pointer",
-                                fontFamily: "inherit",
-                                fontSize: 12,
-                                fontWeight: 900,
-                                padding: "7px 10px",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {isResendingPaymentEmail
-                                ? "جار الإرسال..."
-                                : "إيميل الدفع"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <AdminSubscriptionManagement
+          subscriptions={subscriptions}
+          apiBaseUrl={API_BASE_URL}
+          authHeaders={authHeaders}
+          getPlanLabel={getSubscriptionPlanLabel}
+          onRefresh={fetchUserManagement}
+          onMessage={setMessage}
+          onResendPaymentEmail={resendPaymentEmail}
+        />
 
         <section style={cardStyle}>
           <h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>

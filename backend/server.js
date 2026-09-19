@@ -13,6 +13,10 @@ const Company = require('./models/Company');
 const Opportunity = require('./models/Opportunity');
 const { rankOpportunitySearchResults } = require('./services/opportunitySearch');
 const { buildSubscriptionDashboard } = require("./services/subscriptionDashboard");
+const {
+  buildSubscriptionUsageSummary,
+  getSubscriptionUsageEventNames,
+} = require("./services/subscriptionUsage");
 const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
 const Subscription = require('./models/Subscription');
@@ -12702,6 +12706,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           expiresAt: accessWindow.expiresAt,
           provider: "moyasar",
           providerPaymentId: invoice.id || "",
+          sourceType: "moyasar",
           isUpgrade: Boolean(currentActiveSubscription),
           upgradedFromPlanKey: currentActiveSubscription
             ? getSubscriptionPlanKey(currentActiveSubscription)
@@ -12760,6 +12765,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           expiresAt: accessWindow.expiresAt,
           provider: "manual",
           providerPaymentId: "",
+          sourceType: "manual",
           isUpgrade: Boolean(currentActiveSubscription),
           upgradedFromPlanKey: currentActiveSubscription
             ? getSubscriptionPlanKey(currentActiveSubscription)
@@ -12930,6 +12936,183 @@ app.post('/api/webhooks/moyasar', (req, res) => {
   }
 });
 
+const getSubscriptionRecordKey = (record = {}) =>
+  `${record.email || record.contact || ""}:${record.accessCodeHash || ""}`;
+
+const hasStoredResumeContent = (profile = {}) =>
+  Boolean(
+    profile?._id &&
+      (profile.aiDraftStatus === "approved" ||
+        profile.aiDraftStatus === "draft_ready" ||
+        profile.workflow?.lastBuiltAt ||
+        profile.summary ||
+        profile.education?.length ||
+        profile.experiences?.length ||
+        profile.experience?.length ||
+        profile.projects?.length)
+  );
+
+const getSubscriptionDisplayStatus = (subscription = {}, now = new Date()) => {
+  if (subscription.status === "refunded") return "refunded";
+  if (subscription.status === "suspended") return "suspended";
+  if (subscription.status === "active" && subscription.cancelAtPeriodEnd) {
+    return "cancel_at_period_end";
+  }
+  if (
+    subscription.status === "expired" ||
+    (subscription.status === "active" &&
+      subscription.expiresAt &&
+      new Date(subscription.expiresAt) <= now)
+  ) {
+    return "expired";
+  }
+  return subscription.status || "pending";
+};
+
+const buildAdminSubscriptionSummaries = async (subscriptions = []) => {
+  if (!subscriptions.length) return [];
+
+  const subscriptionKeys = new Set(subscriptions.map(getSubscriptionRecordKey));
+  const emails = Array.from(new Set(subscriptions.map((item) => item.email).filter(Boolean)));
+  const users = await User.find({ contact: { $in: emails } })
+    .select("contact accessCodeHash firstName preferredMajor preferredCity _id")
+    .lean();
+  const userByKey = new Map(
+    users
+      .filter((user) => subscriptionKeys.has(getSubscriptionRecordKey(user)))
+      .map((user) => [getSubscriptionRecordKey(user), user])
+  );
+  const profiles = await ResumeProfile.find({ contact: { $in: emails } })
+    .sort({ updatedAt: -1 })
+    .select(
+      "contact accessCodeHash personalInfo.fullName personalInfo.major personalInfo.city aiDraftStatus aiDraftApprovedAt workflow.lastBuiltAt updatedAt"
+    )
+    .lean();
+  const profileByKey = new Map();
+  profiles.forEach((profile) => {
+    const key = getSubscriptionRecordKey(profile);
+    if (subscriptionKeys.has(key) && !profileByKey.has(key)) profileByKey.set(key, profile);
+  });
+
+  const actorIds = Array.from(
+    new Set(Array.from(userByKey.values()).map((user) => user._id?.toString()).filter(Boolean))
+  );
+  const allEventNames = Array.from(
+    new Set(subscriptions.flatMap((item) => getSubscriptionUsageEventNames(item)))
+  );
+  const startByActor = new Map();
+  subscriptions.forEach((subscription) => {
+    const actorId = userByKey.get(getSubscriptionRecordKey(subscription))?._id?.toString();
+    if (!actorId) return;
+    const start = subscription.startsAt || subscription.createdAt || new Date(0);
+    const current = startByActor.get(actorId);
+    if (!current || new Date(start) < new Date(current)) startByActor.set(actorId, start);
+  });
+  const eventActorClauses = Array.from(startByActor.entries()).map(([actorId, startsAt]) => ({
+    actorId,
+    createdAt: { $gte: new Date(startsAt) },
+  }));
+  const eventRows = eventActorClauses.length && allEventNames.length
+    ? await AnalyticsEvent.aggregate([
+        { $match: { eventName: { $in: allEventNames }, $or: eventActorClauses } },
+        {
+          $group: {
+            _id: { actorId: "$actorId", eventName: "$eventName" },
+            count: { $sum: 1 },
+            lastUsedAt: { $max: "$createdAt" },
+          },
+        },
+      ])
+    : [];
+  const eventsByActor = new Map();
+  eventRows.forEach((row) => {
+    const actorId = String(row._id.actorId || "");
+    const current = eventsByActor.get(actorId) || { counts: {}, lastUsedAt: {} };
+    current.counts[row._id.eventName] = Number(row.count || 0);
+    current.lastUsedAt[row._id.eventName] = row.lastUsedAt;
+    eventsByActor.set(actorId, current);
+  });
+
+  const [portfolios, tailoredRows, applicationRows] = await Promise.all([
+    Portfolio.find({ contact: { $in: emails } })
+      .sort({ updatedAt: -1 })
+      .select("contact accessCodeHash updatedAt")
+      .lean(),
+    ResumeTailoredVersion.aggregate([
+      {
+        $match: {
+          contact: { $in: emails },
+          variantType: "tailored",
+          status: "approved",
+        },
+      },
+      {
+        $group: {
+          _id: { contact: "$contact", accessCodeHash: "$accessCodeHash" },
+          count: { $sum: 1 },
+          updatedAt: { $max: "$updatedAt" },
+        },
+      },
+    ]),
+    actorIds.length
+      ? CompanyApplication.aggregate([
+          { $match: { studentId: { $in: actorIds.map((id) => new mongoose.Types.ObjectId(id)) } } },
+          { $group: { _id: "$studentId", count: { $sum: 1 }, updatedAt: { $max: "$updatedAt" } } },
+        ])
+      : [],
+  ]);
+  const portfolioByKey = new Map();
+  portfolios.forEach((portfolio) => {
+    const key = getSubscriptionRecordKey(portfolio);
+    if (subscriptionKeys.has(key) && !portfolioByKey.has(key)) portfolioByKey.set(key, portfolio);
+  });
+  const tailoredByKey = new Map(
+    tailoredRows.map((row) => [
+      `${row._id.contact || ""}:${row._id.accessCodeHash || ""}`,
+      row,
+    ])
+  );
+  const applicationsByActor = new Map(
+    applicationRows.map((row) => [String(row._id), row])
+  );
+
+  return subscriptions.map((subscription) => {
+    const key = getSubscriptionRecordKey(subscription);
+    const user = userByKey.get(key) || {};
+    const profile = profileByKey.get(key) || {};
+    const portfolio = portfolioByKey.get(key);
+    const tailored = tailoredByKey.get(key);
+    const actorId = user._id?.toString?.() || "";
+    const application = applicationsByActor.get(actorId);
+    const eventSummary = eventsByActor.get(actorId) || { counts: {}, lastUsedAt: {} };
+    const eventLastUsedAt = { ...eventSummary.lastUsedAt };
+    if (profile.aiDraftApprovedAt || profile.updatedAt) {
+      eventLastUsedAt.resume_saved = profile.aiDraftApprovedAt || profile.updatedAt;
+    }
+    if (tailored?.updatedAt) eventLastUsedAt.resume_ai_tailored = tailored.updatedAt;
+    if (portfolio?.updatedAt) eventLastUsedAt.portfolio_saved = portfolio.updatedAt;
+    if (application?.updatedAt) eventLastUsedAt.company_application_submitted = application.updatedAt;
+    const usage = buildSubscriptionUsageSummary({
+      subscription,
+      eventCounts: eventSummary.counts,
+      eventLastUsedAt,
+      hasResume: hasStoredResumeContent(profile),
+      tailoredResumeCount: Number(tailored?.count || 0),
+      hasPortfolio: Boolean(portfolio),
+      hasApplication: Boolean(application),
+    });
+
+    return {
+      user,
+      profile,
+      usage,
+      tailoredCount: Number(tailored?.count || 0),
+      hasPortfolio: Boolean(portfolio),
+      hasApplication: Boolean(application),
+    };
+  });
+};
+
 app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -13000,6 +13183,13 @@ app.post('/api/admin/subscriptions', requireAdmin, async (req, res) => {
         expiresAt,
         provider: req.body.provider || "manual",
         providerPaymentId: req.body.providerPaymentId || "",
+        sourceType:
+          req.body.sourceType ||
+          (req.body.provider === "moyasar" ? "moyasar" : "manual"),
+        cancelAtPeriodEnd: false,
+        renewalCancelledAt: null,
+        suspendedAt: null,
+        suspendedReason: "",
         aiResumeUsageCount: 0,
         aiResumeUsageLimit: selectedPlan.aiResumeUsageLimit || 0,
         aiResumeUsageResetAt: expiresAt,
@@ -13127,6 +13317,215 @@ app.post('/api/admin/subscriptions/:id/resend-payment-email', requireAdmin, asyn
   } catch (err) {
     console.error("❌ Admin payment email resend error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const subscription = await Subscription.findById(req.params.id).lean();
+    if (!subscription) return res.status(404).json({ error: "الاشتراك غير موجود." });
+
+    const [[context], profileRecord] = await Promise.all([
+      buildAdminSubscriptionSummaries([subscription]),
+      ResumeProfile.findOne({
+        contact: subscription.email,
+        accessCodeHash: subscription.accessCodeHash,
+      })
+        .sort({ updatedAt: -1 })
+        .lean(),
+    ]);
+    const profile = profileRecord || context?.profile || {};
+    const user = context?.user || {};
+    const now = new Date();
+    const startedAt = subscription.startsAt || subscription.createdAt || null;
+    const daysSinceSubscription = startedAt
+      ? Math.max(0, Math.floor((now - new Date(startedAt)) / (24 * 60 * 60 * 1000)))
+      : 0;
+    const adminEvents = Array.isArray(subscription.adminEvents)
+      ? [...subscription.adminEvents]
+      : [];
+    if (subscription.providerPaymentId) {
+      adminEvents.push({
+        type: "payment_recorded",
+        label: "تم تسجيل الدفع بنجاح",
+        amountSar: Number(subscription.priceSar || 0),
+        createdAt: startedAt || subscription.createdAt,
+      });
+    }
+    adminEvents.push({
+      type: "subscription_created",
+      label: "تم إنشاء الاشتراك",
+      createdAt: subscription.createdAt,
+    });
+    adminEvents.sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt));
+
+    res.json({
+      account: {
+        email: subscription.email || "",
+        name: profile.personalInfo?.fullName || user.firstName || "",
+        major: profile.personalInfo?.major || user.preferredMajor || "",
+        city: profile.personalInfo?.city || user.preferredCity || "",
+      },
+      subscription: {
+        id: subscription._id,
+        planId: subscription.planId || "",
+        planKey: subscription.planKey || "",
+        planLabel: getSubscriptionPlan(subscription.planId || subscription.planKey).label,
+        startsAt,
+        expiresAt: subscription.expiresAt || null,
+        priceSar: Number(subscription.priceSar || 0),
+        sourceType: subscription.sourceType || subscription.provider || "manual",
+        provider: subscription.provider || "",
+        providerPaymentId: subscription.providerPaymentId || "",
+        status: getSubscriptionDisplayStatus(subscription, now),
+        cancelAtPeriodEnd: Boolean(subscription.cancelAtPeriodEnd),
+      },
+      usage: context?.usage || buildSubscriptionUsageSummary({ subscription }),
+      resume: hasStoredResumeContent(profile)
+        ? {
+            id: profile._id,
+            personalInfo: profile.personalInfo || {},
+            summary: profile.summary || "",
+            education: profile.education || [],
+            experience: profile.experience?.length ? profile.experience : profile.experiences || [],
+            projects: profile.projects || [],
+            skills: profile.skills || [],
+            certifications: profile.certifications || [],
+            volunteering: profile.volunteering || [],
+            languages: profile.languages || [],
+            sectionOrder: profile.sectionOrder || [],
+            hiddenSections: profile.hiddenSections || [],
+            settings: profile.settings || {},
+            updatedAt: profile.updatedAt || null,
+          }
+        : null,
+      refund: {
+        status: subscription.refund?.status || "none",
+        requestedAt: subscription.refund?.requestedAt || null,
+        decidedAt: subscription.refund?.decidedAt || null,
+        reason: subscription.refund?.reason || "",
+        adminNote: subscription.refund?.adminNote || "",
+        refundedAmountSar: Number(subscription.refund?.refundedAmountSar || 0),
+        daysSinceSubscription,
+        usedPaidFeature: Boolean(context?.usage?.hasUsedAnyFeature),
+        usagePercentage: Number(context?.usage?.percentage || 0),
+        paidAmountSar: Number(subscription.priceSar || 0),
+      },
+      adminEvents: adminEvents.slice(0, 30),
+    });
+  } catch (err) {
+    console.error("❌ Admin subscription details error:", err);
+    res.status(500).json({ error: "تعذر تحميل تفاصيل المشترك الآن." });
+  }
+});
+
+app.patch('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const subscription = await Subscription.findById(req.params.id);
+    if (!subscription) return res.status(404).json({ error: "الاشتراك غير موجود." });
+
+    const action = String(req.body.action || "").trim();
+    const reason = String(req.body.reason || "").trim().slice(0, 500);
+    const adminNote = String(req.body.adminNote || "").trim().slice(0, 1000);
+    const now = new Date();
+    let event = null;
+    if (!subscription.refund) subscription.refund = {};
+
+    if (action === "cancel_renewal") {
+      subscription.cancelAtPeriodEnd = true;
+      subscription.renewalCancelledAt = now;
+      event = { type: action, label: "تم إلغاء التجديد", reason, createdAt: now };
+    } else if (action === "suspend") {
+      subscription.status = "suspended";
+      subscription.suspendedAt = now;
+      subscription.suspendedReason = reason;
+      event = { type: action, label: "تم إيقاف الاشتراك", reason, createdAt: now };
+    } else if (action === "reactivate") {
+      if (!subscription.expiresAt || new Date(subscription.expiresAt) <= now) {
+        return res.status(400).json({ error: "انتهى الاشتراك. أضف مدة قبل إعادة التفعيل." });
+      }
+      subscription.status = "active";
+      subscription.suspendedAt = null;
+      subscription.suspendedReason = "";
+      event = { type: action, label: "تمت إعادة تفعيل الاشتراك", reason, createdAt: now };
+    } else if (action === "add_days") {
+      const days = Math.floor(Number(req.body.days));
+      if (!Number.isFinite(days) || days < 1 || days > 365) {
+        return res.status(400).json({ error: "اختر مدة تعويض صحيحة من يوم إلى 365 يومًا." });
+      }
+      if (!reason) return res.status(400).json({ error: "اكتب سبب إضافة المدة." });
+      const base = subscription.expiresAt && new Date(subscription.expiresAt) > now
+        ? new Date(subscription.expiresAt)
+        : now;
+      subscription.expiresAt = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+      if (["expired", "cancelled"].includes(subscription.status)) subscription.status = "active";
+      event = {
+        type: action,
+        label: `تمت إضافة ${days} أيام تعويض`,
+        reason,
+        createdAt: now,
+      };
+    } else if (action === "refund_request") {
+      subscription.refund.status = "requested";
+      subscription.refund.requestedAt = now;
+      subscription.refund.reason = reason;
+      subscription.refund.adminNote = adminNote;
+      event = { type: action, label: "تم تسجيل طلب استرجاع", reason, createdAt: now };
+    } else if (["refund_approve", "refund_exceptional"].includes(action)) {
+      const amount = Number(req.body.amountSar ?? subscription.priceSar ?? 0);
+      if (!Number.isFinite(amount) || amount < 0) {
+        return res.status(400).json({ error: "اكتب مبلغ استرجاع صحيحًا." });
+      }
+      subscription.refund.status = action === "refund_exceptional" ? "exceptional" : "approved";
+      subscription.refund.decidedAt = now;
+      subscription.refund.reason = reason || subscription.refund.reason;
+      subscription.refund.adminNote = adminNote;
+      subscription.refund.refundedAmountSar = amount;
+      subscription.status = "refunded";
+      event = {
+        type: action,
+        label: `تمت الموافقة على استرجاع ${amount} SAR`,
+        reason,
+        amountSar: amount,
+        createdAt: now,
+      };
+    } else if (action === "refund_reject") {
+      subscription.refund.status = "rejected";
+      subscription.refund.decidedAt = now;
+      subscription.refund.reason = reason || subscription.refund.reason;
+      subscription.refund.adminNote = adminNote;
+      event = { type: action, label: "تم رفض طلب الاسترجاع", reason, createdAt: now };
+    } else if (action === "refund_close") {
+      subscription.refund.status = "closed";
+      subscription.refund.decidedAt = now;
+      subscription.refund.adminNote = adminNote;
+      event = { type: action, label: "تم إغلاق طلب الاسترجاع", reason, createdAt: now };
+    } else {
+      return res.status(400).json({ error: "الإجراء الإداري غير معروف." });
+    }
+
+    subscription.adminEvents.push(event);
+    await subscription.save();
+    await syncSubscriptionUser(subscription.toObject());
+
+    res.json({
+      ok: true,
+      id: subscription._id,
+      status: getSubscriptionDisplayStatus(subscription.toObject(), now),
+      expiresAt: subscription.expiresAt,
+      refundStatus: subscription.refund?.status || "none",
+    });
+  } catch (err) {
+    console.error("❌ Admin subscription update error:", err);
+    res.status(500).json({ error: "تعذر تحديث الاشتراك الآن." });
   }
 });
 
@@ -13308,10 +13707,18 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         .sort({ updatedAt: -1 })
         .limit(120)
         .select(
-          "email status planId priceSar durationDays expiresAt provider providerPaymentId createdAt updatedAt accessCodeHash"
+          "email status planId planKey entitlements priceSar durationDays startsAt expiresAt provider sourceType providerPaymentId cancelAtPeriodEnd renewalCancelledAt createdAt updatedAt accessCodeHash"
         )
         .lean(),
     ]);
+
+    const subscriptionContexts = await buildAdminSubscriptionSummaries(subscriptions);
+    const subscriptionContextById = new Map(
+      subscriptions.map((subscription, index) => [
+        subscription._id.toString(),
+        subscriptionContexts[index],
+      ])
+    );
 
     const subscriptionKeyMap = new Map();
     subscriptions.forEach((subscription) => {
@@ -13322,22 +13729,28 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
     });
 
     const sanitizeSubscription = (subscription = {}) => {
-      const isExpired =
-        subscription.expiresAt && new Date(subscription.expiresAt) <= now;
+      const context = subscriptionContextById.get(subscription._id?.toString?.()) || {};
+      const profile = context.profile || {};
+      const user = context.user || {};
 
       return {
         id: subscription._id,
         email: subscription.email || "",
-        status:
-          subscription.status === "active" && isExpired
-            ? "expired"
-            : subscription.status || "",
+        status: getSubscriptionDisplayStatus(subscription, now),
         planId: subscription.planId || "",
+        planKey: subscription.planKey || "",
         priceSar: subscription.priceSar || 0,
         durationDays: subscription.durationDays || 0,
+        startsAt: subscription.startsAt || subscription.createdAt || null,
         expiresAt: subscription.expiresAt || null,
         provider: subscription.provider || "",
-        providerPaymentId: subscription.providerPaymentId || "",
+        sourceType: subscription.sourceType || subscription.provider || "",
+        cancelAtPeriodEnd: Boolean(subscription.cancelAtPeriodEnd),
+        major: profile.personalInfo?.major || user.preferredMajor || "",
+        hasResume: hasStoredResumeContent(profile),
+        usagePercentage: Number(context.usage?.percentage || 0),
+        hasUsedAnyFeature: Boolean(context.usage?.hasUsedAnyFeature),
+        lastFeatureUsedAt: context.usage?.lastUsedAt || null,
         createdAt: subscription.createdAt,
         updatedAt: subscription.updatedAt,
       };
