@@ -137,8 +137,10 @@ const ActionButton = ({ children, danger = false, disabled = false, onClick }) =
 function SubscriberDrawer({
   details,
   loading,
+  error,
   busy,
   onClose,
+  onRetry,
   onAction,
   onResendPaymentEmail,
 }) {
@@ -200,7 +202,12 @@ function SubscriberDrawer({
         {loading ? (
           <p style={{ color: colors.muted, marginTop: 30 }}>جارٍ تحميل التفاصيل...</p>
         ) : !details ? (
-          <p style={{ color: colors.red, marginTop: 30 }}>تعذر تحميل تفاصيل المشترك.</p>
+          <div style={{ ...cardStyle, marginTop: 30 }}>
+            <p style={{ color: colors.red, margin: "0 0 12px" }}>
+              {error || "تعذر تحميل تفاصيل المشترك."}
+            </p>
+            <ActionButton onClick={onRetry}>إعادة المحاولة</ActionButton>
+          </div>
         ) : (
           <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
             <section className="admin-subscription-detail-grid" style={{ ...cardStyle, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
@@ -232,6 +239,11 @@ function SubscriberDrawer({
               <div style={{ height: 8, background: "rgba(255,255,255,.07)", borderRadius: 999, overflow: "hidden", margin: "12px 0" }}>
                 <div style={{ width: `${details.usage?.percentage || 0}%`, height: "100%", background: colors.brand }} />
               </div>
+              {details.usage?.unavailable && (
+                <small style={{ display: "block", color: colors.amber, marginBottom: 10 }}>
+                  تعذر تحديث ملخص الاستخدام الآن، لكن بقية تفاصيل الاشتراك متاحة.
+                </small>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
                 {(details.usage?.features || []).map((feature) => (
                   <div key={feature.key} style={{ color: colors.textSoft, fontSize: 13 }}>
@@ -359,6 +371,7 @@ export default function AdminSubscriptionManagement({
   const [filter, setFilter] = useState("all");
   const [selectedId, setSelectedId] = useState("");
   const [details, setDetails] = useState(null);
+  const [detailsError, setDetailsError] = useState("");
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const filteredSubscriptions = useMemo(
@@ -369,12 +382,16 @@ export default function AdminSubscriptionManagement({
   const openDetails = async (id) => {
     setSelectedId(id);
     setDetails(null);
+    setDetailsError("");
     setDetailsLoading(true);
     try {
       const { data } = await axios.get(`${apiBaseUrl}/api/admin/subscriptions/${id}`, { headers: authHeaders });
       setDetails(data);
     } catch (error) {
-      onMessage(error.response?.data?.error || "تعذر تحميل تفاصيل المشترك.");
+      const errorMessage =
+        error.response?.data?.error || "تعذر تحميل تفاصيل المشترك.";
+      setDetailsError(errorMessage);
+      onMessage(errorMessage);
     } finally {
       setDetailsLoading(false);
     }
@@ -446,8 +463,10 @@ export default function AdminSubscriptionManagement({
         <SubscriberDrawer
           details={details}
           loading={detailsLoading}
+          error={detailsError}
           busy={actionBusy}
           onClose={() => { setSelectedId(""); setDetails(null); }}
+          onRetry={() => openDetails(selectedId)}
           onAction={applyAction}
           onResendPaymentEmail={onResendPaymentEmail}
         />

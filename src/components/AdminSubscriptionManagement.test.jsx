@@ -118,4 +118,37 @@ describe("AdminSubscriptionManagement", () => {
       { headers: { Authorization: "admin" } }
     );
   });
+
+  test("keeps the drawer open and retries a transient details failure", async () => {
+    axios.get
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({
+        data: {
+          account: { email: "student@example.com" },
+          subscription: { planLabel: "دربك + سيرتي", status: "active" },
+          usage: { percentage: 0, features: [] },
+          refund: { status: "none" },
+          adminEvents: [],
+          resume: null,
+        },
+      });
+
+    render(
+      <AdminSubscriptionManagement
+        subscriptions={[subscriptions[0]]}
+        apiBaseUrl="http://localhost:3001"
+        authHeaders={{ Authorization: "admin" }}
+        getPlanLabel={(plan) => plan}
+        onRefresh={jest.fn()}
+        onMessage={jest.fn()}
+        onResendPaymentEmail={jest.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "التفاصيل" }));
+    expect(await screen.findByText("تعذر تحميل تفاصيل المشترك.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
+    expect(await screen.findByText("دربك + سيرتي")).toBeInTheDocument();
+    expect(axios.get).toHaveBeenCalledTimes(2);
+  });
 });

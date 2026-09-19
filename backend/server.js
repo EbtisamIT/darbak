@@ -13326,10 +13326,14 @@ app.get('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: "معرّف الاشتراك غير صالح." });
+    }
+
     const subscription = await Subscription.findById(req.params.id).lean();
     if (!subscription) return res.status(404).json({ error: "الاشتراك غير موجود." });
 
-    const [[context], profileRecord] = await Promise.all([
+    const [contextResult, profileResult, userResult] = await Promise.allSettled([
       buildAdminSubscriptionSummaries([subscription]),
       ResumeProfile.findOne({
         contact: subscription.email,
@@ -13337,9 +13341,34 @@ app.get('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
       })
         .sort({ updatedAt: -1 })
         .lean(),
+      User.findOne({
+        contact: subscription.email,
+        accessCodeHash: subscription.accessCodeHash,
+      })
+        .select("firstName preferredMajor preferredCity")
+        .lean(),
     ]);
-    const profile = profileRecord || context?.profile || {};
-    const user = context?.user || {};
+    const logLookupFailure = (label, result) => {
+      if (result.status !== "rejected") return;
+      console.error(`❌ Admin subscription ${label} error:`, {
+        subscriptionId: subscription._id?.toString?.() || "",
+        name: result.reason?.name || "",
+        message: result.reason?.message || "",
+      });
+    };
+    logLookupFailure("usage summary", contextResult);
+    logLookupFailure("resume lookup", profileResult);
+    logLookupFailure("account lookup", userResult);
+
+    const context = contextResult.status === "fulfilled"
+      ? contextResult.value?.[0] || {}
+      : {};
+    const profile = profileResult.status === "fulfilled"
+      ? profileResult.value || context.profile || {}
+      : context.profile || {};
+    const user = userResult.status === "fulfilled"
+      ? userResult.value || context.user || {}
+      : context.user || {};
     const now = new Date();
     const startedAt = subscription.startsAt || subscription.createdAt || null;
     const daysSinceSubscription = startedAt
@@ -13384,7 +13413,10 @@ app.get('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
         status: getSubscriptionDisplayStatus(subscription, now),
         cancelAtPeriodEnd: Boolean(subscription.cancelAtPeriodEnd),
       },
-      usage: context?.usage || buildSubscriptionUsageSummary({ subscription }),
+      usage: {
+        ...(context?.usage || buildSubscriptionUsageSummary({ subscription })),
+        unavailable: contextResult.status === "rejected",
+      },
       resume: hasStoredResumeContent(profile)
         ? {
             id: profile._id,
