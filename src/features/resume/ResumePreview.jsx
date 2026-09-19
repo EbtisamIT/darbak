@@ -74,7 +74,7 @@ const EntryPreview = ({ entry, language, sectionKey, personal, resume, atsClassi
       {subtitle && <p className="resume-paper-muted">{subtitle}</p>}
       {atsClassic && displayDate && !education && <p className="resume-paper-muted">{displayDate}</p>}
       {facts.length > 0 && <p className="resume-paper-muted">{facts.join(" | ")}</p>}
-      {atsClassic && tools.length > 0 && <p className="resume-paper-muted">{tools.join(", ")}</p>}
+      {atsClassic && tools.length > 0 && <p className="resume-paper-tools">{tools.join(", ")}</p>}
       {!education && getAchievementLines(entry).length > 0 && (
         <ul>
           {getAchievementLines(entry).map((line, index) => (

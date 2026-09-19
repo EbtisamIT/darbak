@@ -41,6 +41,10 @@ Font.register({
 const INK = "#17201f";
 const MUTED = "#65706f";
 const LINE = "#d9e5e2";
+const ATS_INK = "#152433";
+const ATS_MUTED = "#65727d";
+const ATS_LINE = "#cfdcda";
+const ATS_ACCENT = "#2a9b90";
 
 const fontSizes = {
   small: {
@@ -70,13 +74,18 @@ const createStyles = (resume = {}) => {
   const isCompact = !isAtsClassic && resume.settings?.density === "compact";
   const sizes = isAtsClassic
     ? {
-      body: isArabic ? 10.5 : 10,
-      section: isArabic ? 12.5 : 12,
-      name: 20,
-      title: isArabic ? 11.5 : 11,
+      body: isArabic ? 10.2 : 9.8,
+      section: isArabic ? 12.5 : 12.25,
+      name: 22,
+      title: isArabic ? 11.8 : 11.5,
+      itemTitle: isArabic ? 11 : 10.8,
+      metadata: isArabic ? 9.7 : 9.4,
     }
     : fontSizes[resume.settings?.fontSize || "medium"] || fontSizes.medium;
-  const accent = isAtsClassic ? "#16877d" : resume.settings?.accentColor || "#42cfc3";
+  const accent = isAtsClassic ? ATS_ACCENT : resume.settings?.accentColor || "#42cfc3";
+  const ink = isAtsClassic ? ATS_INK : INK;
+  const muted = isAtsClassic ? ATS_MUTED : MUTED;
+  const line = isAtsClassic ? ATS_LINE : LINE;
 
   return StyleSheet.create({
     page: {
@@ -85,72 +94,86 @@ const createStyles = (resume = {}) => {
       paddingBottom: isAtsClassic ? 43 : isCompact ? 26 : 32,
       fontFamily: isAtsClassic && !isArabic ? "Helvetica" : "Tajawal",
       fontSize: sizes.body,
-      color: INK,
-      lineHeight: isAtsClassic ? 1.3 : 1.45,
+      color: ink,
+      lineHeight: isAtsClassic ? 1.32 : 1.45,
       direction,
       textAlign: direction === "rtl" ? "right" : "left",
     },
     header: {
-      paddingBottom: isAtsClassic ? 10 : 12,
+      paddingBottom: isAtsClassic ? 12 : 12,
       borderBottomWidth: isAtsClassic ? 1 : 2,
       borderBottomColor: accent,
-      marginBottom: isAtsClassic ? 8 : isCompact ? 10 : 14,
+      marginBottom: isAtsClassic ? 10 : isCompact ? 10 : 14,
     },
     name: {
       fontSize: sizes.name,
       fontWeight: 700,
-      marginBottom: isAtsClassic ? 2 : 3,
-      color: INK,
+      marginBottom: isAtsClassic ? 3 : 3,
+      color: ink,
+      letterSpacing: isAtsClassic && !isArabic ? -0.15 : 0,
     },
     headline: {
       fontSize: sizes.title,
-      color: accent,
-      fontWeight: 700,
-      marginBottom: isAtsClassic ? 5 : 7,
+      color: isAtsClassic ? "#304353" : accent,
+      fontWeight: isAtsClassic ? 400 : 700,
+      marginBottom: isAtsClassic ? 6 : 7,
     },
     contactLine: {
-      color: MUTED,
-      fontSize: sizes.body - 1,
+      color: muted,
+      fontSize: isAtsClassic ? 9.2 : sizes.body - 1,
+      lineHeight: isAtsClassic ? 1.35 : 1.45,
     },
     section: {
-      marginTop: isAtsClassic ? 10 : isCompact ? 8 : 12,
+      marginTop: isAtsClassic ? 12 : isCompact ? 8 : 12,
       breakInside: "avoid",
     },
     sectionTitle: {
       fontSize: sizes.section,
       fontWeight: 700,
-      color: accent,
-      marginBottom: isAtsClassic ? 4 : 5,
-      paddingBottom: isAtsClassic ? 2 : 3,
+      color: isAtsClassic ? ink : accent,
+      marginBottom: isAtsClassic ? 5 : 5,
+      paddingBottom: isAtsClassic ? 3 : 3,
       borderBottomWidth: 1,
-      borderBottomColor: LINE,
+      borderBottomColor: line,
     },
     paragraph: {
-      color: INK,
-      marginBottom: 3,
+      color: ink,
+      marginBottom: isAtsClassic ? 2 : 3,
     },
     entry: {
-      marginBottom: isAtsClassic ? 7 : isCompact ? 6 : 8,
+      marginBottom: isAtsClassic ? 8 : isCompact ? 6 : 8,
       breakInside: "avoid",
     },
     entryTitle: {
       fontWeight: 700,
-      color: INK,
-      marginBottom: 1,
+      color: ink,
+      fontSize: isAtsClassic ? sizes.itemTitle : sizes.body,
+      lineHeight: isAtsClassic ? 1.25 : 1.45,
+      marginBottom: isAtsClassic ? 2 : 1,
     },
     entryDate: {
-      color: MUTED,
-      fontSize: sizes.body - 1,
-      marginBottom: 2,
+      color: muted,
+      fontSize: isAtsClassic ? sizes.metadata : sizes.body - 1,
+      lineHeight: isAtsClassic ? 1.3 : 1.45,
+      marginBottom: isAtsClassic ? 3 : 2,
     },
     entrySub: {
-      color: MUTED,
-      fontSize: sizes.body - 0.5,
-      marginBottom: 2,
+      color: muted,
+      fontSize: isAtsClassic ? sizes.metadata : sizes.body - 0.5,
+      lineHeight: isAtsClassic ? 1.3 : 1.45,
+      marginBottom: isAtsClassic ? 3 : 2,
+    },
+    toolsLine: {
+      color: muted,
+      fontSize: isAtsClassic ? sizes.metadata : sizes.body - 0.5,
+      lineHeight: 1.3,
+      marginBottom: isAtsClassic ? 3 : 2,
     },
     bulletLine: {
       marginTop: 2,
-      color: INK,
+      paddingLeft: isAtsClassic && !isArabic ? 8 : 0,
+      paddingRight: isAtsClassic && isArabic ? 8 : 0,
+      color: ink,
     },
     languageList: {
       display: "flex",
@@ -158,8 +181,8 @@ const createStyles = (resume = {}) => {
       gap: 3,
     },
     skillsLine: {
-      color: INK,
-      lineHeight: 1.6,
+      color: ink,
+      lineHeight: isAtsClassic ? 1.45 : 1.6,
     },
     link: {
       color: "#167a73",
@@ -258,7 +281,7 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
         {displaySubtitle ? <Text style={styles.entrySub}>{displaySubtitle}</Text> : null}
         {atsClassic && displayDate && !education ? <Text style={styles.entryDate}>{displayDate}</Text> : null}
         {facts.length ? <Text style={styles.entrySub}>{facts.join(" | ")}</Text> : null}
-        {atsClassic && tools.length ? <Text style={styles.entrySub}>{tools.join(", ")}</Text> : null}
+        {atsClassic && tools.length ? <Text style={styles.toolsLine}>{tools.join(", ")}</Text> : null}
         {!education && getAchievementLines(entry).map((line, index) => (
           <Text key={`${entry.id || entry.title}-${index}`} style={styles.bulletLine}>
             {`${atsClassic ? "-" : "•"} ${line}`}
