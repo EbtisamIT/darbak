@@ -8080,12 +8080,12 @@ body {
 
 .resume-paper.template-ats-classic.ats-density-short {
   padding-block: 48px;
-  line-height: 1.36;
+  line-height: 1.38;
 }
 
 .resume-paper.template-ats-classic.ats-density-short .resume-paper-header {
-  padding-bottom: 16px;
-  margin-bottom: 18px;
+  padding-bottom: 17px;
+  margin-bottom: 20px;
 }
 
 .resume-paper.template-ats-classic.ats-density-short .resume-paper-header h2 {
@@ -8097,7 +8097,13 @@ body {
 }
 
 .resume-paper.template-ats-classic.ats-density-short .resume-paper-section {
-  margin-bottom: 21px;
+  margin-bottom: 23px;
+}
+
+.resume-paper.template-ats-classic.ats-density-short .resume-paper-section[data-section="skills"],
+.resume-paper.template-ats-classic.ats-density-short .resume-paper-section[data-section="certifications"],
+.resume-paper.template-ats-classic.ats-density-short .resume-paper-section[data-section="languages"] {
+  padding-top: 2px;
 }
 
 .resume-paper.template-ats-classic.ats-density-short .resume-paper-section h3 {
@@ -8105,7 +8111,7 @@ body {
 }
 
 .resume-paper.template-ats-classic.ats-density-short .resume-paper-entry {
-  margin-bottom: 12px;
+  margin-bottom: 13.5px;
 }
 
 .resume-paper.template-ats-classic.ats-density-long {

@@ -110,7 +110,7 @@ const ResumePreview = ({ resume }) => {
   const renderSection = (sectionKey) => {
     if (sectionKey === "summary" && resume.summary) {
       return (
-        <section className="resume-paper-section" key={sectionKey}>
+        <section className="resume-paper-section" data-section={sectionKey} key={sectionKey}>
           <h3>{titles.summary}</h3>
           <p>{resume.summary}</p>
         </section>
@@ -123,7 +123,7 @@ const ResumePreview = ({ resume }) => {
       if (!visibleEntries.length) return null;
 
       return (
-        <section className="resume-paper-section" key={sectionKey}>
+        <section className="resume-paper-section" data-section={sectionKey} key={sectionKey}>
           <h3>{titles[sectionKey]}</h3>
           {visibleEntries.map((entry) => (
             <EntryPreview key={entry.id || entry.title} entry={entry} language={language} sectionKey={sectionKey} personal={personal} resume={resume} atsClassic={atsClassic} />
@@ -134,7 +134,7 @@ const ResumePreview = ({ resume }) => {
 
     if (sectionKey === "skills" && resume.skills?.length) {
       return (
-        <section className="resume-paper-section" key={sectionKey}>
+        <section className="resume-paper-section" data-section={sectionKey} key={sectionKey}>
           <h3>{titles.skills}</h3>
           {atsClassic
             ? <p className="resume-paper-skills-line">{resume.skills.join(" | ")}</p>
@@ -151,7 +151,7 @@ const ResumePreview = ({ resume }) => {
       const languages = resume.languages.filter((item) => item.name || item.level);
       if (!languages.length) return null;
       return (
-        <section className="resume-paper-section" key={sectionKey}>
+        <section className="resume-paper-section" data-section={sectionKey} key={sectionKey}>
           <h3>{titles.languages}</h3>
           <div className="resume-paper-language-list">
             {languages.map((item) => (

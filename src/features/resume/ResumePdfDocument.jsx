@@ -50,12 +50,13 @@ const ATS_ACCENT = "#2a9b90";
 const atsDensityStyles = {
   short: {
     pageVerticalPadding: 46,
-    lineHeight: 1.36,
-    sectionBefore: 17,
+    lineHeight: 1.38,
+    sectionBefore: 18.5,
+    smallSectionBefore: 20,
     headingAfter: 7,
-    itemGap: 10.5,
-    headerPadding: 14,
-    headerAfter: 12,
+    itemGap: 11.75,
+    headerPadding: 15,
+    headerAfter: 14,
     nameAfter: 4,
     headlineAfter: 8,
   },
@@ -165,6 +166,9 @@ const createStyles = (resume = {}) => {
     section: {
       marginTop: isAtsClassic ? atsSpacing.sectionBefore : isCompact ? 8 : 12,
       breakInside: "avoid",
+    },
+    shortSmallSection: {
+      marginTop: atsDensityStyles.short.smallSectionBefore,
     },
     sectionTitle: {
       fontSize: sizes.section,
@@ -284,10 +288,25 @@ const getCertificationDetails = (entry = {}) => {
   return [entry.organization || entry.subtitle, year].filter(Boolean).join(" | ");
 };
 
-const ResumeSection = ({ title, children, styles, atsClassic = false }) => {
+const shortSpacingSections = new Set(["skills", "certifications", "languages"]);
+
+const ResumeSection = ({
+  title,
+  children,
+  styles,
+  atsClassic = false,
+  sectionKey = "",
+  shortDensity = false,
+}) => {
   if (!children) return null;
   return (
-    <View style={styles.section}>
+    <View
+      style={
+        shortDensity && shortSpacingSections.has(sectionKey)
+          ? [styles.section, styles.shortSmallSection]
+          : styles.section
+      }
+    >
       <Text style={styles.sectionTitle} minPresenceAhead={atsClassic ? 40 : 0}>{title}</Text>
       {children}
     </View>
@@ -334,6 +353,7 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
 const ResumePdfDocument = ({ resume = {} }) => {
   resume = getLocalizedResumeForDisplay(resume);
   const atsClassic = isAtsClassicTemplate(resume);
+  const shortDensity = atsClassic && getAtsClassicDensityMode(resume) === "short";
   const styles = createStyles(resume);
   const language = resume.settings?.language === "en" ? "en" : "ar";
   const titles = (atsClassic ? atsClassicSectionTitles : sectionTitles)[language];
@@ -352,7 +372,7 @@ const ResumePdfDocument = ({ resume = {} }) => {
   const renderSection = (sectionKey) => {
     if (sectionKey === "summary" && resume.summary) {
       return (
-        <ResumeSection key={sectionKey} title={titles.summary} styles={styles} atsClassic={atsClassic}>
+        <ResumeSection key={sectionKey} sectionKey={sectionKey} title={titles.summary} styles={styles} atsClassic={atsClassic} shortDensity={shortDensity}>
           <Text style={styles.paragraph}>{resume.summary}</Text>
         </ResumeSection>
       );
@@ -362,7 +382,7 @@ const ResumePdfDocument = ({ resume = {} }) => {
       const entries = sectionKey === "experience" ? resume.experience || resume.experiences : resume[sectionKey];
       if (!entries?.some(hasEntryContent)) return null;
       return (
-        <ResumeSection key={sectionKey} title={titles[sectionKey]} styles={styles} atsClassic={atsClassic}>
+        <ResumeSection key={sectionKey} sectionKey={sectionKey} title={titles[sectionKey]} styles={styles} atsClassic={atsClassic} shortDensity={shortDensity}>
           <EntryList entries={entries} styles={styles} language={language} sectionKey={sectionKey} personal={personal} resume={resume} atsClassic={atsClassic} />
         </ResumeSection>
       );
@@ -370,7 +390,7 @@ const ResumePdfDocument = ({ resume = {} }) => {
 
     if (sectionKey === "skills" && resume.skills?.length) {
       return (
-        <ResumeSection key={sectionKey} title={titles.skills} styles={styles} atsClassic={atsClassic}>
+        <ResumeSection key={sectionKey} sectionKey={sectionKey} title={titles.skills} styles={styles} atsClassic={atsClassic} shortDensity={shortDensity}>
           <Text style={styles.skillsLine}>{resume.skills.join(" | ")}</Text>
         </ResumeSection>
       );
@@ -378,7 +398,7 @@ const ResumePdfDocument = ({ resume = {} }) => {
 
     if (sectionKey === "languages" && resume.languages?.length) {
       return (
-        <ResumeSection key={sectionKey} title={titles.languages} styles={styles} atsClassic={atsClassic}>
+        <ResumeSection key={sectionKey} sectionKey={sectionKey} title={titles.languages} styles={styles} atsClassic={atsClassic} shortDensity={shortDensity}>
           <View style={styles.languageList}>
             {resume.languages
               .filter((languageItem) => languageItem.name || languageItem.level)
