@@ -8075,7 +8075,68 @@ body {
 
 .resume-paper.template-ats-classic[dir="rtl"] .resume-paper-entry ul {
   padding-inline-start: 0;
-  padding-inline-end: 20px;
+  padding-inline-end: 19px;
+  list-style-position: outside;
+  list-style-type: disc;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-entry li {
+  padding-inline-end: 2px;
+  text-align: right;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-entry li::marker {
+  color: #152433;
+  font-size: 0.8em;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-section h3 {
+  padding-bottom: 5px;
+  margin-bottom: 8px;
+  text-align: right;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-entry[data-entry-section="projects"] .resume-paper-entry-head {
+  margin-bottom: 1px;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-entry[data-entry-section="projects"] .resume-paper-tools {
+  margin-top: 1px;
+  margin-bottom: 5px;
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: right;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-entry[data-entry-section="projects"] {
+  margin-bottom: 12px;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-education-facts {
+  margin-top: 5px;
+  word-spacing: 1px;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-date {
+  text-align: left;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-entry[data-entry-section="certifications"] .resume-paper-subtitle {
+  margin-top: 4px;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-entry[data-entry-section="volunteering"] .resume-paper-subtitle {
+  margin-bottom: 5px;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-skills-line {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: right;
+}
+
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-language-list {
+  gap: 4px;
 }
 
 .resume-paper.template-ats-classic.ats-density-short {

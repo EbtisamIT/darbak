@@ -67,14 +67,14 @@ const EntryPreview = ({ entry, language, sectionKey, personal, resume, atsClassi
   const displayDate = atsClassic ? date.replace(/ – /g, " - ") : date;
 
   return (
-    <article className="resume-paper-entry">
+    <article className="resume-paper-entry" data-entry-section={sectionKey}>
       <div className="resume-paper-entry-head">
         <strong>{title}</strong>
         {!atsClassic && displayDate && !education && <span>{displayDate}</span>}
       </div>
-      {subtitle && <p className="resume-paper-muted">{subtitle}</p>}
-      {atsClassic && displayDate && !education && <p className="resume-paper-muted">{displayDate}</p>}
-      {facts.length > 0 && <p className="resume-paper-muted">{facts.join(" | ")}</p>}
+      {subtitle && <p className="resume-paper-muted resume-paper-subtitle">{subtitle}</p>}
+      {atsClassic && displayDate && !education && <p className="resume-paper-muted resume-paper-date">{displayDate}</p>}
+      {facts.length > 0 && <p className="resume-paper-muted resume-paper-education-facts">{facts.join(" | ")}</p>}
       {atsClassic && tools.length > 0 && <p className="resume-paper-tools">{tools.join(", ")}</p>}
       {!education && getAchievementLines(entry).length > 0 && (
         <ul>

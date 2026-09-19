@@ -65,4 +65,35 @@ describe("Darbak ATS Classic preview", () => {
     expect(screen.getByText("موصى به لأنظمة ATS")).toBeInTheDocument();
     expect(screen.getByText("محسن للقراءة بواسطة أنظمة ATS")).toBeInTheDocument();
   });
+
+  test("keeps Arabic ATS entries in RTL flow with semantic bullets and isolated tool lines", () => {
+    const arabicResume = {
+      ...resume,
+      personalInfo: {
+        ...resume.personalInfo,
+        fullName: "رهف القحطاني",
+        headline: "طالبة نظم معلومات",
+        city: "الرياض",
+      },
+      projects: [{
+        id: "project-ar-1",
+        title: "لوحة متابعة أداء المبيعات",
+        technologies: ["Power BI", "Microsoft Excel"],
+        achievements: [{ id: "bullet-ar-1", text: "حللت بيانات المبيعات الشهرية." }],
+      }],
+      settings: {
+        ...resume.settings,
+        language: "ar",
+        direction: "rtl",
+      },
+    };
+    const { container } = render(<ResumePreview resume={arabicResume} />);
+
+    expect(container.querySelector('.resume-paper.template-ats-classic[dir="rtl"]')).toBeTruthy();
+    expect(container.querySelector('[data-entry-section="projects"]')).toBeTruthy();
+    expect(container.querySelector(".resume-paper-tools")).toHaveTextContent("Power BI, Microsoft Excel");
+    expect(container.querySelector('[data-entry-section="projects"] li')).toHaveTextContent(
+      "حللت بيانات المبيعات الشهرية."
+    );
+  });
 });

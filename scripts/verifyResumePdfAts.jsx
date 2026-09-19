@@ -347,6 +347,21 @@ const verifyArabic = (result, template) => {
     "الأنشطةوالتطوع",
     "اللغات",
   ]);
+  if (template === "ats-classic") {
+    assert.equal(
+      (result.text.match(/•/g) || []).length,
+      3,
+      "Expected every Arabic ATS project/activity bullet to remain extractable"
+    );
+    assert.ok(
+      result.text.includes("Power BI, Microsoft Excel"),
+      "Expected mixed-language project tools to remain intact"
+    );
+    assert.ok(
+      result.text.includes("Power BI | Microsoft Excel | SQL"),
+      "Expected mixed-language skills to remain intact"
+    );
+  }
   return requiredValues.length;
 };
 
