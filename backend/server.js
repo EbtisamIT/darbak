@@ -13404,7 +13404,7 @@ app.get('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
         planId: subscription.planId || "",
         planKey: subscription.planKey || "",
         planLabel: getSubscriptionPlan(subscription.planId || subscription.planKey).label,
-        startsAt,
+        startsAt: startedAt,
         expiresAt: subscription.expiresAt || null,
         priceSar: Number(subscription.priceSar || 0),
         sourceType: subscription.sourceType || subscription.provider || "manual",
