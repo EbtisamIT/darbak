@@ -91,6 +91,7 @@ const {
   mapPortfolioToResumePayload: mapPortfolioToResumeHydration,
   buildVerifiedResumeFacts,
   composeCanonicalResume,
+  isolateArabicMasterPresentation,
   hydrateResumeFromPortfolio,
 } = require("./services/resumePortfolioHydration");
 const { normalizeResumeSkills } = require("./services/resumeSkillNormalization");
@@ -9347,12 +9348,14 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
     const { contact, accessCodeHash, user } = req.darbakAccess;
     const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
     const existingResume = await ResumeProfile.findOne({ contact, accessCodeHash })
-      .select("summary summaryProvenance")
+      .select("summary summaryProvenance experiences experience projects volunteering")
       .lean();
-    const payload = sanitizeResumePayload(composeCanonicalResume(sanitizeResumePayload(req.body), portfolio || {}, contact, {
+    const incomingPayload = sanitizeResumePayload(composeCanonicalResume(sanitizeResumePayload(req.body), portfolio || {}, contact, {
       frontendUrl: getFrontendUrl(),
       sectionOrder: RESUME_SECTION_KEYS,
+      language: "ar",
     }));
+    const payload = sanitizeResumePayload(isolateArabicMasterPresentation(incomingPayload, existingResume || {}));
     // A master resume is never converted by a translation action. English lives
     // exclusively in ResumeTailoredVersion with variantType: translation.
     payload.settings = { ...payload.settings, language: "ar", direction: "rtl" };

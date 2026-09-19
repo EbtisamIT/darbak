@@ -47,6 +47,7 @@ import {
 import { estimateResumePages } from "../features/resume/resumeValidation";
 import { getEnglishPdfValidation, getEnglishReviewItems } from "../features/resume/resumeLocalization";
 import { markEnglishVersionFresh } from "../features/resume/englishVersionFreshness";
+import { shouldAutosaveMasterResume } from "../features/resume/resumeLanguageIsolation";
 import {
   clearResumeJourneyProgress,
   getReachableJourneyProgress,
@@ -216,6 +217,7 @@ const MyResumePage = () => {
   const factsSaveRequestRef = useRef(0);
   const factsSaveQueueRef = useRef(Promise.resolve(true));
   const lastRouteRef = useRef("");
+  const masterHydrationRef = useRef(false);
 
   // Autosave responses can arrive out of order. Keep the latest local draft
   // visible while a prior request is finishing so typing never rolls back.
@@ -308,6 +310,7 @@ const MyResumePage = () => {
 
   const loadResume = useCallback(
     async () => {
+      masterHydrationRef.current = true;
       try {
         setLoading(true);
         setError("");
@@ -357,6 +360,7 @@ const MyResumePage = () => {
             : err.response?.data?.error || "تعذر تحميل السيرة. حاول مرة أخرى."
         );
       } finally {
+        masterHydrationRef.current = false;
         setLoading(false);
       }
     },
@@ -754,11 +758,12 @@ const MyResumePage = () => {
   }, [loadResume, loadTailoredVersions]);
 
   useEffect(() => {
-    if (
-      !hasLoadedRef.current ||
-      resumeMode !== "editor" ||
-      editingTailoredVersion
-    ) return undefined;
+    if (!shouldAutosaveMasterResume({
+      hasLoaded: hasLoadedRef.current,
+      resumeMode,
+      editingTailoredVersion,
+      masterHydrating: masterHydrationRef.current,
+    })) return undefined;
 
     const snapshot = getSnapshot(resume);
     // A translated version is an independent ResumeTailoredVersion. It must never

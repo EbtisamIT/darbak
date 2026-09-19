@@ -3,6 +3,7 @@ const {
   mapPortfolioToResumePayload,
   buildVerifiedResumeFacts,
   composeCanonicalResume,
+  isolateArabicMasterPresentation,
   hydrateResumeFromPortfolio,
 } = require("../services/resumePortfolioHydration");
 
@@ -415,8 +416,74 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
     summary: "Computer Science student with practical project experience.",
     settings: { language: "ar" },
   }, emptyContextPortfolio, portfolio.email, { language: "ar" });
-  assert.ok(/[\u0600-\u06FF]/.test(reopened.summary), "Arabic master recovers an Arabic summary when a legacy English summary is stored");
+  assert.strictEqual(reopened.summary, "", "Arabic master shows a missing summary when no valid Arabic version exists");
   assert.ok(!reopened.summary.includes("Computer Science student"), "legacy English summary never renders in the Arabic master");
+}
+
+// A stale English editor payload can never overwrite an already approved
+// Arabic master presentation while the master route is being hydrated.
+{
+  const arabicMaster = {
+    summary: "خريجة تقنية المعلومات ولديها خبرة تطبيقية.",
+    experiences: [{
+      id: "experience-1",
+      description: "أعدت التقارير الأسبوعية.",
+      achievements: [{ id: "exp-1", text: "راجعت السجلات التشغيلية." }],
+    }],
+    projects: [{
+      id: "project-1",
+      description: "طورت نموذجًا أوليًا للمشروع.",
+      achievements: [{ id: "project-1-bullet", text: "صممت تدفق الاستخدام." }],
+    }],
+    volunteering: [{
+      id: "activity-1",
+      description: "نظمت فعالية طلابية.",
+      achievements: [{ id: "activity-1-bullet", text: "نسقت تسجيل المشاركين." }],
+    }],
+  };
+  const englishPayload = {
+    summary: "Information Technology graduate with practical experience.",
+    experiences: [{
+      id: "experience-1",
+      description: "Prepared weekly reports.",
+      achievements: [{ id: "exp-1", text: "Reviewed operational records." }],
+    }],
+    projects: [{
+      id: "project-1",
+      description: "Developed a project prototype.",
+      achievements: [{ id: "project-1-bullet", text: "Designed the user flow." }],
+    }],
+    volunteering: [{
+      id: "activity-1",
+      description: "Organized a student event.",
+      achievements: [{ id: "activity-1-bullet", text: "Coordinated participant registration." }],
+    }],
+  };
+  const arabicBefore = JSON.parse(JSON.stringify(arabicMaster));
+  const isolated = isolateArabicMasterPresentation(englishPayload, arabicMaster);
+
+  assert.strictEqual(isolated.summary, arabicMaster.summary);
+  assert.deepStrictEqual(isolated.experiences, arabicMaster.experiences);
+  assert.deepStrictEqual(isolated.projects, arabicMaster.projects);
+  assert.deepStrictEqual(isolated.volunteering, arabicMaster.volunteering);
+  assert.deepStrictEqual(arabicMaster, arabicBefore, "English isolation must not mutate the Arabic master");
+}
+
+// If no Arabic approved presentation exists, do not invent or expose English
+// text inside the Arabic master.
+{
+  const isolated = isolateArabicMasterPresentation({
+    summary: "English-only stale summary.",
+    projects: [{
+      id: "project-1",
+      description: "English-only stale description.",
+      achievements: [{ id: "bullet-1", text: "English-only stale bullet." }],
+    }],
+  });
+
+  assert.strictEqual(isolated.summary, "");
+  assert.strictEqual(isolated.projects[0].description, "");
+  assert.deepStrictEqual(isolated.projects[0].achievements, []);
 }
 
 // Case F: an invalid legacy numeric phone is repaired from the professional

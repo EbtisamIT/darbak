@@ -82,45 +82,78 @@ const useArabicPresentation = (presentationValue = "", verifiedValue = "") => {
   const presentation = cleanText(presentationValue, 1800);
   const verified = cleanText(verifiedValue, 1800);
   if (!presentation) return verified;
-  if (!verified || !hasArabicText(verified) || hasArabicText(presentation)) return presentation;
-  return verified;
+  if (hasArabicText(presentation)) return presentation;
+  return hasArabicText(verified) ? verified : "";
 };
 
 const useArabicAchievements = (presentation = [], verified = []) => {
-  if (!Array.isArray(presentation) || !presentation.length) return verified;
+  if (!Array.isArray(presentation) || !presentation.length) {
+    const verifiedText = (Array.isArray(verified) ? verified : [])
+      .map((item) => cleanText(item?.text || item?.html || "", 1800))
+      .join(" ");
+    return hasArabicText(verifiedText) ? verified : [];
+  }
   const presentationText = presentation
     .map((item) => cleanText(item?.text || item?.html || "", 1800))
     .join(" ");
   const verifiedText = (Array.isArray(verified) ? verified : [])
     .map((item) => cleanText(item?.text || item?.html || "", 1800))
     .join(" ");
-  return verifiedText && hasArabicText(verifiedText) && !hasArabicText(presentationText)
-    ? verified
-    : presentation;
+  if (hasArabicText(presentationText)) return presentation;
+  return hasArabicText(verifiedText) ? verified : [];
+};
+
+const isolateArabicMasterPresentation = (incoming = {}, existing = {}) => {
+  const preserveText = (nextValue = "", previousValue = "") => {
+    const next = cleanText(nextValue, 1800);
+    const previous = cleanText(previousValue, 1800);
+    if (hasArabicText(next)) return next;
+    return hasArabicText(previous) ? previous : "";
+  };
+  const preserveEntries = (nextEntries = [], previousEntries = []) => {
+    const previousById = new Map(
+      (Array.isArray(previousEntries) ? previousEntries : []).map((entry) => [entry?.id, entry]),
+    );
+    return (Array.isArray(nextEntries) ? nextEntries : []).map((entry) => {
+      const previous = previousById.get(entry?.id) || {};
+      const isolatedEntry = {
+        ...entry,
+        description: preserveText(entry?.description || entry?.details, previous?.description || previous?.details),
+        achievements: useArabicAchievements(entry?.achievements, previous?.achievements),
+      };
+      if (Object.prototype.hasOwnProperty.call(entry || {}, "details") || Object.prototype.hasOwnProperty.call(previous, "details")) {
+        isolatedEntry.details = preserveText(entry?.details || entry?.description, previous?.details || previous?.description);
+      }
+      return isolatedEntry;
+    });
+  };
+  const experiences = preserveEntries(
+    incoming.experiences || incoming.experience,
+    existing.experiences || existing.experience,
+  );
+  return {
+    ...incoming,
+    summary: preserveText(incoming.summary, existing.summary),
+    experiences,
+    experience: experiences,
+    projects: preserveEntries(incoming.projects, existing.projects),
+    volunteering: preserveEntries(incoming.volunteering, existing.volunteering),
+  };
 };
 
 // ResumeProfile is the Arabic master. A legacy translation could have stored
 // an English summary on it, while a Portfolio without professionalContext has
 // no Arabic text for useArabicPresentation to restore. Never render that
-// English presentation in the Arabic master: recover a small Arabic summary
-// from the current verified facts instead.
+// English presentation in the Arabic master. If no valid Arabic presentation
+// exists, leave the summary empty for an explicit student edit; never invent
+// Arabic wording or fall back to English.
 const getArabicMasterSummary = ({ presentationValue = "", verifiedFacts = {}, personalInfo = {} } = {}) => {
   const presentation = cleanText(presentationValue, 1800);
   if (hasArabicText(presentation)) return presentation;
 
   const professionalContext = cleanText(verifiedFacts.professionalContext, 900);
   if (hasArabicText(professionalContext)) return professionalContext;
-
-  const headline = cleanText(personalInfo.headline || verifiedFacts.personalInfo?.headline, 180);
-  const evidence = [
-    ...(Array.isArray(verifiedFacts.experiences) ? verifiedFacts.experiences : []),
-    ...(Array.isArray(verifiedFacts.projects) ? verifiedFacts.projects : []),
-  ].find((entry) => cleanText(entry?.title || entry?.name, 180));
-  const evidenceTitle = cleanText(evidence?.title || evidence?.name, 180);
-  if (!headline) return "";
-  return evidenceTitle
-    ? `${headline}. يتضمن الملف مشروعًا أو خبرة بعنوان ${evidenceTitle}.`
-    : headline;
+  return "";
 };
 
 const isInvalidResumePersonalValue = (key = "", value = "") => {
@@ -421,7 +454,7 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
     const experiences = Array.isArray(resume.experiences) && resume.experiences.length
       ? resume.experiences
       : resume.experience || [];
-    return {
+    const canonical = {
       ...resume,
       experiences,
       experience: experiences,
@@ -438,6 +471,9 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
         professionalContext: "",
       },
     };
+    return (options.language || resume.settings?.language || "ar") === "en"
+      ? canonical
+      : isolateArabicMasterPresentation(canonical);
   }
   const verifiedResumeFacts = buildVerifiedResumeFacts(portfolio, contact, options);
   // Existing users without a Portfolio keep their existing resume intact. Once
@@ -566,5 +602,6 @@ module.exports = {
   mapPortfolioToResumePayload,
   buildVerifiedResumeFacts,
   composeCanonicalResume,
+  isolateArabicMasterPresentation,
   hydrateResumeFromPortfolio,
 };

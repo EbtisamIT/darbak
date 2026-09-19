@@ -8,17 +8,21 @@ const getArabicPresentation = (presentationValue = "", verifiedValue = "") => {
   const presentation = String(presentationValue || "").trim();
   const verified = String(verifiedValue || "").trim();
   if (!presentation) return verified;
-  if (!verified || !isArabicPresentation(verified) || isArabicPresentation(presentation)) return presentation;
-  return verified;
+  if (isArabicPresentation(presentation)) return presentation;
+  return isArabicPresentation(verified) ? verified : "";
 };
 
 const getArabicAchievements = (presentation = [], verified = []) => {
-  if (!Array.isArray(presentation) || !presentation.length) return verified;
+  if (!Array.isArray(presentation) || !presentation.length) {
+    const verifiedText = (Array.isArray(verified) ? verified : [])
+      .map((item) => item?.text || item?.html || "")
+      .join(" ");
+    return isArabicPresentation(verifiedText) ? verified : [];
+  }
   const presentationText = presentation.map((item) => item?.text || item?.html || "").join(" ");
   const verifiedText = (Array.isArray(verified) ? verified : []).map((item) => item?.text || item?.html || "").join(" ");
-  return verifiedText && isArabicPresentation(verifiedText) && !isArabicPresentation(presentationText)
-    ? verified
-    : presentation;
+  if (isArabicPresentation(presentationText)) return presentation;
+  return isArabicPresentation(verifiedText) ? verified : [];
 };
 
 export const assertNoArabicScript = (finalEnglishDisplayPayload = {}) => {

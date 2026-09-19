@@ -187,6 +187,81 @@ describe("English resume presentation", () => {
     expect(localized.projects[0].achievements[0].text).toBe("إتاحة الحجز وتعديل المواعيد.");
   });
 
+  it("shows an Arabic missing state instead of English when no Arabic presentation can be recovered", () => {
+    const corruptedArabicMaster = {
+      personalInfo: { fullName: "ابتسام علي", major: "تقنية المعلومات" },
+      summary: "Information Technology graduate with practical project experience.",
+      experiences: [{
+        id: "experience-1",
+        title: "تدريب تقني",
+        description: "Prepared weekly reports.",
+        achievements: [{ id: "exp-1", text: "Reviewed operational records." }],
+      }],
+      projects: [{
+        id: "project-1",
+        title: "مشروع تقني",
+        description: "Built a web application.",
+        achievements: [{ id: "project-1-bullet", text: "Designed the user flow." }],
+      }],
+      verifiedResumeFacts: {
+        personalInfo: { fullName: "ابتسام علي", major: "تقنية المعلومات" },
+        professionalContext: "",
+        experiences: [{ id: "experience-1", title: "تدريب تقني", achievements: [] }],
+        projects: [{ id: "project-1", title: "مشروع تقني", achievements: [] }],
+      },
+      settings: { language: "ar", direction: "rtl" },
+    };
+
+    const before = JSON.parse(JSON.stringify(corruptedArabicMaster));
+    const localized = getLocalizedResumeForDisplay(corruptedArabicMaster);
+
+    expect(localized.summary).toBe("");
+    expect(localized.experience[0].description).toBe("");
+    expect(localized.experience[0].achievements).toEqual([]);
+    expect(localized.projects[0].description).toBe("");
+    expect(localized.projects[0].achievements).toEqual([]);
+    expect(corruptedArabicMaster).toEqual(before);
+  });
+
+  it("keeps Arabic and English presentations deeply isolated while switching display language", () => {
+    const arabicMaster = {
+      personalInfo: {
+        fullName: "ابتسام علي",
+        englishName: "Ebtisam Ali",
+        major: "تقنية المعلومات",
+        studentStatus: "graduate",
+        grammaticalGender: "feminine",
+      },
+      summary: "خريجة تقنية المعلومات ولديها خبرة تطبيقية في المشاريع التقنية.",
+      experiences: [],
+      projects: [{
+        id: "project-1",
+        title: "مشروع تقني",
+        achievements: [{ id: "bullet-1", text: "طورت نموذجًا أوليًا للمشروع." }],
+      }],
+      settings: { language: "ar", direction: "rtl" },
+    };
+    const arabicBefore = JSON.parse(JSON.stringify(arabicMaster));
+    const englishVersion = {
+      ...JSON.parse(JSON.stringify(arabicMaster)),
+      summary: "Information Technology graduate with practical project experience.",
+      projects: [{
+        id: "project-1",
+        title: "مشروع تقني",
+        achievements: [{ id: "bullet-1", text: "Developed a project prototype." }],
+      }],
+      localizedDisplay: {
+        entries: { "projects:project-1": { title: "Technical Project" } },
+        achievements: { "projects:project-1:bullet-1": "Developed a project prototype." },
+      },
+      settings: { language: "en", direction: "ltr" },
+    };
+
+    expect(getLocalizedResumeForDisplay(arabicMaster).summary).toBe(arabicMaster.summary);
+    expect(getLocalizedResumeForDisplay(englishVersion).summary).toBe(englishVersion.summary);
+    expect(arabicMaster).toEqual(arabicBefore);
+  });
+
   it("replaces the current Arabic headline form with a confirmed English student headline", () => {
     const localized = getLocalizedResumeForDisplay({
       ...englishResume,
