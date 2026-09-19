@@ -174,10 +174,8 @@ const createStyles = (resume = {}) => {
       fontSize: sizes.section,
       fontWeight: 700,
       color: isAtsClassic ? ink : accent,
-      marginBottom: isAtsClassic
-        ? atsSpacing.headingAfter + (isArabic ? 1 : 0)
-        : 5,
-      paddingBottom: isAtsClassic && isArabic ? 4 : 3,
+      marginBottom: isAtsClassic ? atsSpacing.headingAfter + 1 : 5,
+      paddingBottom: isAtsClassic ? 4 : 3,
       borderBottomWidth: 1,
       borderBottomColor: line,
     },
@@ -201,7 +199,9 @@ const createStyles = (resume = {}) => {
       fontSize: isAtsClassic ? sizes.metadata : sizes.body - 1,
       lineHeight: isAtsClassic ? 1.3 : 1.45,
       marginBottom: isAtsClassic ? 3 : 2,
-      textAlign: isAtsClassic && isArabic ? "left" : direction === "rtl" ? "right" : "left",
+      textAlign: isAtsClassic
+        ? isArabic ? "left" : "right"
+        : direction === "rtl" ? "right" : "left",
     },
     entrySub: {
       color: muted,
@@ -213,15 +213,15 @@ const createStyles = (resume = {}) => {
       color: muted,
       fontSize: isAtsClassic ? sizes.metadata : sizes.body - 0.5,
       lineHeight: 1.3,
-      marginBottom: isAtsClassic && isArabic ? 4 : isAtsClassic ? 3 : 2,
+      marginBottom: isAtsClassic ? 4 : 2,
       direction: isAtsClassic && isArabic ? "ltr" : direction,
       textAlign: isAtsClassic && isArabic ? "right" : direction === "rtl" ? "right" : "left",
     },
     bulletLine: {
-      marginTop: isAtsClassic && isArabic ? 2.5 : 2,
-      paddingLeft: isAtsClassic && !isArabic ? 8 : 0,
+      marginTop: isAtsClassic ? 2.5 : 2,
+      paddingLeft: isAtsClassic && !isArabic ? 13 : 0,
       paddingRight: isAtsClassic && isArabic ? 13 : 0,
-      textIndent: isAtsClassic && isArabic ? -9 : 0,
+      textIndent: isAtsClassic ? -9 : 0,
       color: ink,
     },
     arabicProjectEntry: {
@@ -240,6 +240,24 @@ const createStyles = (resume = {}) => {
       marginTop: 1,
     },
     arabicActivityTitle: {
+      marginBottom: 2.5,
+    },
+    englishProjectEntry: {
+      marginBottom: atsSpacing.itemGap + 1.5,
+    },
+    englishProjectTitle: {
+      marginBottom: 1,
+    },
+    englishEducationFacts: {
+      lineHeight: 1.42,
+      marginTop: 1,
+      marginBottom: 2,
+    },
+    englishCertificationSub: {
+      lineHeight: 1.4,
+      marginTop: 1,
+    },
+    englishActivityTitle: {
       marginBottom: 2.5,
     },
     languageList: {
@@ -345,6 +363,7 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
 
   return visibleEntries.map((entry) => {
     const arabicAts = atsClassic && language === "ar";
+    const englishAts = atsClassic && language === "en";
     const education = sectionKey === "education"
       ? getResumeEducationDisplay(entry, personal, language, resume)
       : null;
@@ -365,6 +384,7 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
         style={[
           styles.entry,
           arabicAts && sectionKey === "projects" ? styles.arabicProjectEntry : null,
+          englishAts && sectionKey === "projects" ? styles.englishProjectEntry : null,
         ]}
         wrap={atsClassic}
       >
@@ -373,6 +393,8 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
             styles.entryTitle,
             arabicAts && sectionKey === "projects" ? styles.arabicProjectTitle : null,
             arabicAts && sectionKey === "volunteering" ? styles.arabicActivityTitle : null,
+            englishAts && sectionKey === "projects" ? styles.englishProjectTitle : null,
+            englishAts && sectionKey === "volunteering" ? styles.englishActivityTitle : null,
           ]}
           minPresenceAhead={atsClassic ? 32 : 0}
         >
@@ -384,6 +406,7 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
             style={[
               styles.entrySub,
               arabicAts && isCertification ? styles.arabicCertificationSub : null,
+              englishAts && isCertification ? styles.englishCertificationSub : null,
             ]}
           >
             {displaySubtitle}
@@ -391,14 +414,20 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
         ) : null}
         {atsClassic && displayDate && !education ? <Text style={styles.entryDate}>{displayDate}</Text> : null}
         {facts.length ? (
-          <Text style={[styles.entrySub, arabicAts ? styles.arabicEducationFacts : null]}>
+          <Text
+            style={[
+              styles.entrySub,
+              arabicAts ? styles.arabicEducationFacts : null,
+              englishAts ? styles.englishEducationFacts : null,
+            ]}
+          >
             {facts.join(arabicAts ? "   |   " : " | ")}
           </Text>
         ) : null}
         {atsClassic && tools.length ? <Text style={styles.toolsLine}>{tools.join(", ")}</Text> : null}
         {!education && getAchievementLines(entry).map((line, index) => (
           <Text key={`${entry.id || entry.title}-${index}`} style={styles.bulletLine}>
-            {`${arabicAts ? "•" : atsClassic ? "-" : "•"} ${line}`}
+            {`• ${line}`}
           </Text>
         ))}
       </View>

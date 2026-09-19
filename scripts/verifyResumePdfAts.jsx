@@ -238,7 +238,7 @@ const verifyDensityScenario = (result, language, scenario) => {
   return markers.length;
 };
 
-const verifyEnglish = (result) => {
+const verifyEnglish = (result, template) => {
   const orderedValues = [
     "Rahaf Alqahtani",
     "Information Systems Student",
@@ -285,6 +285,13 @@ const verifyEnglish = (result) => {
     "Languages",
   ]);
   assertInReadingOrder(result.text, orderedValues);
+  if (template === "ats-classic") {
+    assert.equal(
+      (result.text.match(/•/g) || []).length,
+      3,
+      "Expected every English ATS project/activity bullet to remain extractable"
+    );
+  }
   return orderedValues.length;
 };
 
@@ -375,7 +382,7 @@ const main = async () => {
         process.stderr.write(`${template} ${language}:\n${result.text}\n\n`);
       }
       const expectedFieldCount = language === "en"
-        ? verifyEnglish(result)
+        ? verifyEnglish(result, template)
         : verifyArabic(result, template);
       results[template][language] = {
         ...result,

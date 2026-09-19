@@ -50,6 +50,9 @@ describe("Darbak ATS Classic preview", () => {
     expect(screen.getByText("rahaf@example.com | 0501234567 | Riyadh")).toBeInTheDocument();
     expect(screen.getByText("Power BI, Microsoft Excel")).toBeInTheDocument();
     expect(screen.getByText("Microsoft Excel | Power BI | SQL")).toBeInTheDocument();
+    expect(container.querySelector('[data-entry-section="projects"] li')).toHaveTextContent(
+      "Analyzed monthly sales data."
+    );
     expect(container.querySelector(".resume-paper-chips")).toBeNull();
   });
 
