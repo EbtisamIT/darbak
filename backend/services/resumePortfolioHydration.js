@@ -620,6 +620,28 @@ const composeEnglishResumeVersion = ({
   };
 };
 
+const composeResumePreview = ({
+  language = "ar",
+  localizedVersion = false,
+  resume = {},
+  masterResume = {},
+  englishVersionPayload = {},
+  portfolio = {},
+  contact = "",
+  options = {},
+} = {}) => language === "en" && localizedVersion
+  ? composeEnglishResumeVersion({
+      masterResume,
+      englishVersionPayload,
+      portfolio,
+      contact,
+      options,
+    })
+  : composeCanonicalResume(resume, portfolio, contact, {
+      ...options,
+      language: language === "en" ? "en" : "ar",
+    });
+
 const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
   if (!resume) return { resume: portfolioResume, patch: portfolioResume, changed: true };
 
@@ -676,6 +698,7 @@ module.exports = {
   buildVerifiedResumeFacts,
   composeCanonicalResume,
   composeEnglishResumeVersion,
+  composeResumePreview,
   isolateArabicMasterPresentation,
   hydrateResumeFromPortfolio,
 };

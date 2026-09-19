@@ -91,10 +91,11 @@ const {
   mapPortfolioToResumePayload: mapPortfolioToResumeHydration,
   buildVerifiedResumeFacts,
   composeCanonicalResume,
-  composeEnglishResumeVersion,
+  composeResumePreview,
   isolateArabicMasterPresentation,
   hydrateResumeFromPortfolio,
 } = require("./services/resumePortfolioHydration");
+const { getResumeFactsWritePayload } = require("./services/resumeArchitecture");
 const { normalizeResumeSkills } = require("./services/resumeSkillNormalization");
 const {
   buildMajorCityProfileUpdates,
@@ -9255,16 +9256,15 @@ const estimateJsonBytes = (value = {}) => {
 app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
   try {
     const { contact, accessCodeHash } = req.darbakAccess;
-    let resume = await ResumeProfile.findOne({ contact, accessCodeHash }).lean();
-    // ResumeProfile is always the Arabic master. Older translation flows could
-    // leave its presentation language as English; repair that metadata here.
-    if (resume?.settings?.language === "en") {
-      resume = await ResumeProfile.findOneAndUpdate(
-        { _id: resume._id, contact, accessCodeHash },
-        { $set: { "settings.language": "ar", "settings.direction": "rtl" } },
-        { new: true }
-      ).lean();
-    }
+    const storedResume = await ResumeProfile.findOne({ contact, accessCodeHash }).lean();
+    // Historical language metadata is corrected only in the read model. Opening
+    // a preview must never repair or persist a ResumeProfile implicitly.
+    const resume = storedResume
+      ? {
+          ...storedResume,
+          settings: { ...(storedResume.settings || {}), language: "ar", direction: "rtl" },
+        }
+      : null;
     const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
     const hasTailoredVersion = !resume && Boolean(
       await ResumeTailoredVersion.exists({
@@ -9278,37 +9278,12 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
       sectionOrder: RESUME_SECTION_KEYS,
     });
     const hydration = hydrateResumeFromPortfolio(resume, fallback);
-
-    // A previous UI flow could create a nearly empty master profile before the
-    // portfolio import completed. Backfill it once here so refreshes, other
-    // devices, and the editor all receive the same durable resume payload.
-    if (hydration.changed && portfolio?._id) {
-      if (resume?._id) {
-        resume = await ResumeProfile.findOneAndUpdate(
-          { _id: resume._id, contact, accessCodeHash },
-          { $set: hydration.patch },
-          { new: true, runValidators: true }
-        ).lean();
-      } else {
-        resume = await ResumeProfile.findOneAndUpdate(
-          { contact, accessCodeHash },
-          {
-            $setOnInsert: {
-              contact,
-              accessCodeHash,
-              userId: req.darbakAccess.user?._id,
-              workflow: { source: "portfolio", lastStep: "data", isSetupComplete: false },
-            },
-            $set: hydration.patch,
-          },
-          { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
-        ).lean();
-      }
-    }
-
-    const enrichedResume = composeCanonicalResume(resume || hydration.resume, portfolio || {}, contact, {
-      frontendUrl: getFrontendUrl(),
-      sectionOrder: RESUME_SECTION_KEYS,
+    const enrichedResume = composeResumePreview({
+      language: "ar",
+      resume: resume || hydration.resume,
+      portfolio: portfolio || {},
+      contact,
+      options: { frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS },
     });
     const factsFreshness = getResumeFactsFreshness({
       verifiedFacts: enrichedResume.verifiedResumeFacts || {},
@@ -9407,7 +9382,7 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
 app.put('/api/resume/me/facts', requireResumeAccess, async (req, res) => {
   try {
     const { contact, accessCodeHash, user } = req.darbakAccess;
-    const incoming = sanitizeResumePayload(req.body || {});
+    const incoming = getResumeFactsWritePayload(sanitizeResumePayload(req.body || {}));
     const existingResume = await ResumeProfile.findOne({ contact, accessCodeHash }).select("workflow").lean();
     const requestedWorkflow = req.body?.workflow && typeof req.body.workflow === "object"
       ? req.body.workflow
@@ -10516,24 +10491,18 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
     // Versions own presentation only. Recompose immutable facts from Portfolio
     // for both translations and tailored versions before anything reaches UI.
     const isEnglishTranslation = version.variantType === "translation" && version.language === "en";
-    const composedVersionPayload = isEnglishTranslation && masterResume
-      ? composeEnglishResumeVersion({
-          masterResume,
-          englishVersionPayload: version.resumePayload || {},
-          portfolio: portfolio || {},
-          contact: req.darbakAccess.contact,
-          options: { frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS },
-        })
-      : composeCanonicalResume(
-          version.resumePayload || {},
-          portfolio || {},
-          req.darbakAccess.contact,
-          {
-            frontendUrl: getFrontendUrl(),
-            sectionOrder: RESUME_SECTION_KEYS,
-            language: version.language || version.resumePayload?.settings?.language || "ar",
-          },
-        );
+    const composedVersionPayload = composeResumePreview({
+      language: isEnglishTranslation
+        ? "en"
+        : version.language || version.resumePayload?.settings?.language || "ar",
+      localizedVersion: isEnglishTranslation,
+      resume: version.resumePayload || {},
+      masterResume: masterResume || {},
+      englishVersionPayload: version.resumePayload || {},
+      portfolio: portfolio || {},
+      contact: req.darbakAccess.contact,
+      options: { frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS },
+    });
     const synchronizedPersonal = composedVersionPayload.personalInfo || {};
     const existingLocalizedDisplay = version.resumePayload?.localizedDisplay || {};
     const {

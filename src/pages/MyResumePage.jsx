@@ -42,6 +42,7 @@ import {
   createEmptyResume,
   getResumeFileName,
   normalizeResume,
+  prepareResumeFactsForSave,
   prepareResumeForSave,
 } from "../features/resume/resumeDefaults";
 import { estimateResumePages } from "../features/resume/resumeValidation";
@@ -472,7 +473,7 @@ const MyResumePage = () => {
           setSaveState("saving");
           const { data } = await axios.put(
             `${API_BASE_URL}/api/resume/me/facts`,
-            prepareResumeForSave(resumeOverride),
+            prepareResumeFactsForSave(resumeOverride),
             { headers: getAccessHeaders({ itemKey: "resume:facts" }) },
           );
           const saved = normalizeResume(data.resume || resumeOverride);

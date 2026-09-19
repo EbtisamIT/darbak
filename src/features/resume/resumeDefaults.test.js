@@ -1,4 +1,9 @@
-import { formatResumeDateRange, normalizeResume, prepareResumeForSave } from "./resumeDefaults";
+import {
+  formatResumeDateRange,
+  normalizeResume,
+  prepareResumeFactsForSave,
+  prepareResumeForSave,
+} from "./resumeDefaults";
 
 describe("tailored resume reload", () => {
   it("formats experience ISO dates as month and year in Arabic and English", () => {
@@ -51,5 +56,25 @@ describe("tailored resume reload", () => {
 
     expect(payload.workflow).toMatchObject({ factsOwner: "resume", isSetupComplete: true });
     expect(payload.experience[0].entryType).toBe("internship");
+  });
+
+  it("whitelists source facts without presentation or localization state", () => {
+    const payload = prepareResumeFactsForSave({
+      personalInfo: { fullName: "سارة" },
+      summary: "نبذة عربية معتمدة",
+      projects: [{ id: "project-1", title: "مشروع", userSourceDescription: "حللت البيانات" }],
+      skills: ["Power BI"],
+      sectionOrder: ["summary", "projects", "skills"],
+      settings: { language: "en", direction: "ltr" },
+      localizedDisplay: { entries: { "projects:project-1": { title: "Project" } } },
+    });
+
+    expect(payload.personalInfo.fullName).toBe("سارة");
+    expect(payload.projects[0].userSourceDescription).toBe("حللت البيانات");
+    expect(payload.skills).toEqual(["Power BI"]);
+    expect(payload).not.toHaveProperty("summary");
+    expect(payload).not.toHaveProperty("localizedDisplay");
+    expect(payload).not.toHaveProperty("settings");
+    expect(payload).not.toHaveProperty("sectionOrder");
   });
 });

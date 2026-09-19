@@ -4,6 +4,7 @@ const {
   buildVerifiedResumeFacts,
   composeCanonicalResume,
   composeEnglishResumeVersion,
+  composeResumePreview,
   isolateArabicMasterPresentation,
   hydrateResumeFromPortfolio,
 } = require("../services/resumePortfolioHydration");
@@ -106,6 +107,12 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   };
   const masterBefore = JSON.parse(JSON.stringify(master));
   const composed = composeEnglishResumeVersion({ masterResume: master, englishVersionPayload: englishVersion });
+  const composedThroughCanonicalPreview = composeResumePreview({
+    language: "en",
+    localizedVersion: true,
+    masterResume: master,
+    englishVersionPayload: englishVersion,
+  });
 
   assert.strictEqual(composed.summary, englishVersion.summary);
   assert.deepStrictEqual(composed.education.map((item) => item.id), ["education-1"]);
@@ -114,6 +121,7 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.deepStrictEqual(composed.certifications.map((item) => item.id), ["certification-1"]);
   assert.deepStrictEqual(composed.volunteering.map((item) => item.id), ["activity-1"]);
   assert.strictEqual(composed.projects[0].description, "Built a digital platform prototype.");
+  assert.deepStrictEqual(composedThroughCanonicalPreview, composed);
   assert.deepStrictEqual(master, masterBefore, "English hydration is read-only for ResumeProfile data");
 }
 
