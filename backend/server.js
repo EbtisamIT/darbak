@@ -95,7 +95,11 @@ const {
   isolateArabicMasterPresentation,
   hydrateResumeFromPortfolio,
 } = require("./services/resumePortfolioHydration");
-const { getResumeFactsWritePayload } = require("./services/resumeArchitecture");
+const {
+  getCanonicalResumeExperiences,
+  getResumeFactsWritePayload,
+  hasResumeProfileFacts,
+} = require("./services/resumeArchitecture");
 const { normalizeResumeSkills } = require("./services/resumeSkillNormalization");
 const {
   buildMajorCityProfileUpdates,
@@ -7727,7 +7731,7 @@ const sanitizeResumeSettings = (settings = {}) => {
 
 const sanitizeResumePayload = (body = {}) => {
   const personalInfo = body.personalInfo || {};
-  const experienceEntries = body.experience || body.experiences || [];
+  const experienceEntries = getCanonicalResumeExperiences(body);
 
   return {
     personalInfo: {
@@ -7764,7 +7768,6 @@ const sanitizeResumePayload = (body = {}) => {
     summary: sanitizeResumeText(body.summary, 900),
     education: sanitizeResumeEntries(body.education, 6),
     experiences: sanitizeResumeEntries(experienceEntries, 8),
-    experience: sanitizeResumeEntries(experienceEntries, 8),
     projects: sanitizeResumeEntries(body.projects, 8),
     certifications: sanitizeResumeEntries(body.certifications, 10),
     volunteering: sanitizeResumeEntries(body.volunteering, 8),
@@ -8167,6 +8170,7 @@ const enrichResumeWithPortfolio = (resume = {}, portfolioResume = {}) => {
 };
 
 const serializeResume = (resume = {}, access = {}) => {
+  const experiences = getCanonicalResumeExperiences(resume);
   const usageLimit =
     access.isAdmin
       ? getPlanAiResumeUsageLimit(RESUME_PLAN_KEY, process.env)
@@ -8191,8 +8195,8 @@ const serializeResume = (resume = {}, access = {}) => {
     verifiedResumeFacts: resume.verifiedResumeFacts || null,
     summary: resume.summary || "",
     education: resume.education || [],
-    experiences: resume.experiences || resume.experience || [],
-    experience: resume.experience || resume.experiences || [],
+    experiences,
+    experience: experiences,
     projects: resume.projects || [],
     certifications: resume.certifications || [],
     volunteering: resume.volunteering || [],
@@ -8673,60 +8677,77 @@ const sanitizeResumeAgentAnswers = (answers = [], pendingQuestions = []) => {
     .filter((answer) => answer.answer);
 };
 
-const persistAcceptedResumeAgentAnswers = async (access = {}, answers = []) => {
+const persistResumeEnrichmentUpdate = async (access = {}, {
+  answers = [],
+  skippedFieldKeys = [],
+  pendingQuestions = [],
+} = {}) => {
   const structuredAnswers = answers.filter((answer) =>
     ["project_description", "experience_description", "activity_description"].includes(parseStructuredAnswerFieldKey(answer.fieldKey)?.type)
   );
-  if (!structuredAnswers.length) return { answerPersisted: true, persistedCount: 0 };
+  if (!structuredAnswers.length && !skippedFieldKeys.length) {
+    return { answerPersisted: true, enrichmentStatePersisted: true, persistedCount: 0, resumeWrites: 0, portfolioWrites: 0 };
+  }
 
   const ownershipQuery = {
     contact: access.contact,
     accessCodeHash: access.accessCodeHash,
   };
-  const resume = await ResumeProfile.findOne(ownershipQuery);
-  const portfolio = resume?.workflow?.factsOwner === "resume" ? null : await Portfolio.findOne(ownershipQuery);
-  const sources = portfolio ? [portfolio, resume].filter(Boolean) : [resume].filter(Boolean);
+  let resume = await ResumeProfile.findOne(ownershipQuery);
+  const storedResume = resume?.toObject?.() || resume || {};
+  let legacyPortfolio = null;
+  if (!hasResumeProfileFacts(storedResume)) {
+    legacyPortfolio = await Portfolio.findOne(ownershipQuery).lean();
+    if (legacyPortfolio && structuredAnswers.length) {
+      const legacyFacts = getResumeFactsWritePayload(sanitizeResumePayload(
+        mapPortfolioToResumeHydration(legacyPortfolio, access.contact || "", {
+          frontendUrl: getFrontendUrl(),
+          sectionOrder: RESUME_SECTION_KEYS,
+        }),
+      ));
+      if (!resume) {
+        resume = new ResumeProfile({
+          ...ownershipQuery,
+          userId: access.user?._id,
+        });
+      }
+      Object.entries(legacyFacts).forEach(([key, value]) => resume.set(key, value));
+    }
+  }
+  if (!resume && skippedFieldKeys.length) {
+    resume = new ResumeProfile({
+      ...ownershipQuery,
+      userId: access.user?._id,
+    });
+  }
+  if (!resume) {
+    return { answerPersisted: false, enrichmentStatePersisted: false, persistedCount: 0, resumeWrites: 0, portfolioWrites: 0 };
+  }
+
   let persistedCount = 0;
   for (const answer of structuredAnswers) {
     const type = parseStructuredAnswerFieldKey(answer.fieldKey)?.type;
-    const matchingSources = sources.filter((candidate) => {
-      if (type === "project_description") return applyProjectDescriptionAnswer(candidate, answer);
-      if (type === "experience_description") return applyExperienceDescriptionAnswer(candidate, answer);
-      return applyActivityDescriptionAnswer(candidate, answer);
-    });
-    if (!matchingSources.length) continue;
-    // During the safe Portfolio→Resume transition both records can contain
-    // the same stable item. Persist the student's answer to every matching
-    // owned copy so a later factsOwner switch cannot resurrect the question.
-    for (const source of matchingSources) {
-      source.markModified(type === "project_description"
-        ? "projects"
-        : type === "activity_description"
-          ? "volunteering"
-          : (Array.isArray(source.experiences) ? "experiences" : "experience"));
-      await source.save();
-    }
+    const matched = type === "project_description"
+      ? applyProjectDescriptionAnswer(resume, answer)
+      : type === "experience_description"
+        ? applyExperienceDescriptionAnswer(resume, answer)
+        : applyActivityDescriptionAnswer(resume, answer);
+    if (!matched) continue;
+    resume.markModified(type === "project_description"
+      ? "projects"
+      : type === "activity_description"
+        ? "volunteering"
+        : "experiences");
     persistedCount += 1;
   }
-  return { answerPersisted: persistedCount === structuredAnswers.length, persistedCount };
-};
+  if (persistedCount !== structuredAnswers.length) {
+    return { answerPersisted: false, enrichmentStatePersisted: false, persistedCount, resumeWrites: 0, portfolioWrites: 0 };
+  }
 
-const persistResumeEnrichmentStates = async (access = {}, {
-  answers = [],
-  skippedFieldKeys = [],
-  pendingQuestions = [],
-} = {}) => {
-  const ownershipQuery = { contact: access.contact, accessCodeHash: access.accessCodeHash };
-  const [resume, portfolio] = await Promise.all([
-    ResumeProfile.findOne(ownershipQuery),
-    Portfolio.findOne(ownershipQuery).lean(),
-  ]);
-  if (!resume) return false;
-  const canonical = composeCanonicalResume(resume.toObject(), portfolio || {}, access.contact || "");
-  const rawFacts = canonical.verifiedResumeFacts || buildVerifiedResumeFacts(portfolio || {}, access.contact || "");
+  const canonical = composeCanonicalResume(resume.toObject(), legacyPortfolio || {}, access.contact || "");
   const sourceFacts = buildUserSourceEnrichmentFacts(
-    rawFacts,
-    buildVerifiedResumeFacts(portfolio || {}, access.contact || ""),
+    canonical.verifiedResumeFacts || {},
+    legacyPortfolio ? buildVerifiedResumeFacts(legacyPortfolio, access.contact || "") : {},
   );
   const findEntry = (fieldKey) => {
     const parsed = parseStructuredAnswerFieldKey(fieldKey);
@@ -8755,10 +8776,22 @@ const persistResumeEnrichmentStates = async (access = {}, {
     if (!fieldKey || !sourceSignature) return;
     states[fieldKey] = { status: "skipped", sourceSignature, updatedAt: new Date().toISOString() };
   });
-  resume.workflow = { ...(resume.workflow || {}), enrichmentStates: states };
+  resume.workflow = {
+    ...(resume.workflow?.toObject?.() || resume.workflow || {}),
+    factsOwner: "resume",
+    enrichmentStates: states,
+  };
   resume.markModified("workflow.enrichmentStates");
   await resume.save();
-  return true;
+  return {
+    answerPersisted: true,
+    enrichmentStatePersisted: true,
+    persistedCount,
+    factsOwner: "resume",
+    fallbackUsed: Boolean(legacyPortfolio),
+    resumeWrites: 1,
+    portfolioWrites: 0,
+  };
 };
 
 const mergeResumeAgentUsage = (current = {}, next = {}) => ({
@@ -8840,18 +8873,18 @@ const getResumeAgentSessionForAccess = async (sessionId = "", access = {}) =>
 const revalidatePendingResumeAgentQuestions = async (session, access = {}) => {
   if (session?.status !== "collecting_information") return null;
   const ownershipQuery = { contact: access.contact, accessCodeHash: access.accessCodeHash };
-  const [resume, portfolio] = await Promise.all([
-    ResumeProfile.findOne(ownershipQuery),
-    Portfolio.findOne(ownershipQuery).lean(),
-  ]);
+  const resume = await ResumeProfile.findOne(ownershipQuery);
   if (!resume) return null;
+  const storedResume = resume.toObject();
+  const portfolio = hasResumeProfileFacts(storedResume)
+    ? null
+    : await Portfolio.findOne(ownershipQuery).lean();
 
-  const canonical = composeCanonicalResume(resume.toObject(), portfolio || {}, access.contact || "");
+  const canonical = composeCanonicalResume(storedResume, portfolio || {}, access.contact || "");
   const rawFacts = canonical.verifiedResumeFacts || buildVerifiedResumeFacts(portfolio || {}, access.contact || "");
-  const sourceFacts = buildUserSourceEnrichmentFacts(
-    rawFacts,
-    buildVerifiedResumeFacts(portfolio || {}, access.contact || ""),
-  );
+  const sourceFacts = buildUserSourceEnrichmentFacts(rawFacts, portfolio
+    ? buildVerifiedResumeFacts(portfolio, access.contact || "")
+    : {});
   const factsVersion = getResumeFactsFreshness({ verifiedFacts: sourceFacts, workflow: {} }).currentHash;
   const state = {
     ...(session.collectedFacts || {}),
@@ -9303,6 +9336,10 @@ app.get('/api/resume/me', requireResumeAccess, async (req, res) => {
       resume: serializeResume(enrichedResume, req.darbakAccess),
       portfolioImported: Boolean(portfolio),
       portfolioReadiness: getPortfolioResumeReadiness(portfolio || {}, contact),
+      factsProvenance: enrichedResume.factsProvenance || {
+        factsOwner: hasResumeProfileFacts(resume || {}) ? "resume" : "portfolio_legacy",
+        fallbackUsed: !hasResumeProfileFacts(resume || {}) && Boolean(portfolio),
+      },
       factsFreshness: {
         changed: factsFreshness.changed,
         contentRefreshNeeded: factsFreshness.contentRefreshNeeded,
@@ -9406,14 +9443,14 @@ app.put('/api/resume/me/facts', requireResumeAccess, async (req, res) => {
       },
       { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
     ).lean();
-    const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
-    const canonical = composeCanonicalResume(savedResume || {}, portfolio || {}, contact, {
+    const canonical = composeCanonicalResume(savedResume || {}, {}, contact, {
       frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS,
     });
     const freshness = getResumeFactsFreshness({ verifiedFacts: canonical.verifiedResumeFacts || {}, workflow: savedResume?.workflow || {} });
     res.json({
       resume: serializeResume(canonical, req.darbakAccess),
       factsFreshness: { changed: freshness.changed, contentRefreshNeeded: freshness.contentRefreshNeeded, deterministicChanged: freshness.deterministicChanged, baselineMissing: freshness.baselineMissing, changes: freshness.changes, currentHash: freshness.currentHash, lastBuiltHash: freshness.lastBuiltHash },
+      factsProvenance: canonical.factsProvenance || { factsOwner: "resume", fallbackUsed: false },
       message: "تم حفظ بيانات السيرة.",
     });
   } catch (err) {
@@ -9815,7 +9852,11 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
     const pendingQuestionsBeforeResolution = Array.isArray(session.pendingQuestions)
       ? session.pendingQuestions.map((question) => question.toObject?.() || question)
       : [];
-    const persistence = await persistAcceptedResumeAgentAnswers(req.darbakAccess, answers);
+    const persistence = await persistResumeEnrichmentUpdate(req.darbakAccess, {
+      answers,
+      skippedFieldKeys,
+      pendingQuestions: pendingQuestionsBeforeResolution,
+    });
     if (!persistence.answerPersisted) {
       session.collectedFacts = { ...(session.collectedFacts || {}), answers: mergedAnswers };
       session.markModified("collectedFacts");
@@ -9853,12 +9894,7 @@ app.post('/api/resume-agent/respond', requireResumeAccess, async (req, res) => {
     session.markModified("collectedFacts");
     await session.save();
 
-    const enrichmentStatePersisted = await persistResumeEnrichmentStates(req.darbakAccess, {
-      answers,
-      skippedFieldKeys,
-      pendingQuestions: pendingQuestionsBeforeResolution,
-    });
-    if (!enrichmentStatePersisted && (answers.length || skippedFieldKeys.length)) {
+    if (!persistence.enrichmentStatePersisted && (answers.length || skippedFieldKeys.length)) {
       const error = new Error("The resume enrichment state could not be persisted.");
       error.code = "RESUME_ENRICHMENT_STATE_PERSISTENCE_FAILED";
       throw error;
@@ -10777,19 +10813,6 @@ app.put('/api/resume-agent/tailored-versions/:id/application-pack', requireResum
     version.markModified("resumePayload");
     await Promise.all([
       version.save(),
-      Portfolio.updateOne(
-        {
-          contact: req.darbakAccess.contact,
-          accessCodeHash: req.darbakAccess.accessCodeHash,
-        },
-        {
-          $set: {
-            trainingStart: start,
-            trainingEnd: end,
-            ...(targetField ? { targetTrainingField: targetField } : {}),
-          },
-        }
-      ),
       ResumeProfile.updateOne(
         {
           contact: req.darbakAccess.contact,

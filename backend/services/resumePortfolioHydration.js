@@ -6,6 +6,10 @@ const cleanText = (value = "", maxLength = 900) =>
     .slice(0, maxLength);
 
 const { normalizeResumeSkills } = require("./resumeSkillNormalization");
+const {
+  getCanonicalResumeExperiences,
+  resolveResumeFactsOwnership,
+} = require("./resumeArchitecture");
 
 const ACADEMIC_TRACK_IDS = new Set([
   "business_analytics",
@@ -30,9 +34,9 @@ const getAcademicTrackId = (value = "", source = "") => {
   return source === "custom" ? normalized : "";
 };
 
-// These values are student facts, not resume presentation. Portfolio owns them
-// whenever it has a verified value; ResumeProfile only keeps a materialized
-// copy for compatibility with the existing resume APIs.
+// These values are student facts, not resume presentation. ResumeProfile owns
+// them for Resume flows; Portfolio is only a read-only legacy fallback when a
+// ResumeProfile has no facts at all.
 const PROTECTED_PERSONAL_FACT_KEYS = [
   "fullName",
   "email",
@@ -386,7 +390,6 @@ const mapPortfolioToResumePayload = (portfolio = {}, contact = "", options = {})
         }]
       : [],
     experiences: (portfolio.experiences || []).map((entry, index) => mapPortfolioEntry(entry, "portfolio-experience", index)),
-    experience: (portfolio.experiences || []).map((entry, index) => mapPortfolioEntry(entry, "portfolio-experience", index)),
     projects: (portfolio.projects || []).map((entry, index) => mapPortfolioEntry(entry, "portfolio-project", index)),
     certifications: (portfolio.certifications || []).map((entry, index) => mapPortfolioEntry({
       ...entry,
@@ -447,17 +450,19 @@ const orderVerifiedEntries = (verifiedEntries = [], presentationEntries = []) =>
 };
 
 const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", options = {}) => {
-  // Once a student explicitly edits the resume facts journey, those facts are
-  // independent from the public Portfolio. Portfolio remains the initial
-  // import only; it must not replace typing after an autosave/refresh.
-  if (resume?.workflow?.factsOwner === "resume") {
-    const experiences = Array.isArray(resume.experiences) && resume.experiences.length
-      ? resume.experiences
-      : resume.experience || [];
+  const ownership = resolveResumeFactsOwnership(resume, portfolio);
+  // Any ResumeProfile facts make that profile authoritative. Portfolio is
+  // considered only for an entirely empty legacy profile.
+  if (!ownership.fallbackUsed) {
+    const experiences = getCanonicalResumeExperiences(resume);
     const canonical = {
       ...resume,
       experiences,
       experience: experiences,
+      factsProvenance: {
+        factsOwner: ownership.factsOwner,
+        fallbackUsed: ownership.fallbackUsed,
+      },
       verifiedResumeFacts: {
         personalInfo: resume.personalInfo || {},
         education: resume.education || [],
@@ -475,11 +480,18 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
       ? canonical
       : isolateArabicMasterPresentation(canonical);
   }
-  const verifiedResumeFacts = buildVerifiedResumeFacts(portfolio, contact, options);
+  const legacyPortfolio = ownership.portfolio;
+  const verifiedResumeFacts = buildVerifiedResumeFacts(legacyPortfolio, contact, options);
   // Existing users without a Portfolio keep their existing resume intact. Once
   // the Portfolio has a fact, that verified fact wins over stale resume copies.
-  const hasVerifiedPortfolio = Boolean(portfolio?._id);
-  if (!hasVerifiedPortfolio) return { ...resume, verifiedResumeFacts: null };
+  const hasVerifiedPortfolio = Boolean(legacyPortfolio?._id || Object.keys(legacyPortfolio || {}).length);
+  if (!hasVerifiedPortfolio) {
+    return {
+      ...resume,
+      factsProvenance: { factsOwner: "resume", fallbackUsed: false },
+      verifiedResumeFacts: null,
+    };
+  }
 
   const language = options.language || resume.settings?.language || "ar";
   const personalInfo = { ...(resume.personalInfo || {}) };
@@ -492,7 +504,7 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
   personalInfo.academicTrack = verifiedResumeFacts.personalInfo?.academicTrack || "";
   // The headline is always derived from verified facts. English display is
   // localized on the client from these same facts.
-  personalInfo.headline = buildPortfolioHeadline(portfolio);
+  personalInfo.headline = buildPortfolioHeadline(legacyPortfolio);
 
   const composeEntries = (section) => {
     const verified = verifiedResumeFacts[section] || [];
@@ -543,6 +555,10 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
     languages: verifiedResumeFacts.languages?.length ? verifiedResumeFacts.languages : resume.languages || [],
     links: verifiedResumeFacts.links?.length ? verifiedResumeFacts.links : resume.links || [],
     skills: verifiedResumeFacts.skills?.length ? verifiedResumeFacts.skills : resume.skills || [],
+    factsProvenance: {
+      factsOwner: ownership.factsOwner,
+      fallbackUsed: ownership.fallbackUsed,
+    },
     verifiedResumeFacts,
   };
 };
@@ -643,15 +659,39 @@ const composeResumePreview = ({
     });
 
 const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
-  if (!resume) return { resume: portfolioResume, patch: portfolioResume, changed: true };
+  const ownership = resolveResumeFactsOwnership(resume || {}, portfolioResume || {});
+  if (!resume) {
+    return {
+      resume: {
+        ...portfolioResume,
+        factsProvenance: { factsOwner: ownership.factsOwner, fallbackUsed: ownership.fallbackUsed },
+      },
+      patch: {},
+      changed: false,
+    };
+  }
+
+  if (!ownership.fallbackUsed) {
+    const experiences = getCanonicalResumeExperiences(resume);
+    return {
+      resume: {
+        ...resume,
+        experiences,
+        experience: experiences,
+        factsProvenance: { factsOwner: "resume", fallbackUsed: false },
+      },
+      patch: {},
+      changed: false,
+    };
+  }
 
   const currentPersonal = resume.personalInfo || {};
   const personalInfo = { ...currentPersonal };
   // A profile created from Portfolio has one authoritative source for core
   // identity facts. This repairs stale or cross-account values saved by an old
   // resume draft without touching scratch/manual resume profiles.
-  const resumeOwnsFacts = resume.workflow?.factsOwner === "resume";
-  const portfolioOwnsIdentity = resume.workflow?.source === "portfolio" && !resumeOwnsFacts;
+  const resumeOwnsFacts = false;
+  const portfolioOwnsIdentity = true;
   Object.entries(portfolioResume.personalInfo || {}).forEach(([key, value]) => {
     if (
       (portfolioOwnsIdentity || !hasValue(personalInfo[key]) || isInvalidResumePersonalValue(key, personalInfo[key])) &&
@@ -661,12 +701,8 @@ const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
     }
   });
 
-  const currentExperience = Array.isArray(resume.experiences) && resume.experiences.length
-    ? resume.experiences
-    : resume.experience || [];
-  const portfolioExperience = Array.isArray(portfolioResume.experiences) && portfolioResume.experiences.length
-    ? portfolioResume.experiences
-    : portfolioResume.experience || [];
+  const currentExperience = getCanonicalResumeExperiences(resume);
+  const portfolioExperience = getCanonicalResumeExperiences(portfolioResume);
   const hydrated = {
     ...resume,
     personalInfo,
@@ -684,12 +720,9 @@ const hydrateResumeFromPortfolio = (resume = null, portfolioResume = {}) => {
     languages: resumeOwnsFacts ? resume.languages || [] : mergeLanguages(resume.languages, portfolioResume.languages),
     links: resumeOwnsFacts ? resume.links || [] : mergeLinks(resume.links, portfolioResume.links),
     skills: resumeOwnsFacts ? normalizeResumeSkills(resume.skills || []) : normalizeResumeSkills(uniqueText(resume.skills, portfolioResume.skills)),
+    factsProvenance: { factsOwner: "portfolio_legacy", fallbackUsed: true },
   };
-  const patch = {};
-  ["personalInfo", "summary", "education", "experiences", "experience", "projects", "certifications", "volunteering", "languages", "links", "skills"].forEach((key) => {
-    if (JSON.stringify(hydrated[key]) !== JSON.stringify(resume[key])) patch[key] = hydrated[key];
-  });
-  return { resume: hydrated, patch, changed: Object.keys(patch).length > 0 };
+  return { resume: hydrated, patch: {}, changed: false };
 };
 
 module.exports = {

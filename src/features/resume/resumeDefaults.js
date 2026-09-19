@@ -243,7 +243,9 @@ const normalizeSectionOrder = (order = []) => {
 
 export const normalizeResume = (resume = {}) => {
   const base = createEmptyResume();
-  const experience = resume.experience || resume.experiences || [];
+  const experience = Object.prototype.hasOwnProperty.call(resume || {}, "experiences")
+    ? resume.experiences || []
+    : resume.experience || [];
   const settings = {
     ...base.settings,
     ...(resume.settings || {}),
@@ -300,7 +302,6 @@ export const prepareResumeForSave = (resume = {}) => {
     personalInfo: normalized.personalInfo,
     summary: normalized.summary,
     education: normalized.education.filter(hasEntryContent),
-    experience: normalized.experience.filter(hasEntryContent),
     experiences: normalized.experience.filter(hasEntryContent),
     projects: normalized.projects.filter(hasEntryContent),
     certifications: normalized.certifications.filter(hasEntryContent),
@@ -323,7 +324,6 @@ export const prepareResumeFactsForSave = (resume = {}) => {
   return {
     personalInfo: payload.personalInfo,
     education: payload.education,
-    experience: payload.experience,
     experiences: payload.experiences,
     projects: payload.projects,
     certifications: payload.certifications,

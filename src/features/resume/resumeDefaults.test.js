@@ -55,7 +55,8 @@ describe("tailored resume reload", () => {
     });
 
     expect(payload.workflow).toMatchObject({ factsOwner: "resume", isSetupComplete: true });
-    expect(payload.experience[0].entryType).toBe("internship");
+    expect(payload.experiences[0].entryType).toBe("internship");
+    expect(payload).not.toHaveProperty("experience");
   });
 
   it("whitelists source facts without presentation or localization state", () => {

@@ -27,6 +27,7 @@ const {
   upsertAnswersByFieldKey,
 } = require("../services/resumeAgentAnswerLifecycle");
 const { getResumeFactsFreshness } = require("../services/resumeFactsFreshness");
+const { hasResumeProfileFacts } = require("../services/resumeArchitecture");
 
 setSensitiveDataLoggingEnabled(false);
 
@@ -2578,10 +2579,10 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     answeredQuestionIds: session.answeredQuestionIds || [],
   };
 
-  const [profile, storedResume] = await Promise.all([
-    Portfolio.findOne(getAccessQuery(context)).lean(),
-    ResumeProfile.findOne(getAccessQuery(context)).lean(),
-  ]);
+  const storedResume = await ResumeProfile.findOne(getAccessQuery(context)).lean();
+  const profile = hasResumeProfileFacts(storedResume || {})
+    ? null
+    : await Portfolio.findOne(getAccessQuery(context)).lean();
   collectedFacts.enrichmentStates = storedResume?.workflow?.enrichmentStates || {};
   // The review journey can intentionally own a private resume-facts copy.
   // Build from that canonical copy after the student explicitly saves it;
@@ -2591,6 +2592,10 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     profile || {},
     access?.contact || "",
   );
+  console.info("Resume facts provenance", canonicalResume.factsProvenance || {
+    factsOwner: profile ? "portfolio_legacy" : "resume",
+    fallbackUsed: Boolean(profile),
+  });
   const rawVerifiedResumeFacts = buildGenerationVerifiedFacts({
     canonicalResume,
     storedResume,
@@ -2643,7 +2648,9 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     invalidQuestionKeys: [],
     draftBlockedBy: "",
   };
-  const portfolioUserFacts = buildVerifiedResumeFacts(profile || {}, access?.contact || "");
+  const portfolioUserFacts = profile
+    ? buildVerifiedResumeFacts(profile, access?.contact || "")
+    : {};
   const enrichmentSourceFacts = buildUserSourceEnrichmentFacts(rawVerifiedResumeFacts, portfolioUserFacts);
   console.info("Resume enrichment candidates", buildEnrichmentDiagnostics(enrichmentSourceFacts, collectedFacts));
   const enrichmentQuestions = session.purpose === "create_resume"

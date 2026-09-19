@@ -40,10 +40,12 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   sectionOrder: ["summary", "education", "projects", "skills"],
 });
 
-// Case A: no master exists -> a complete master payload is produced.
+// Case A: no master exists -> a read-only legacy fallback is produced.
 {
   const result = hydrateResumeFromPortfolio(null, mapped);
-  assert.strictEqual(result.changed, true);
+  assert.strictEqual(result.changed, false);
+  assert.deepStrictEqual(result.patch, {});
+  assert.deepStrictEqual(result.resume.factsProvenance, { factsOwner: "portfolio_legacy", fallbackUsed: true });
   assert.strictEqual(result.resume.personalInfo.fullName, "سارة أحمد");
   assert.strictEqual(result.resume.personalInfo.major, "تقنية المعلومات");
   assert.strictEqual(result.resume.personalInfo.degree, "بكالوريوس");
@@ -221,8 +223,8 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.deepStrictEqual(noExperience.experiences, []);
 }
 
-// Noura acceptance: verified Portfolio facts always win over a stale local or
-// legacy ResumeProfile, while the summary remains presentation.
+// ResumeProfile facts win whenever they exist; Portfolio is not merged into a
+// partially populated ResumeProfile.
 {
   const nouraPortfolio = {
     ...portfolio,
@@ -250,17 +252,16 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
     projects: [{ id: verified.projects[0].id, title: "Customer Satisfaction Analysis", description: "" }],
     settings: { language: "ar" },
   }, nouraPortfolio, "noura@example.com");
-  assert.strictEqual(composed.personalInfo.university, "University of Jeddah");
-  assert.strictEqual(composed.personalInfo.city, "Jeddah");
-  assert.strictEqual(composed.personalInfo.studentStatus, "graduate");
-  assert.strictEqual(composed.personalInfo.headline, "Business Administration");
-  assert.ok(!composed.personalInfo.headline.includes("/"));
-  assert.strictEqual(composed.summary, nouraPortfolio.bio);
-  assert.strictEqual(composed.projects[0].description, "Analyzed customer satisfaction feedback.");
+  assert.strictEqual(composed.personalInfo.university, "Imam Mohammad Ibn Saud Islamic University");
+  assert.strictEqual(composed.personalInfo.city, "Riyadh");
+  assert.strictEqual(composed.personalInfo.studentStatus, "student");
+  assert.strictEqual(composed.personalInfo.headline, undefined);
+  assert.strictEqual(composed.summary, "");
+  assert.strictEqual(composed.projects[0].description, "");
+  assert.deepStrictEqual(composed.factsProvenance, { factsOwner: "resume", fallbackUsed: false });
 }
 
-// An old inferred academic track must disappear when Portfolio has no explicit
-// academic track fact; professional context remains separate.
+// Portfolio cannot clear a ResumeProfile-owned academic track.
 {
   const saraPortfolio = {
     ...portfolio,
@@ -274,13 +275,13 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
     personalInfo: { academicTrack: "تطوير الأعمال" },
     settings: { language: "en" },
   }, saraPortfolio, saraPortfolio.email);
-  assert.strictEqual(composed.personalInfo.academicTrack, "");
-  assert.strictEqual(composed.verifiedResumeFacts.professionalContext, saraPortfolio.bio);
-  assert.strictEqual(composed.personalInfo.headline, "طالبة نظم المعلومات الإدارية");
+  assert.strictEqual(composed.personalInfo.academicTrack, "تطوير الأعمال");
+  assert.strictEqual(composed.verifiedResumeFacts.professionalContext, "");
+  assert.strictEqual(composed.personalInfo.headline, undefined);
 }
 
-// Case G: a legacy education item with no year is completed from Portfolio,
-// without replacing any student-entered education date.
+// Case G: any ResumeProfile fact makes it authoritative; Portfolio cannot fill
+// or overwrite a partially populated ResumeProfile.
 {
   const result = hydrateResumeFromPortfolio(
     {
@@ -296,14 +297,13 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
     },
     mapped
   );
-  assert.strictEqual(result.resume.education[0].endDate, "2027");
-  assert.strictEqual(result.resume.education[0].isCurrent, false);
-  assert.strictEqual(result.resume.personalInfo.gpa, "4.5");
-  assert.strictEqual(result.resume.personalInfo.gpaScale, "5");
+  assert.strictEqual(result.resume.education[0].endDate, "");
+  assert.strictEqual(result.resume.education[0].isCurrent, true);
+  assert.strictEqual(result.resume.personalInfo.gpa, "");
+  assert.strictEqual(result.resume.personalInfo.gpaScale, "");
 }
 
-// A Portfolio-derived profile repairs stale identity facts from an older draft.
-// This prevents a new account from inheriting another profile's university/city.
+// Existing ResumeProfile identity always wins over Portfolio.
 {
   const result = hydrateResumeFromPortfolio(
     {
@@ -331,11 +331,11 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
       gpaScale: "5",
     }, "noura@example.com")
   );
-  assert.strictEqual(result.resume.personalInfo.university, "University of Jeddah");
-  assert.strictEqual(result.resume.personalInfo.city, "Jeddah");
-  assert.strictEqual(result.resume.personalInfo.studentStatus, "graduate");
+  assert.strictEqual(result.resume.personalInfo.university, "Imam Mohammad Ibn Saud Islamic University");
+  assert.strictEqual(result.resume.personalInfo.city, "Riyadh");
+  assert.strictEqual(result.resume.personalInfo.studentStatus, "student");
   assert.strictEqual(result.resume.education.length, 1);
-  assert.strictEqual(result.resume.education[0].organization, "University of Jeddah");
+  assert.strictEqual(result.resume.education[0].organization, "Imam Mohammad Ibn Saud Islamic University");
 }
 
 // Case H: without a confirmed year, "current" is only used for a confirmed
@@ -349,13 +349,14 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(noYear.education[0].isCurrent, true);
 }
 
-// Case B: an old, empty master is backfilled.
+// Case B: an old, empty master receives a read-only fallback, never a patch.
 {
   const result = hydrateResumeFromPortfolio({ personalInfo: {}, skills: [], projects: [] }, mapped);
-  assert.strictEqual(result.changed, true);
-  assert.strictEqual(result.patch.personalInfo.university, "جامعة الملك سعود");
-  assert.strictEqual(result.patch.projects[0].title, "دربك");
-  assert.strictEqual(result.patch.certifications[0].organization, "PeopleCert");
+  assert.strictEqual(result.changed, false);
+  assert.deepStrictEqual(result.patch, {});
+  assert.strictEqual(result.resume.personalInfo.university, "جامعة الملك سعود");
+  assert.strictEqual(result.resume.projects[0].title, "دربك");
+  assert.strictEqual(result.resume.certifications[0].organization, "PeopleCert");
 }
 
 // Case C: a student-written summary is never overwritten.
@@ -441,7 +442,7 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.strictEqual(reopened.summary, "نبذة وكيل معتمدة.");
   assert.deepStrictEqual(reopened.experiences[0].achievements.map((item) => item.text), ["نقطة خبرة معتمدة."]);
   assert.deepStrictEqual(reopened.projects[0].achievements.map((item) => item.text), ["نقطة مشروع معتمدة."]);
-  assert.strictEqual(reopened.projects[0].description, "منصة لرحلة التدريب");
+  assert.strictEqual(reopened.projects[0].description, "");
 }
 
 // An English translation must never become the presentation source for the
@@ -468,11 +469,11 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   const reopened = composeCanonicalResume(master, { ...portfolio, _id: "arabic-master-presentation" }, portfolio.email, {
     language: "ar",
   });
-  assert.strictEqual(reopened.summary, portfolio.bio);
-  assert.strictEqual(reopened.experiences[0].description, verified.experiences[0].description);
-  assert.deepStrictEqual(reopened.experiences[0].achievements, verified.experiences[0].achievements);
-  assert.strictEqual(reopened.projects[0].description, verified.projects[0].description);
-  assert.deepStrictEqual(reopened.projects[0].achievements, verified.projects[0].achievements);
+  assert.strictEqual(reopened.summary, "");
+  assert.strictEqual(reopened.experiences[0].description, "");
+  assert.deepStrictEqual(reopened.experiences[0].achievements, []);
+  assert.strictEqual(reopened.projects[0].description, "");
+  assert.deepStrictEqual(reopened.projects[0].achievements, []);
 }
 
 // If no Arabic professional context exists, a legacy English summary still
@@ -559,8 +560,7 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.deepStrictEqual(isolated.projects[0].achievements, []);
 }
 
-// Case F: an invalid legacy numeric phone is repaired from the professional
-// profile without overwriting valid student-entered resume facts.
+// Case F: Portfolio never repairs or overwrites a non-empty ResumeProfile.
 {
   const result = hydrateResumeFromPortfolio(
     {
@@ -575,11 +575,10 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
     mapped
   );
   assert.strictEqual(result.resume.personalInfo.fullName, "اسم عدلته بنفسي");
-  assert.strictEqual(result.resume.personalInfo.phone, "0500000000");
-  assert.strictEqual(typeof result.resume.personalInfo.phone, "string");
-  assert.strictEqual(result.resume.personalInfo.graduationYear, "2027");
-  assert.strictEqual(result.resume.personalInfo.gpa, "4.5");
-  assert.strictEqual(result.resume.personalInfo.gpaScale, "5");
+  assert.strictEqual(result.resume.personalInfo.phone, 0);
+  assert.strictEqual(result.resume.personalInfo.graduationYear, "");
+  assert.strictEqual(result.resume.personalInfo.gpa, "");
+  assert.strictEqual(result.resume.personalInfo.gpaScale, "");
 }
 
 // Resume-review edits become private resume facts after the initial Portfolio

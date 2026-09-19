@@ -4,6 +4,9 @@ const path = require("path");
 const {
   getResumeSourceFacts,
   getResumeFactsWritePayload,
+  getCanonicalResumeExperiences,
+  hasResumeProfileFacts,
+  resolveResumeFactsOwnership,
   getArabicMasterPresentation,
   getEnglishPresentation,
 } = require("../services/resumeArchitecture");
@@ -29,6 +32,33 @@ assert.strictEqual(facts.settings, undefined);
 
 const factsWrite = getResumeFactsWritePayload(mixedResume);
 assert.deepStrictEqual(factsWrite, facts);
+
+// `experiences` is the only canonical write field. The singular field remains
+// accepted only when reading a legacy object.
+const legacyExperience = [{ id: "legacy-exp", title: "Legacy internship" }];
+assert.deepStrictEqual(getCanonicalResumeExperiences({ experience: legacyExperience }), legacyExperience);
+assert.deepStrictEqual(getResumeFactsWritePayload({ experience: legacyExperience }), {
+  experiences: legacyExperience,
+});
+assert.strictEqual(getResumeFactsWritePayload({ experience: legacyExperience }).experience, undefined);
+assert.deepStrictEqual(
+  getCanonicalResumeExperiences({ experiences: [{ id: "canonical" }], experience: legacyExperience }),
+  [{ id: "canonical" }],
+);
+
+const resumeFacts = { personalInfo: { fullName: "طالبة" }, projects: [{ id: "resume-project" }] };
+const portfolioFacts = { _id: "portfolio-legacy", projects: [{ id: "portfolio-project" }] };
+assert.strictEqual(hasResumeProfileFacts(resumeFacts), true);
+assert.deepStrictEqual(resolveResumeFactsOwnership(resumeFacts, portfolioFacts), {
+  factsOwner: "resume",
+  fallbackUsed: false,
+  portfolio: {},
+});
+assert.deepStrictEqual(resolveResumeFactsOwnership({}, portfolioFacts), {
+  factsOwner: "portfolio_legacy",
+  fallbackUsed: true,
+  portfolio: portfolioFacts,
+});
 
 const arabicPresentation = getArabicMasterPresentation(mixedResume);
 assert.strictEqual(arabicPresentation.summary, mixedResume.summary);
@@ -62,5 +92,21 @@ assert.strictEqual(
   1,
 );
 assert(!/ResumeProfile\.(?:findOneAndUpdate|updateOne|create)/.test(englishApprovalRoute));
+
+const enrichmentPersistence = between(
+  "const persistResumeEnrichmentUpdate",
+  "const mergeResumeAgentUsage",
+);
+assert.strictEqual((enrichmentPersistence.match(/await resume\.save\(\)/g) || []).length, 1);
+assert(/legacyPortfolio && structuredAnswers\.length/.test(enrichmentPersistence));
+assert(!/portfolio\.save\s*\(/.test(enrichmentPersistence));
+assert(!/source\.save\s*\(/.test(enrichmentPersistence));
+
+const applicationPackFactsSave = between(
+  "app.put('/api/resume-agent/tailored-versions/:id/application-pack'",
+  "app.delete('/api/resume-agent/tailored-versions/:id'",
+);
+assert(!/Portfolio\.updateOne/.test(applicationPackFactsSave));
+assert(/ResumeProfile\.updateOne/.test(applicationPackFactsSave));
 
 console.log("resume architecture contract tests passed");
