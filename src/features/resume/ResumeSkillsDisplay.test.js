@@ -51,6 +51,30 @@ describe("Skills Intelligence V2 display", () => {
     expect(sourceSkills).toEqual(before);
   });
 
+  it("uses current ResumeProfile membership instead of stale verified skills", () => {
+    const current = {
+      ...staleResume,
+      personalInfo: { ...staleResume.personalInfo, fullName: "ابتسام علي" },
+      skills: ["Data Analysis", "Microsoft Excel"],
+      verifiedResumeFacts: {
+        ...staleResume.verifiedResumeFacts,
+        personalInfo: { ...staleResume.verifiedResumeFacts.personalInfo, fullName: "Ebtisam" },
+        skills: ["Figma", "Microsoft Excel"],
+      },
+    };
+    const display = getLocalizedResumeForDisplay(current);
+    expect(display.personalInfo.fullName).toBe("ابتسام علي");
+    expect(new Set(display.skills)).toEqual(new Set(["Data Analysis", "Microsoft Excel"]));
+    expect(display.skills).not.toContain("Figma");
+  });
+
+  it("keeps all selected skills while deterministically reordering them", () => {
+    const selected = Array.from({ length: 12 }, (_, index) => `Skill ${index + 1}`);
+    const display = getResumeDisplaySkills({ ...staleResume, skills: selected }, selected);
+    expect(display).toHaveLength(selected.length);
+    expect(new Set(display)).toEqual(new Set(selected));
+  });
+
   it("keeps an ambiguous unsplittable value as one normalized item", () => {
     expect(normalizeDisplaySkills(["custom workflow platform"])).toEqual(["custom workflow platform"]);
   });

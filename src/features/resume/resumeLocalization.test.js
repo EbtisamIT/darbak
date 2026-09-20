@@ -770,6 +770,52 @@ describe("English resume presentation", () => {
     expect(localized.personalInfo.headline).toBe("خريجة إدارة أعمال");
   });
 
+  it("resolves only known canonical English titles and identity labels for Arabic display", () => {
+    const localized = getLocalizedResumeForDisplay({
+      personalInfo: {
+        fullName: "ابتسام علي",
+        englishName: "Ebtisam Ali",
+        major: "Information Technology",
+        university: "King Saud University",
+        city: "Riyadh",
+        degree: "Bachelor's Degree",
+        studentStatus: "graduate",
+        grammaticalGender: "feminine",
+      },
+      experience: [{ id: "exp-1", title: "Software Development Intern", organization: "دار الرياض" }],
+      volunteering: [
+        { id: "activity-1", title: "Software Designer and Developer", organization: "نادي ترميز" },
+        { id: "activity-2", title: "Programmer", organization: "نادي إنجاز" },
+        { id: "activity-free", title: "Custom English Role", organization: "نادي آخر" },
+      ],
+      skills: ["Data Analysis"],
+      settings: { language: "ar", direction: "rtl" },
+    });
+    expect(localized.personalInfo).toMatchObject({
+      fullName: "ابتسام علي",
+      major: "تقنية المعلومات",
+      university: "جامعة الملك سعود",
+      city: "الرياض",
+      degree: "بكالوريوس",
+    });
+    expect(localized.experience[0].title).toBe("متدربة تطوير برمجيات");
+    expect(localized.volunteering.map((item) => item.title)).toEqual([
+      "مصممة ومطورة برمجيات",
+      "مبرمجة",
+      "Custom English Role",
+    ]);
+  });
+
+  it("keeps the canonical English role in the English preview", () => {
+    const localized = getLocalizedResumeForDisplay({
+      personalInfo: { fullName: "Ebtisam Ali", major: "Information Technology", studentStatus: "graduate" },
+      experience: [{ id: "exp-1", title: "Software Development Intern", organization: "Dar Al Riyadh" }],
+      skills: ["Data Analysis"],
+      settings: { language: "en", direction: "ltr" },
+    });
+    expect(localized.experience[0].title).toBe("Software Development Intern");
+  });
+
   it("uses the verified Noura facts before preview localization", () => {
     const resume = {
       personalInfo: {

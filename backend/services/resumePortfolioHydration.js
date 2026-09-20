@@ -161,6 +161,13 @@ const getArabicMasterSummary = ({ presentationValue = "", verifiedFacts = {}, pe
   return "";
 };
 
+const getArabicMasterName = (resume = {}) => {
+  const current = cleanText(resume.personalInfo?.fullName, 120);
+  const savedSource = cleanText(resume.rawDraftInput?.basic?.fullName, 120);
+  const verified = cleanText(resume.verifiedResumeFacts?.personalInfo?.fullName, 120);
+  return [current, savedSource, verified].find(hasArabicText) || current || savedSource || verified;
+};
+
 const isInvalidResumePersonalValue = (key = "", value = "") => {
   if (key !== "phone") return false;
   const digits = cleanText(value, 40).replace(/[^0-9٠-٩]/g, "");
@@ -461,8 +468,14 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
       projects: resume.projects || [],
       volunteering: resume.volunteering || [],
     });
+    const language = options.language || resume.settings?.language || "ar";
+    const personalInfo = {
+      ...(resume.personalInfo || {}),
+      ...(language === "ar" ? { fullName: getArabicMasterName(resume) } : {}),
+    };
     const canonical = {
       ...resume,
+      personalInfo,
       experiences,
       experience: experiences,
       factsProvenance: {
@@ -470,7 +483,7 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
         fallbackUsed: ownership.fallbackUsed,
       },
       verifiedResumeFacts: {
-        personalInfo: resume.personalInfo || {},
+        personalInfo,
         education: resume.education || [],
         experiences: normalizedFacts.experiences,
         projects: normalizedFacts.projects,
@@ -482,7 +495,7 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
         professionalContext: "",
       },
     };
-    return (options.language || resume.settings?.language || "ar") === "en"
+    return language === "en"
       ? canonical
       : isolateArabicMasterPresentation(canonical);
   }

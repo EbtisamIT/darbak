@@ -1,4 +1,9 @@
 import { getResumeDisplaySkills } from "./resumeSkillDisplay";
+import {
+  resumeCityOptions,
+  resumeMajorOptions,
+  resumeUniversityOptions,
+} from "../../data/resumeCanonicalOptions";
 
 const arabicPattern = /[\u0600-\u06FF]/;
 
@@ -212,6 +217,92 @@ const englishActivityLabels = {
 const englishOrganizationLabels = {
   "نادي انجاز": "Injaz Club",
   "دربك": "Darbak",
+};
+
+const findArabicCanonicalLabel = (value = "", options = [], toEnglish = () => "") => {
+  const clean = String(value || "").trim();
+  if (!clean || arabicPattern.test(clean)) return clean;
+  return options.find((option) => (
+    String(toEnglish(option) || "").trim().toLocaleLowerCase("en") === clean.toLocaleLowerCase("en")
+  )) || clean;
+};
+
+const arabicDegreeLabels = {
+  "bachelor's": "بكالوريوس",
+  "bachelor's degree": "بكالوريوس",
+  bachelor: "بكالوريوس",
+  diploma: "دبلوم",
+  "master's": "ماجستير",
+  "master's degree": "ماجستير",
+  doctorate: "دكتوراه",
+  phd: "دكتوراه",
+};
+
+const arabicRoleLabels = {
+  "software development intern": { feminine: "متدربة تطوير برمجيات", masculine: "متدرب تطوير برمجيات", neutral: "تدريب تطوير البرمجيات" },
+  "software designer and developer": { feminine: "مصممة ومطورة برمجيات", masculine: "مصمم ومطور برمجيات", neutral: "تصميم وتطوير البرمجيات" },
+  programmer: { feminine: "مبرمجة", masculine: "مبرمج", neutral: "برمجة" },
+};
+
+const getArabicCanonicalRole = (value = "", grammaticalGender = "") => {
+  const clean = String(value || "").trim();
+  if (!clean || arabicPattern.test(clean)) return clean;
+  const labels = arabicRoleLabels[clean.toLocaleLowerCase("en")];
+  return labels?.[grammaticalGender] || labels?.neutral || clean;
+};
+
+const getArabicPersonalDisplay = (sourcePersonal = {}, verifiedPersonal = {}) => {
+  const currentName = String(sourcePersonal.fullName || "").trim();
+  const verifiedName = String(verifiedPersonal.fullName || "").trim();
+  const fullName = [currentName, verifiedName].find((value) => arabicPattern.test(value))
+    || currentName
+    || verifiedName;
+  const major = findArabicCanonicalLabel(
+    sourcePersonal.major || verifiedPersonal.major,
+    resumeMajorOptions,
+    localizedMajor,
+  );
+  const university = findArabicCanonicalLabel(
+    sourcePersonal.university || verifiedPersonal.university,
+    resumeUniversityOptions,
+    localizedUniversity,
+  );
+  const city = findArabicCanonicalLabel(
+    sourcePersonal.city || verifiedPersonal.city,
+    resumeCityOptions,
+    localizedCity,
+  );
+  const degreeSource = String(sourcePersonal.degree || verifiedPersonal.degree || "").trim();
+  const degree = arabicPattern.test(degreeSource)
+    ? degreeSource
+    : arabicDegreeLabels[degreeSource.toLocaleLowerCase("en")] || degreeSource;
+  return {
+    ...verifiedPersonal,
+    ...sourcePersonal,
+    fullName,
+    major,
+    university,
+    city,
+    degree,
+  };
+};
+
+const getArabicEntryDisplay = (entry = {}, section = "", personal = {}) => {
+  const next = { ...entry };
+  if (["experience", "experiences", "volunteering"].includes(section)) {
+    next.title = getArabicCanonicalRole(entry.title, personal.grammaticalGender);
+  }
+  if (section === "education") {
+    const title = String(entry.title || "").trim();
+    const degreeMatch = title.match(/^(Bachelor(?:'s)?(?: Degree)?|Diploma|Master(?:'s)?(?: Degree)?|Doctorate|PhD)(?:\s+in\s+.+)?$/i);
+    if (degreeMatch && personal.degree) {
+      next.title = [personal.degree, personal.major].filter(Boolean).join(" ");
+    }
+    if (localizedUniversity(personal.university) === entry.organization) next.organization = personal.university;
+    if (localizedUniversity(personal.university) === entry.subtitle) next.subtitle = personal.university;
+    if (localizedCity(personal.city) === entry.location) next.location = personal.city;
+  }
+  return next;
 };
 
 const localizedDegree = (value = "") => {
@@ -711,15 +802,34 @@ export const getEnglishReviewItems = (resume = {}) => {
 };
 
 export const getLocalizedResumeForDisplay = (resume = {}) => {
+  const sourcePersonal = { ...(resume.personalInfo || {}) };
+  const sourceSkills = Array.isArray(resume.skills) ? [...resume.skills] : [];
   resume = applyVerifiedResumeFacts(resume);
   if (resume.settings?.language !== "en") {
-    const personal = resume.personalInfo || {};
+    const personal = getArabicPersonalDisplay(
+      sourcePersonal,
+      resume.verifiedResumeFacts?.personalInfo || resume.personalInfo || {},
+    );
     const headline = derivedArabicHeadline(personal);
     const isStatusHeadline = /^(?:طالب(?:ة)?|خريج(?:ة)?|متخصص(?:ة)?|طالب\/ة|خريج\/ة|متخصص\/ة)(?=\s|$)/.test(String(personal.headline || "").trim());
-    const localizedResume = headline && (!personal.headline || isStatusHeadline)
+    let localizedResume = headline && (!personal.headline || isStatusHeadline)
       ? { ...resume, personalInfo: { ...personal, headline } }
-      : resume;
-    return { ...localizedResume, skills: getResumeDisplaySkills(localizedResume) };
+      : { ...resume, personalInfo: personal };
+    const experiences = (localizedResume.experience || localizedResume.experiences || [])
+      .map((entry) => getArabicEntryDisplay(entry, "experience", personal));
+    localizedResume = {
+      ...localizedResume,
+      education: (localizedResume.education || []).map((entry) => getArabicEntryDisplay(entry, "education", personal)),
+      experience: experiences,
+      experiences,
+      volunteering: (localizedResume.volunteering || []).map((entry) => getArabicEntryDisplay(entry, "volunteering", personal)),
+    };
+    return {
+      ...localizedResume,
+      // ResumeProfile.skills is the membership source. verified facts and an
+      // older approved presentation may provide evidence, never membership.
+      skills: getResumeDisplaySkills(localizedResume, sourceSkills),
+    };
   }
   const generated = buildEnglishLocalizedDisplay(resume);
   // Old English versions may contain Arabic presentation values. They remain

@@ -225,10 +225,17 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
 {
   const sourceOwnedBase = {
     personalInfo: {
-      fullName: "Noura Abdullah Alotaibi",
+      fullName: "نورة عبدالله العتيبي",
       major: "Business Administration",
       studentStatus: "student",
     },
+    experiences: [{
+      id: "experience-source-owned",
+      title: "متدربة تطوير برمجيات",
+      organization: "شركة مصدر",
+      startDate: "2025-01",
+      endDate: "2025-04",
+    }],
     projects: [{
       id: "project-source-owned",
       title: "تحليل رضا العملاء",
@@ -236,10 +243,19 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
       userSourceContributions: ["عرضت النتائج في تقرير."],
       technologies: ["Microsoft Excel"],
     }],
+    skills: ["Data Analysis", "Microsoft Excel"],
     settings: { language: "ar" },
   };
   const mapped = mapDraftToResumePayload({
     ...validDraft,
+    experiences: [{
+      sourceId: "experience-source-owned",
+      title: "Software Development Intern",
+      organization: "Source Company",
+      dates: "2025",
+      location: "Riyadh",
+      bullets: ["طورت واجهات النظام."],
+    }],
     projects: [{
       sourceId: "project-source-owned",
       name: "تحليل رضا العملاء",
@@ -247,11 +263,16 @@ assert.deepStrictEqual(editorialDraft.editorialCheck, {
       technologies: ["Microsoft Excel"],
       bullets: ["حلّل بيانات الاستبيان وصنّف أبرز أسباب عدم الرضا."],
     }],
-  }, sourceOwnedBase, { basic: sourceOwnedBase.personalInfo }, "ar");
+    skills: [{ name: "Figma", evidenceSourceId: "stale-draft" }],
+  }, sourceOwnedBase, { basic: { ...sourceOwnedBase.personalInfo, fullName: "Noura Abdullah Alotaibi" } }, "ar");
+  assert.strictEqual(mapped.personalInfo.fullName, "نورة عبدالله العتيبي");
+  assert.strictEqual(mapped.experiences[0].title, "متدربة تطوير برمجيات");
+  assert.strictEqual(mapped.experiences[0].organization, "شركة مصدر");
   assert.strictEqual(mapped.projects[0].description, "صياغة مهنية للمشروع.");
   assert.strictEqual(mapped.projects[0].userSourceDescription, sourceOwnedBase.projects[0].userSourceDescription);
   assert.deepStrictEqual(mapped.projects[0].userSourceContributions, sourceOwnedBase.projects[0].userSourceContributions);
   assert.deepStrictEqual(mapped.projects[0].technologies, sourceOwnedBase.projects[0].technologies);
+  assert.deepStrictEqual(mapped.skills, ["Data Analysis", "Microsoft Excel"]);
 }
 
 {

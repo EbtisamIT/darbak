@@ -930,6 +930,19 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
       if (!source) return entry;
       return {
         ...entry,
+        // The Agent owns presentation wording and bullets, not the identity
+        // fields the student saved in ResumeProfile. In particular, an
+        // English draft title must never become the Arabic source title.
+        title: source.title || entry.title,
+        subtitle: source.subtitle || source.organization || entry.subtitle,
+        organization: source.organization || source.subtitle || entry.organization,
+        entryType: source.entryType || source.experienceType || entry.entryType,
+        period: source.period || entry.period,
+        startDate: source.startDate || entry.startDate,
+        endDate: source.endDate || entry.endDate,
+        isCurrent: Boolean(source.isCurrent),
+        location: source.location || entry.location,
+        url: source.url || entry.url,
         userSourceDescription: source.userSourceDescription || "",
         userSourceContributions: Array.isArray(source.userSourceContributions)
           ? source.userSourceContributions
@@ -943,7 +956,9 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
 
   const personalInfo = {
     ...(baseResume.personalInfo || {}),
-    fullName: personal.fullName || baseResume.personalInfo?.fullName || "",
+    // ResumeProfile is the facts owner. rawInput is a generation snapshot and
+    // may carry a localized/stale name from an older client.
+    fullName: baseResume.personalInfo?.fullName || personal.fullName || "",
     email: personal.email || baseResume.personalInfo?.email || "",
     phone: personal.phone || baseResume.personalInfo?.phone || "",
     city: personal.city || baseResume.personalInfo?.city || "",
@@ -1063,7 +1078,13 @@ const mapDraftToResumePayload = (draft = {}, baseResume = {}, rawInput = {}, lan
     })),
     languages: draft.languages || [],
     links: [],
-    skills: normalizeResumeSkills((draft.skills || []).map((skill) => skill.name).filter(Boolean)),
+    // Draft skills are presentation output. Membership always comes from the
+    // latest ResumeProfile source set, including an intentionally empty set.
+    skills: normalizeResumeSkills(
+      Object.prototype.hasOwnProperty.call(baseResume || {}, "skills")
+        ? baseResume.skills || []
+        : (draft.skills || []).map((skill) => skill.name).filter(Boolean),
+    ),
     settings: {
       language: resumeLanguage,
       direction: resumeLanguage === "en" ? "ltr" : "rtl",
@@ -1125,14 +1146,6 @@ const draftPresentationBullets = (entry = {}) =>
 const approvedDraftNeedsRematerialization = (draft = {}, resume = {}) => {
   const expectedSummary = comparablePresentationText(draft?.professionalSummary);
   if (expectedSummary && expectedSummary !== comparablePresentationText(resume?.summary)) return true;
-
-  const expectedSkills = normalizeResumeSkills(
-    (Array.isArray(draft?.skills) ? draft.skills : [])
-      .map((skill) => typeof skill === "string" ? skill : skill?.name)
-      .filter(Boolean)
-  );
-  const persistedSkills = new Set(normalizeResumeSkills(resume?.skills || []).map((skill) => skill.toLocaleLowerCase()));
-  if (expectedSkills.some((skill) => !persistedSkills.has(skill.toLocaleLowerCase()))) return true;
 
   const resumeSections = {
     experiences: Array.isArray(resume?.experiences) ? resume.experiences : resume?.experience || [],

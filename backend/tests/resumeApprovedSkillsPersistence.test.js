@@ -26,7 +26,7 @@ const draft = {
 assert.strictEqual(approvedDraftNeedsRematerialization(draft, {
   summary: "Approved summary.",
   skills: ["Microsoft Excel"],
-}), true);
+}), false, "an older draft must not rematerialize skills deleted from ResumeProfile");
 assert.strictEqual(approvedDraftNeedsRematerialization(draft, {
   summary: "Approved summary.",
   skills: approvedSkills,

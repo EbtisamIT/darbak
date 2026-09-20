@@ -127,11 +127,19 @@ export const rankResumeSkills = ({ verifiedSkills = [], projects = [], experienc
 
 export const getResumeDisplaySkills = (resume = {}, skills = null) => {
   const facts = resume.verifiedResumeFacts || {};
-  const verifiedSkills = skills || facts.skills || resume.skills || [];
+  const verifiedSkills = Array.isArray(skills)
+    ? skills
+    : Array.isArray(resume.skills)
+      ? resume.skills
+      : facts.skills || [];
+  const sourceCount = normalizeDisplaySkills(verifiedSkills).length;
   return rankResumeSkills({
     verifiedSkills,
     projects: facts.projects || resume.projects || [],
     experiences: facts.experiences || resume.experiences || resume.experience || [],
     personalInfo: facts.personalInfo || resume.personalInfo || {},
+    // Display ranking may reorder the selected set, but it must not silently
+    // remove a newly selected skill from the Master Resume.
+    max: sourceCount,
   });
 };

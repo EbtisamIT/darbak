@@ -609,4 +609,20 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.deepStrictEqual(approvedPresentation.skills, ["React.js", "Power BI"]);
 }
 
+// Arabic reads prefer a saved Arabic source name over a stale English display
+// name retained by an older approved draft. This is read-only recovery.
+{
+  const mixedNameResume = {
+    workflow: { factsOwner: "resume" },
+    personalInfo: { fullName: "Ebtisam", englishName: "Ebtisam Ali", major: "تقنية المعلومات" },
+    rawDraftInput: { basic: { fullName: "ابتسام علي" } },
+    skills: ["Data Analysis"],
+    settings: { language: "ar" },
+  };
+  const canonical = composeCanonicalResume(mixedNameResume, {}, "", { language: "ar" });
+  assert.strictEqual(canonical.personalInfo.fullName, "ابتسام علي");
+  assert.strictEqual(canonical.verifiedResumeFacts.personalInfo.fullName, "ابتسام علي");
+  assert.deepStrictEqual(canonical.skills, ["Data Analysis"]);
+}
+
 console.log("resumePortfolioHydration tests passed");
