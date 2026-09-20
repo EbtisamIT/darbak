@@ -408,8 +408,39 @@ const cloneResumePayload = (resume = {}) => JSON.parse(JSON.stringify(resume || 
 const translationSourceHash = (value = "") =>
   crypto.createHash("sha256").update(String(value || "").trim()).digest("hex").slice(0, 16);
 
-const isCanonicalDarbakBrand = (value = "") =>
-  String(value || "").trim().toLowerCase() === "darbak" || String(value || "").trim() === "دربك";
+const normalizeCanonicalTranslationKey = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[إأآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ");
+
+// These are product-wide canonical labels, not account-specific translations.
+// Keep them outside the model request so a known role or brand can never become
+// an empty localization that blocks the complete English candidate.
+const CANONICAL_ENGLISH_RESUME_VALUES = new Map([
+  ["دربك", "Darbak"],
+  ["متدربه تطوير برمجيات", "Software Development Intern"],
+  ["متدرب تطوير برمجيات", "Software Development Intern"],
+  ["تدريب تطوير البرمجيات", "Software Development Intern"],
+  ["مطوره برمجيات ومصممه", "Software Designer and Developer"],
+  ["مصممه ومطوره برمجيات", "Software Designer and Developer"],
+  ["مصمم برمجيات ومطور", "Software Designer and Developer"],
+  ["مصمم ومطور برمجيات", "Software Designer and Developer"],
+  ["مبرمجه", "Programmer"],
+  ["مبرمج", "Programmer"],
+]);
+
+const getCanonicalEnglishResumeValue = (value = "", target = {}) => {
+  const clean = String(value || "").trim();
+  if (!clean) return "";
+  const normalized = normalizeCanonicalTranslationKey(clean);
+  if (normalized === "دربك") return "Darbak";
+  if (target?.key !== "title") return "";
+  return CANONICAL_ENGLISH_RESUME_VALUES.get(normalized) || "";
+};
 
 const getResumeEntries = (resume = {}, section) => {
   if (section === "experience") {
@@ -422,9 +453,24 @@ const getResumeEntries = (resume = {}, section) => {
 
 const collectResumeTextForTranslation = (resume = {}) => {
   const items = [];
+  const seenKeys = new Set();
   const add = (id, text, target) => {
     const cleanText = typeof text === "string" ? text.trim() : "";
-    if (cleanText && !isCanonicalDarbakBrand(cleanText)) items.push({ id, text: cleanText, target });
+    if (!cleanText || seenKeys.has(id)) return;
+    seenKeys.add(id);
+    const canonicalTarget = getCanonicalEnglishResumeValue(cleanText, target);
+    items.push({
+      id,
+      key: id,
+      itemId: target?.entryId || id,
+      fieldPath: id,
+      text: cleanText,
+      sourceText: cleanText,
+      sourceHash: translationSourceHash(cleanText),
+      translationType: canonicalTarget ? "canonical" : "custom",
+      canonicalTarget,
+      target,
+    });
   };
 
   add("summary", resume.summary, { kind: "root", key: "summary" });
@@ -473,9 +519,12 @@ const collectResumeTextForTranslation = (resume = {}) => {
             key: "organization",
           });
         }
-        ["description"].forEach((key) => {
-          const text = key === "description" ? entry.description || entry.details : entry[key];
-          add(`${section}:${entryId}:${key}`, text, { kind: "entry", section, entryId, key });
+        const description = entry.description || entry.details || "";
+        add(`${section}:${entryId}:description`, description, {
+          kind: "entry",
+          section,
+          entryId,
+          key: "description",
         });
         (Array.isArray(entry?.achievements) ? entry.achievements : []).forEach((achievement, bulletIndex) => {
           const bulletId = achievement?.id || `${bulletIndex}`;
@@ -524,10 +573,10 @@ const readTranslatedItemValue = (resume = {}, item = {}) => {
       || "";
   }
   if (target.kind === "achievement") {
-    return (entry?.achievements || []).find(
+    return resume.localizedDisplay?.achievements?.[`${target.section}:${target.entryId}:${target.bulletId}`]
+      || (entry?.achievements || []).find(
       (candidate, index) => (candidate?.id || `${index}`) === target.bulletId,
     )?.text
-      || resume.localizedDisplay?.achievements?.[`${target.section}:${target.entryId}:${target.bulletId}`]
       || "";
   }
   if (target.kind === "skill") {
@@ -582,18 +631,52 @@ const getResumeTranslationItemReviewLabel = (resume = {}, item = {}) => {
 const buildResumeTranslationUpdatePlan = ({ resume = {}, existingEnglishResume = {} } = {}) => {
   const items = collectResumeTextForTranslation(resume);
   const previousHashes = existingEnglishResume?.localizedDisplay?.sourceHashes || {};
+  const review = existingEnglishResume?.localizedDisplay?.review || {};
   const reusable = [];
   const changed = [];
   const sourceHashes = {};
+  const translationStates = {};
+
+  const reviewKeyForItem = (item) => {
+    const target = item.target || {};
+    if (target.kind === "achievement") {
+      return `achievements:${target.section}:${target.entryId}:${target.bulletId}`;
+    }
+    if (["entry", "localizedEntry"].includes(target.kind)) {
+      return `entries:${target.section}:${target.entryId}:${target.key}`;
+    }
+    return item.id;
+  };
 
   items.forEach((item) => {
-    const sourceHash = translationSourceHash(item.text);
+    const sourceHash = item.sourceHash || translationSourceHash(item.text);
     sourceHashes[item.id] = sourceHash;
+    if (item.translationType === "canonical" && item.canonicalTarget) {
+      translationStates[item.id] = "fresh";
+      reusable.push({ ...item, translatedValue: item.canonicalTarget, resolution: "canonical", translationState: "fresh" });
+      return;
+    }
+    const approvedReview = review[reviewKeyForItem(item)] || {};
+    const approvedValue = String(approvedReview.targetText || "").trim();
+    const approvedForCurrentSource = (approvedReview.status === "approved" || approvedReview.approved === true)
+      && approvedReview.sourceHash === sourceHash
+      && approvedValue
+      && !/[\u0600-\u06FF]/.test(approvedValue);
+    if (approvedForCurrentSource) {
+      translationStates[item.id] = "approved";
+      reusable.push({ ...item, translatedValue: approvedValue, resolution: "user_approved", translationState: "approved" });
+      return;
+    }
     const existingValue = String(readTranslatedItemValue(existingEnglishResume, item) || "").trim();
     if (previousHashes[item.id] === sourceHash && existingValue && !/[\u0600-\u06FF]/.test(existingValue)) {
-      reusable.push({ ...item, translatedValue: existingValue });
+      translationStates[item.id] = "translated_pending_review";
+      reusable.push({ ...item, translatedValue: existingValue, resolution: "stored", translationState: "translated_pending_review" });
     } else {
-      changed.push(item);
+      const translationState = existingValue && !/[\u0600-\u06FF]/.test(existingValue)
+        ? "stale"
+        : "missing_translation";
+      translationStates[item.id] = translationState;
+      changed.push({ ...item, translationState });
     }
   });
 
@@ -609,7 +692,7 @@ const buildResumeTranslationUpdatePlan = ({ resume = {}, existingEnglishResume =
       changedItems: changed,
       reusedItems: reusable,
       sourceHashes,
-      items,
+      items: items.map((item) => ({ ...item, translationState: translationStates[item.id] })),
     };
   }
 
@@ -618,7 +701,7 @@ const buildResumeTranslationUpdatePlan = ({ resume = {}, existingEnglishResume =
     changedItems: changed,
     reusedItems: reusable,
     sourceHashes,
-    items,
+    items: items.map((item) => ({ ...item, translationState: translationStates[item.id] })),
   };
 };
 
@@ -785,13 +868,33 @@ const translateResumeToEnglish = async ({
   translationItems: requestedItems,
   clientOverride = null,
 }) => {
-  const translationItems = Array.isArray(requestedItems)
+  const requestedManifest = Array.isArray(requestedItems)
     ? requestedItems
     : collectResumeTextForTranslation(resume);
-  if (!translationItems.length) {
+  if (!requestedManifest.length) {
     const error = new Error("أضف بعض محتوى السيرة أولًا حتى نجهز النسخة الإنجليزية.");
     error.code = "RESUME_TRANSLATION_EMPTY";
     throw error;
+  }
+  const canonicalItems = requestedManifest.filter(
+    (item) => item.translationType === "canonical" && item.canonicalTarget,
+  );
+  const translationItems = requestedManifest.filter((item) => item.translationType !== "canonical");
+  const canonicalSeed = canonicalItems.length
+    ? applyResumeTranslations(
+        resume,
+        canonicalItems,
+        canonicalItems.map((item) => ({ id: item.id, text: item.canonicalTarget })),
+      ).resume
+    : resume;
+  if (!translationItems.length) {
+    return {
+      data: cloneResumePayload(canonicalSeed),
+      usage: {},
+      translatedCount: canonicalItems.length,
+      repairAttempted: false,
+      canonicalCount: canonicalItems.length,
+    };
   }
   if (translationItems.length > MAX_RESUME_TRANSLATIONS) {
     const error = new Error("تجاوزت دفعة الترجمة الحد المسموح.");
@@ -841,14 +944,28 @@ You translate only the provided resume text snippets into formal, practical, err
       missingItems,
       "darbak_resume_text_translation_en_repair",
     );
-    completeTranslations = validateResumeTranslationCoverage(translationItems, {
-      translations: [
-        ...(initialResult.data?.translations || []).filter((item) => !missingSet.has(item.id)),
-        ...(repairResult.data?.translations || []),
-      ],
-    });
+    const repairedTranslations = [
+      ...(initialResult.data?.translations || []).filter((item) => !missingSet.has(item.id)),
+      ...(repairResult.data?.translations || []),
+    ];
+    try {
+      completeTranslations = validateResumeTranslationCoverage(translationItems, {
+        translations: repairedTranslations,
+      });
+    } catch (repairError) {
+      repairError.unresolvedTranslationItems = translationItems
+        .filter((item) => repairError.translationContractIssues?.missingIds?.includes(item.id))
+        .map((item) => ({
+          fieldKey: item.id,
+          itemId: item.itemId,
+          fieldPath: item.fieldPath,
+          sourceHash: item.sourceHash,
+          state: "missing_translation",
+        }));
+      throw repairError;
+    }
   }
-  const merged = applyResumeTranslations(resume, translationItems, completeTranslations);
+  const merged = applyResumeTranslations(canonicalSeed, translationItems, completeTranslations);
   if (!merged.appliedCount) {
     const error = new Error("لم تكتمل ترجمة النصوص المطلوبة.");
     error.code = "OPENAI_PARSE_EMPTY";
@@ -870,6 +987,7 @@ You translate only the provided resume text snippets into formal, practical, err
     data: merged.resume,
     translatedCount: merged.appliedCount,
     repairAttempted: Boolean(repairResult),
+    canonicalCount: canonicalItems.length,
   };
 };
 
@@ -1258,6 +1376,7 @@ module.exports = {
   buildResumeTranslationUpdatePlan,
   readTranslatedItemValue,
   getResumeTranslationItemReviewLabel,
+  getCanonicalEnglishResumeValue,
   applyResumeTranslations,
   assertTranslationIntegrity,
   assertEnglishSummaryIntegrity,

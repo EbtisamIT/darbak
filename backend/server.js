@@ -75,6 +75,7 @@ const {
   rewriteResumeSection,
   tailorResumeToOpportunity,
   translateResumeToEnglish,
+  collectResumeTextForTranslation,
   buildResumeTranslationUpdatePlan,
   readTranslatedItemValue,
   getResumeTranslationItemReviewLabel,
@@ -10617,6 +10618,10 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
       localizedDisplay: {
         ...recoveredLocalizedDisplay,
         ...existingLocalizedDisplay,
+        // Read-only per-field freshness for the review UI. This prevents an
+        // old English target from being presented as an approvable proposal
+        // after its Arabic source changed.
+        staleFields: sourceUpdatePlan.changedItems.map((item) => item.id),
         personalInfo: {
           ...(recoveredLocalizedDisplay.personalInfo || {}),
           ...existingLocalizedPersonal,
@@ -10682,18 +10687,44 @@ app.patch('/api/resume/english/localizations/:key', requireResumeAccess, async (
     if (!mongoose.Types.ObjectId.isValid(versionId)) {
       return res.status(400).json({ error: "النسخة الإنجليزية غير موجودة." });
     }
-    const version = await ResumeTailoredVersion.findOne({
-      _id: versionId,
-      contact: req.darbakAccess.contact,
-      accessCodeHash: req.darbakAccess.accessCodeHash,
-      status: "approved",
-      variantType: "translation",
-      language: "en",
-    }).lean();
+    const [version, masterResume, portfolio] = await Promise.all([
+      ResumeTailoredVersion.findOne({
+        _id: versionId,
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+        status: "approved",
+        variantType: "translation",
+        language: "en",
+      }).lean(),
+      ResumeProfile.findOne({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      }).lean(),
+      getPortfolioForAccess({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      }),
+    ]);
     if (!version) return res.status(404).json({ error: "النسخة الإنجليزية غير موجودة." });
+
+    const currentArabicPayload = masterResume
+      ? sanitizeResumePayload(composeCanonicalResume(
+          masterResume,
+          portfolio || {},
+          req.darbakAccess.contact,
+          { frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS, language: "ar" },
+        ))
+      : {};
+    const currentManifest = collectResumeTextForTranslation(currentArabicPayload);
+    const currentManifestById = Object.fromEntries(currentManifest.map((item) => [item.id, item]));
+    const currentSourceHashes = Object.fromEntries(
+      currentManifest.map((item) => [item.id, item.sourceHash]),
+    );
 
     const approval = buildEnglishLocalizationApprovalUpdate({
       versionPayload: version.resumePayload || {},
+      currentSourceHashes,
+      currentManifestById,
       groupKey: req.params.key,
       items: req.body?.items,
     });
@@ -11477,6 +11508,12 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       persistedSourceUpdatePlan.changedItems.length ||
       persistedEnglishValidation.needsLocalizationRefresh,
     );
+    const pendingReviewCount = updatePlan.items.filter((item) => (
+      item.translationType === "custom" &&
+      ["experience", "projects", "certifications", "volunteering"].includes(item.target?.section) &&
+      /[\u0600-\u06FF]/.test(String(item.sourceText || item.text || "")) &&
+      item.translationState !== "approved"
+    )).length;
 
     // Translation is a separate resume representation, not a job customization.
     const usage = getResumeUsageSnapshot(req.darbakAccess);
@@ -11498,11 +11535,16 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       fieldsChanged: updatePlan.changedItems.map((item) => item.id),
       fieldsLocalized: updatePlan.changedItems.length,
       fieldsReused: updatePlan.reusedItems.length,
+      fieldsCanonical: updatePlan.reusedItems
+        .filter((item) => item.resolution === "canonical")
+        .map((item) => item.id),
+      fieldsCustomLocalized: updatePlan.changedItems.map((item) => item.id),
+      translationCalls: updatePlan.changedItems.length ? (result.repairAttempted ? 2 : 1) : 0,
       reviewItemsBefore: Object.keys(existingReview).length,
-      reviewItemsAfter: Object.keys(retainedReview).length,
+      reviewItemsAfter: pendingReviewCount,
       reviewItemsInvalidated: Object.keys(existingReview).length - Object.keys(retainedReview).length,
-      reviewItemsRemaining: Object.keys(retainedReview).length,
-      pendingReviewCount: Object.keys(retainedReview).length,
+      reviewItemsRemaining: pendingReviewCount,
+      pendingReviewCount,
       unresolvedRequiredCount: unresolvedFields.length + arabicViolationsAfter.length,
       englishSaveSucceeded: Boolean(version?._id),
       arabicViolationsAfter,
@@ -11556,6 +11598,18 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       incompleteReason: err.incompleteReason || "",
       validationRule: err.validationRule || "",
     });
+    if (
+      err.code === "RESUME_TRANSLATION_RESPONSE_INCOMPLETE" &&
+      Array.isArray(err.unresolvedTranslationItems) &&
+      err.unresolvedTranslationItems.length
+    ) {
+      return res.status(422).json({
+        error: "بقيت قيمة إنجليزية غير مكتملة. أضف ترجمتها يدويًا من مراجعة الترجمات، ولن تتأثر نسختك الإنجليزية الحالية.",
+        code: "english_localization_incomplete",
+        unresolvedFields: err.unresolvedTranslationItems.map((item) => item.fieldKey),
+        unresolvedItems: err.unresolvedTranslationItems,
+      });
+    }
     const response = getResumeAiErrorResponse(err);
     if (
       response.status >= 500 ||

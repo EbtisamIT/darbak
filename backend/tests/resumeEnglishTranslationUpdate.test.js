@@ -19,6 +19,10 @@ const sourceResume = {
 };
 
 const firstPlan = buildResumeTranslationUpdatePlan({ resume: sourceResume });
+firstPlan.items.forEach((item) => {
+  assert.ok(item.key && item.itemId && item.fieldPath && item.sourceText && item.sourceHash);
+  assert.ok(["canonical", "custom"].includes(item.translationType));
+});
 const existingEnglishResume = {
   ...sourceResume,
   summary: "Professional summary.",
@@ -49,6 +53,25 @@ assert.deepStrictEqual(
 );
 assert.strictEqual(changedPlan.resume.summary, "Professional summary.", "unchanged presentation is retained");
 assert.strictEqual(changedPlan.items.length, 3, "the update plan keeps stable source item IDs for review invalidation");
+
+const compatibilityDuplicate = {
+  ...sourceResume,
+  projects: [{
+    ...sourceResume.projects[0],
+    description: sourceResume.projects[0].title,
+  }],
+};
+const duplicatePlan = buildResumeTranslationUpdatePlan({ resume: compatibilityDuplicate });
+assert.strictEqual(
+  duplicatePlan.items.filter((item) => item.id === "projects:project-1:title").length,
+  1,
+  "the title has one stable manifest key",
+);
+assert.strictEqual(
+  duplicatePlan.items.filter((item) => item.id === "projects:project-1:description").length,
+  1,
+  "a separately stored Arabic description keeps its own stable key even when its text matches the title",
+);
 
 const staleEntry = {
   ...existingEnglishResume,

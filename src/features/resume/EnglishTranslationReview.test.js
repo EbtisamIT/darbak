@@ -72,7 +72,7 @@ describe("English translation review state", () => {
     const groups = getEnglishReviewGroups({});
 
     expect(groups).toHaveLength(4);
-    expect(groups.every((group) => group.status === "pending")).toBe(true);
+    expect(groups.every((group) => group.status === "translated_pending_review")).toBe(true);
 
     const afterFirst = applyEnglishReviewGroup({}, groups[0]);
     const afterFirstGroups = getEnglishReviewGroups(afterFirst);
@@ -132,5 +132,32 @@ describe("English translation review state", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "اعتماد" })[0]);
     await waitFor(() => expect(persistenceWrite).toHaveBeenCalledTimes(1));
+  });
+
+  test("a missing translation requires manual English text and never exposes Approve", () => {
+    getEnglishReviewItems.mockReturnValueOnce([{
+      section: "projects",
+      entryId: "missing-project",
+      field: "title",
+      fieldKey: "projects.missing-project.title",
+      value: "مشروع بلا ترجمة",
+      generatedValue: "",
+      localizationState: "missing_translation",
+      label: "اسم المشروع",
+    }]);
+    render(
+      <EnglishTranslationReview
+        resume={{}}
+        onApproveGroup={jest.fn()}
+        onOpenEditor={() => {}}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "اعتماد" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "إضافة ترجمة إنجليزية" }));
+    const saveButton = screen.getByRole("button", { name: "حفظ الترجمة" });
+    expect(saveButton).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Translated Project" } });
+    expect(saveButton).toBeEnabled();
   });
 });

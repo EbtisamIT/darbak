@@ -20,6 +20,8 @@ const getReviewKeyForItem = (item = {}) =>
 
 const buildEnglishLocalizationApprovalUpdate = ({
   versionPayload = {},
+  currentSourceHashes = {},
+  currentManifestById = {},
   groupKey = "",
   items = [],
   now = new Date(),
@@ -35,7 +37,7 @@ const buildEnglishLocalizationApprovalUpdate = ({
     throw error;
   }
 
-  const sourceHashes = versionPayload.localizedDisplay?.sourceHashes || {};
+  const savedSourceHashes = versionPayload.localizedDisplay?.sourceHashes || {};
   const set = {};
   const records = {};
   items.forEach((item) => {
@@ -57,9 +59,22 @@ const buildEnglishLocalizationApprovalUpdate = ({
 
     const translationId = getTranslationIdForReviewItem(item);
     const sourceHash = hashLocalizationSource(sourceText);
-    const expectedHash = sourceHashes[translationId];
+    const manifestItem = currentManifestById[translationId];
+    if (Object.keys(currentManifestById).length && !manifestItem) {
+      const error = new Error("هذا العنصر لم يعد موجودًا في السيرة الحالية.");
+      error.code = "STALE_LOCALIZATION_SOURCE";
+      throw error;
+    }
+    const expectedHash = currentSourceHashes[translationId]
+      || manifestItem?.sourceHash
+      || savedSourceHashes[translationId];
     if (expectedHash && expectedHash !== sourceHash) {
-      const error = new Error("تغير النص العربي لهذا العنصر. حدّث النسخة الإنجليزية أولًا.");
+      const error = new Error("تغير النص العربي لهذا العنصر. افتح المراجعة مرة أخرى ثم احفظ الترجمة الحالية.");
+      error.code = "STALE_LOCALIZATION_SOURCE";
+      throw error;
+    }
+    if (manifestItem && String(manifestItem.sourceText || manifestItem.text || "").trim() !== sourceText) {
+      const error = new Error("تغير النص العربي لهذا العنصر. افتح المراجعة مرة أخرى ثم احفظ الترجمة الحالية.");
       error.code = "STALE_LOCALIZATION_SOURCE";
       throw error;
     }
@@ -73,12 +88,14 @@ const buildEnglishLocalizationApprovalUpdate = ({
       sourceHash: expectedHash || sourceHash,
       targetText,
       status: "approved",
+      translationState: "approved",
       approved: true,
       approvedByUser: true,
       updatedAt: now,
     };
     records[reviewKey] = record;
     set[`resumePayload.localizedDisplay.review.${reviewKey}`] = record;
+    set[`resumePayload.localizedDisplay.sourceHashes.${translationId}`] = expectedHash || sourceHash;
     if (field === "achievement") {
       const achievementId = String(item.achievementId || item.index || "");
       if (!SAFE_ID_PATTERN.test(achievementId)) {

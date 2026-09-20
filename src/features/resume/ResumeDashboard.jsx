@@ -32,7 +32,7 @@ const relativeDate = (value) => {
 
 export const getResumeReviewSummary = (resume = {}) => {
   const groups = getEnglishReviewGroups(resume);
-  const pending = groups.filter((group) => group.status === "pending").length;
+  const pending = groups.filter((group) => group.status !== "approved").length;
   return { total: groups.length, pending, approved: groups.length - pending };
 };
 

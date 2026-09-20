@@ -669,7 +669,7 @@ describe("English resume presentation", () => {
     };
     const changedReviews = getEnglishReviewItems(changedSource);
     expect(changedReviews.some((item) => (
-      item.field === "title" && item.localizationState === "review"
+      item.field === "title" && item.localizationState === "stale"
     ))).toBe(true);
     expect(resume.projects[0].title).toBe("نظام حجز مواعيد");
   });

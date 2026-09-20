@@ -36,7 +36,7 @@ const sourceResume = {
     title: "متدربة",
     organization: "شركة الخدمات الرقمية",
     description: "أعددت تقارير أسبوعية.",
-    achievements: [],
+    achievements: [{ id: "weekly-reports", text: "راجعت التقارير الأسبوعية." }],
   }],
   projects: [{
     id: "project-1",
@@ -78,6 +78,7 @@ const run = async () => {
   );
 
   const requestedItems = collectResumeTextForTranslation(sourceResume);
+  const customItems = requestedItems.filter((item) => item.translationType === "custom");
   const canonicalValues = [
     sourceResume.personalInfo.major,
     sourceResume.personalInfo.university,
@@ -91,9 +92,25 @@ const run = async () => {
   );
   const brandResume = clone(sourceResume);
   brandResume.volunteering[0].organization = "دربك";
+  const brandItem = collectResumeTextForTranslation(brandResume)
+    .find((item) => item.text === "دربك");
+  assert.strictEqual(brandItem.translationType, "canonical");
+  assert.strictEqual(brandItem.canonicalTarget, "Darbak");
+  const canonicalRoleResume = clone(sourceResume);
+  canonicalRoleResume.experience[0].title = "متدربة تطوير برمجيات";
+  const canonicalRolePlan = buildResumeTranslationUpdatePlan({ resume: canonicalRoleResume });
+  const canonicalRoleItem = canonicalRolePlan.items.find(
+    (item) => item.id === "experience:experience-1:title",
+  );
+  assert.strictEqual(canonicalRoleItem.translationType, "canonical");
+  assert.strictEqual(canonicalRoleItem.canonicalTarget, "Software Development Intern");
   assert.ok(
-    collectResumeTextForTranslation(brandResume).every((item) => item.text !== "دربك"),
-    "the Darbak brand bypasses AI translation",
+    !canonicalRolePlan.changedItems.some((item) => item.id === canonicalRoleItem.id),
+    "a stale canonical title is resolved without an AI request",
+  );
+  assert.strictEqual(
+    readTranslatedItemValue(canonicalRolePlan.resume, canonicalRoleItem),
+    "Software Development Intern",
   );
 
   let providerCalls = 0;
@@ -107,7 +124,7 @@ const run = async () => {
           id: "mock-translation-response",
           model: "mock-terra",
           output_parsed: {
-            translations: requestedItems.map((item, index) => ({
+            translations: customItems.map((item, index) => ({
               id: item.id,
               text: item.id === "summary"
                 ? "Management Information Systems student with hands-on data analysis experience."
@@ -128,22 +145,35 @@ const run = async () => {
   assert.strictEqual(providerCalls, 1, "the production translation path makes one provider call");
   assert.ok(!requestInput.includes(sourceResume.personalInfo.major), "canonical major is not sent to AI");
   assert.ok(!requestInput.includes(sourceResume.personalInfo.university), "canonical university is not sent to AI");
+  assert.ok(!requestInput.includes('"text": "دربك"'), "canonical brand is not sent to AI");
   requestedItems.forEach((item) => {
     const value = readTranslatedItemValue(translated.data, item);
     assert.ok(value && !arabicPattern.test(value), `${item.id} has an English display value`);
   });
   assert.deepStrictEqual(sourceResume, original, "English generation never mutates the Arabic master payload");
+  const achievementItem = requestedItems.find((item) => item.target?.kind === "achievement");
+  const recomposedAchievementPayload = clone(sourceResume);
+  recomposedAchievementPayload.localizedDisplay = {
+    achievements: {
+      [`${achievementItem.target.section}:${achievementItem.target.entryId}:${achievementItem.target.bulletId}`]: "Localized professional bullet.",
+    },
+  };
+  assert.strictEqual(
+    readTranslatedItemValue(recomposedAchievementPayload, achievementItem),
+    "Localized professional bullet.",
+    "localized English bullets win over recomposed Arabic source bullets",
+  );
 
   let repairProviderCalls = 0;
   const repairInputs = [];
-  const missingItem = requestedItems[requestedItems.length - 1];
+  const missingItem = customItems[customItems.length - 1];
   const repairClient = {
     responses: {
       parse: async (request) => {
         repairProviderCalls += 1;
         repairInputs.push(request.input);
         const items = repairProviderCalls === 1
-          ? requestedItems.slice(0, -1)
+          ? customItems.slice(0, -1)
           : [missingItem];
         return {
           id: `mock-repair-${repairProviderCalls}`,
@@ -169,7 +199,7 @@ const run = async () => {
   assert.strictEqual(repairProviderCalls, 2, "one missing-ID repair request is allowed");
   assert.strictEqual(repaired.repairAttempted, true);
   assert.ok(repairInputs[1].includes(missingItem.id));
-  requestedItems.filter((item) => item.id !== missingItem.id).forEach((item) => {
+  customItems.filter((item) => item.id !== missingItem.id).forEach((item) => {
     assert.ok(!repairInputs[1].includes(`\"id\": \"${item.id}\"`), "repair requests only unresolved IDs");
   });
   assert.deepStrictEqual(sourceResume, original, "targeted repair still leaves Arabic source untouched");
@@ -188,7 +218,7 @@ const run = async () => {
           id: `mock-exhausted-repair-${exhaustedRepairCalls}`,
           model: "mock-terra",
           output_parsed: {
-            translations: (exhaustedRepairCalls === 1 ? requestedItems.slice(0, -1) : []).map((item) => ({
+            translations: (exhaustedRepairCalls === 1 ? customItems.slice(0, -1) : []).map((item) => ({
               id: item.id,
               text: item.id === "summary"
                 ? "Management Information Systems student with practical data analysis experience."
@@ -206,14 +236,17 @@ const run = async () => {
       userKey: "translation-exhausted-repair-test",
       clientOverride: exhaustedRepairClient,
     }),
-    (error) => error.code === "RESUME_TRANSLATION_RESPONSE_INCOMPLETE",
+    (error) => (
+      error.code === "RESUME_TRANSLATION_RESPONSE_INCOMPLETE" &&
+      error.unresolvedTranslationItems?.[0]?.state === "missing_translation"
+    ),
   );
   assert.strictEqual(exhaustedRepairCalls, 2, "translation stops after exactly one targeted repair");
   assert.deepStrictEqual(sourceResume, original, "failed repair cannot mutate Arabic source");
 
   assert.throws(
-    () => validateResumeTranslationCoverage(requestedItems, {
-      translations: requestedItems.slice(1).map((item) => ({ id: item.id, text: "English" })),
+    () => validateResumeTranslationCoverage(customItems, {
+      translations: customItems.slice(1).map((item) => ({ id: item.id, text: "English" })),
     }),
     (error) => error.code === "RESUME_TRANSLATION_RESPONSE_INCOMPLETE",
   );
@@ -247,6 +280,13 @@ const run = async () => {
   const arabicBeforeApproval = clone(sourceResume);
   const approval = buildEnglishLocalizationApprovalUpdate({
     versionPayload: versionBeforeApproval,
+    currentSourceHashes: { "projects:project-1:title": approvalHash },
+    currentManifestById: {
+      "projects:project-1:title": {
+        sourceText: approvalSource,
+        sourceHash: approvalHash,
+      },
+    },
     groupKey: "groups:projects:project-1",
     items: [{
       section: "projects",
@@ -264,7 +304,57 @@ const run = async () => {
     approval.records["entries:projects:project-1:title"].approvedByUser,
     true,
   );
+  assert.strictEqual(
+    approval.set["resumePayload.localizedDisplay.sourceHashes.projects:project-1:title"],
+    approvalHash,
+    "one approval advances the saved hash to the current Arabic source",
+  );
   assert.deepStrictEqual(sourceResume, arabicBeforeApproval, "approval is isolated from the Arabic Resume payload");
+
+  const changedManualSource = "نظام إدارة المواعيد";
+  const changedManualHash = hashLocalizationSource(changedManualSource);
+  const manualApproval = buildEnglishLocalizationApprovalUpdate({
+    versionPayload: versionBeforeApproval,
+    currentSourceHashes: { "projects:project-1:title": changedManualHash },
+    currentManifestById: {
+      "projects:project-1:title": {
+        sourceText: changedManualSource,
+        sourceHash: changedManualHash,
+      },
+    },
+    groupKey: "groups:projects:project-1",
+    items: [{
+      section: "projects",
+      entryId: "project-1",
+      field: "title",
+      sourceText: changedManualSource,
+      targetText: "Appointment Management System",
+    }],
+  });
+  assert.strictEqual(
+    manualApproval.records["entries:projects:project-1:title"].sourceHash,
+    changedManualHash,
+    "manual input resolves a missing current-source translation instead of comparing with the stale version hash",
+  );
+  assert.throws(
+    () => buildEnglishLocalizationApprovalUpdate({
+      versionPayload: versionBeforeApproval,
+      currentSourceHashes: { "projects:project-1:title": changedManualHash },
+      currentManifestById: {
+        "projects:project-1:title": { sourceText: changedManualSource, sourceHash: changedManualHash },
+      },
+      groupKey: "groups:projects:project-1",
+      items: [{
+        section: "projects",
+        entryId: "project-1",
+        field: "title",
+        sourceText: changedManualSource,
+        targetText: "",
+      }],
+    }),
+    (error) => error.code === "INVALID_LOCALIZATION_TARGET",
+    "an empty missing translation can never be approved",
+  );
 
   const changedSource = clone(sourceResume);
   changedSource.projects[0].description = "حللت بيانات المبيعات وصممت لوحة مؤشرات تفاعلية.";
@@ -276,6 +366,22 @@ const run = async () => {
     changedPlan.changedItems.map((item) => item.id),
     ["projects:project-1:description"],
     "only changed user-specific source text becomes stale",
+  );
+
+  const manuallyLocalizedSource = clone(sourceResume);
+  manuallyLocalizedSource.projects[0].title = changedManualSource;
+  const manualEnglishResume = clone(savedEnglish);
+  manualEnglishResume.localizedDisplay.review = {
+    ...(manualEnglishResume.localizedDisplay.review || {}),
+    "entries:projects:project-1:title": manualApproval.records["entries:projects:project-1:title"],
+  };
+  const manualReusePlan = buildResumeTranslationUpdatePlan({
+    resume: manuallyLocalizedSource,
+    existingEnglishResume: manualEnglishResume,
+  });
+  assert.ok(
+    !manualReusePlan.changedItems.some((item) => item.id === "projects:project-1:title"),
+    "a saved manual current-source translation is reused without another model call",
   );
 
   let failedProviderCalls = 0;

@@ -212,6 +212,19 @@ const englishLanguageLevelLabels = {
 
 const englishActivityLabels = {
   "مبرمجه": "Programmer",
+  "مبرمج": "Programmer",
+};
+
+const englishRoleLabels = {
+  "متدربه تطوير برمجيات": "Software Development Intern",
+  "متدرب تطوير برمجيات": "Software Development Intern",
+  "تدريب تطوير البرمجيات": "Software Development Intern",
+  "مطوره برمجيات ومصممه": "Software Designer and Developer",
+  "مصممه ومطوره برمجيات": "Software Designer and Developer",
+  "مصمم برمجيات ومطور": "Software Designer and Developer",
+  "مصمم ومطور برمجيات": "Software Designer and Developer",
+  "مبرمجه": "Programmer",
+  "مبرمج": "Programmer",
 };
 
 const englishOrganizationLabels = {
@@ -476,6 +489,8 @@ const localizedLanguageLevel = (value = "") => englishLanguageLevelLabels[normal
 
 const localizedActivity = (value = "") => englishActivityLabels[normalizeLookupValue(value)] || "";
 
+const localizedRole = (value = "") => englishRoleLabels[normalizeLookupValue(value)] || "";
+
 const localizedOrganization = (value = "") => englishOrganizationLabels[normalizeLookupValue(value)] || "";
 
 const localizedBrand = (value = "") =>
@@ -542,16 +557,25 @@ const translationIdForReviewKey = (key = "") => {
   return "";
 };
 
-const needsLocalizationReview = (resume, key, source, translated) => {
-  if (!source || !translated || arabicPattern.test(translated)) return false;
+const getLocalizationState = (resume = {}, key, source = "", translated = "") => {
+  const translationId = translationIdForReviewKey(key);
+  const staleFields = new Set(resume.localizedDisplay?.staleFields || []);
   const review = getReviewState(resume, key);
   const approved = review.status === "approved" || review.approved === true;
-  if (!approved) return true;
-  const expectedHash = resume.localizedDisplay?.sourceHashes?.[translationIdForReviewKey(key)];
-  if (expectedHash && review.sourceHash) return expectedHash !== review.sourceHash;
   const recordedSource = review.sourceText || review.source || "";
-  if (recordedSource) return recordedSource !== source;
-  return true;
+  const sameRecordedSource = !recordedSource || recordedSource === source;
+  const expectedHash = resume.localizedDisplay?.sourceHashes?.[translationId];
+  if (expectedHash && review.sourceHash && expectedHash !== review.sourceHash) return "stale";
+  if (approved && sameRecordedSource && !staleFields.has(translationId)) return "approved";
+  if (staleFields.has(translationId) || (recordedSource && recordedSource !== source)) return "stale";
+  if (!translated || arabicPattern.test(translated)) return "missing_translation";
+  if (approved) return "approved";
+  return "translated_pending_review";
+};
+
+const needsLocalizationReview = (resume, key, source, translated) => {
+  if (!source) return false;
+  return getLocalizationState(resume, key, source, translated) !== "approved";
 };
 
 const derivedEnglishHeadline = (personal = {}, display = {}) => {
@@ -717,6 +741,7 @@ export const getEnglishReviewItems = (resume = {}) => {
         const translatedValue = values[field] || (!arabicPattern.test(sourceValue) ? entry[field] || "" : "");
         const isCanonicalValue = Boolean(
           localizedBrand(sourceValue) ||
+          (field === "title" && localizedRole(sourceValue)) ||
           (field === "title" && localizedDegree(sourceValue)) ||
           (field === "organization" && localizedUniversity(sourceValue)) ||
           (field === "organization" && localizedOrganization(sourceValue)) ||
@@ -730,34 +755,48 @@ export const getEnglishReviewItems = (resume = {}) => {
             certifications: "الشهادة",
             volunteering: "النشاط",
           };
-          items.push({ label: field === "title" ? `اسم ${sectionLabels[section]}` : "اسم الجهة", value: sourceValue, section, field, entryId: entry.id, fieldKey: `${section}.${entry.id}.${field}`, localizationState: "missing" });
-        } else if (arabicPattern.test(sourceValue) && !isCanonicalValue && needsLocalizationReview(resume, `entries:${entryKey}:${field}`, sourceValue, translatedValue)) {
+          items.push({ label: field === "title" ? `اسم ${sectionLabels[section]}` : "اسم الجهة", value: sourceValue, section, field, entryId: entry.id, fieldKey: `${section}.${entry.id}.${field}`, localizationState: "missing_translation" });
+        } else if (arabicPattern.test(sourceValue) && !educationOrganizationUsesLocalizedUniversity && !isCanonicalValue && needsLocalizationReview(resume, `entries:${entryKey}:${field}`, sourceValue, translatedValue)) {
+          const localizationState = getLocalizationState(
+            resume,
+            `entries:${entryKey}:${field}`,
+            sourceValue,
+            translatedValue,
+          );
           items.push({
             label: field === "title" ? "ترجمة الاسم" : "ترجمة اسم الجهة",
             value: sourceValue,
-            generatedValue: translatedValue,
+            generatedValue: localizationState === "stale" ? "" : translatedValue,
+            previousValue: localizationState === "stale" ? translatedValue : "",
             section,
             field,
             entryId: entry.id,
             fieldKey: `${section}.${entry.id}.${field}`,
-            localizationState: "review",
+            localizationState,
           });
         }
       });
       const sourceDescription = sourceEntry.description || sourceEntry.details || "";
       const description = values.description || entry.description || entry.details || "";
       if (arabicPattern.test(sourceDescription) && !description) {
-        items.push({ label: "وصف", value: sourceDescription, section, field: "description", entryId: entry.id, fieldKey: `${section}.${entry.id}.description`, localizationState: "missing" });
+        items.push({ label: "وصف", value: sourceDescription, section, field: "description", entryId: entry.id, fieldKey: `${section}.${entry.id}.description`, localizationState: "missing_translation" });
       } else if (arabicPattern.test(sourceDescription) && needsLocalizationReview(resume, `entries:${entryKey}:description`, sourceDescription, description)) {
+        const localizationState = getLocalizationState(
+          resume,
+          `entries:${entryKey}:description`,
+          sourceDescription,
+          description,
+        );
         items.push({
           label: "ترجمة الوصف",
           value: sourceDescription,
-          generatedValue: description,
+          generatedValue: localizationState === "stale" ? "" : description,
+          previousValue: localizationState === "stale" ? description : "",
           section,
           field: "description",
           entryId: entry.id,
           fieldKey: `${section}.${entry.id}.description`,
-          localizationState: "review",
+          localizationState,
         });
       }
       (entry.achievements || []).forEach((achievement, index) => {
@@ -768,19 +807,26 @@ export const getEnglishReviewItems = (resume = {}) => {
         const sourceValue = sourceAchievement?.text || achievement?.text || "";
         const translatedValue = localized.achievements?.[stableAchievementKey(section, entry.id, achievementId)] || achievement?.text || "";
         if (arabicPattern.test(sourceValue) && !translatedValue) {
-          items.push({ label: "نقطة", value: sourceValue, section, field: "achievement", entryId: entry.id, index, achievementId, fieldKey: `${section}.${entry.id}.achievements.${index}`, localizationState: "missing" });
+          items.push({ label: "نقطة", value: sourceValue, section, field: "achievement", entryId: entry.id, index, achievementId, fieldKey: `${section}.${entry.id}.achievements.${index}`, localizationState: "missing_translation" });
         } else if (arabicPattern.test(sourceValue) && needsLocalizationReview(resume, `achievements:${stableAchievementKey(section, entry.id, achievementId)}`, sourceValue, translatedValue)) {
+          const localizationState = getLocalizationState(
+            resume,
+            `achievements:${stableAchievementKey(section, entry.id, achievementId)}`,
+            sourceValue,
+            translatedValue,
+          );
           items.push({
             label: "ترجمة نقطة",
             value: sourceValue,
-            generatedValue: translatedValue,
+            generatedValue: localizationState === "stale" ? "" : translatedValue,
+            previousValue: localizationState === "stale" ? translatedValue : "",
             section,
             field: "achievement",
             entryId: entry.id,
             index,
             achievementId,
             fieldKey: `${section}.${entry.id}.achievements.${index}`,
-            localizationState: "review",
+            localizationState,
           });
         }
       });
@@ -942,6 +988,7 @@ export const buildEnglishLocalizedDisplay = (resume = {}) => {
       const description = entry.description || entry.details || "";
       if (description && !arabicPattern.test(description)) values.description = description;
       if (localizedDegree(entry.title)) values.title = localizedDegree(entry.title);
+      if (localizedRole(entry.title)) values.title = localizedRole(entry.title);
       if (section === "volunteering" && localizedActivity(entry.title)) values.title = localizedActivity(entry.title);
       if (entry.title === "دربك") values.title = "Darbak";
       if (entry.organization === "دربك") values.organization = "Darbak";
