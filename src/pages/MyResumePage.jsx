@@ -25,6 +25,7 @@ import ResumeAgentFlow, { getAgentSessionStorageKey } from "../features/resume/R
 import ResumeBuilder, { SettingsEditor } from "../features/resume/ResumeBuilder";
 import EnglishTranslationReview, {
   applyEnglishReviewGroup,
+  getEnglishReviewGroups,
 } from "../features/resume/EnglishTranslationReview";
 import ResumePdfDocument from "../features/resume/ResumePdfDocument";
 import ResumePreview from "../features/resume/ResumePreview";
@@ -237,7 +238,7 @@ const MyResumePage = () => {
 
   const estimatedPages = useMemo(() => estimateResumePages(resume), [resume]);
   const pendingEnglishReviewCount = useMemo(
-    () => resume.settings?.language === "en" ? getEnglishReviewItems(resume).length : 0,
+    () => resume.settings?.language === "en" ? getEnglishReviewGroups(resume).length : 0,
     [resume],
   );
   const routeOpportunityId =
@@ -634,7 +635,15 @@ const MyResumePage = () => {
       // Do not let a cached dashboard list reintroduce the pre-update stale
       // flag while the student returns from the English editor.
       setTailoredVersions((current) => markEnglishVersionFresh(current, data.version?._id));
-      await loadTailoredVersions({ forceFreshness: true });
+      // The English version is already saved atomically at this point. A
+      // secondary dashboard freshness refresh must not turn that successful
+      // translation into a user-facing translation failure. The version route
+      // will hydrate the saved payload authoritatively.
+      try {
+        await loadTailoredVersions({ forceFreshness: true });
+      } catch (freshnessError) {
+        console.warn("English version saved; freshness refresh deferred:", freshnessError);
+      }
       if (data.version?._id) navigate(`/my-resume/versions/${data.version._id}`);
       setEnglishTranslationReady(true);
       const localizedCount = Number(data.diagnostics?.fieldsLocalized || 0);
