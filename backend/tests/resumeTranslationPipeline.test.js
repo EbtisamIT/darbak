@@ -7,6 +7,7 @@ const {
 const {
   buildResumeTranslationUpdatePlan,
   collectResumeTextForTranslation,
+  getResumeTranslationItemReviewLabel,
   readTranslatedItemValue,
   translateResumeToEnglish,
 } = require("../services/resumeAiService");
@@ -132,6 +133,83 @@ const run = async () => {
     assert.ok(value && !arabicPattern.test(value), `${item.id} has an English display value`);
   });
   assert.deepStrictEqual(sourceResume, original, "English generation never mutates the Arabic master payload");
+
+  let repairProviderCalls = 0;
+  const repairInputs = [];
+  const missingItem = requestedItems[requestedItems.length - 1];
+  const repairClient = {
+    responses: {
+      parse: async (request) => {
+        repairProviderCalls += 1;
+        repairInputs.push(request.input);
+        const items = repairProviderCalls === 1
+          ? requestedItems.slice(0, -1)
+          : [missingItem];
+        return {
+          id: `mock-repair-${repairProviderCalls}`,
+          model: "mock-terra",
+          output_parsed: {
+            translations: items.map((item) => ({
+              id: item.id,
+              text: item.id === "summary"
+                ? "Management Information Systems student with practical data analysis experience."
+                : `Repaired English ${item.id}`,
+            })),
+          },
+          usage: { input_tokens: 5, output_tokens: 5, total_tokens: 10 },
+        };
+      },
+    },
+  };
+  const repaired = await translateResumeToEnglish({
+    resume: sourceResume,
+    userKey: "translation-repair-test",
+    clientOverride: repairClient,
+  });
+  assert.strictEqual(repairProviderCalls, 2, "one missing-ID repair request is allowed");
+  assert.strictEqual(repaired.repairAttempted, true);
+  assert.ok(repairInputs[1].includes(missingItem.id));
+  requestedItems.filter((item) => item.id !== missingItem.id).forEach((item) => {
+    assert.ok(!repairInputs[1].includes(`\"id\": \"${item.id}\"`), "repair requests only unresolved IDs");
+  });
+  assert.deepStrictEqual(sourceResume, original, "targeted repair still leaves Arabic source untouched");
+  assert.match(
+    getResumeTranslationItemReviewLabel(sourceResume, missingItem),
+    /(?:النبذة المهنية|قيمة العرض|المسمى|الجهة|الوصف|نقطة مهنية)/,
+    "an unresolved translation has a user-facing review label",
+  );
+
+  let exhaustedRepairCalls = 0;
+  const exhaustedRepairClient = {
+    responses: {
+      parse: async () => {
+        exhaustedRepairCalls += 1;
+        return {
+          id: `mock-exhausted-repair-${exhaustedRepairCalls}`,
+          model: "mock-terra",
+          output_parsed: {
+            translations: (exhaustedRepairCalls === 1 ? requestedItems.slice(0, -1) : []).map((item) => ({
+              id: item.id,
+              text: item.id === "summary"
+                ? "Management Information Systems student with practical data analysis experience."
+                : `English ${item.id}`,
+            })),
+          },
+          usage: { input_tokens: 5, output_tokens: 5, total_tokens: 10 },
+        };
+      },
+    },
+  };
+  await assert.rejects(
+    () => translateResumeToEnglish({
+      resume: sourceResume,
+      userKey: "translation-exhausted-repair-test",
+      clientOverride: exhaustedRepairClient,
+    }),
+    (error) => error.code === "RESUME_TRANSLATION_RESPONSE_INCOMPLETE",
+  );
+  assert.strictEqual(exhaustedRepairCalls, 2, "translation stops after exactly one targeted repair");
+  assert.deepStrictEqual(sourceResume, original, "failed repair cannot mutate Arabic source");
 
   assert.throws(
     () => validateResumeTranslationCoverage(requestedItems, {

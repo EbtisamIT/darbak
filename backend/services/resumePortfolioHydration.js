@@ -8,6 +8,9 @@ const cleanText = (value = "", maxLength = 900) =>
 const { normalizeResumeSkills } = require("./resumeSkillNormalization");
 const {
   getCanonicalResumeExperiences,
+  getArabicMasterPresentation,
+  getEnglishPresentation,
+  getResumeSourceFacts,
   resolveResumeFactsOwnership,
 } = require("./resumeArchitecture");
 const { normalizeResumeFactCollections } = require("./resumeFactNormalization");
@@ -462,36 +465,54 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
   // Any ResumeProfile facts make that profile authoritative. Portfolio is
   // considered only for an entirely empty legacy profile.
   if (!ownership.fallbackUsed) {
-    const experiences = getCanonicalResumeExperiences(resume);
+    const sourceFacts = getResumeSourceFacts(resume);
+    const language = options.language || resume.settings?.language || "ar";
+    const selectedPresentation = language === "en"
+      ? getEnglishPresentation(resume)
+      : getArabicMasterPresentation(resume);
+    const experiences = getCanonicalResumeExperiences(sourceFacts);
     const normalizedFacts = normalizeResumeFactCollections({
       experiences,
-      projects: resume.projects || [],
-      volunteering: resume.volunteering || [],
+      projects: sourceFacts.projects || [],
+      volunteering: sourceFacts.volunteering || [],
     });
-    const language = options.language || resume.settings?.language || "ar";
     const personalInfo = {
-      ...(resume.personalInfo || {}),
+      ...(sourceFacts.personalInfo || {}),
       ...(language === "ar" ? { fullName: getArabicMasterName(resume) } : {}),
     };
     const canonical = {
       ...resume,
+      ...sourceFacts,
+      ...selectedPresentation,
       personalInfo,
+      education: sourceFacts.education || [],
       experiences,
       experience: experiences,
+      projects: sourceFacts.projects || [],
+      certifications: sourceFacts.certifications || [],
+      volunteering: sourceFacts.volunteering || [],
+      languages: sourceFacts.languages || [],
+      links: sourceFacts.links || [],
+      skills: sourceFacts.skills || [],
+      settings: {
+        ...(selectedPresentation.settings || resume.settings || {}),
+        language: language === "en" ? "en" : "ar",
+        direction: language === "en" ? "ltr" : "rtl",
+      },
       factsProvenance: {
         factsOwner: ownership.factsOwner,
         fallbackUsed: ownership.fallbackUsed,
       },
       verifiedResumeFacts: {
         personalInfo,
-        education: resume.education || [],
+        education: sourceFacts.education || [],
         experiences: normalizedFacts.experiences,
         projects: normalizedFacts.projects,
-        certifications: resume.certifications || [],
+        certifications: sourceFacts.certifications || [],
         volunteering: normalizedFacts.volunteering,
-        languages: resume.languages || [],
-        links: resume.links || [],
-        skills: resume.skills || [],
+        languages: sourceFacts.languages || [],
+        links: sourceFacts.links || [],
+        skills: sourceFacts.skills || [],
         professionalContext: "",
       },
     };
@@ -593,7 +614,7 @@ const composeEnglishResumeVersion = ({
     ...options,
     language: "ar",
   });
-  const english = englishVersionPayload || {};
+  const english = getEnglishPresentation(englishVersionPayload || {});
   const englishEntriesFor = (section) => {
     const entries = section === "experience"
       ? english.experience || english.experiences || []
@@ -636,8 +657,11 @@ const composeEnglishResumeVersion = ({
     projects: mergeEntries("projects", master.projects),
     certifications: mergeEntries("certifications", master.certifications),
     volunteering: mergeEntries("volunteering", master.volunteering),
-    skills: Array.isArray(english.skills) && english.skills.length ? english.skills : master.skills || [],
-    languages: Array.isArray(english.languages) && english.languages.length ? english.languages : master.languages || [],
+    // Membership always follows current source facts. English storage may
+    // localize labels, but it cannot resurrect removed values or drop newly
+    // added ones from ResumeProfile.
+    skills: master.skills || [],
+    languages: master.languages || [],
     sectionOrder: Array.isArray(english.sectionOrder) && english.sectionOrder.length
       ? english.sectionOrder
       : master.sectionOrder,

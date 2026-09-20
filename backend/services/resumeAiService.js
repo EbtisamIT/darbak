@@ -548,6 +548,37 @@ const readTranslatedItemValue = (resume = {}, item = {}) => {
   return "";
 };
 
+const getResumeTranslationItemReviewLabel = (resume = {}, item = {}) => {
+  const target = item?.target || {};
+  if (item?.id === "summary" || (target.kind === "root" && target.key === "summary")) {
+    return "النبذة المهنية";
+  }
+
+  const sectionLabels = {
+    education: "التعليم",
+    experience: "الخبرة",
+    projects: "المشروع",
+    certifications: "الشهادة",
+    volunteering: "النشاط",
+  };
+  const fieldLabels = {
+    title: "المسمى",
+    organization: "الجهة",
+    description: "الوصف",
+  };
+  const section = target.section || "";
+  const entries = getResumeEntries(resume, section);
+  const entry = entries.find((candidate) => candidate?.id === target.entryId) || {};
+  const entryName = String(entry.title || entry.organization || "").trim();
+  const sectionLabel = sectionLabels[section] || "عنصر السيرة";
+  const fieldLabel = target.kind === "achievement"
+    ? "نقطة مهنية"
+    : fieldLabels[target.key] || "قيمة العرض";
+  return entryName
+    ? `${fieldLabel} في ${sectionLabel}: ${entryName}`
+    : `${fieldLabel} في ${sectionLabel}`;
+};
+
 const buildResumeTranslationUpdatePlan = ({ resume = {}, existingEnglishResume = {} } = {}) => {
   const items = collectResumeTextForTranslation(resume);
   const previousHashes = existingEnglishResume?.localizedDisplay?.sourceHashes || {};
@@ -768,23 +799,55 @@ const translateResumeToEnglish = async ({
     throw error;
   }
 
-  const result = await createStructuredResponse({
+  const requestTranslationBatch = (items, schemaName) => createStructuredResponse({
     model:
       process.env.OPENAI_RESUME_AGENT_MODEL ||
       process.env.OPENAI_RESUME_LIGHT_MODEL ||
       DEFAULT_RESUME_MODEL,
     schema: resumeTextTranslationSchema,
-    schemaName: "darbak_resume_text_translation_en",
+    schemaName,
     safetyIdentifier: userKey,
     clientOverride,
-    maxOutputTokens: Math.min(9000, Math.max(1800, translationItems.length * 70)),
+    maxOutputTokens: Math.min(9000, Math.max(1800, items.length * 70)),
     instructions: `${SYSTEM_PROMPT}
 
 You translate only the provided resume text snippets into formal, practical, error-free English suitable for internship applications. Return JSON containing only translations. Keep technical product names and recognized tools such as React, Figma, Java, and Power BI unchanged when appropriate. Do not add facts, skills, achievements, numbers, employers, dates, or links.`,
-    input: `Translate every text item below. Return the same id for each translation and no new ids. This is a JSON translation task.\n\n${safeJsonInput({ items: translationItems.map(({ id, text }) => ({ id, text })) })}`,
+    input: `Translate every text item below. Return the same id for each translation and no new ids. This is a JSON translation task.\n\n${safeJsonInput({ items: items.map(({ id, text }) => ({ id, text })) })}`,
   });
 
-  const completeTranslations = validateResumeTranslationCoverage(translationItems, result.data);
+  const initialResult = await requestTranslationBatch(
+    translationItems,
+    "darbak_resume_text_translation_en",
+  );
+  let completeTranslations;
+  let repairResult = null;
+  try {
+    completeTranslations = validateResumeTranslationCoverage(translationItems, initialResult.data);
+  } catch (error) {
+    const issues = error.translationContractIssues || {};
+    const missingIds = Array.isArray(issues.missingIds) ? issues.missingIds : [];
+    const canRepairMissingOnly = error.code === "RESUME_TRANSLATION_RESPONSE_INCOMPLETE"
+      && missingIds.length > 0
+      && !(issues.duplicateIds || []).length
+      && !(issues.unexpectedIds || []).length;
+    if (!canRepairMissingOnly) throw error;
+
+    const missingSet = new Set(missingIds);
+    const missingItems = translationItems.filter((item) => missingSet.has(item.id));
+    // Exactly one targeted repair is allowed. If it is still incomplete, the
+    // contract validation below fails and the caller keeps the last valid
+    // English version unchanged.
+    repairResult = await requestTranslationBatch(
+      missingItems,
+      "darbak_resume_text_translation_en_repair",
+    );
+    completeTranslations = validateResumeTranslationCoverage(translationItems, {
+      translations: [
+        ...(initialResult.data?.translations || []).filter((item) => !missingSet.has(item.id)),
+        ...(repairResult.data?.translations || []),
+      ],
+    });
+  }
   const merged = applyResumeTranslations(resume, translationItems, completeTranslations);
   if (!merged.appliedCount) {
     const error = new Error("لم تكتمل ترجمة النصوص المطلوبة.");
@@ -794,7 +857,20 @@ You translate only the provided resume text snippets into formal, practical, err
   assertTranslationIntegrity(resume, merged.resume);
   assertEnglishSummaryIntegrity(merged.resume);
 
-  return { ...result, data: merged.resume, translatedCount: merged.appliedCount };
+  const usage = repairResult
+    ? {
+        inputTokens: Number(initialResult.usage?.inputTokens || 0) + Number(repairResult.usage?.inputTokens || 0),
+        outputTokens: Number(initialResult.usage?.outputTokens || 0) + Number(repairResult.usage?.outputTokens || 0),
+        totalTokens: Number(initialResult.usage?.totalTokens || 0) + Number(repairResult.usage?.totalTokens || 0),
+      }
+    : initialResult.usage;
+  return {
+    ...initialResult,
+    usage,
+    data: merged.resume,
+    translatedCount: merged.appliedCount,
+    repairAttempted: Boolean(repairResult),
+  };
 };
 
 const createAchievementItems = (bullets = [], prefix = "ai") =>
@@ -1181,6 +1257,7 @@ module.exports = {
   collectResumeTextForTranslation,
   buildResumeTranslationUpdatePlan,
   readTranslatedItemValue,
+  getResumeTranslationItemReviewLabel,
   applyResumeTranslations,
   assertTranslationIntegrity,
   assertEnglishSummaryIntegrity,

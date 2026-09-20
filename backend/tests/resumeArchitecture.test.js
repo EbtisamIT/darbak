@@ -8,6 +8,7 @@ const {
   hasResumeProfileFacts,
   resolveResumeFactsOwnership,
   getArabicMasterPresentation,
+  getArabicMasterWritePayload,
   getEnglishPresentation,
 } = require("../services/resumeArchitecture");
 
@@ -64,6 +65,45 @@ const arabicPresentation = getArabicMasterPresentation(mixedResume);
 assert.strictEqual(arabicPresentation.summary, mixedResume.summary);
 assert.deepStrictEqual(arabicPresentation.sectionOrder, mixedResume.sectionOrder);
 assert.strictEqual(arabicPresentation.localizedDisplay, undefined);
+assert.strictEqual(arabicPresentation.settings.language, "ar");
+assert.strictEqual(arabicPresentation.settings.direction, "rtl");
+assert.deepStrictEqual(arabicPresentation.projects, [{
+  id: "project-1",
+}]);
+
+const existingMaster = {
+  ...mixedResume,
+  projects: [{
+    id: "project-1",
+    title: "مشروع عربي",
+    organization: "جامعة",
+    userSourceDescription: "حللت البيانات",
+    description: "صياغة عربية قديمة",
+    achievements: [{ id: "bullet-1", text: "حللت البيانات." }],
+  }],
+};
+const arabicWrite = getArabicMasterWritePayload({
+  ...mixedResume,
+  personalInfo: { fullName: "English Name" },
+  skills: ["Stale English Skill"],
+  localizedDisplay: { personalInfo: { fullName: "English Name" } },
+  settings: { language: "en", direction: "ltr", template: "formal" },
+  projects: [{
+    id: "project-1",
+    title: "English Project",
+    organization: "English University",
+    description: "صياغة عربية محدثة",
+    achievements: [{ id: "bullet-1", text: "حللت البيانات وقدمت النتائج." }],
+  }],
+}, existingMaster);
+assert.strictEqual(arabicWrite.personalInfo, undefined, "a presentation save cannot overwrite source identity");
+assert.strictEqual(arabicWrite.skills, undefined, "a presentation save cannot overwrite source skill membership");
+assert.strictEqual(arabicWrite.localizedDisplay, undefined, "English display state cannot enter Arabic storage");
+assert.strictEqual(arabicWrite.settings.language, "ar");
+assert.strictEqual(arabicWrite.settings.direction, "rtl");
+assert.strictEqual(arabicWrite.projects[0].title, "مشروع عربي");
+assert.strictEqual(arabicWrite.projects[0].organization, "جامعة");
+assert.strictEqual(arabicWrite.projects[0].description, "صياغة عربية محدثة");
 
 const englishPresentation = getEnglishPresentation(mixedResume);
 assert.deepStrictEqual(englishPresentation.localizedDisplay, mixedResume.localizedDisplay);
@@ -83,6 +123,13 @@ const masterReadRoute = between(
 assert(!/ResumeProfile\.(?:findOneAndUpdate|updateOne|create)/.test(masterReadRoute));
 assert(!/\.save\s*\(/.test(masterReadRoute));
 
+const masterWriteRoute = between(
+  "app.put('/api/resume/me'",
+  "app.put('/api/resume/me/facts'",
+);
+assert(/getArabicMasterWritePayload/.test(masterWriteRoute));
+assert(!/\.\.\.sanitizeResumePayload\(req\.body/.test(masterWriteRoute));
+
 const englishApprovalRoute = between(
   "app.patch('/api/resume/english/localizations/:key'",
   "app.put('/api/resume-agent/tailored-versions/:id'",
@@ -92,6 +139,33 @@ assert.strictEqual(
   1,
 );
 assert(!/ResumeProfile\.(?:findOneAndUpdate|updateOne|create)/.test(englishApprovalRoute));
+
+const englishReadRoute = between(
+  "app.get('/api/resume-agent/tailored-versions/:id'",
+  "app.patch('/api/resume/english/localizations/:key'",
+);
+assert(!/ResumeProfile\.(?:findOneAndUpdate|updateOne|create)/.test(englishReadRoute));
+assert(!/ResumeTailoredVersion\.(?:findOneAndUpdate|updateOne|create)/.test(englishReadRoute));
+
+const factsWriteRoute = between(
+  "app.put('/api/resume/me/facts'",
+  "app.post('/api/resume/ai/improve-summary'",
+);
+assert.strictEqual(
+  (factsWriteRoute.match(/ResumeProfile\.findOneAndUpdate/g) || []).length,
+  1,
+);
+assert(!/ResumeTailoredVersion\.(?:findOneAndUpdate|updateOne|create)/.test(factsWriteRoute));
+
+const englishUpdateRoute = between(
+  "app.post('/api/resume/ai/translate-en'",
+  "app.post('/api/resume/customize'",
+);
+assert.strictEqual(
+  (englishUpdateRoute.match(/ResumeTailoredVersion\.findOneAndUpdate/g) || []).length,
+  1,
+);
+assert(!/ResumeProfile\.(?:findOneAndUpdate|updateOne|create)/.test(englishUpdateRoute));
 
 const enrichmentPersistence = between(
   "const persistResumeEnrichmentUpdate",
@@ -108,5 +182,16 @@ const applicationPackFactsSave = between(
 );
 assert(!/Portfolio\.updateOne/.test(applicationPackFactsSave));
 assert(/ResumeProfile\.updateOne/.test(applicationPackFactsSave));
+
+const frontendSource = fs.readFileSync(
+  path.join(__dirname, "..", "..", "src", "pages", "MyResumePage.jsx"),
+  "utf8",
+);
+const englishNameSave = frontendSource.slice(
+  frontendSource.indexOf("const submitEnglishNameStep"),
+  frontendSource.indexOf("useEffect(() =>", frontendSource.indexOf("const submitEnglishNameStep")),
+);
+assert(/\/api\/resume\/me\/facts/.test(englishNameSave));
+assert(!/\/api\/resume\/me`/.test(englishNameSave));
 
 console.log("resume architecture contract tests passed");

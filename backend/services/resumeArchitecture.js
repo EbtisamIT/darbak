@@ -10,6 +10,19 @@ const RESUME_SOURCE_FACT_KEYS = Object.freeze([
   "skills",
 ]);
 
+const ARABIC_PRESENTATION_ENTRY_KEYS = Object.freeze([
+  "description",
+  "details",
+  "achievements",
+]);
+
+const ARABIC_PRESENTATION_SETTING_KEYS = Object.freeze([
+  "density",
+  "fontSize",
+  "template",
+  "accentColor",
+]);
+
 const hasOwn = (source = {}, key = "") =>
   Object.prototype.hasOwnProperty.call(source || {}, key);
 
@@ -29,12 +42,44 @@ const pickDefined = (source = {}, keys = []) => Object.fromEntries(
     .map((key) => [key, source[key]]),
 );
 
+const toPlainObject = (value = {}) =>
+  typeof value?.toObject === "function" ? value.toObject() : value;
+
+const getPresentationEntries = (resume = {}, key = "projects") => {
+  const source = toPlainObject(resume);
+  const entries = key === "experiences"
+    ? getCanonicalResumeExperiences(source)
+    : Array.isArray(source?.[key])
+      ? source[key]
+      : [];
+  return entries.map((entry = {}) => ({
+    id: entry.id || entry._id?.toString?.() || "",
+    ...pickDefined(entry, ARABIC_PRESENTATION_ENTRY_KEYS),
+  }));
+};
+
+const mergePresentationEntries = (existing = [], incoming = []) => {
+  const incomingById = new Map(
+    (Array.isArray(incoming) ? incoming : [])
+      .map((entry) => [entry?.id || entry?._id?.toString?.() || "", entry])
+      .filter(([id]) => Boolean(id)),
+  );
+  return (Array.isArray(existing) ? existing : []).map((entry = {}) => {
+    const id = entry.id || entry._id?.toString?.() || "";
+    const next = incomingById.get(id);
+    return next
+      ? { ...entry, ...pickDefined(next, ARABIC_PRESENTATION_ENTRY_KEYS) }
+      : entry;
+  });
+};
+
 // ResumeProfile currently stores facts and approved Arabic presentation in one
 // document. These selectors establish ownership without moving historical data.
 const getResumeSourceFacts = (resume = {}) => {
-  const facts = pickDefined(resume, RESUME_SOURCE_FACT_KEYS);
-  if (hasOwn(resume, "experiences") || hasOwn(resume, "experience")) {
-    facts.experiences = getCanonicalResumeExperiences(resume);
+  const source = toPlainObject(resume);
+  const facts = pickDefined(source, RESUME_SOURCE_FACT_KEYS);
+  if (hasOwn(source, "experiences") || hasOwn(source, "experience")) {
+    facts.experiences = getCanonicalResumeExperiences(source);
   }
   return facts;
 };
@@ -70,19 +115,44 @@ const resolveResumeFactsOwnership = (resume = {}, portfolio = {}) => {
   };
 };
 
-const getArabicMasterPresentation = (resume = {}) => pickDefined(resume, [
-  "summary",
-  "education",
-  "experience",
-  "experiences",
-  "projects",
-  "certifications",
-  "volunteering",
-  "sectionOrder",
-  "hiddenSections",
-  "settings",
-  "summaryProvenance",
-]);
+const getArabicMasterPresentation = (resume = {}) => {
+  const source = toPlainObject(resume);
+  return {
+    ...pickDefined(source, [
+      "summary",
+      "sectionOrder",
+      "hiddenSections",
+      "summaryProvenance",
+    ]),
+    experiences: getPresentationEntries(source, "experiences"),
+    projects: getPresentationEntries(source, "projects"),
+    volunteering: getPresentationEntries(source, "volunteering"),
+    settings: {
+      ...pickDefined(source.settings || {}, ARABIC_PRESENTATION_SETTING_KEYS),
+      language: "ar",
+      direction: "rtl",
+    },
+  };
+};
+
+// ResumeProfile remains compatibility storage for the approved Arabic
+// presentation. This whitelist is the only payload the generic Master editor
+// may persist: source facts and English localization state cannot cross it.
+const getArabicMasterWritePayload = (incoming = {}, existing = {}) => {
+  const next = getArabicMasterPresentation(incoming);
+  const current = toPlainObject(existing);
+  const experiences = mergePresentationEntries(
+    getCanonicalResumeExperiences(current),
+    getCanonicalResumeExperiences(incoming),
+  );
+  return {
+    ...pickDefined(next, ["summary", "sectionOrder", "hiddenSections", "summaryProvenance"]),
+    experiences,
+    projects: mergePresentationEntries(current.projects, incoming.projects),
+    volunteering: mergePresentationEntries(current.volunteering, incoming.volunteering),
+    settings: next.settings,
+  };
+};
 
 const getEnglishPresentation = (versionPayload = {}) => pickDefined(versionPayload, [
   "summary",
@@ -107,5 +177,6 @@ module.exports = {
   hasResumeProfileFacts,
   resolveResumeFactsOwnership,
   getArabicMasterPresentation,
+  getArabicMasterWritePayload,
   getEnglishPresentation,
 };

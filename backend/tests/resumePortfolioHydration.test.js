@@ -84,7 +84,7 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
     certifications: [{ id: "certification-1", title: "شهادة مهنية" }],
     volunteering: [{ id: "activity-1", title: "نادي تقنية المعلومات" }],
     languages: [{ id: "language-1", name: "العربية", level: "اللغة الأم" }],
-    skills: ["تحليل البيانات"],
+    skills: ["تحليل البيانات", "Power BI"],
     settings: { language: "ar", direction: "rtl" },
   };
   const englishVersion = {
@@ -105,6 +105,9 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
         "experience:experience-1:experience-bullet-1": "Prepared weekly reports.",
       },
     },
+    // Historical English payloads may have a stale source set. The preview
+    // may localize current skills, but membership always comes from Master.
+    skills: ["Stale Removed Skill"],
     settings: { language: "en", direction: "ltr" },
   };
   const masterBefore = JSON.parse(JSON.stringify(master));
@@ -123,6 +126,7 @@ const mapped = mapPortfolioToResumePayload(portfolio, portfolio.email, {
   assert.deepStrictEqual(composed.certifications.map((item) => item.id), ["certification-1"]);
   assert.deepStrictEqual(composed.volunteering.map((item) => item.id), ["activity-1"]);
   assert.strictEqual(composed.projects[0].description, "Built a digital platform prototype.");
+  assert.deepStrictEqual(composed.skills, master.skills);
   assert.deepStrictEqual(composedThroughCanonicalPreview, composed);
   assert.deepStrictEqual(master, masterBefore, "English hydration is read-only for ResumeProfile data");
 }

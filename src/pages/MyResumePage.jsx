@@ -538,12 +538,12 @@ const MyResumePage = () => {
           // Never use the open English ResumeTailoredVersion as a fallback for
           // a master write. This path only persists the official English name.
           const master = await loadFreshMasterResume();
-          const masterPayload = prepareResumeForSave({
+          const masterPayload = prepareResumeFactsForSave({
             ...master,
             personalInfo: { ...master.personalInfo, englishName },
           });
-          const { data } = await axios.put(`${API_BASE_URL}/api/resume/me`, masterPayload, {
-            headers: getAccessHeaders({ itemKey: "resume:me" }),
+          const { data } = await axios.put(`${API_BASE_URL}/api/resume/me/facts`, masterPayload, {
+            headers: getAccessHeaders({ itemKey: "resume:facts" }),
           });
           const savedMaster = normalizeResume(data.resume || masterPayload);
           setLastServerResume(savedMaster);
@@ -657,7 +657,15 @@ const MyResumePage = () => {
       const waitCopy = retryAfterSeconds
         ? ` يمكنك المحاولة بعد ${Math.ceil(retryAfterSeconds / 60)} دقيقة تقريبًا.`
         : "";
-      setError(`${err.response?.data?.error || "تعذر ترجمة السيرة الآن."}${waitCopy}`);
+      const unresolvedLabels = (Array.isArray(err.response?.data?.unresolvedItems)
+        ? err.response.data.unresolvedItems
+        : [])
+        .map((item) => String(item?.label || "").trim())
+        .filter(Boolean);
+      const unresolvedCopy = unresolvedLabels.length
+        ? ` العنصر الذي يحتاج مراجعة: ${unresolvedLabels.join("، ")}.`
+        : "";
+      setError(`${err.response?.data?.error || "تعذر ترجمة السيرة الآن."}${unresolvedCopy}${waitCopy}`);
     } finally {
       setTranslating(false);
     }
@@ -707,12 +715,12 @@ const MyResumePage = () => {
     if (englishName.split(" ").filter(Boolean).length < 2) return setEnglishNameError("اكتب الاسم من كلمتين على الأقل.");
     try {
       const master = await loadFreshMasterResume();
-      const payload = prepareResumeForSave({
+      const payload = prepareResumeFactsForSave({
         ...master,
         personalInfo: { ...master.personalInfo, englishName },
       });
-      const { data } = await axios.put(`${API_BASE_URL}/api/resume/me`, payload, {
-        headers: getAccessHeaders({ itemKey: "resume:me" }),
+      const { data } = await axios.put(`${API_BASE_URL}/api/resume/me/facts`, payload, {
+        headers: getAccessHeaders({ itemKey: "resume:facts" }),
       });
       const savedMaster = normalizeResume(data.resume || payload);
       setLastServerResume(savedMaster);

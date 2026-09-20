@@ -77,6 +77,7 @@ const {
   translateResumeToEnglish,
   buildResumeTranslationUpdatePlan,
   readTranslatedItemValue,
+  getResumeTranslationItemReviewLabel,
   tailoredResumeDraftSchema,
 } = require("./services/resumeAiService");
 const {
@@ -96,6 +97,7 @@ const {
   hydrateResumeFromPortfolio,
 } = require("./services/resumePortfolioHydration");
 const {
+  getArabicMasterWritePayload,
   getCanonicalResumeExperiences,
   getResumeFactsWritePayload,
   hasResumeProfileFacts,
@@ -9373,15 +9375,14 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
   try {
     const { contact, accessCodeHash, user } = req.darbakAccess;
     const portfolio = await Portfolio.findOne({ contact, accessCodeHash }).lean();
-    const existingResume = await ResumeProfile.findOne({ contact, accessCodeHash })
-      .select("summary summaryProvenance experiences experience projects volunteering")
-      .lean();
+    const existingResume = await ResumeProfile.findOne({ contact, accessCodeHash }).lean();
     const incomingPayload = sanitizeResumePayload(composeCanonicalResume(sanitizeResumePayload(req.body), portfolio || {}, contact, {
       frontendUrl: getFrontendUrl(),
       sectionOrder: RESUME_SECTION_KEYS,
       language: "ar",
     }));
-    const payload = sanitizeResumePayload(isolateArabicMasterPresentation(incomingPayload, existingResume || {}));
+    const isolatedPresentation = isolateArabicMasterPresentation(incomingPayload, existingResume || {});
+    const payload = getArabicMasterWritePayload(isolatedPresentation, existingResume || {});
     // A master resume is never converted by a translation action. English lives
     // exclusively in ResumeTailoredVersion with variantType: translation.
     payload.settings = { ...payload.settings, language: "ar", direction: "rtl" };
@@ -10095,8 +10096,12 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
               req.darbakAccess,
               req.body?.language || pendingDraft.draft?.settings?.language || "ar"
             );
+            const presentationPayload = getArabicMasterWritePayload(
+              payload,
+              approvedResume.toObject(),
+            );
             Object.assign(approvedResume, {
-              ...payload,
+              ...presentationPayload,
               aiDraft: pendingDraft.draft,
               rawDraftInput: pendingDraft.sourceMap || {},
               aiDraftStatus: "approved",
@@ -10308,11 +10313,23 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
       }
     }
 
-    const latestPortfolio = await getPortfolioForAccess({
-      contact: req.darbakAccess.contact,
-      accessCodeHash: req.darbakAccess.accessCodeHash,
-    });
-    const latestVerifiedResume = composeCanonicalResume(payload, latestPortfolio || {}, req.darbakAccess.contact, {
+    const [latestPortfolio, existingMaster] = await Promise.all([
+      getPortfolioForAccess({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      }),
+      ResumeProfile.findOne({
+        contact: req.darbakAccess.contact,
+        accessCodeHash: req.darbakAccess.accessCodeHash,
+      }).lean(),
+    ]);
+    const masterPresentationPayload = existingMaster
+      ? getArabicMasterWritePayload(payload, existingMaster)
+      : payload;
+    const nextMaster = existingMaster
+      ? { ...existingMaster, ...masterPresentationPayload }
+      : payload;
+    const latestVerifiedResume = composeCanonicalResume(nextMaster, latestPortfolio || {}, req.darbakAccess.contact, {
       frontendUrl: getFrontendUrl(),
       sectionOrder: RESUME_SECTION_KEYS,
     });
@@ -10331,7 +10348,7 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
           contact: req.darbakAccess.contact,
           accessCodeHash: req.darbakAccess.accessCodeHash,
           userId: req.darbakAccess.user?._id,
-          ...payload,
+          ...masterPresentationPayload,
           aiDraft: pendingDraft.draft,
           rawDraftInput: pendingDraft.sourceMap || {},
           aiDraftStatus: "approved",
@@ -10339,7 +10356,7 @@ app.post('/api/resume-agent/approve/:pendingDraftId', requireResumeAccess, async
           aiDraftUsage: {
             ...(pendingDraft.validationResult || {}),
           },
-          summaryProvenance: payload.summaryProvenance || {},
+          summaryProvenance: masterPresentationPayload.summaryProvenance || {},
           workflow: payload.workflow,
         },
       },
@@ -10980,6 +10997,9 @@ app.post('/api/resume/ai/approve-draft', requireResumeAccess, async (req, res) =
     });
     payload.skills = canonical.skills || payload.skills;
     payload.workflow = buildLastBuiltFactsWorkflow(currentResume?.workflow || payload.workflow || {}, canonical.verifiedResumeFacts || {});
+    const masterPresentationPayload = currentResume
+      ? getArabicMasterWritePayload(payload, currentResume)
+      : payload;
 
     const resume = await ResumeProfile.findOneAndUpdate(
       { contact, accessCodeHash },
@@ -10988,7 +11008,7 @@ app.post('/api/resume/ai/approve-draft', requireResumeAccess, async (req, res) =
           contact,
           accessCodeHash,
           userId: user?._id,
-          ...payload,
+          ...masterPresentationPayload,
           aiDraft: parsedDraft,
           rawDraftInput: rawInput,
           aiDraftStatus: "approved",
@@ -11246,10 +11266,14 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
         direction: "ltr",
       },
     });
-    const translatedPayload = sanitizeResumePayload(composeCanonicalResume(translatedPresentation, portfolio || {}, req.darbakAccess.contact, {
-      frontendUrl: getFrontendUrl(),
-      sectionOrder: RESUME_SECTION_KEYS,
+    const translatedPayload = sanitizeResumePayload(composeResumePreview({
       language: "en",
+      localizedVersion: true,
+      masterResume: basePayload,
+      englishVersionPayload: translatedPresentation,
+      portfolio: portfolio || {},
+      contact: req.darbakAccess.contact,
+      options: { frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS },
     }));
     const generatedLocalizedDisplay = buildEnglishLocalizedDisplay(translatedPayload, translatedPresentation);
     const savedLocalizedDisplay = translatedPresentation.localizedDisplay || {};
@@ -11379,6 +11403,13 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
     const englishReadValidation = getEnglishVersionReadValidation(translatedPayload);
     const arabicViolationsAfter = englishReadValidation.arabicViolations || [];
     if (unresolvedFields.length || arabicViolationsAfter.length) {
+      const unresolvedSet = new Set(unresolvedFields);
+      const unresolvedItems = updatePlan.items
+        .filter((item) => unresolvedSet.has(item.id))
+        .map((item) => ({
+          fieldKey: item.id,
+          label: getResumeTranslationItemReviewLabel(basePayload, item),
+        }));
       console.warn("Resume English localization incomplete:", {
         unresolvedFieldKeys: [...new Set([...unresolvedFields, ...arabicViolationsAfter])],
         requestedFieldCount: updatePlan.changedItems.length,
@@ -11388,6 +11419,7 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
         error: "تعذر إكمال تحديث النسخة الإنجليزية لأن بعض القيم لم تُترجم بعد.",
         code: "english_localization_incomplete",
         unresolvedFields: [...new Set([...unresolvedFields, ...arabicViolationsAfter])],
+        unresolvedItems,
       });
     }
     const version = await ResumeTailoredVersion.findOneAndUpdate(
