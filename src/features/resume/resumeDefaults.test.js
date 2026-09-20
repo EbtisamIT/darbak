@@ -78,4 +78,21 @@ describe("tailored resume reload", () => {
     expect(payload).not.toHaveProperty("settings");
     expect(payload).not.toHaveProperty("sectionOrder");
   });
+
+  it("normalizes legacy form narratives before preview and facts save", () => {
+    const resume = normalizeResume({
+      experience: [{ id: "exp-1", title: "Software Development Intern", tasks: ["اختبرت خصائص النظام."] }],
+      volunteering: [{ id: "activity-1", title: "Programmer", description: "برمجت منصة لإدارة الجداول الجامعية." }],
+      projects: [{ id: "project-1", title: "نظام حجز", contribution: "صممت وطورت نموذج الحجز." }],
+    });
+
+    expect(resume.experience[0].userSourceContributions).toEqual(["اختبرت خصائص النظام."]);
+    expect(resume.volunteering[0].userSourceContributions).toEqual(["برمجت منصة لإدارة الجداول الجامعية."]);
+    expect(resume.projects[0].userSourceContributions).toEqual(["صممت وطورت نموذج الحجز."]);
+
+    const saved = prepareResumeFactsForSave(resume);
+    expect(saved.experiences[0].userSourceContributions).toEqual(["اختبرت خصائص النظام."]);
+    expect(saved.volunteering[0].userSourceContributions).toEqual(["برمجت منصة لإدارة الجداول الجامعية."]);
+    expect(saved.projects[0].userSourceContributions).toEqual(["صممت وطورت نموذج الحجز."]);
+  });
 });

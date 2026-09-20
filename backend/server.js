@@ -114,6 +114,11 @@ const {
 } = require("./services/resumeLocalizationApproval");
 const { getResumeFactsFreshness } = require("./services/resumeFactsFreshness");
 const {
+  normalizeActivityFacts,
+  normalizeExperienceFacts,
+  normalizeProjectFacts,
+} = require("./services/resumeFactNormalization");
+const {
   applyActivityDescriptionAnswer,
   applyExperienceDescriptionAnswer,
   applyProjectDescriptionAnswer,
@@ -7641,41 +7646,49 @@ const sanitizeResumeAchievements = (achievements = [], fallback = "") => {
   return cleanItems;
 };
 
-const sanitizeResumeEntry = (entry = {}) => {
-  const details = sanitizeResumeText(entry.details || entry.description, 900);
-  const userSourceDescription = sanitizeResumeText(entry.userSourceDescription, 900);
-  const userSourceContributions = (Array.isArray(entry.userSourceContributions) ? entry.userSourceContributions : [])
+const sanitizeResumeEntry = (entry = {}, itemType = "entry") => {
+  const normalize = itemType === "experience"
+    ? normalizeExperienceFacts
+    : itemType === "project"
+      ? normalizeProjectFacts
+      : itemType === "activity"
+        ? normalizeActivityFacts
+        : (value) => value;
+  const normalizedEntry = normalize(entry);
+  const details = sanitizeResumeText(normalizedEntry.details || normalizedEntry.description, 900);
+  const userSourceDescription = sanitizeResumeText(normalizedEntry.userSourceDescription, 900);
+  const userSourceContributions = (Array.isArray(normalizedEntry.userSourceContributions) ? normalizedEntry.userSourceContributions : [])
     .map((item) => sanitizeResumeText(item?.text || item, 700))
     .filter(Boolean)
     .slice(0, 8);
   return {
-    id: sanitizeResumeId(entry.id) || `entry-${Date.now().toString(36)}`,
-    title: sanitizePortfolioText(entry.title, 140),
-    entryType: sanitizePortfolioText(entry.entryType || entry.experienceType, 40),
-    subtitle: sanitizePortfolioText(entry.subtitle, 180),
-    organization: sanitizePortfolioText(entry.organization || entry.subtitle, 160),
-    period: sanitizePortfolioText(entry.period, 90),
-    startDate: sanitizePortfolioText(entry.startDate, 40),
-    endDate: sanitizePortfolioText(entry.endDate, 40),
-    isCurrent: Boolean(entry.isCurrent),
-    location: sanitizePortfolioText(entry.location, 90),
-    url: sanitizePortfolioUrl(entry.url, 260),
+    id: sanitizeResumeId(normalizedEntry.id) || `entry-${Date.now().toString(36)}`,
+    title: sanitizePortfolioText(normalizedEntry.title, 140),
+    entryType: sanitizePortfolioText(normalizedEntry.entryType || normalizedEntry.experienceType, 40),
+    subtitle: sanitizePortfolioText(normalizedEntry.subtitle, 180),
+    organization: sanitizePortfolioText(normalizedEntry.organization || normalizedEntry.subtitle, 160),
+    period: sanitizePortfolioText(normalizedEntry.period, 90),
+    startDate: sanitizePortfolioText(normalizedEntry.startDate, 40),
+    endDate: sanitizePortfolioText(normalizedEntry.endDate, 40),
+    isCurrent: Boolean(normalizedEntry.isCurrent),
+    location: sanitizePortfolioText(normalizedEntry.location, 90),
+    url: sanitizePortfolioUrl(normalizedEntry.url, 260),
     description: details,
     details,
     userSourceDescription,
     userSourceContributions,
-    technologies: (Array.isArray(entry.technologies) ? entry.technologies : [])
+    technologies: (Array.isArray(normalizedEntry.technologies) ? normalizedEntry.technologies : [])
       .map((item) => sanitizePortfolioText(item, 100))
       .filter(Boolean)
       .slice(0, 16),
-    achievements: sanitizeResumeAchievements(entry.achievements, details),
+    achievements: sanitizeResumeAchievements(normalizedEntry.achievements, details),
   };
 };
 
-const sanitizeResumeEntries = (entries = [], maxItems = 8) =>
+const sanitizeResumeEntries = (entries = [], maxItems = 8, itemType = "entry") =>
   (Array.isArray(entries) ? entries : [])
     .slice(0, maxItems)
-    .map(sanitizeResumeEntry)
+    .map((entry) => sanitizeResumeEntry(entry, itemType))
     .filter(
       (entry) =>
         entry.title ||
@@ -7767,10 +7780,10 @@ const sanitizeResumePayload = (body = {}) => {
     },
     summary: sanitizeResumeText(body.summary, 900),
     education: sanitizeResumeEntries(body.education, 6),
-    experiences: sanitizeResumeEntries(experienceEntries, 8),
-    projects: sanitizeResumeEntries(body.projects, 8),
+    experiences: sanitizeResumeEntries(experienceEntries, 8, "experience"),
+    projects: sanitizeResumeEntries(body.projects, 8, "project"),
     certifications: sanitizeResumeEntries(body.certifications, 10),
-    volunteering: sanitizeResumeEntries(body.volunteering, 8),
+    volunteering: sanitizeResumeEntries(body.volunteering, 8, "activity"),
     languages: sanitizeResumeLanguages(body.languages),
     links: sanitizeResumeLinks(body.links),
     skills: normalizeResumeSkills(

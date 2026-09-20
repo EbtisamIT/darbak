@@ -28,6 +28,10 @@ const {
 } = require("../services/resumeAgentAnswerLifecycle");
 const { getResumeFactsFreshness } = require("../services/resumeFactsFreshness");
 const { hasResumeProfileFacts } = require("../services/resumeArchitecture");
+const {
+  getNormalizationDiagnostics,
+  normalizeResumeFactCollections,
+} = require("../services/resumeFactNormalization");
 
 setSensitiveDataLoggingEnabled(false);
 
@@ -487,7 +491,7 @@ const logMissingInformationDecision = ({ access = {}, trace = {}, enrichmentCand
 const buildGenerationVerifiedFacts = ({ canonicalResume = {}, storedResume = {}, portfolio = {}, contact = "" } = {}) => {
   if (canonicalResume.verifiedResumeFacts) return canonicalResume.verifiedResumeFacts;
   if (storedResume?._id) {
-    return {
+    return normalizeResumeFactCollections({
       personalInfo: storedResume.personalInfo || {},
       education: storedResume.education || [],
       experiences: storedResume.experiences || storedResume.experience || [],
@@ -498,7 +502,7 @@ const buildGenerationVerifiedFacts = ({ canonicalResume = {}, storedResume = {},
       links: storedResume.links || [],
       skills: storedResume.skills || [],
       professionalContext: "",
-    };
+    });
   }
   return buildVerifiedResumeFacts(portfolio, contact);
 };
@@ -2602,6 +2606,11 @@ const runDarbakResumeAgent = async ({ access, session, answers = [] }) => {
     portfolio: profile || {},
     contact: access?.contact || "",
   });
+  console.info("Resume fact normalization", [
+    ...(rawVerifiedResumeFacts.experiences || []).map((item) => getNormalizationDiagnostics(item, "experience")),
+    ...(rawVerifiedResumeFacts.projects || []).map((item) => getNormalizationDiagnostics(item, "project")),
+    ...(rawVerifiedResumeFacts.volunteering || []).map((item) => getNormalizationDiagnostics(item, "activity")),
+  ]);
   const verifiedResumeFacts = compactVerifiedResumeFacts(
     rawVerifiedResumeFacts,
     collectedFacts.answers

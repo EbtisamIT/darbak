@@ -1,3 +1,5 @@
+import { normalizeFactsForSection } from "./resumeFactNormalization";
+
 export const RESUME_SECTION_KEYS = [
   "summary",
   "education",
@@ -199,30 +201,31 @@ const normalizeAchievement = (achievement = {}) => {
 };
 
 export const normalizeEntry = (entry = {}, prefix = "entry") => {
-  const details = entry.description || entry.details || "";
-  const achievements = Array.isArray(entry.achievements)
-    ? entry.achievements.map(normalizeAchievement)
+  const sourceEntry = normalizeFactsForSection(entry, prefix);
+  const details = sourceEntry.description || sourceEntry.details || "";
+  const achievements = Array.isArray(sourceEntry.achievements)
+    ? sourceEntry.achievements.map(normalizeAchievement)
     : [];
 
   return {
-    id: entry.id || entry._id || makeId(prefix),
-    title: entry.title || "",
-    entryType: entry.entryType || "",
-    subtitle: entry.subtitle || "",
-    organization: entry.organization || entry.subtitle || "",
-    period: entry.period || "",
-    startDate: entry.startDate || "",
-    endDate: entry.endDate || "",
-    isCurrent: Boolean(entry.isCurrent),
-    location: entry.location || "",
-    url: entry.url || "",
+    id: sourceEntry.id || sourceEntry._id || makeId(prefix),
+    title: sourceEntry.title || "",
+    entryType: sourceEntry.entryType || "",
+    subtitle: sourceEntry.subtitle || "",
+    organization: sourceEntry.organization || sourceEntry.subtitle || "",
+    period: sourceEntry.period || "",
+    startDate: sourceEntry.startDate || "",
+    endDate: sourceEntry.endDate || "",
+    isCurrent: Boolean(sourceEntry.isCurrent),
+    location: sourceEntry.location || "",
+    url: sourceEntry.url || "",
     description: details,
     details,
-    userSourceDescription: entry.userSourceDescription || "",
-    userSourceContributions: Array.isArray(entry.userSourceContributions)
-      ? entry.userSourceContributions.filter(Boolean)
+    userSourceDescription: sourceEntry.userSourceDescription || "",
+    userSourceContributions: Array.isArray(sourceEntry.userSourceContributions)
+      ? sourceEntry.userSourceContributions.filter(Boolean)
       : [],
-    technologies: Array.isArray(entry.technologies) ? entry.technologies.filter(Boolean) : [],
+    technologies: Array.isArray(sourceEntry.technologies) ? sourceEntry.technologies.filter(Boolean) : [],
     achievements: achievements.length
       ? achievements
       : details

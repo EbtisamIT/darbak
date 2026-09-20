@@ -1,4 +1,9 @@
 const crypto = require("crypto");
+const {
+  normalizeActivityFacts,
+  normalizeExperienceFacts,
+  normalizeProjectFacts,
+} = require("./resumeFactNormalization");
 
 const cleanText = (value = "", max = 1600) => String(value || "").trim().slice(0, max);
 
@@ -67,9 +72,9 @@ const getItemEnrichmentStatus = (item = {}, missingField = "details") => {
   };
 };
 
-const getProjectEnrichmentStatus = (project = {}) => getItemEnrichmentStatus(project, "project_contribution");
-const getExperienceEnrichmentStatus = (experience = {}) => getItemEnrichmentStatus(experience, "experience_responsibilities");
-const getActivityEnrichmentStatus = (activity = {}) => getItemEnrichmentStatus(activity, "activity_contribution");
+const getProjectEnrichmentStatus = (project = {}) => getItemEnrichmentStatus(normalizeProjectFacts(project), "project_contribution");
+const getExperienceEnrichmentStatus = (experience = {}) => getItemEnrichmentStatus(normalizeExperienceFacts(experience), "experience_responsibilities");
+const getActivityEnrichmentStatus = (activity = {}) => getItemEnrichmentStatus(normalizeActivityFacts(activity), "activity_contribution");
 
 const getEnrichmentSourceSignature = (entry = {}) => crypto.createHash("sha256").update(JSON.stringify({
   id: cleanText(entry?.id || entry?._id, 120),
@@ -167,30 +172,30 @@ const buildUserSourceEnrichmentFacts = (facts = {}, portfolioFacts = {}) => {
     section,
     new Map((Array.isArray(portfolioFacts[section]) ? portfolioFacts[section] : []).map((entry) => [cleanText(entry?.id || entry?._id, 120), entry])),
   ]));
-  const selectEntries = (section) => (Array.isArray(facts[section]) ? facts[section] : []).map((entry) => {
+  const normalizerBySection = {
+    projects: normalizeProjectFacts,
+    experiences: normalizeExperienceFacts,
+    volunteering: normalizeActivityFacts,
+  };
+  const selectEntries = (section) => (Array.isArray(facts[section]) ? facts[section] : []).map((rawEntry) => {
+    let entry = normalizerBySection[section](rawEntry);
     const id = cleanText(entry?.id || entry?._id, 120);
     const portfolioEntry = portfolioBySection[section].get(id) || {};
-    // Portfolio descriptions are written by the student. The Portfolio schema
-    // does not persist the ResumeProfile-only `userSourceDescription` marker,
-    // so reading only that marker makes a saved enrichment answer disappear
-    // on the next build and the same question is asked again.
-    const userDescription = cleanText(
-      entry?.userSourceDescription
-      || portfolioEntry?.userSourceDescription
-      || portfolioEntry?.description,
-      1600,
+    // ResumeProfile wins. Portfolio is consulted only for a legacy item whose
+    // ResumeProfile copy has no source narrative at all.
+    const hasExplicitResumeSource = Boolean(
+      cleanText(rawEntry?.userSourceDescription, 1600)
+      || (Array.isArray(rawEntry?.userSourceContributions) && rawEntry.userSourceContributions.length),
     );
-    const legacyUserContributions = [
-      ...(Array.isArray(entry?.contributions) ? entry.contributions : []),
-      ...(Array.isArray(entry?.tasks) ? entry.tasks : []),
-      ...(Array.isArray(entry?.responsibilities) ? entry.responsibilities : []),
-      ...(Array.isArray(entry?.achievements) ? entry.achievements.filter((item) => !isGeneratedPresentationItem(item)) : []),
-    ];
-    const userContributions = [
-      ...(Array.isArray(entry?.userSourceContributions) ? entry.userSourceContributions : []),
-      ...(Array.isArray(portfolioEntry?.userSourceContributions) ? portfolioEntry.userSourceContributions : []),
-      ...legacyUserContributions,
-    ].map((item) => cleanText(item?.text || item, 400)).filter(Boolean);
+    if (!hasExplicitResumeSource && Object.keys(portfolioEntry).length) {
+      entry = normalizerBySection[section](portfolioEntry);
+    }
+    const userDescription = cleanText(entry.userSourceDescription, 1600);
+    const userContributions = Array.from(new Set(
+      (Array.isArray(entry.userSourceContributions) ? entry.userSourceContributions : [])
+        .map((item) => cleanText(item?.text || item, 400))
+        .filter(Boolean),
+    ));
     return {
       ...entry,
       description: userDescription,
@@ -201,8 +206,7 @@ const buildUserSourceEnrichmentFacts = (facts = {}, portfolioFacts = {}) => {
       contributions: userContributions,
       achievements: userContributions,
       generatedPresentationExists: Boolean(
-        hasMeaningfulResumeDetail(entry?.description || entry?.details)
-        || (Array.isArray(entry?.achievements) && entry.achievements.some((item) => hasMeaningfulResumeDetail(item?.text || item?.html || item))),
+        (Array.isArray(rawEntry?.achievements) && rawEntry.achievements.some((item) => isGeneratedPresentationItem(item)))
       ),
     };
   });

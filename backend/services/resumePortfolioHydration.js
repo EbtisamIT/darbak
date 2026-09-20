@@ -10,6 +10,7 @@ const {
   getCanonicalResumeExperiences,
   resolveResumeFactsOwnership,
 } = require("./resumeArchitecture");
+const { normalizeResumeFactCollections } = require("./resumeFactNormalization");
 
 const ACADEMIC_TRACK_IDS = new Set([
   "business_analytics",
@@ -455,6 +456,11 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
   // considered only for an entirely empty legacy profile.
   if (!ownership.fallbackUsed) {
     const experiences = getCanonicalResumeExperiences(resume);
+    const normalizedFacts = normalizeResumeFactCollections({
+      experiences,
+      projects: resume.projects || [],
+      volunteering: resume.volunteering || [],
+    });
     const canonical = {
       ...resume,
       experiences,
@@ -466,10 +472,10 @@ const composeCanonicalResume = (resume = {}, portfolio = {}, contact = "", optio
       verifiedResumeFacts: {
         personalInfo: resume.personalInfo || {},
         education: resume.education || [],
-        experiences,
-        projects: resume.projects || [],
+        experiences: normalizedFacts.experiences,
+        projects: normalizedFacts.projects,
         certifications: resume.certifications || [],
-        volunteering: resume.volunteering || [],
+        volunteering: normalizedFacts.volunteering,
         languages: resume.languages || [],
         links: resume.links || [],
         skills: resume.skills || [],

@@ -319,7 +319,10 @@ assert.deepStrictEqual(compactExperiences.experiences, [{
   endDate: "2026-03-01",
   isCurrent: false,
   period: undefined,
-  description: undefined,
+  description: "",
+  responsibilities: ["Tested application forms."],
+  userSourceDescription: "",
+  userSourceContributions: ["Tested application forms."],
   achievements: [{ id: "responsibility-one", text: "Tested application forms." }],
 }]);
 

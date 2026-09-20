@@ -1,6 +1,7 @@
 const { normalizeResumeSkills } = require("./resumeSkillNormalization");
 const { rankResumeSkills } = require("./resumeSkillRanking");
 const { mergeStructuredAnswersIntoFacts } = require("./resumeAgentAnswerLifecycle");
+const { normalizeResumeFactCollections } = require("./resumeFactNormalization");
 
 const ARABIC_CHARACTERS = /[\u0600-\u06FF]/u;
 const GENERIC_SUMMARY = /\b(hardworking|passionate|motivated|seeking an opportunity)\b|مجتهد|شغوف|باحث عن فرصة/u;
@@ -267,7 +268,7 @@ const buildDeterministicHeadline = (personalInfo = {}, language = "ar") => {
 };
 
 const compactVerifiedResumeFacts = (facts = {}, answers = []) => {
-  const mergedFacts = mergeStructuredAnswersIntoFacts(facts, answers);
+  const mergedFacts = normalizeResumeFactCollections(mergeStructuredAnswersIntoFacts(facts, answers));
   const personalInfo = mergedFacts.personalInfo || {};
   const education = list(mergedFacts.education);
   const graduationYear = personalInfo.expectedGraduationYear || personalInfo.graduationYear || "";
@@ -308,12 +309,15 @@ const compactVerifiedResumeFacts = (facts = {}, answers = []) => {
     isCurrent: Boolean(entry.isCurrent),
     period: entry.period,
     description: entry.description,
+    responsibilities: list(entry.responsibilities),
+    userSourceDescription: entry.userSourceDescription || "",
+    userSourceContributions: list(entry.userSourceContributions),
     achievements: entry.achievements,
     })),
-    projects: list(mergedFacts.projects).map((entry) => ({ id: entry.id, title: entry.title, description: entry.description, url: entry.url, achievements: entry.achievements })),
+    projects: list(mergedFacts.projects).map((entry) => ({ id: entry.id, title: entry.title, description: entry.description, url: entry.url, technologies: entry.technologies || entry.tools || [], contributions: list(entry.contributions), userSourceDescription: entry.userSourceDescription || "", userSourceContributions: list(entry.userSourceContributions), achievements: entry.achievements })),
     certifications: list(mergedFacts.certifications).map((entry) => ({ id: entry.id, title: entry.title, organization: entry.organization, period: entry.period })),
     courses: list(mergedFacts.courses).map((entry) => ({ id: entry.id, title: entry.title, organization: entry.organization, period: entry.period, url: entry.url })),
-    volunteering: list(mergedFacts.volunteering).map((entry) => ({ id: entry.id, title: entry.title, organization: entry.organization, period: entry.period, description: entry.description })),
+    volunteering: list(mergedFacts.volunteering).map((entry) => ({ id: entry.id, title: entry.title, organization: entry.organization, period: entry.period, description: entry.description, contributions: list(entry.contributions), userSourceDescription: entry.userSourceDescription || "", userSourceContributions: list(entry.userSourceContributions) })),
     languages: list(mergedFacts.languages).map((entry) => ({ name: entry.name, level: entry.level })),
     skills: normalizeResumeSkills(list(mergedFacts.skills)),
     professionalContext: safeText(mergedFacts.professionalContext, 900),
