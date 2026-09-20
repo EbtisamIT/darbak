@@ -2987,6 +2987,7 @@ app.get('/sitemap-companies.xml', async (req, res) => {
 });
 
 app.get('/api/companies/resolve/:identifier', async (req, res) => {
+  setPublicCompanyResponseHeaders(res);
   try {
     const identifier = decodeURIComponent(req.params.identifier || "").trim();
     const companies = await Company.find({
