@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { getCompanySeo, buildCompanyStructuredData } = require("../src/utils/companySeoData");
+const { getCompanySeo, buildCompanyStructuredData } = require("../src/utils/companySeoData.cjs");
 
 const apiBase = (process.env.COMPANY_SEO_API_URL || process.env.REACT_APP_API_URL || "https://darbak-api.onrender.com").replace(/\/$/, "");
 const buildDir = path.join(__dirname, "..", "build");

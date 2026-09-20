@@ -1,5 +1,5 @@
 import { setPageSeo } from "./seoMetadata";
-const { getCompanySeo, buildCompanyStructuredData } = require("./companySeoData");
+const { getCompanySeo, buildCompanyStructuredData } = require("./companySeoData.cjs");
 
 export { getCompanySeo };
 
