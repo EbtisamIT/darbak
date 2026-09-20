@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const { getCompanySeo, buildCompanyStructuredData } = require("../src/utils/companySeoData.cjs");
 
 const apiBase = (process.env.COMPANY_SEO_API_URL || process.env.REACT_APP_API_URL || "https://darbak-api.onrender.com").replace(/\/$/, "");
 const buildDir = path.join(__dirname, "..", "build");
@@ -20,7 +19,7 @@ const inject = (template, { title, description, canonical, structuredData, body 
   .replace("</head>", `<script type="application/ld+json">${JSON.stringify(structuredData)}</script></head>`)
   .replace('<div id="root"></div>', `<div id="root">${body}</div>`);
 
-const companyBody = (company, data = {}) => {
+const companyBody = (company, data = {}, getCompanySeo) => {
   const seo = getCompanySeo(company, data.overview || {});
   const links = [
     ...(data.experiences || []).slice(0, 3).map((item) => `<li><a href="/experiences/${item._id || item.id}">${escapeHtml(item.title || `تجربة تدريب في ${seo.name}`)}</a></li>`),
@@ -30,6 +29,7 @@ const companyBody = (company, data = {}) => {
 };
 
 (async () => {
+  const { getCompanySeo, buildCompanyStructuredData } = await import("../src/utils/companySeoData.mjs");
   if (!fs.existsSync(path.join(buildDir, "index.html"))) throw new Error("Build output is missing before company prerendering.");
   const template = fs.readFileSync(path.join(buildDir, "index.html"), "utf8");
   const companies = (await requestJson(`${apiBase}/api/companies`)).data || [];
@@ -38,7 +38,7 @@ const companyBody = (company, data = {}) => {
   for (const company of companies) {
     const response = await requestJson(`${apiBase}/api/companies/${encodeURIComponent(company.slug)}/content`);
     const seo = getCompanySeo(response.company, response.data?.overview || {});
-    const html = inject(template, { title: seo.title, description: seo.description, canonical: `https://darbak.space${seo.path}`, structuredData: buildCompanyStructuredData(response.company, response.data?.overview || {}), body: companyBody(response.company, response.data) });
+    const html = inject(template, { title: seo.title, description: seo.description, canonical: `https://darbak.space${seo.path}`, structuredData: buildCompanyStructuredData(response.company, response.data?.overview || {}), body: companyBody(response.company, response.data, getCompanySeo) });
     const output = path.join(buildDir, "companies", company.slug, "index.html");
     fs.mkdirSync(path.dirname(output), { recursive: true });
     fs.writeFileSync(output, html);

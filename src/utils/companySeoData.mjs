@@ -1,6 +1,6 @@
-const SITE_ORIGIN = "https://darbak.space";
+export const SITE_ORIGIN = "https://darbak.space";
 
-const getCompanySeo = (company = {}, overview = {}) => {
+export const getCompanySeo = (company = {}, overview = {}) => {
   const name = company.nameAr || company.name || company.nameEn || "جهة التدريب";
   const experiences = Number(overview.experiencesCount || 0);
   const interviews = Number(overview.interviewsCount || 0);
@@ -19,7 +19,7 @@ const getCompanySeo = (company = {}, overview = {}) => {
   };
 };
 
-const buildCompanyStructuredData = (company = {}, overview = {}) => {
+export const buildCompanyStructuredData = (company = {}, overview = {}) => {
   const seo = getCompanySeo(company, overview);
   return {
     "@context": "https://schema.org",
@@ -43,5 +43,3 @@ const buildCompanyStructuredData = (company = {}, overview = {}) => {
     ],
   };
 };
-
-module.exports = { SITE_ORIGIN, getCompanySeo, buildCompanyStructuredData };
