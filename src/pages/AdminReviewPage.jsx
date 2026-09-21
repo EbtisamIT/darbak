@@ -6384,6 +6384,24 @@ export default function AdminReviewPage() {
                       السيرة الذاتية
                     </a>
                   )}
+                  {item.trainingLetterUrl && (
+                    <a
+                      href={item.trainingLetterUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        color: adminColors.brandStrong,
+                        textDecoration: "none",
+                        border: `1px solid ${adminColors.inputBorder}`,
+                        borderRadius: 999,
+                        padding: "8px 11px",
+                        fontSize: 12,
+                        fontWeight: 900,
+                      }}
+                    >
+                      خطاب التدريب
+                    </a>
+                  )}
                   {item.linkedinUrl && (
                     <a
                       href={item.linkedinUrl}

@@ -132,6 +132,8 @@ const CompanyApplyPage = () => {
   const [customAnswers, setCustomAnswers] = useState([]);
   const [cvFile, setCvFile] = useState(null);
   const [cvMessage, setCvMessage] = useState("");
+  const [trainingLetterFile, setTrainingLetterFile] = useState(null);
+  const [trainingLetterMessage, setTrainingLetterMessage] = useState("");
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -143,6 +145,7 @@ const CompanyApplyPage = () => {
   });
   const didPrefill = useRef(false);
   const cvInputRef = useRef(null);
+  const trainingLetterInputRef = useRef(null);
 
   const fetchContext = useCallback(async () => {
     setLoading(true);
@@ -265,37 +268,41 @@ const CompanyApplyPage = () => {
     };
   }, [successApplication]);
 
-  const uploadCv = async () => {
-    if (!cvFile) throw new Error("ارفع السيرة الذاتية بصيغة PDF.");
-    if (cvFile.type !== "application/pdf" && !cvFile.name.toLowerCase().endsWith(".pdf")) {
-      throw new Error("السيرة الذاتية يجب أن تكون بصيغة PDF.");
+  const uploadApplicationPdf = async (file, purpose, label) => {
+    if (!file) return null;
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      throw new Error(`${label} يجب أن يكون بصيغة PDF.`);
     }
-    if (cvFile.size > 10 * 1024 * 1024) {
-      throw new Error("حجم السيرة كبير. الحد الأقصى 10MB.");
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error(`حجم ${label} كبير. الحد الأقصى 10MB.`);
     }
 
     try {
       const { data } = await axios.post(
         `${API_BASE_URL}/api/company-application-files`,
-        cvFile,
+        file,
         {
           headers: {
             "Content-Type": "application/pdf",
-            "X-File-Name": encodeURIComponent(cvFile.name),
+            "X-File-Name": encodeURIComponent(file.name),
+            "X-File-Purpose": purpose,
           },
         }
       );
       if (!data?.data?.verified) {
-        throw new Error("لم يكتمل التحقق من السيرة. اختر ملف PDF آخر.");
+        throw new Error(`لم يكتمل التحقق من ${label}. اختر ملف PDF آخر.`);
       }
       return data.data;
     } catch (error) {
-      const message = error.response?.data?.error || error.message || "تعذر التحقق من السيرة.";
-      const cvError = new Error(message);
-      cvError.isCvVerificationError = true;
-      throw cvError;
+      const message = error.response?.data?.error || error.message || `تعذر التحقق من ${label}.`;
+      const fileError = new Error(message);
+      fileError.filePurpose = purpose;
+      throw fileError;
     }
   };
+
+  const uploadCv = () =>
+    uploadApplicationPdf(cvFile, "cv", "السيرة الذاتية");
 
   const handleCvChange = (event) => {
     const selected = event.target.files?.[0] || null;
@@ -309,6 +316,30 @@ const CompanyApplyPage = () => {
     }
     setCvFile(selected);
     setCvMessage("سيتم التحقق من سلامة السيرة قبل إرسال طلبك.");
+  };
+
+  const handleTrainingLetterChange = (event) => {
+    const selected = event.target.files?.[0] || null;
+    setTrainingLetterMessage("");
+    if (!selected) {
+      setTrainingLetterFile(null);
+      return;
+    }
+    if (
+      (selected.type !== "application/pdf" && !selected.name.toLowerCase().endsWith(".pdf")) ||
+      selected.size > 10 * 1024 * 1024
+    ) {
+      setTrainingLetterFile(null);
+      setTrainingLetterMessage(
+        selected.size > 10 * 1024 * 1024
+          ? "حجم الخطاب أكبر من 10MB. اختر ملفًا أصغر."
+          : "هذا الملف ليس PDF. اختر خطاب التدريب بصيغة PDF."
+      );
+      event.target.value = "";
+      return;
+    }
+    setTrainingLetterFile(selected);
+    setTrainingLetterMessage("سيُرفق الخطاب مع طلبك، ويمكنك إرسال الطلب بدونه.");
   };
 
   const validateForm = () => {
@@ -345,6 +376,9 @@ const CompanyApplyPage = () => {
     setSubmitting(true);
     try {
       const upload = await uploadCv();
+      const trainingLetterUpload = trainingLetterFile
+        ? await uploadApplicationPdf(trainingLetterFile, "training_letter", "خطاب التدريب")
+        : null;
       const campaign = context?.campaign || {};
       const { data } = await axios.post(
         `${API_BASE_URL}/api/company-applications`,
@@ -353,6 +387,7 @@ const CompanyApplyPage = () => {
           phone: `+966${form.phone}`,
           gpa: form.gpaValue && form.gpaScale ? `${form.gpaValue} من ${form.gpaScale}` : "",
           cvFileId: upload?.id,
+          trainingLetterFileId: trainingLetterUpload?.id || null,
           campaignSlug: campaign.slug || companySlug,
           companySlug: campaign.companySlug || companySlug,
           customAnswers,
@@ -370,10 +405,15 @@ const CompanyApplyPage = () => {
       });
       setSuccessApplication(data?.data || { organizationName: campaign.organizationName });
     } catch (err) {
-      if (err.isCvVerificationError) {
+      if (err.filePurpose === "cv") {
         setCvFile(null);
         if (cvInputRef.current) cvInputRef.current.value = "";
         setCvMessage(`تعذر قبول السيرة: ${err.message} اختر ملف PDF سليمًا ثم أرسله مرة أخرى.`);
+      }
+      if (err.filePurpose === "training_letter") {
+        setTrainingLetterFile(null);
+        if (trainingLetterInputRef.current) trainingLetterInputRef.current.value = "";
+        setTrainingLetterMessage(`تعذر قبول الخطاب: ${err.message} اختر ملف PDF سليمًا أو أرسل الطلب بدونه.`);
       }
       setErrorMessage(
         err.response?.data?.error || err.message || "تعذر إرسال الطلب الآن. حاول مرة أخرى."
@@ -602,6 +642,40 @@ const CompanyApplyPage = () => {
                 </small>
                 {cvMessage.startsWith("تعذر") && (
                   <button type="button" onClick={() => cvInputRef.current?.click()} className="company-apply-secondary-button">
+                    اختيار ملف آخر
+                  </button>
+                )}
+              </label>
+
+              <label className="company-apply-file-field">
+                <span>خطاب التدريب من الجامعة <small>اختياري</small></span>
+                <input
+                  ref={trainingLetterInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={handleTrainingLetterChange}
+                />
+                <small
+                  style={{
+                    color:
+                      trainingLetterMessage.startsWith("تعذر") ||
+                      trainingLetterMessage.includes("ليس PDF") ||
+                      trainingLetterMessage.includes("أكبر")
+                        ? "#b91c1c"
+                        : undefined,
+                  }}
+                >
+                  {trainingLetterMessage ||
+                    (trainingLetterFile
+                      ? `تم اختيار: ${trainingLetterFile.name}`
+                      : "اختياري — PDF بحد أقصى 10MB")}
+                </small>
+                {trainingLetterMessage.startsWith("تعذر") && (
+                  <button
+                    type="button"
+                    onClick={() => trainingLetterInputRef.current?.click()}
+                    className="company-apply-secondary-button"
+                  >
                     اختيار ملف آخر
                   </button>
                 )}

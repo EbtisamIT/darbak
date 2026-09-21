@@ -280,7 +280,7 @@ const CompanyApplicationsSharePage = () => {
               <table className="company-share-table">
                 <thead>
                   <tr>
-                    <th><input type="checkbox" aria-label="تحديد كل الطلبات الظاهرة" checked={applications.length > 0 && selectedIds.length === applications.length} onChange={(event) => setSelectedIds(event.target.checked ? applications.map((item) => item.id || item._id) : [])} /></th><th>الاسم</th><th>التخصص</th><th>الجامعة</th><th>المدينة</th><th>تاريخ التقديم</th><th>السيرة الذاتية</th><th>الحالة</th>
+                    <th><input type="checkbox" aria-label="تحديد كل الطلبات الظاهرة" checked={applications.length > 0 && selectedIds.length === applications.length} onChange={(event) => setSelectedIds(event.target.checked ? applications.map((item) => item.id || item._id) : [])} /></th><th>الاسم</th><th>التخصص</th><th>الجامعة</th><th>المدينة</th><th>تاريخ التقديم</th><th>المرفقات</th><th>الحالة</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -300,6 +300,9 @@ const CompanyApplicationsSharePage = () => {
                         {application.cvUrl ? (
                           <a href={application.cvUrl} target="_blank" rel="noreferrer" className="company-share-cv">عرض السيرة</a>
                         ) : "-"}
+                        {application.trainingLetterUrl && (
+                          <a href={application.trainingLetterUrl} target="_blank" rel="noreferrer" className="company-share-cv">خطاب التدريب</a>
+                        )}
                         {application.linkedinUrl && (
                           <a href={application.linkedinUrl} target="_blank" rel="noreferrer" className="company-share-linkedin">LinkedIn</a>
                         )}

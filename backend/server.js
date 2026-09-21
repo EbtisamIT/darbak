@@ -483,6 +483,10 @@ const sanitizeCompanyApplicationPayload = (body = {}) => {
     body.cvFileId && mongoose.Types.ObjectId.isValid(body.cvFileId)
       ? body.cvFileId
       : null;
+  const trainingLetterFileId =
+    body.trainingLetterFileId && mongoose.Types.ObjectId.isValid(body.trainingLetterFileId)
+      ? body.trainingLetterFileId
+      : null;
   const portfolioUrl = sanitizeExternalUrl(body.portfolioUrl || "");
   const linkedinUrl = body.linkedinUrl
     ? normalizeLinkedInProfileUrl(body.linkedinUrl)
@@ -512,6 +516,7 @@ const sanitizeCompanyApplicationPayload = (body = {}) => {
     gpaScale,
     trainingInfo,
     cvFileId,
+    trainingLetterFileId,
     portfolioUrl,
     linkedinUrl,
     note,
@@ -3576,6 +3581,10 @@ const serializeCompanyApplication = (application = {}) => {
     cvUrl: application.cvUrl || snapshot.cvUrl || "",
     cvFilename: application.cvFilename || "",
     cvOriginalName: application.cvOriginalName || application.cvFilename || "",
+    trainingLetterUrl: application.trainingLetterUrl || "",
+    trainingLetterFilename: application.trainingLetterFilename || "",
+    trainingLetterOriginalName:
+      application.trainingLetterOriginalName || application.trainingLetterFilename || "",
     note: application.note || "",
     customAnswers: Array.isArray(application.customAnswers)
       ? application.customAnswers
@@ -14653,13 +14662,17 @@ app.post('/api/company-application-files', companyApplicationFileParser, async (
       .split(";")[0]
       .trim()
       .toLowerCase();
+    const purpose = req.headers["x-file-purpose"] === "training_letter"
+      ? "training_letter"
+      : "cv";
+    const fileLabel = purpose === "training_letter" ? "خطاب التدريب" : "السيرة الذاتية";
     const originalFilename = sanitizePortfolioText(
       decodeURIComponent(req.headers["x-file-name"] || ""),
       160
-    ) || "cv.pdf";
+    ) || (purpose === "training_letter" ? "training-letter.pdf" : "cv.pdf");
 
     if (contentType !== "application/pdf" || !fileBuffer.length) {
-      return res.status(400).json({ error: "ارفع السيرة الذاتية بصيغة PDF." });
+      return res.status(400).json({ error: `ارفع ${fileLabel} بصيغة PDF.` });
     }
 
     // MIME type and extension are supplied by the browser, so verify the actual file.
@@ -14671,12 +14684,13 @@ app.post('/api/company-application-files', companyApplicationFileParser, async (
     }
 
     if (fileBuffer.length > 10 * 1024 * 1024) {
-      return res.status(413).json({ error: "حجم السيرة كبير. الحد الأقصى 10MB." });
+      return res.status(413).json({ error: `حجم ${fileLabel} كبير. الحد الأقصى 10MB.` });
     }
 
     const file = await CompanyApplicationFile.create({
-      filename: `cv-${crypto.randomBytes(12).toString("hex")}.pdf`,
+      filename: `${purpose === "training_letter" ? "training-letter" : "cv"}-${crypto.randomBytes(12).toString("hex")}.pdf`,
       originalFilename,
+      purpose,
       contentType,
       size: fileBuffer.length,
       sha256: integrity.sha256,
@@ -14701,13 +14715,14 @@ app.post('/api/company-application-files', companyApplicationFileParser, async (
       data: {
         id: file._id.toString(),
         filename: file.originalFilename || file.filename,
+        purpose,
         url: getCompanyApplicationFileUrl(req, file),
         verified: true,
       },
     });
   } catch (err) {
     console.error("❌ Company application file upload error:", err);
-    res.status(500).json({ error: "تعذر رفع السيرة الذاتية الآن. حاول مرة أخرى." });
+    res.status(500).json({ error: "تعذر رفع ملف التقديم الآن. حاول مرة أخرى." });
   }
 });
 
@@ -14740,7 +14755,10 @@ app.get('/api/company-application-files/:fileId', async (req, res) => {
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
     // Node refuses Arabic characters in HTTP headers. Keep the original filename
     // in MongoDB, but use an ASCII name for this private PDF response.
-    res.setHeader("Content-Disposition", "inline; filename=\"cv.pdf\"");
+    const downloadFilename = file.purpose === "training_letter"
+      ? "training-letter.pdf"
+      : "cv.pdf";
+    res.setHeader("Content-Disposition", `inline; filename="${downloadFilename}"`);
     res.end(pdfBuffer);
   } catch (err) {
     console.error("❌ Company application file fetch error:", err);
@@ -14998,6 +15016,7 @@ app.get('/api/company-applications/share/:shareToken/export', async (req, res) =
         "Training / Graduation Info",
         "LinkedIn",
         "CV URL",
+        "Training Letter URL",
         "Submitted At",
       ],
       ...data.applications.map((application) => [
@@ -15011,6 +15030,7 @@ app.get('/api/company-applications/share/:shareToken/export', async (req, res) =
         application.trainingInfo,
         application.linkedinUrl,
         application.cvUrl,
+        application.trainingLetterUrl,
         application.submittedAt
           ? new Date(application.submittedAt).toISOString()
           : "",
@@ -15376,11 +15396,29 @@ app.post('/api/company-applications', async (req, res) => {
     const cvFile = await CompanyApplicationFile.findOne({
       _id: payload.cvFileId,
       applicationId: null,
+      $or: [{ purpose: "cv" }, { purpose: { $exists: false } }],
     }).lean();
     if (!cvFile) {
       return res.status(400).json({
         error: "ملف السيرة غير متاح. ارفعه مرة أخرى ثم أرسل الطلب.",
       });
+    }
+
+    let trainingLetterFile = null;
+    if (payload.trainingLetterFileId) {
+      if (String(payload.trainingLetterFileId) === String(payload.cvFileId)) {
+        return res.status(400).json({ error: "اختر ملفًا مستقلًا لخطاب التدريب." });
+      }
+      trainingLetterFile = await CompanyApplicationFile.findOne({
+        _id: payload.trainingLetterFileId,
+        applicationId: null,
+        purpose: "training_letter",
+      }).lean();
+      if (!trainingLetterFile) {
+        return res.status(400).json({
+          error: "خطاب التدريب غير متاح. ارفعه مرة أخرى أو أرسل الطلب بدونه.",
+        });
+      }
     }
 
     const existingApplication = await CompanyApplication.findOne({
@@ -15431,6 +15469,12 @@ app.post('/api/company-applications', async (req, res) => {
       cvUrl: getCompanyApplicationFileUrl(req, cvFile),
       cvFilename: cvFile.filename,
       cvOriginalName: cvFile.originalFilename || cvFile.filename,
+      trainingLetterUrl: trainingLetterFile
+        ? getCompanyApplicationFileUrl(req, trainingLetterFile)
+        : "",
+      trainingLetterFilename: trainingLetterFile?.filename || "",
+      trainingLetterOriginalName:
+        trainingLetterFile?.originalFilename || trainingLetterFile?.filename || "",
       portfolioSnapshot: snapshot,
       statusHistory: [
         {
@@ -15446,6 +15490,12 @@ app.post('/api/company-applications', async (req, res) => {
       { _id: cvFile._id, applicationId: null },
       { $set: { applicationId: application._id, expiresAt: null } }
     );
+    if (trainingLetterFile) {
+      await CompanyApplicationFile.updateOne(
+        { _id: trainingLetterFile._id, applicationId: null },
+        { $set: { applicationId: application._id, expiresAt: null } }
+      );
+    }
 
     // The student explicitly submitted these values in their application.
     // Keep the account and any existing Portfolio aligned for future flows.

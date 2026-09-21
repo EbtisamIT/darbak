@@ -33,7 +33,14 @@ const response = {
   filters: { majors: [], universities: [] },
   pagination: { page: 1, limit: 50, total: 2 },
   applications: [
-    { id: "application-a", fullName: "سارة", email: "sara@example.com", status: "submitted" },
+    {
+      id: "application-a",
+      fullName: "سارة",
+      email: "sara@example.com",
+      status: "submitted",
+      cvUrl: "https://files.example.com/cv.pdf",
+      trainingLetterUrl: "https://files.example.com/training-letter.pdf",
+    },
     { id: "application-b", fullName: "نورة", email: "nora@example.com", status: "under_review" },
   ],
 };
@@ -56,6 +63,10 @@ test("renders program summary and updates one application through the scoped sha
   renderPage();
   expect(await screen.findByText("شركة اختبار")).toBeInTheDocument();
   expect(screen.getByText("إجمالي المتقدمين")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "خطاب التدريب" })).toHaveAttribute(
+    "href",
+    "https://files.example.com/training-letter.pdf"
+  );
 
   fireEvent.change(screen.getByLabelText("حالة طلب سارة"), { target: { value: "interview" } });
 

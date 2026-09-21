@@ -8,6 +8,12 @@ const companyApplicationFileSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    purpose: {
+      type: String,
+      enum: ["cv", "training_letter"],
+      default: "cv",
+      index: true,
+    },
     filename: {
       type: String,
       required: true,

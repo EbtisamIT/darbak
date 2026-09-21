@@ -1,6 +1,7 @@
 const assert = require("assert");
 const CompanyApplication = require("../models/CompanyApplication");
 const CompanyApplicationCampaign = require("../models/CompanyApplicationCampaign");
+const CompanyApplicationFile = require("../models/CompanyApplicationFile");
 const {
   buildCampaignApplicationFilter,
   buildStudentApplicationOwnershipFilter,
@@ -42,11 +43,39 @@ const application = new CompanyApplication({
   status: "under_review",
   studentReportedStatus: "accepted",
   studentReportedAt: now,
+  trainingLetterFileId: "507f1f77bcf86cd799439011",
+  trainingLetterUrl: "https://api.example.com/training-letter.pdf",
 });
 const applicationError = application.validateSync();
 assert.strictEqual(applicationError, undefined);
 assert.strictEqual(application.status, "under_review");
 assert.strictEqual(application.studentReportedStatus, "accepted");
+assert.strictEqual(
+  application.trainingLetterFileId.toString(),
+  "507f1f77bcf86cd799439011"
+);
+
+const legacyCompatibleCvFile = new CompanyApplicationFile({
+  filename: "cv.pdf",
+  contentType: "application/pdf",
+  size: 32,
+  sha256: "a".repeat(64),
+  data: Buffer.from("%PDF-1.4"),
+  accessToken: "legacy-compatible-cv-token",
+});
+assert.strictEqual(legacyCompatibleCvFile.purpose, "cv");
+assert.strictEqual(legacyCompatibleCvFile.validateSync(), undefined);
+
+const trainingLetterFile = new CompanyApplicationFile({
+  purpose: "training_letter",
+  filename: "training-letter.pdf",
+  contentType: "application/pdf",
+  size: 32,
+  sha256: "b".repeat(64),
+  data: Buffer.from("%PDF-1.4"),
+  accessToken: "training-letter-token",
+});
+assert.strictEqual(trainingLetterFile.validateSync(), undefined);
 
 const campaign = new CompanyApplicationCampaign({
   slug: "company-a-program",

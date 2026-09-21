@@ -232,6 +232,30 @@ const companyApplicationSchema = new mongoose.Schema(
       trim: true,
       maxlength: 160,
     },
+    trainingLetterFileId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "company_application_files",
+      default: null,
+      index: true,
+    },
+    trainingLetterUrl: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 500,
+    },
+    trainingLetterFilename: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 160,
+    },
+    trainingLetterOriginalName: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 160,
+    },
     note: {
       type: String,
       default: "",
