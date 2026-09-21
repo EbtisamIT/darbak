@@ -94,6 +94,10 @@ const companySchema = new mongoose.Schema(
       minlength: 48,
       maxlength: 160,
     },
+    applicationDigestEnabled: { type: Boolean, default: true, index: true },
+    lastApplicationDigestSentAt: { type: Date, default: null },
+    lastApplicationDigestApplicationCount: { type: Number, default: 0, min: 0 },
+    applicationDigestLeaseUntil: { type: Date, default: null },
   },
   { timestamps: true }
 );

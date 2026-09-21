@@ -51,6 +51,10 @@ const {
   normalizePortalStatus,
   shouldShowCompanyPortalDemo,
 } = require("./services/companyPortalDemo");
+const {
+  getMillisecondsUntilNextRiyadhDigest,
+  runCompanyApplicationDigest,
+} = require("./services/companyApplicationDigest");
 const ResumeProfile = require('./models/ResumeProfile');
 const ResumeAgentSession = require('./models/ResumeAgentSession');
 const ResumePendingDraft = require('./models/ResumePendingDraft');
@@ -246,6 +250,10 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const TELEGRAM_CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID || "";
 const TELEGRAM_CRON_SECRET = process.env.TELEGRAM_CRON_SECRET || "";
+const COMPANY_APPLICATION_DIGEST_CRON_SECRET =
+  process.env.COMPANY_APPLICATION_DIGEST_CRON_SECRET || TELEGRAM_CRON_SECRET;
+const COMPANY_APPLICATION_DIGEST_SCHEDULER_ENABLED =
+  process.env.COMPANY_APPLICATION_DIGEST_SCHEDULER_ENABLED !== "false";
 const TELEGRAM_BOT_PUBLISHING_ENABLED =
   process.env.TELEGRAM_BOT_PUBLISHING_ENABLED === "true";
 const CONTACT_REASONS = new Set([
@@ -818,58 +826,23 @@ const sendCompanyApplicationStatusEmail = async ({
   return { emailStatus: "sent", emailError: "" };
 };
 
-const sendCompanyApplicationReceivedEmail = async ({
-  email = "",
-  organizationName = "",
-  opportunityTitle = "",
-  applicantName = "",
-  major = "",
-  university = "",
-  applicationCount = 0,
-  applicationsShareUrl = "",
+const sendCompanyApplicationDigestEmail = async ({
+  recipient = "",
+  subject = "",
+  text = "",
+  html = "",
 } = {}) => {
-  const recipient = normalizeEmail(email);
-  if (!RESEND_API_KEY || typeof fetch !== "function" || !isValidEmail(recipient)) {
+  const cleanRecipient = normalizeEmail(recipient);
+  if (!RESEND_API_KEY || typeof fetch !== "function" || !isValidEmail(cleanRecipient)) {
     return { emailStatus: "not_configured", emailError: "" };
   }
-
-  const safeShareUrl = sanitizeExternalUrl(applicationsShareUrl);
-  const subjectProgram = opportunityTitle || organizationName || "برنامج التقديم";
   const payload = {
     from: CONTACT_EMAIL_FROM,
-    to: [recipient],
+    to: [cleanRecipient],
     reply_to: CONTACT_EMAIL_TO,
-    subject: `طلب جديد على ${subjectProgram} عبر دربك`,
-    text: [
-      `وصل طلب جديد على برنامج ${subjectProgram}.`,
-      "",
-      `اسم المتقدم: ${applicantName || "غير محدد"}`,
-      `التخصص: ${major || "غير محدد"}`,
-      `الجامعة: ${university || "غير محددة"}`,
-      `إجمالي الطلبات الحالي: ${Number(applicationCount || 0)}`,
-      safeShareUrl ? "" : "رابط مراجعة الطلبات غير متاح حاليًا.",
-      safeShareUrl ? `عرض جميع المتقدمين: ${safeShareUrl}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    html: `
-      <div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#111827;background:#f8fafc;padding:24px">
-        <div style="max-width:560px;margin:auto;background:#ffffff;border:1px solid #dbe7e3;border-radius:18px;padding:24px">
-          <p style="margin:0 0 8px;color:#0f766e;font-weight:700">دربك</p>
-          <h2 style="margin:0 0 12px;color:#111827">وصل طلب جديد</h2>
-          <p style="margin:0 0 14px;color:#334155">برنامج: <strong>${escapeHtml(subjectProgram)}</strong></p>
-          <p style="margin:0;color:#334155">اسم المتقدم: ${escapeHtml(applicantName || "غير محدد")}</p>
-          <p style="margin:0;color:#334155">التخصص: ${escapeHtml(major || "غير محدد")}</p>
-          <p style="margin:0 0 16px;color:#334155">الجامعة: ${escapeHtml(university || "غير محددة")}</p>
-          <p style="margin:0 0 16px;color:#0f766e;font-weight:700">إجمالي الطلبات: ${Number(applicationCount || 0)}</p>
-          ${
-            safeShareUrl
-              ? `<a href="${escapeHtml(safeShareUrl)}" style="display:inline-block;background:#7ddbcd;color:#07100e;text-decoration:none;font-weight:700;border-radius:12px;padding:12px 18px">عرض جميع المتقدمين</a>`
-              : ""
-          }
-        </div>
-      </div>
-    `,
+    subject,
+    text,
+    html,
   };
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -2909,6 +2882,10 @@ const sanitizeCompanyPayload = (body = {}) => {
   if (Object.prototype.hasOwnProperty.call(body, "suggestedAliases")) {
     payload.suggestedAliases = sanitizeCompanyContentAliases(body.suggestedAliases);
   }
+  if (Object.prototype.hasOwnProperty.call(body, "applicationDigestEnabled")) {
+    payload.applicationDigestEnabled =
+      body.applicationDigestEnabled === true || body.applicationDigestEnabled === "true";
+  }
   return payload;
 };
 
@@ -2936,6 +2913,11 @@ const serializeCompany = (company = {}, extra = {}) => {
     contentAliases: Array.isArray(company.aliases) && company.aliases.length ? company.aliases : (company.contentAliases || []),
     suggestedAliases: Array.isArray(company.suggestedAliases) ? company.suggestedAliases : [],
     demoPortalEnabled: Boolean(company.demoPortalEnabled),
+    applicationDigestEnabled: company.applicationDigestEnabled !== false,
+    lastApplicationDigestSentAt: company.lastApplicationDigestSentAt || null,
+    lastApplicationDigestApplicationCount: Number(
+      company.lastApplicationDigestApplicationCount || 0
+    ),
     linkedinUrl: company.linkedinUrl || "",
     isFeatured: Boolean(company.isFeatured),
     enrichmentStatus: company.enrichmentStatus || "approved",
@@ -3262,6 +3244,214 @@ const getCompanyWithPortalAccess = async (companySlug = "", accessToken = "") =>
   const token = accessToken.toString().trim();
   if (!slug || !/^[a-f0-9]{64}$/i.test(token)) return null;
   return Company.findOne({ slug, portalAccessToken: token }).lean();
+};
+
+const getCompanyApplicationDigestRepository = () => ({
+  listDigestCompanies: async ({ cutoff }) => {
+    const companies = await Company.find({ applicationDigestEnabled: { $ne: false } })
+      .select(
+        "name nameAr slug contactEmail portalAccessToken applicationDigestEnabled lastApplicationDigestSentAt applicationDigestLeaseUntil"
+      )
+      .lean();
+    if (!companies.length) return [];
+    const initialWindowStart = new Date(cutoff.getTime() - 24 * 60 * 60 * 1000);
+    const earliestWindowStart = companies.reduce((earliest, company) => {
+      const companyStart = company.lastApplicationDigestSentAt
+        ? new Date(company.lastApplicationDigestSentAt)
+        : initialWindowStart;
+      return companyStart < earliest ? companyStart : earliest;
+    }, initialWindowStart);
+    const activeCampaignIds = await CompanyApplication.distinct("campaignId", {
+      createdAt: { $gt: earliestWindowStart, $lte: cutoff },
+      isDemo: { $ne: true },
+    });
+    if (!activeCampaignIds.length) return [];
+    const objectIds = activeCampaignIds
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    const activeCampaigns = await CompanyApplicationCampaign.find({
+      status: { $ne: "archived" },
+      $or: [
+        ...(objectIds.length ? [{ _id: { $in: objectIds } }] : []),
+        { slug: { $in: activeCampaignIds } },
+      ],
+    })
+      .select("companyId companySlug")
+      .lean();
+    const activeCompanyIds = new Set(
+      activeCampaigns.map((campaign) => campaign.companyId?.toString()).filter(Boolean)
+    );
+    const activeCompanySlugs = new Set(
+      activeCampaigns.map((campaign) => campaign.companySlug).filter(Boolean)
+    );
+    const activeCompanies = companies.filter(
+      (company) =>
+        activeCompanyIds.has(company._id.toString()) || activeCompanySlugs.has(company.slug)
+    );
+    return Promise.all(
+      activeCompanies.map((company) => ensureCompanyPortalAccessToken(company))
+    );
+  },
+  acquireDigestLease: async ({ companyId, now, leaseUntil }) =>
+    Company.findOneAndUpdate(
+      {
+        _id: companyId,
+        applicationDigestEnabled: { $ne: false },
+        $or: [
+          { applicationDigestLeaseUntil: null },
+          { applicationDigestLeaseUntil: { $exists: false } },
+          { applicationDigestLeaseUntil: { $lte: now } },
+        ],
+      },
+      { $set: { applicationDigestLeaseUntil: leaseUntil } },
+      { new: true }
+    )
+      .select(
+        "name nameAr slug contactEmail portalAccessToken applicationDigestEnabled lastApplicationDigestSentAt"
+      )
+      .lean(),
+  listCompanyCampaigns: async (company = {}) =>
+    CompanyApplicationCampaign.find({
+      status: { $ne: "archived" },
+      $or: [
+        { companyId: company._id },
+        { companySlug: company.slug },
+      ],
+    })
+      .select("_id opportunityTitle applicationNotificationEmail")
+      .lean(),
+  getCompanyDigestSummary: async ({ campaigns, windowStart, windowEnd }) => {
+    const campaignIds = campaigns.map((campaign) => campaign._id.toString());
+    if (!campaignIds.length) return null;
+    const rows = await CompanyApplication.aggregate([
+      {
+        $match: {
+          campaignId: { $in: campaignIds },
+          isDemo: { $ne: true },
+        },
+      },
+      {
+        $facet: {
+          newApplications: [
+            { $match: { createdAt: { $gt: windowStart, $lte: windowEnd } } },
+            {
+              $facet: {
+                total: [{ $count: "count" }],
+                campaigns: [
+                  { $group: { _id: "$campaignId", count: { $sum: 1 } } },
+                  { $sort: { count: -1, _id: 1 } },
+                ],
+                majors: [
+                  {
+                    $group: {
+                      _id: {
+                        $cond: [
+                          { $gt: [{ $strLenCP: { $ifNull: ["$major", ""] } }, 0] },
+                          "$major",
+                          "غير محدد",
+                        ],
+                      },
+                      count: { $sum: 1 },
+                    },
+                  },
+                  { $sort: { count: -1, _id: 1 } },
+                ],
+                cities: [
+                  {
+                    $group: {
+                      _id: {
+                        $cond: [
+                          { $gt: [{ $strLenCP: { $ifNull: ["$city", ""] } }, 0] },
+                          "$city",
+                          "غير محدد",
+                        ],
+                      },
+                      count: { $sum: 1 },
+                    },
+                  },
+                  { $sort: { count: -1, _id: 1 } },
+                ],
+              },
+            },
+          ],
+          totalApplications: [{ $count: "count" }],
+          pendingReview: [
+            { $match: { status: { $in: ["submitted", "new"] } } },
+            { $count: "count" },
+          ],
+        },
+      },
+    ]);
+    const result = rows[0] || {};
+    const newApplications = result.newApplications?.[0] || {};
+    const campaignTitles = new Map(
+      campaigns.map((campaign) => [campaign._id.toString(), campaign.opportunityTitle])
+    );
+    return {
+      newApplicationCount: Number(newApplications.total?.[0]?.count || 0),
+      campaigns: (newApplications.campaigns || []).map((item) => ({
+        id: item._id,
+        title: campaignTitles.get(item._id) || "برنامج تدريبي",
+        count: Number(item.count || 0),
+      })),
+      majors: (newApplications.majors || []).map((item) => ({
+        label: item._id || "غير محدد",
+        count: Number(item.count || 0),
+      })),
+      cities: (newApplications.cities || []).map((item) => ({
+        label: item._id || "غير محدد",
+        count: Number(item.count || 0),
+      })),
+      totalApplicationCount: Number(result.totalApplications?.[0]?.count || 0),
+      pendingReviewCount: Number(result.pendingReview?.[0]?.count || 0),
+    };
+  },
+  completeDigest: async ({ companyId, windowEnd, newApplicationCount }) =>
+    Company.updateOne(
+      { _id: companyId },
+      {
+        $set: {
+          lastApplicationDigestSentAt: windowEnd,
+          lastApplicationDigestApplicationCount: newApplicationCount,
+          applicationDigestLeaseUntil: null,
+        },
+      }
+    ),
+  releaseDigestLease: async (companyId) =>
+    Company.updateOne(
+      { _id: companyId },
+      { $set: { applicationDigestLeaseUntil: null } }
+    ),
+});
+
+const runCompanyApplicationDigestJob = async (now = new Date()) => {
+  if (mongoose.connection.readyState !== 1) {
+    return { companiesChecked: 0, sent: 0, skipped: 0, failed: 0, reason: "database_unavailable" };
+  }
+  return runCompanyApplicationDigest({
+    repository: getCompanyApplicationDigestRepository(),
+    sendEmail: sendCompanyApplicationDigestEmail,
+    frontendUrl: getFrontendUrl(),
+    now,
+    logger: console,
+  });
+};
+
+let companyApplicationDigestTimer = null;
+const scheduleNextCompanyApplicationDigest = () => {
+  if (!COMPANY_APPLICATION_DIGEST_SCHEDULER_ENABLED || companyApplicationDigestTimer) return;
+  const delay = getMillisecondsUntilNextRiyadhDigest(new Date());
+  companyApplicationDigestTimer = setTimeout(async () => {
+    companyApplicationDigestTimer = null;
+    try {
+      await runCompanyApplicationDigestJob(new Date());
+    } catch (err) {
+      console.error("❌ Scheduled company application digest error:", err);
+    } finally {
+      scheduleNextCompanyApplicationDigest();
+    }
+  }, delay);
+  companyApplicationDigestTimer.unref?.();
 };
 
 const hydrateCampaignCompany = async (payload = {}) => {
@@ -6953,6 +7143,7 @@ mongoose.connect(process.env.MONGO_URI, {
 // Debug مهم جدًا
 mongoose.connection.on("connected", () => {
   console.log("🟢 Mongoose connected");
+  scheduleNextCompanyApplicationDigest();
   seedPublicCompanyDirectory().catch((err) => {
     // The directory is an enhancement; a failed seed must never block the API.
     console.error("❌ Public company directory seed error:", err.message);
@@ -15534,27 +15725,9 @@ app.post('/api/company-applications', async (req, res) => {
       );
     }
 
-    const notificationCampaign = await ensureCompanyApplicationShareToken(
-      campaignDocument
-    );
-    const applicationCount = await CompanyApplication.countDocuments({
-      campaignId: payload.campaignId,
-      isDemo: { $ne: true },
-    });
-    if (isValidEmail(notificationCampaign.applicationNotificationEmail || "")) {
-      sendCompanyApplicationReceivedEmail({
-        email: notificationCampaign.applicationNotificationEmail,
-        organizationName: application.organizationName,
-        opportunityTitle: application.opportunityTitle,
-        applicantName: application.fullName,
-        major: application.major,
-        university: application.university,
-        applicationCount,
-        applicationsShareUrl: `${getFrontendUrl()}/company-applications/${notificationCampaign.applicationShareToken}`,
-      }).catch((emailErr) =>
-        console.error("❌ Company application received email error:", emailErr)
-      );
-    }
+    // Keep the existing review link ready, but company email is intentionally
+    // deferred to the daily digest instead of sending once per application.
+    await ensureCompanyApplicationShareToken(campaignDocument);
 
     res.json({
       success: true,
@@ -18573,6 +18746,36 @@ const requireTelegramCronSecret = (req, res, next) => {
 
   next();
 };
+
+const requireCompanyApplicationDigestCronSecret = (req, res, next) => {
+  if (!COMPANY_APPLICATION_DIGEST_CRON_SECRET) {
+    return res.status(500).json({ error: "Company digest cron secret is not configured" });
+  }
+
+  const providedSecret =
+    req.headers["x-company-digest-cron-secret"] ||
+    req.body?.secret ||
+    req.query?.secret;
+  if (providedSecret !== COMPANY_APPLICATION_DIGEST_CRON_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  next();
+};
+
+app.post(
+  '/api/admin/company-applications/run-daily-digest',
+  requireCompanyApplicationDigestCronSecret,
+  async (req, res) => {
+    try {
+      const result = await runCompanyApplicationDigestJob(new Date());
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      console.error("❌ Company application digest run error:", err);
+      res.status(500).json({ error: "Company application digest failed" });
+    }
+  }
+);
 
 app.get('/api/admin/telegram-content', requireAdmin, async (req, res) => {
   try {
