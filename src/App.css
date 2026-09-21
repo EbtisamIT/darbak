@@ -5866,6 +5866,22 @@ body {
 .company-share-empty, .company-share-privacy { color: #92aaa5; line-height: 1.8; font-size: 13px; }
 .company-share-empty { padding: 18px; margin: 0; text-align: center; }
 .company-share-privacy { margin: 14px 4px 0; }
+.company-applications-summary { display: grid; grid-template-columns: repeat(7, minmax(90px, 1fr)); gap: 8px; margin: 14px 0; }
+.company-applications-summary div { padding: 10px; border: 1px solid #223531; border-radius: 12px; background: #0d1716; text-align: center; }
+.company-applications-summary strong, .company-applications-summary span { display: block; }
+.company-applications-summary strong { color: #7ddbcd; font-size: 19px; }
+.company-applications-summary span { margin-top: 2px; color: #91a9a4; font-size: 11px; }
+.company-applications-bulk, .company-applications-pagination, .company-campaign-outcome > div { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.company-applications-bulk { margin: 10px 0; padding: 11px 12px; border: 1px solid #223531; border-radius: 12px; background: #0d1716; }
+.company-applications-bulk strong { margin-inline-end: auto; color: #dceae7; font-size: 13px; }
+.company-applications-bulk select, .company-applications-bulk button, .company-share-table select, .company-applications-pagination button, .company-campaign-outcome button { min-height: 38px; border: 1px solid #31534d; border-radius: 9px; padding: 7px 10px; background: #101c1a; color: #dceae7; font-family: inherit; }
+.company-applications-bulk button, .company-campaign-outcome button { background: #7ddbcd; color: #07100e; font-weight: 900; cursor: pointer; }
+.company-applications-bulk button:disabled, .company-campaign-outcome button:disabled { opacity: .55; cursor: not-allowed; }
+.company-applications-pagination { justify-content: center; margin: 14px 0; color: #91a9a4; }
+.company-campaign-outcome { margin-top: 16px; padding: 16px; border: 1px solid rgba(125,219,205,.35); border-radius: 14px; background: rgba(125,219,205,.06); }
+.company-campaign-outcome h2 { margin: 0 0 6px; color: #dceae7; font-size: 17px; }
+.company-campaign-outcome p { margin: 0 0 12px; color: #a9bfba; line-height: 1.8; }
+.company-campaign-outcome small { display: block; margin-top: 10px; color: #91a9a4; }
 .company-portal-v2 { display: grid; gap: 18px; }
 .company-portal-v2 .company-share-header { margin-bottom: 0; }
 .company-portal-menu { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 7px; border: 1px solid #223531; border-radius: 13px; background: #0d1716; }
@@ -5929,6 +5945,9 @@ body {
 .company-demo-skills { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
 .company-demo-skills span { padding: 5px 8px; border: 1px solid var(--app-brand-border); border-radius: 999px; background: var(--app-brand-soft); color: var(--app-brand); font-size: 11px; font-weight: 800; }
 @media (max-width: 720px) {
+  .company-applications-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .company-applications-bulk > * { width: 100%; }
+  .company-share-table { min-width: 920px; }
   .company-share-page { padding: 16px 11px 30px; }
   .company-share-hero { align-items: start; padding: 16px; gap: 12px; }
   .company-share-logo { width: 48px; height: 48px; border-radius: 11px; font-size: 20px; }
@@ -6055,6 +6074,9 @@ body {
 :root[data-theme="light"] .company-portal-metrics article,
 :root[data-theme="light"] .company-portal-section,
 :root[data-theme="light"] .company-portal-request,
+:root[data-theme="light"] .company-applications-summary div,
+:root[data-theme="light"] .company-applications-bulk,
+:root[data-theme="light"] .company-campaign-outcome,
 :root[data-theme="light"] .company-demo-modal { background: var(--app-surface); border-color: var(--app-border); color: var(--app-text); }
 :root[data-theme="light"] .company-portal-menu,
 :root[data-theme="light"] .company-portal-journey,
@@ -6066,6 +6088,9 @@ body {
 :root[data-theme="light"] .company-share-controls input,
 :root[data-theme="light"] .company-share-controls select,
 :root[data-theme="light"] .company-portal-request textarea { background: var(--app-input-bg); color: var(--app-text); border-color: var(--app-border); }
+:root[data-theme="light"] .company-applications-bulk select,
+:root[data-theme="light"] .company-share-table select,
+:root[data-theme="light"] .company-applications-pagination button { background: var(--app-input-bg); color: var(--app-text); border-color: var(--app-border); }
 :root[data-theme="light"] .company-share-controls input::placeholder { color: var(--app-muted); }
 :root[data-theme="light"] .company-share-hero h1,
 :root[data-theme="light"] .company-share-hero h2,

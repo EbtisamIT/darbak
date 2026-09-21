@@ -1108,6 +1108,8 @@ export default function AdminReviewPage() {
   const [companyLinkAuditBusy, setCompanyLinkAuditBusy] = useState(false);
   const [companyCampaignStatus, setCompanyCampaignStatus] = useState("");
   const [companyCampaignSearch, setCompanyCampaignSearch] = useState("");
+  const [companyCampaignFollowUp, setCompanyCampaignFollowUp] = useState("");
+  const [companyCampaignSummary, setCompanyCampaignSummary] = useState(null);
   const [companyCampaignForm, setCompanyCampaignForm] = useState(
     defaultCompanyCampaignForm
   );
@@ -1376,12 +1378,14 @@ export default function AdminReviewPage() {
           params: {
             status: companyCampaignStatus,
             search: companyCampaignSearch.trim(),
+            followUp: companyCampaignFollowUp,
           },
           headers: authHeaders,
         }
       );
 
       setCompanyCampaigns(Array.isArray(data.data) ? data.data : []);
+      setCompanyCampaignSummary(data.summary || null);
       if (!companies.length) {
         const companiesResponse = await axios.get(`${API_BASE_URL}/api/admin/companies`, {
           headers: authHeaders,
@@ -1664,6 +1668,7 @@ export default function AdminReviewPage() {
     opportunityFilterVersion,
     companyApplicationStatus,
     companyCampaignStatus,
+    companyCampaignFollowUp,
     analyticsDays,
     userStatus,
     adminView,
@@ -4811,6 +4816,27 @@ export default function AdminReviewPage() {
                 </option>
               ))}
             </select>
+            <select
+              value={companyCampaignFollowUp}
+              onChange={(e) => setCompanyCampaignFollowUp(e.target.value)}
+              style={{
+                background: adminColors.inputBg,
+                border: `1px solid ${adminColors.inputBorder}`,
+                borderRadius: "10px",
+                color: adminColors.text,
+                padding: "11px 12px",
+                fontFamily: "inherit",
+              }}
+            >
+              <option value="">كل حالات المتابعة</option>
+              <option value="not_opened">لم تفتح رابط المتقدمين</option>
+              <option value="opened_not_reviewed">فتحت الرابط ولم تبدأ المراجعة</option>
+              <option value="shortlisted">لديها مرشحون</option>
+              <option value="interview">لديها مقابلات</option>
+              <option value="accepted">لديها قبول مؤكد</option>
+              <option value="student_reported_accepted">قبول مبلغ عنه وغير مؤكد</option>
+              <option value="closed_without_outcome">مغلق بدون نتيجة</option>
+            </select>
             <input
               value={companyCampaignSearch}
               onChange={(e) => setCompanyCampaignSearch(e.target.value)}
@@ -5627,6 +5653,20 @@ export default function AdminReviewPage() {
         <div style={{ display: "grid", gap: 12 }}>{companyRequests.length === 0 ? <div style={{ ...cardStyle, color: adminColors.muted }}>لا توجد طلبات فرص بانتظار المراجعة.</div> : companyRequests.map((request) => <article key={request.id || request._id} style={cardStyle}><h3 style={{ color: adminColors.brand, margin: "0 0 6px" }}>{request.organizationName}</h3><p style={{ margin: 0, color: adminColors.text, fontWeight: 800 }}>{request.opportunityTitle}</p><p style={{ color: adminColors.muted, fontSize: 13, margin: "7px 0" }}>المدينة: {request.city || "غير محددة"} · التخصصات: {(request.specialties || request.majorCategories || []).join("، ") || "غير محددة"}</p><p style={{ color: adminColors.textSoft, fontSize: 13, margin: "7px 0", whiteSpace: "pre-wrap" }}>{request.description || "بدون وصف"}</p><p style={{ color: adminColors.muted, fontSize: 12 }}>إغلاق التقديم: {request.applicationDeadline ? formatAdminDateTime(request.applicationDeadline) : "غير محدد"} · الحالة: {companyCampaignStatusLabels[request.status] || request.status}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button type="button" onClick={() => reviewCompanyRequest(request.id || request._id, "approve")} style={{ background: adminColors.brand, color: "#07100e", border: 0, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 800 }}>اعتماد ونشر</button><button type="button" onClick={() => { startCompanyCampaignEdit(request); setAdminView("companyCampaigns"); }} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>تعديل</button><button type="button" onClick={() => reviewCompanyRequest(request.id || request._id, "request_changes")} style={{ background: "transparent", color: adminColors.textSoft, border: `1px solid ${adminColors.inputBorder}`, borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>طلب تعديل</button><button type="button" onClick={() => reviewCompanyRequest(request.id || request._id, "reject")} style={{ background: "rgba(127,29,29,.2)", color: "#fecaca", border: "1px solid rgba(248,113,113,.35)", borderRadius: 9, padding: "8px 10px", cursor: "pointer", fontFamily: "inherit" }}>رفض</button></div></article>)}</div>
       ) : adminView === "companyCampaigns" ? (
         <div style={{ display: "grid", gap: "14px" }}>
+          {companyCampaignSummary && (
+            <section style={{ ...cardStyle, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 9 }}>
+              {[
+                ["إجمالي الطلبات", companyCampaignSummary.applications],
+                ["برامج استقبلت طلبات", companyCampaignSummary.campaignsWithApplications],
+                ["مرشحون", companyCampaignSummary.shortlisted],
+                ["مقابلات", companyCampaignSummary.interview],
+                ["قبولات مؤكدة", companyCampaignSummary.accepted],
+                ["قبولات أبلغ عنها الطلاب", companyCampaignSummary.studentReportedAccepted],
+                ["مغلق بدون نتيجة", companyCampaignSummary.closedWithoutOutcome],
+                ["لم تفتح رابط الطلبات", companyCampaignSummary.reviewLinksNotOpened],
+              ].map(([label, value]) => <div key={label} style={{ border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, padding: 10 }}><strong style={{ display: "block", color: adminColors.brand, fontSize: 19 }}>{Number(value || 0)}</strong><span style={{ color: adminColors.muted, fontSize: 12 }}>{label}</span></div>)}
+            </section>
+          )}
           <form
             id="admin-company-campaign-form"
             onSubmit={saveCompanyCampaign}
@@ -5993,6 +6033,21 @@ export default function AdminReviewPage() {
                         </strong>
                       </div>
                       <div>
+                        تمت مراجعتها: {campaign.statusSummary?.reviewed || 0} · مرشحون: {campaign.statusSummary?.shortlisted || 0} · مقابلات: {campaign.statusSummary?.interview || 0}
+                      </div>
+                      <div>
+                        قبول مؤكد: <strong style={{ color: adminColors.brand }}>{campaign.statusSummary?.accepted || 0}</strong> · بلاغ قبول غير مؤكد: {campaign.statusSummary?.studentReportedAccepted || 0}
+                      </div>
+                      <div>
+                        أول فتح للرابط: <strong style={{ color: adminColors.text }}>{campaign.reviewLinkFirstOpenedAt ? formatAdminDateTime(campaign.reviewLinkFirstOpenedAt) : "لم تفتح الشركة الرابط"}</strong>
+                      </div>
+                      <div>
+                        آخر فتح: <strong style={{ color: adminColors.text }}>{campaign.reviewLinkLastOpenedAt ? formatAdminDateTime(campaign.reviewLinkLastOpenedAt) : "-"}</strong> · CSV: {campaign.csvExportCount > 0 ? `نعم (${campaign.csvExportCount})` : "لا"}
+                      </div>
+                      <div>
+                        نتيجة البرنامج: <strong style={{ color: adminColors.text }}>{campaign.outcomeStatus === "selected" ? "تم اختيار متدرب" : campaign.outcomeStatus === "reviewing" ? "ما زالت قيد المراجعة" : campaign.outcomeStatus === "none_selected" ? "لم يتم اختيار أحد" : "بانتظار النتيجة"}</strong>
+                      </div>
+                      <div>
                         آخر موعد:{" "}
                         <strong style={{ color: adminColors.text }}>
                           {campaign.applicationDeadline
@@ -6172,6 +6227,7 @@ export default function AdminReviewPage() {
                     ["التخصص", item.major || "غير مذكور"],
                     ["الجامعة", item.university || "غير مذكورة"],
                     ["المدينة", item.city || "غير مذكورة"],
+                    ["بلاغ الطالب", item.studentReportedStatus === "accepted" ? "أبلغ عن قبول — غير مؤكد" : item.studentReportedStatus === "interview" ? "أبلغ عن مقابلة" : item.studentReportedStatus === "contacted" ? "أبلغ عن تواصل" : item.studentReportedStatus === "rejected" ? "أبلغ بعدم الاختيار" : "لا يوجد"],
                   ].map(([label, value]) => (
                     <div
                       key={label}

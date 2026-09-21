@@ -13,7 +13,7 @@ assert.strictEqual(shouldShowCompanyPortalDemo({ status: "active", demoPortalEna
 const noDemo = buildCompanyPortalPresentation({ demoEnabled: false, realApplicants: [] });
 assert.strictEqual(noDemo.demoMode, false);
 assert.strictEqual(noDemo.applicants.length, 0);
-assert.deepStrictEqual(noDemo.metrics, { total: 0, new: 0, reviewing: 0, shortlisted: 0 });
+assert.deepStrictEqual(noDemo.metrics, { total: 0, new: 0, reviewing: 0, shortlisted: 0, interview: 0, accepted: 0, rejected: 0 });
 
 const demo = buildCompanyPortalPresentation({ demoEnabled: true, realApplicants: [] });
 assert.strictEqual(demo.demoMode, true);

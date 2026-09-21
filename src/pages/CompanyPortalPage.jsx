@@ -133,14 +133,16 @@ const CompanyPortalPage = ({ theme, setTheme }) => {
     [data?.latestApplicants, demoStatus]
   );
   const metrics = useMemo(() => {
-    if (!data?.demoMode) return data?.metrics || { total: 0, new: 0, reviewing: 0, shortlisted: 0 };
+    if (!data?.demoMode) return data?.metrics || { total: 0, new: 0, reviewing: 0, shortlisted: 0, interview: 0, accepted: 0 };
     return latestApplicants.reduce((result, applicant) => {
       result.total += 1;
       if (applicant.status === "new") result.new += 1;
       if (applicant.status === "reviewing") result.reviewing += 1;
       if (applicant.status === "shortlisted") result.shortlisted += 1;
+      if (applicant.status === "interview") result.interview += 1;
+      if (applicant.status === "accepted") result.accepted += 1;
       return result;
-    }, { total: 0, new: 0, reviewing: 0, shortlisted: 0 });
+    }, { total: 0, new: 0, reviewing: 0, shortlisted: 0, interview: 0, accepted: 0 });
   }, [data?.demoMode, data?.metrics, latestApplicants]);
   const primaryProgram = programs.find((program) => program.isOpen) || programs[0];
   const hasReviewActivity = Number(metrics.reviewing || 0) + Number(metrics.shortlisted || 0) > 0;
@@ -157,6 +159,8 @@ const CompanyPortalPage = ({ theme, setTheme }) => {
     ["جديد", metrics.new, "new", "+"],
     ["قيد المراجعة", metrics.reviewing, "reviewing", "⌕"],
     ["مرشح", metrics.shortlisted, "shortlisted", "✓"],
+    ["مقابلة", metrics.interview, "interview", "◇"],
+    ["مقبول", metrics.accepted, "accepted", "★"],
   ];
   const showPrograms = activeTab === "overview" || activeTab === "programs";
   const showApplicants = activeTab === "overview" || activeTab === "applicants";
@@ -223,8 +227,8 @@ const CompanyPortalPage = ({ theme, setTheme }) => {
             {programs.length ? <div className="company-portal-programs">{programs.map((program) => {
               const overview = `/company/${company.slug}/program/${program.id}?access=${encodeURIComponent(access)}`;
               return <article key={program.id} className={program.isDemo ? "is-demo" : ""}>
-                <div><span className={`company-portal-program-status is-${program.status}`}>{programLabels[program.status] || program.status}</span><h3>{program.opportunityTitle}</h3><p>{program.city || "المدينة غير محددة"} · {Number(program.applicationCount || 0)} متقدم</p>{program.isDemo && <b>للعرض فقط</b>}</div>
-                <div className="company-portal-program-actions">{program.isDemo ? <button type="button" className="company-share-cv" onClick={() => setPortalTab("applicants")}>عرض الطلب التجريبي</button> : <><Link className="company-share-cv" to={overview}>عرض البرنامج</Link>{program.applicationsShareUrl && <a className="company-share-linkedin" href={program.applicationsShareUrl} target="_blank" rel="noreferrer">المتقدمون</a>}<button type="button" className="company-share-linkedin" onClick={() => copy(program.applyUrl)}>نسخ رابط التقديم</button></>}</div>
+                <div><span className={`company-portal-program-status is-${program.status}`}>{programLabels[program.status] || program.status}</span><h3>{program.opportunityTitle}</h3><p>{program.city || "المدينة غير محددة"} · {Number(program.applicationCount || 0)} متقدم</p>{!program.isDemo && <p>مرشحون: {Number(program.statusSummary?.shortlisted || 0)} · مقابلات: {Number(program.statusSummary?.interview || 0)} · مقبولون: {Number(program.statusSummary?.accepted || 0)}</p>}{program.isDemo && <b>للعرض فقط</b>}</div>
+                <div className="company-portal-program-actions">{program.isDemo ? <button type="button" className="company-share-cv" onClick={() => setPortalTab("applicants")}>عرض الطلب التجريبي</button> : <><Link className="company-share-cv" to={overview}>عرض البرنامج</Link>{program.applicationsShareUrl && <a className="company-share-linkedin" href={program.applicationsShareUrl} target="_blank" rel="noreferrer">مراجعة المتقدمين</a>}<button type="button" className="company-share-linkedin" onClick={() => copy(program.applyUrl)}>نسخ رابط التقديم</button></>}</div>
               </article>;
             })}</div> : <div className="company-portal-empty"><strong>لا يوجد برنامج منشور بعد</strong><p>أضف فرصة جديدة وسيتم مراجعتها من فريق دربك قبل النشر.</p><button type="button" className="company-share-export" onClick={() => setPortalTab("request")}>إضافة فرصة</button></div>}
           </section>}

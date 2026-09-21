@@ -262,6 +262,13 @@ const companyApplicationSchema = new mongoose.Schema(
       trim: true,
       maxlength: 500,
     },
+    studentReportedStatus: {
+      type: String,
+      enum: ["", "contacted", "interview", "accepted", "rejected", "no_update"],
+      default: "",
+      index: true,
+    },
+    studentReportedAt: { type: Date, default: null },
     statusHistory: {
       type: [statusHistorySchema],
       default: [],

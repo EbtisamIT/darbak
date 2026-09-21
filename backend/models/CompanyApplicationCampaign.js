@@ -12,12 +12,6 @@ const campaignStatusValues = [
 
 const customQuestionSchema = new mongoose.Schema(
   {
-    companyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "companies",
-      default: null,
-      index: true,
-    },
     question: {
       type: String,
       required: true,
@@ -34,6 +28,12 @@ const customQuestionSchema = new mongoose.Schema(
 
 const companyApplicationCampaignSchema = new mongoose.Schema(
   {
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "companies",
+      default: null,
+      index: true,
+    },
     slug: {
       type: String,
       required: true,
@@ -135,6 +135,18 @@ const companyApplicationCampaignSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    reviewLinkFirstOpenedAt: { type: Date, default: null },
+    reviewLinkLastOpenedAt: { type: Date, default: null },
+    reviewLinkOpenCount: { type: Number, default: 0, min: 0 },
+    lastCsvExportAt: { type: Date, default: null },
+    csvExportCount: { type: Number, default: 0, min: 0 },
+    outcomeStatus: {
+      type: String,
+      enum: ["pending", "reviewing", "selected", "none_selected"],
+      default: "pending",
+      index: true,
+    },
+    outcomeUpdatedAt: { type: Date, default: null },
     createdBy: {
       type: String,
       default: "admin",

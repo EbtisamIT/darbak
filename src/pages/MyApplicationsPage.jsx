@@ -25,6 +25,17 @@ const terminalStatuses = {
   withdrawn: "منسحب",
 };
 
+const studentReportOptions = [
+  ["", "اختر التحديث"],
+  ["contacted", "تواصلوا معي"],
+  ["interview", "وصلت للمقابلة"],
+  ["accepted", "تم قبولي"],
+  ["rejected", "لم يتم اختياري"],
+  ["no_update", "لا يوجد تحديث"],
+];
+
+const studentReportLabels = Object.fromEntries(studentReportOptions);
+
 const statusTone = {
   submitted: ["#66d0c3", "rgba(102,208,195,0.13)"],
   under_review: ["#f2c94c", "rgba(242,201,76,0.13)"],
@@ -58,6 +69,8 @@ const MyApplicationsPage = () => {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [requiresLogin, setRequiresLogin] = useState(false);
+  const [savingReportId, setSavingReportId] = useState("");
+  const [reportMessage, setReportMessage] = useState("");
 
   const identity = getStoredAccessIdentity();
   const hasIdentity = Boolean(identity.contact && identity.accessCode);
@@ -124,6 +137,27 @@ const MyApplicationsPage = () => {
     );
   };
 
+  const saveStudentReport = async (applicationId, studentReportedStatus) => {
+    if (!studentReportedStatus) return;
+    setSavingReportId(applicationId);
+    setReportMessage("");
+    try {
+      const { data } = await axios.patch(
+        `${API_BASE_URL}/api/company-applications/me/${encodeURIComponent(applicationId)}/student-report`,
+        { studentReportedStatus },
+        { headers: getAccessHeaders() }
+      );
+      setApplications((current) => current.map((item) =>
+        (item.id || item._id) === applicationId ? data.data : item
+      ));
+      setReportMessage("تم حفظ التحديث، والحالة الرسمية للطلب لم تتغير.");
+    } catch (err) {
+      setReportMessage(err.response?.data?.error || "تعذر حفظ التحديث الآن.");
+    } finally {
+      setSavingReportId("");
+    }
+  };
+
   return (
     <main dir="rtl" className="my-applications-page">
       <section className="my-applications-hero">
@@ -177,7 +211,7 @@ const MyApplicationsPage = () => {
                   </div>
                   <div>
                     <h2>{application.organizationName || "جهة تدريبية"}</h2>
-                    <p>{application.opportunityTitle || "التدريب التعاوني"}</p>
+                    <p>{[application.programType, application.opportunityTitle || "التدريب التعاوني"].filter(Boolean).join(" – ")}</p>
                   </div>
                   <span className="application-status" style={{ color, background: bg }}>
                     {application.statusLabel || terminalStatuses[status] || "تم الإرسال"}
@@ -245,11 +279,29 @@ const MyApplicationsPage = () => {
                     </a>
                   )}
                 </div>
+
+                <div className="application-student-report">
+                  <div>
+                    <strong>وصلك تحديث من الجهة خارج دربك؟</strong>
+                    <small>بلاغك لا يغيّر الحالة الرسمية التي تؤكدها الجهة.</small>
+                  </div>
+                  <select
+                    aria-label={`تحديث خارجي لطلب ${application.organizationName || "الجهة"}`}
+                    value={application.studentReportedStatus || ""}
+                    disabled={savingReportId === (application.id || application._id)}
+                    onChange={(event) => saveStudentReport(application.id || application._id, event.target.value)}
+                  >
+                    {studentReportOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                  {application.studentReportedStatus && <span>آخر بلاغ: {studentReportLabels[application.studentReportedStatus]}</span>}
+                </div>
               </article>
             );
           })}
         </section>
       )}
+
+      {reportMessage && <p className="application-report-notice">{reportMessage}</p>}
 
       <style>{`
         .my-applications-page {
@@ -453,6 +505,24 @@ const MyApplicationsPage = () => {
           cursor: pointer;
         }
 
+        .application-student-report {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-top: 14px;
+          padding: 12px;
+          border: 1px solid var(--app-border);
+          border-radius: 14px;
+          background: var(--app-input-bg);
+        }
+
+        .application-student-report div { margin-inline-end: auto; }
+        .application-student-report strong, .application-student-report small { display: block; }
+        .application-student-report small, .application-student-report span { color: var(--app-text-soft); font-size: 11px; }
+        .application-student-report select { min-height: 39px; border: 1px solid var(--app-border); border-radius: 10px; padding: 7px 10px; background: var(--app-surface); color: var(--app-text); font-family: inherit; }
+        .application-report-notice { position: sticky; bottom: 16px; width: fit-content; margin: 16px auto 0; padding: 10px 14px; border: 1px solid var(--app-brand-border); border-radius: 12px; background: var(--app-surface); color: var(--app-brand); font-weight: 800; }
+
         .my-applications-empty {
           min-height: 260px;
           display: grid;
@@ -485,6 +555,7 @@ const MyApplicationsPage = () => {
           .application-stepper {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
+          .application-student-report > * { width: 100%; }
         }
       `}</style>
     </main>

@@ -50,9 +50,12 @@ const getPortalMetrics = (applicants = []) =>
       if (status === "new") metrics.new += 1;
       if (status === "reviewing") metrics.reviewing += 1;
       if (status === "shortlisted") metrics.shortlisted += 1;
+      if (status === "interview") metrics.interview += 1;
+      if (status === "accepted") metrics.accepted += 1;
+      if (status === "rejected") metrics.rejected += 1;
       return metrics;
     },
-    { total: 0, new: 0, reviewing: 0, shortlisted: 0 }
+    { total: 0, new: 0, reviewing: 0, shortlisted: 0, interview: 0, accepted: 0, rejected: 0 }
   );
 
 const shouldShowCompanyPortalDemo = (company = {}) =>

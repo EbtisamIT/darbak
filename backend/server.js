@@ -25,6 +25,11 @@ const Portfolio = require('./models/Portfolio');
 const PortfolioAsset = require('./models/PortfolioAsset');
 const CompanyApplicationFile = require('./models/CompanyApplicationFile');
 const {
+  buildCampaignApplicationFilter,
+  buildStudentApplicationOwnershipFilter,
+  shouldRecordReviewLinkOpen,
+} = require('./services/companyApplicationWorkflow');
+const {
   DIRECTORY_COMPANY_SEEDS,
   companyAliasesMatchName,
   isSafeCompanyAlias,
@@ -549,6 +554,33 @@ const getCompanyApplicationStatusFilterValues = (status = "") => {
   if (normalized === "under_review") return ["under_review", "reviewed"];
   return [normalized];
 };
+
+const COMPANY_APPLICATION_STUDENT_REPORT_STATUSES = [
+  "contacted",
+  "interview",
+  "accepted",
+  "rejected",
+  "no_update",
+];
+
+const COMPANY_CAMPAIGN_OUTCOME_STATUSES = [
+  "pending",
+  "reviewing",
+  "selected",
+  "none_selected",
+];
+
+const emptyCompanyApplicationStatusSummary = () => ({
+  total: 0,
+  submitted: 0,
+  under_review: 0,
+  shortlisted: 0,
+  interview: 0,
+  accepted: 0,
+  rejected: 0,
+  reviewed: 0,
+  studentReportedAccepted: 0,
+});
 
 const sanitizeCompanyApplicationAnswerText = (value = "", maxLength = 1200) =>
   value.toString().trim().slice(0, maxLength);
@@ -2588,8 +2620,17 @@ const serializeCompanyApplicationCampaign = (campaign = {}, extra = {}) => {
     reviewMessage: campaign.reviewMessage || "",
     status: isOpen ? campaign.status || "open" : campaign.status || "draft",
     isOpen,
+    isEnded: campaign.status === "closed" || (campaign.status === "open" && !isOpen),
     allowDuplicateApplications: Boolean(campaign.allowDuplicateApplications),
     applicationCount: Number(extra.applicationCount || 0),
+    statusSummary: extra.statusSummary || emptyCompanyApplicationStatusSummary(),
+    reviewLinkFirstOpenedAt: campaign.reviewLinkFirstOpenedAt || null,
+    reviewLinkLastOpenedAt: campaign.reviewLinkLastOpenedAt || null,
+    reviewLinkOpenCount: Number(campaign.reviewLinkOpenCount || 0),
+    lastCsvExportAt: campaign.lastCsvExportAt || null,
+    csvExportCount: Number(campaign.csvExportCount || 0),
+    outcomeStatus: campaign.outcomeStatus || "pending",
+    outcomeUpdatedAt: campaign.outcomeUpdatedAt || null,
     applyUrl: `${getFrontendUrl()}/apply/${campaign.slug || campaign.companySlug || id}`,
     ...(extra.includeShareUrl && campaign.applicationShareToken
       ? {
@@ -3544,6 +3585,8 @@ const serializeCompanyApplication = (application = {}) => {
     rawStatus: application.status || "",
     statusLabel: COMPANY_APPLICATION_STATUS_LABELS[status] || status,
     studentVisibleMessage: application.studentVisibleMessage || "",
+    studentReportedStatus: application.studentReportedStatus || "",
+    studentReportedAt: application.studentReportedAt || null,
     statusHistory: safeHistory.map((item) => ({
       status: normalizeCompanyApplicationStatusValue(item.status),
       statusLabel:
@@ -14775,13 +14818,15 @@ app.get('/api/company-apply/:companySlug/context', async (req, res) => {
 const escapeCsvCell = (value = "") =>
   `"${String(value ?? "").replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
 
-const getCompanyShareApplications = async ({ shareToken = "", query = {} } = {}) => {
+const getCompanyShareApplications = async ({ shareToken = "", query = {}, includeAll = false } = {}) => {
   const campaign = await getCompanyApplicationCampaignByShareToken(shareToken);
   if (!campaign) return null;
 
   const search = (query.search || "").toString().trim().slice(0, 100);
   const major = (query.major || "").toString().trim().slice(0, 140);
   const university = (query.university || "").toString().trim().slice(0, 140);
+  const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(10, Number.parseInt(query.limit, 10) || 50));
   const filters = [{ campaignId: campaign._id.toString() }, { isDemo: { $ne: true } }];
 
   if (major) filters.push({ major });
@@ -14800,11 +14845,12 @@ const getCompanyShareApplications = async ({ shareToken = "", query = {} } = {})
   }
 
   const filter = filters.length === 1 ? filters[0] : { $and: filters };
+  const applicationsQuery = CompanyApplication.find(filter)
+    .sort({ submittedAt: -1, createdAt: -1 });
+  if (!includeAll) applicationsQuery.skip((page - 1) * limit).limit(limit);
+
   const [applications, facets] = await Promise.all([
-    CompanyApplication.find(filter)
-      .sort({ submittedAt: -1, createdAt: -1 })
-      .limit(1500)
-      .lean(),
+    applicationsQuery.lean(),
     CompanyApplication.aggregate([
       { $match: { campaignId: campaign._id.toString(), isDemo: { $ne: true } } },
       {
@@ -14821,10 +14867,29 @@ const getCompanyShareApplications = async ({ shareToken = "", query = {} } = {})
             { $sort: { _id: 1 } },
             { $limit: 100 },
           ],
+          statuses: [
+            { $group: { _id: "$status", count: { $sum: 1 } } },
+          ],
+          studentReportedAccepted: [
+            { $match: { studentReportedStatus: "accepted", status: { $ne: "accepted" } } },
+            { $count: "count" },
+          ],
         },
       },
     ]),
   ]);
+
+  const statusSummary = (facets[0]?.statuses || []).reduce((summary, item) => {
+    const status = normalizeCompanyApplicationStatusValue(item._id);
+    const count = Number(item.count || 0);
+    summary.total += count;
+    if (Object.prototype.hasOwnProperty.call(summary, status)) summary[status] += count;
+    if (status !== "submitted") summary.reviewed += count;
+    return summary;
+  }, emptyCompanyApplicationStatusSummary());
+  statusSummary.studentReportedAccepted = Number(
+    facets[0]?.studentReportedAccepted?.[0]?.count || 0
+  );
 
   return {
     campaign,
@@ -14833,11 +14898,39 @@ const getCompanyShareApplications = async ({ shareToken = "", query = {} } = {})
       campaignId: campaign._id.toString(),
       isDemo: { $ne: true },
     }),
+    statusSummary,
+    pagination: {
+      page,
+      limit,
+      total: await CompanyApplication.countDocuments(filter),
+    },
     filters: {
       majors: (facets[0]?.majors || []).map((item) => item._id),
       universities: (facets[0]?.universities || []).map((item) => item._id),
     },
   };
+};
+
+const recordCompanyReviewLinkOpen = async (campaign = {}) => {
+  const now = new Date();
+  if (!shouldRecordReviewLinkOpen(campaign.reviewLinkLastOpenedAt, now)) return;
+  const throttleBefore = new Date(now.getTime() - 15 * 60 * 1000);
+  const filter = {
+    _id: campaign._id,
+    $or: [
+      { reviewLinkLastOpenedAt: null },
+      { reviewLinkLastOpenedAt: { $exists: false } },
+      { reviewLinkLastOpenedAt: { $lt: throttleBefore } },
+    ],
+  };
+  const update = {
+    $set: { reviewLinkLastOpenedAt: now },
+    $inc: { reviewLinkOpenCount: 1 },
+  };
+  if (!campaign.reviewLinkFirstOpenedAt) {
+    update.$set.reviewLinkFirstOpenedAt = now;
+  }
+  await CompanyApplicationCampaign.updateOne(filter, update);
 };
 
 app.get('/api/company-applications/share/:shareToken', async (req, res) => {
@@ -14852,11 +14945,20 @@ app.get('/api/company-applications/share/:shareToken', async (req, res) => {
     });
     if (!data) return res.status(404).json({ error: "رابط مراجعة الطلبات غير صالح." });
 
+    recordCompanyReviewLinkOpen(data.campaign).catch((trackingError) =>
+      console.error("❌ Company review link tracking error:", trackingError)
+    );
+
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
     res.json({
-      campaign: serializeCompanyApplicationCampaign(data.campaign),
+      campaign: serializeCompanyApplicationCampaign(data.campaign, {
+        applicationCount: data.totalCount,
+        statusSummary: data.statusSummary,
+      }),
       applicationCount: data.totalCount,
+      statusSummary: data.statusSummary,
+      pagination: data.pagination,
       filters: data.filters,
       applications: data.applications.map(serializeCompanyApplication),
     });
@@ -14875,8 +14977,14 @@ app.get('/api/company-applications/share/:shareToken/export', async (req, res) =
     const data = await getCompanyShareApplications({
       shareToken: req.params.shareToken,
       query: {},
+      includeAll: true,
     });
     if (!data) return res.status(404).json({ error: "رابط مراجعة الطلبات غير صالح." });
+
+    await CompanyApplicationCampaign.updateOne(
+      { _id: data.campaign._id },
+      { $set: { lastCsvExportAt: new Date() }, $inc: { csvExportCount: 1 } }
+    );
 
     const rows = [
       [
@@ -14925,44 +15033,241 @@ app.get('/api/company-applications/share/:shareToken/export', async (req, res) =
   }
 });
 
+const updateCompanyApplicationsForCampaign = async ({
+  campaign,
+  applicationIds = [],
+  status,
+  changedBy = "company",
+  studentVisibleMessage = "",
+} = {}) => {
+  const normalizedStatus = normalizeCompanyApplicationStatusValue(status);
+  if (!COMPANY_APPLICATION_STATUS_FLOW.includes(normalizedStatus)) {
+    const error = new Error("حالة الطلب غير صحيحة.");
+    error.status = 400;
+    throw error;
+  }
+  const ids = Array.from(new Set(applicationIds.map(String)))
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .slice(0, 100);
+  if (!ids.length) {
+    const error = new Error("اختر طلبًا واحدًا على الأقل.");
+    error.status = 400;
+    throw error;
+  }
+  const campaignId = campaign._id.toString();
+  const existing = await CompanyApplication.find({
+    ...buildCampaignApplicationFilter({ campaignId, applicationIds: ids }),
+  }).lean();
+  if (existing.length !== ids.length) {
+    const error = new Error("أحد الطلبات لا يتبع هذا البرنامج.");
+    error.status = 403;
+    throw error;
+  }
+  const changed = existing.filter(
+    (item) => normalizeCompanyApplicationStatusValue(item.status) !== normalizedStatus
+  );
+  if (!changed.length) return { changed: [], applications: existing };
+  const changedAt = new Date();
+  await CompanyApplication.bulkWrite(
+    changed.map((item) => ({
+      updateOne: {
+        filter: { _id: item._id, campaignId },
+        update: {
+          $set: { status: normalizedStatus, studentVisibleMessage },
+          $push: {
+            statusHistory: {
+              status: normalizedStatus,
+              changedAt,
+              changedBy,
+              studentVisibleMessage,
+            },
+          },
+        },
+      },
+    }))
+  );
+  const updated = await CompanyApplication.find({ _id: { $in: ids }, campaignId }).lean();
+  changed.forEach((item) => {
+    if (!isValidEmail(item.email || "")) return;
+    sendCompanyApplicationStatusEmail({
+      email: item.email,
+      fullName: item.fullName,
+      organizationName: item.organizationName,
+      opportunityTitle: item.opportunityTitle,
+      status: normalizedStatus,
+      studentVisibleMessage,
+      applicationsUrl: `${getFrontendUrl()}/applications`,
+    }).catch((emailErr) =>
+      console.error("❌ Company application status email error:", emailErr)
+    );
+  });
+  return { changed, applications: updated };
+};
+
+app.patch('/api/company-applications/share/:shareToken/applications/:applicationId/status', async (req, res) => {
+  try {
+    const campaign = await getCompanyApplicationCampaignByShareToken(req.params.shareToken);
+    if (!campaign) return res.status(404).json({ error: "رابط مراجعة الطلبات غير صالح." });
+    const result = await updateCompanyApplicationsForCampaign({
+      campaign,
+      applicationIds: [req.params.applicationId],
+      status: req.body?.status,
+      changedBy: "company",
+    });
+    res.json({
+      success: true,
+      changedCount: result.changed.length,
+      data: result.applications.map(serializeCompanyApplication),
+    });
+  } catch (err) {
+    console.error("❌ Company application shared status update error:", err);
+    res.status(err.status || 500).json({ error: err.message || "تعذر تحديث حالة الطلب." });
+  }
+});
+
+app.patch('/api/company-applications/share/:shareToken/applications/status', async (req, res) => {
+  try {
+    const campaign = await getCompanyApplicationCampaignByShareToken(req.params.shareToken);
+    if (!campaign) return res.status(404).json({ error: "رابط مراجعة الطلبات غير صالح." });
+    const result = await updateCompanyApplicationsForCampaign({
+      campaign,
+      applicationIds: Array.isArray(req.body?.applicationIds) ? req.body.applicationIds : [],
+      status: req.body?.status,
+      changedBy: "company",
+    });
+    res.json({
+      success: true,
+      changedCount: result.changed.length,
+      data: result.applications.map(serializeCompanyApplication),
+    });
+  } catch (err) {
+    console.error("❌ Company application bulk status update error:", err);
+    res.status(err.status || 500).json({ error: err.message || "تعذر تحديث الطلبات." });
+  }
+});
+
+app.patch('/api/company-applications/share/:shareToken/outcome', async (req, res) => {
+  try {
+    const campaign = await getCompanyApplicationCampaignByShareToken(req.params.shareToken);
+    if (!campaign) return res.status(404).json({ error: "رابط مراجعة الطلبات غير صالح." });
+    if (!serializeCompanyApplicationCampaign(campaign).isEnded) {
+      return res.status(409).json({ error: "يمكن تسجيل نتيجة البرنامج بعد انتهاء استقبال الطلبات." });
+    }
+    const outcomeStatus = (req.body?.outcomeStatus || "").toString();
+    if (!COMPANY_CAMPAIGN_OUTCOME_STATUSES.includes(outcomeStatus)) {
+      return res.status(400).json({ error: "نتيجة البرنامج غير صحيحة." });
+    }
+    const selectedApplicationIds = Array.isArray(req.body?.selectedApplicationIds)
+      ? req.body.selectedApplicationIds
+      : [];
+    if (outcomeStatus === "selected" && !selectedApplicationIds.length) {
+      return res.status(400).json({ error: "حدد المقبولين أولًا." });
+    }
+    let acceptedApplications = [];
+    if (outcomeStatus === "selected") {
+      const result = await updateCompanyApplicationsForCampaign({
+        campaign,
+        applicationIds: selectedApplicationIds,
+        status: "accepted",
+        changedBy: "company",
+      });
+      acceptedApplications = result.applications.map(serializeCompanyApplication);
+    }
+    const updated = await CompanyApplicationCampaign.findByIdAndUpdate(
+      campaign._id,
+      { $set: { outcomeStatus, outcomeUpdatedAt: new Date(), updatedBy: "company" } },
+      { new: true }
+    ).lean();
+    res.json({
+      success: true,
+      campaign: serializeCompanyApplicationCampaign(updated),
+      acceptedApplications,
+    });
+  } catch (err) {
+    console.error("❌ Company campaign outcome update error:", err);
+    res.status(err.status || 500).json({ error: err.message || "تعذر حفظ نتيجة البرنامج." });
+  }
+});
+
+const getStudentCompanyApplicationAccess = async (req = {}) => {
+  const { contact, accessCode } = getPortfolioIdentity(req);
+  if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) return null;
+  const accessUser = await ensureAccessUser({ contact, accessCode });
+  const email = isValidEmail(contact) ? normalizeEmail(contact) : "";
+  const filter = buildStudentApplicationOwnershipFilter({
+    studentId: accessUser?._id || null,
+    email,
+  });
+  if (!filter) return null;
+  return { accessUser, email, filter };
+};
+
 app.get('/api/company-applications/me', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const { contact, accessCode, accessCodeHash } = getPortfolioIdentity(req);
-
-    if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+    const studentAccess = await getStudentCompanyApplicationAccess(req);
+    if (!studentAccess) {
       return res.status(401).json({
         requiresLogin: true,
         error: "سجّل الدخول لعرض طلباتك.",
       });
     }
 
-    const accessUser = await ensureAccessUser({ contact, accessCode });
-    const email = isValidEmail(contact) ? normalizeEmail(contact) : "";
-    const filter = {
-      $or: [
-        { studentId: accessUser?._id },
-        { email },
-        { "portfolioSnapshot.contact": contact },
-        { contact },
-      ].filter((item) => Object.values(item).some(Boolean)),
-    };
-
-    const applications = await CompanyApplication.find(filter)
+    const applications = await CompanyApplication.find(studentAccess.filter)
       .sort({ submittedAt: -1, createdAt: -1 })
       .limit(100)
       .lean();
+    const campaignIds = Array.from(new Set(applications.map((item) => item.campaignId).filter(Boolean)));
+    const campaigns = campaignIds.length
+      ? await CompanyApplicationCampaign.find({ _id: { $in: campaignIds.filter((id) => mongoose.Types.ObjectId.isValid(id)) } })
+          .select("programType")
+          .lean()
+      : [];
+    const programTypesByCampaign = new Map(
+      campaigns.map((campaign) => [campaign._id.toString(), campaign.programType || ""])
+    );
 
     res.json({
       status: "ok",
-      data: applications.map(serializeCompanyApplication),
+      data: applications.map((application) => ({
+        ...serializeCompanyApplication(application),
+        programType: programTypesByCampaign.get(application.campaignId) || "",
+      })),
     });
   } catch (err) {
     console.error("❌ Student company applications fetch error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/company-applications/me/:applicationId/student-report', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.applicationId)) {
+      return res.status(400).json({ error: "معرّف الطلب غير صحيح." });
+    }
+    const studentAccess = await getStudentCompanyApplicationAccess(req);
+    if (!studentAccess) {
+      return res.status(401).json({ requiresLogin: true, error: "سجّل الدخول لتحديث طلبك." });
+    }
+    const studentReportedStatus = (req.body?.studentReportedStatus || "").toString();
+    if (!COMPANY_APPLICATION_STUDENT_REPORT_STATUSES.includes(studentReportedStatus)) {
+      return res.status(400).json({ error: "نوع التحديث غير صحيح." });
+    }
+    const application = await CompanyApplication.findOneAndUpdate(
+      { _id: req.params.applicationId, ...studentAccess.filter },
+      { $set: { studentReportedStatus, studentReportedAt: new Date() } },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!application) {
+      return res.status(404).json({ error: "الطلب غير موجود أو لا يعود لهذا الحساب." });
+    }
+    res.json({ success: true, data: serializeCompanyApplication(application) });
+  } catch (err) {
+    console.error("❌ Student application report error:", err);
+    res.status(500).json({ error: "تعذر حفظ التحديث الآن." });
   }
 });
 
@@ -16674,7 +16979,7 @@ app.get('/api/company-portal/:companySlug', async (req, res) => {
       ? await Promise.all([
           CompanyApplication.aggregate([
             { $match: realApplicationFilter },
-            { $group: { _id: "$campaignId", count: { $sum: 1 } } },
+            { $group: { _id: { campaignId: "$campaignId", status: "$status" }, count: { $sum: 1 } } },
           ]),
           CompanyApplication.aggregate([
             { $match: realApplicationFilter },
@@ -16687,7 +16992,18 @@ app.get('/api/company-portal/:companySlug', async (req, res) => {
             .lean(),
         ])
       : [[], [], []];
-    const countsById = new Map(counts.map((item) => [item._id, item.count]));
+    const summariesById = counts.reduce((map, item) => {
+      const campaignId = item._id?.campaignId;
+      if (!campaignId) return map;
+      const summary = map.get(campaignId) || emptyCompanyApplicationStatusSummary();
+      const status = normalizeCompanyApplicationStatusValue(item._id?.status);
+      const count = Number(item.count || 0);
+      summary.total += count;
+      if (Object.prototype.hasOwnProperty.call(summary, status)) summary[status] += count;
+      if (status !== "submitted") summary.reviewed += count;
+      map.set(campaignId, summary);
+      return map;
+    }, new Map());
     const realMetrics = statusCounts.reduce(
       (metrics, item) => {
         const status = normalizePortalStatus(item._id);
@@ -16695,9 +17011,12 @@ app.get('/api/company-portal/:companySlug', async (req, res) => {
         if (status === "new") metrics.new += item.count;
         if (status === "reviewing") metrics.reviewing += item.count;
         if (status === "shortlisted") metrics.shortlisted += item.count;
+        if (status === "interview") metrics.interview += item.count;
+        if (status === "accepted") metrics.accepted += item.count;
+        if (status === "rejected") metrics.rejected += item.count;
         return metrics;
       },
-      { total: 0, new: 0, reviewing: 0, shortlisted: 0 }
+      { total: 0, new: 0, reviewing: 0, shortlisted: 0, interview: 0, accepted: 0, rejected: 0 }
     );
     const portalPresentation = buildCompanyPortalPresentation({
       demoEnabled: shouldShowCompanyPortalDemo(company),
@@ -16723,7 +17042,8 @@ app.get('/api/company-portal/:companySlug', async (req, res) => {
       demoPrograms: portalPresentation.programs,
       programs: programs.map((program) =>
         serializeCompanyApplicationCampaign(program, {
-          applicationCount: countsById.get(program._id.toString()) || 0,
+          applicationCount: summariesById.get(program._id.toString())?.total || 0,
+          statusSummary: summariesById.get(program._id.toString()) || emptyCompanyApplicationStatusSummary(),
           includeShareUrl: true,
         })
       ),
@@ -17347,20 +17667,60 @@ app.get('/api/admin/company-application-campaigns', requireAdmin, async (req, re
     const applicationCounts = campaignIds.length
       ? await CompanyApplication.aggregate([
           { $match: { campaignId: { $in: campaignIds } } },
-          { $group: { _id: "$campaignId", count: { $sum: 1 } } },
+          { $group: { _id: { campaignId: "$campaignId", status: "$status", studentReportedStatus: "$studentReportedStatus" }, count: { $sum: 1 } } },
         ])
       : [];
-    const countsByCampaignId = new Map(
-      applicationCounts.map((item) => [item._id, item.count])
-    );
+    const summariesByCampaignId = applicationCounts.reduce((map, item) => {
+      const campaignId = item._id?.campaignId;
+      if (!campaignId) return map;
+      const summary = map.get(campaignId) || emptyCompanyApplicationStatusSummary();
+      const status = normalizeCompanyApplicationStatusValue(item._id?.status);
+      const count = Number(item.count || 0);
+      summary.total += count;
+      if (Object.prototype.hasOwnProperty.call(summary, status)) summary[status] += count;
+      if (status !== "submitted") summary.reviewed += count;
+      if (item._id?.studentReportedStatus === "accepted" && status !== "accepted") {
+        summary.studentReportedAccepted += count;
+      }
+      map.set(campaignId, summary);
+      return map;
+    }, new Map());
+
+    const followUp = (req.query.followUp || "").toString();
+    const serializedCampaigns = campaignsWithShareTokens.map((campaign) => {
+      const statusSummary = summariesByCampaignId.get(campaign._id.toString()) || emptyCompanyApplicationStatusSummary();
+      return serializeCompanyApplicationCampaign(campaign, {
+        applicationCount: statusSummary.total,
+        statusSummary,
+        includeShareUrl: true,
+      });
+    });
+    const filteredCampaigns = serializedCampaigns.filter((campaign) => {
+      if (!followUp) return true;
+      if (followUp === "not_opened") return campaign.applicationCount > 0 && !campaign.reviewLinkFirstOpenedAt;
+      if (followUp === "opened_not_reviewed") return campaign.reviewLinkFirstOpenedAt && campaign.statusSummary.reviewed === 0;
+      if (followUp === "shortlisted") return campaign.statusSummary.shortlisted > 0;
+      if (followUp === "interview") return campaign.statusSummary.interview > 0;
+      if (followUp === "accepted") return campaign.statusSummary.accepted > 0;
+      if (followUp === "student_reported_accepted") return campaign.statusSummary.studentReportedAccepted > 0;
+      if (followUp === "closed_without_outcome") return campaign.isEnded && campaign.applicationCount > 0 && campaign.outcomeStatus === "pending";
+      return true;
+    });
+    const adminSummary = serializedCampaigns.reduce((summary, campaign) => {
+      if (campaign.applicationCount > 0) summary.campaignsWithApplications += 1;
+      summary.applications += campaign.applicationCount;
+      summary.shortlisted += campaign.statusSummary.shortlisted;
+      summary.interview += campaign.statusSummary.interview;
+      summary.accepted += campaign.statusSummary.accepted;
+      summary.studentReportedAccepted += campaign.statusSummary.studentReportedAccepted;
+      if (campaign.isEnded && campaign.applicationCount > 0 && campaign.outcomeStatus === "pending") summary.closedWithoutOutcome += 1;
+      if (campaign.applicationCount > 0 && !campaign.reviewLinkFirstOpenedAt) summary.reviewLinksNotOpened += 1;
+      return summary;
+    }, { applications: 0, campaignsWithApplications: 0, shortlisted: 0, interview: 0, accepted: 0, studentReportedAccepted: 0, closedWithoutOutcome: 0, reviewLinksNotOpened: 0 });
 
     res.json({
-      data: campaignsWithShareTokens.map((campaign) =>
-        serializeCompanyApplicationCampaign(campaign, {
-          applicationCount: countsByCampaignId.get(campaign._id.toString()) || 0,
-          includeShareUrl: true,
-        })
-      ),
+      data: filteredCampaigns,
+      summary: adminSummary,
     });
   } catch (err) {
     console.error("❌ Admin company application campaigns fetch error:", err);
