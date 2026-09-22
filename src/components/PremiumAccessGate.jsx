@@ -1268,6 +1268,7 @@ export default function PremiumAccessGate() {
         feature,
         hasContact: Boolean(form.contact.trim()),
         planId: checkoutPlan.id,
+        campaignId: checkoutPlan.campaign?.id || "",
         provider: data.provider || "",
         providerPaymentId: data.invoiceId || data.providerPaymentId || "",
       };

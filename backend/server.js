@@ -3910,6 +3910,9 @@ const recordPremiumAccessVerifiedEvent = async ({
     planKey: getSubscriptionPlanKey(subscription),
     hasResumeAccess: subscriptionHasEntitlement(subscription, RESUME_ENTITLEMENT),
     priceSar: getSubscriptionPriceSar(subscription),
+    campaignId: subscription.campaignId || "",
+    originalPriceSar: Number(subscription.originalPriceSar || 0),
+    paidPriceSar: Number(subscription.paidPriceSar || getSubscriptionPriceSar(subscription)),
     durationDays: getSubscriptionDurationDays(subscription),
     source,
   });
@@ -14337,6 +14340,7 @@ app.get('/api/admin/subscription-dashboard', requireAdmin, async (req, res) => {
       Subscription,
       User,
       days,
+      campaign: getNationalDayOffer(),
     });
     res.json(
       setReadCache(cacheKey, payload, SUBSCRIPTION_DASHBOARD_CACHE_TTL_MS)

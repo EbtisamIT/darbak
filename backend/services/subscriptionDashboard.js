@@ -263,7 +263,54 @@ const getCompanyDirectoryStats = async (AnalyticsEvent, match) => {
   return { directory, pages, contentOpens, tabs, companies };
 };
 
-const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, days }) => {
+const buildCampaignAnalytics = async ({ AnalyticsEvent, campaign, now = new Date() }) => {
+  if (!campaign?.id) return null;
+  const match = { "metadata.campaignId": campaign.id };
+  const [popupViews, popupCtaClicks, countdownClicks, checkoutStarts, paid] =
+    await Promise.all([
+      AnalyticsEvent.countDocuments({ ...match, eventName: "national_day_popup_shown" }),
+      AnalyticsEvent.countDocuments({ ...match, eventName: "national_day_popup_cta_clicked" }),
+      AnalyticsEvent.countDocuments({ ...match, eventName: "national_day_countdown_clicked" }),
+      AnalyticsEvent.countDocuments({ ...match, eventName: "premium_checkout_started" }),
+      AnalyticsEvent.aggregate([
+        { $match: { ...match, eventName: "subscription_completed" } },
+        { $group: { _id: "$metadata.providerPaymentId", amountSar: { $first: "$metadata.paidPriceSar" } } },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            revenueSar: {
+              $sum: { $convert: { input: "$amountSar", to: "double", onError: 0, onNull: 0 } },
+            },
+          },
+        },
+      ]),
+    ]);
+  const paidCount = safeNumber(paid[0]?.count);
+  const endsAt = new Date(campaign.endsAt).getTime();
+
+  return {
+    id: campaign.id,
+    popupViews,
+    popupCtaClicks,
+    countdownClicks,
+    checkoutStarts,
+    paid: paidCount,
+    revenueSar: safeNumber(paid[0]?.revenueSar),
+    popupToCheckout: popupViews
+      ? Number(((checkoutStarts / popupViews) * 100).toFixed(1))
+      : null,
+    checkoutToPaid: checkoutStarts
+      ? Number(((paidCount / checkoutStarts) * 100).toFixed(1))
+      : null,
+    isActive: Boolean(campaign.isActive),
+    remainingSeconds: Number.isFinite(endsAt)
+      ? Math.max(0, Math.floor((endsAt - now.getTime()) / 1000))
+      : 0,
+  };
+};
+
+const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, days, campaign = null }) => {
   const range = getRange(days);
   const eventMatch = { createdAt: { $gte: range.start, $lt: range.end } };
   const todayMatch = { createdAt: { $gte: range.todayStart, $lt: range.tomorrowStart } };
@@ -271,7 +318,7 @@ const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, 
   const now = new Date();
   const activeSubscriptionFilter = { status: "active", expiresAt: { $gt: now } };
 
-  const [payments, activeSubscribers, subscriptionCounts, todayUsers, yesterdayUsers, funnel, dailySeries] = await Promise.all([
+  const [payments, activeSubscribers, subscriptionCounts, todayUsers, yesterdayUsers, funnel, dailySeries, campaignAnalytics] = await Promise.all([
     getPaymentAggregate(AnalyticsEvent, range),
     User.find({ isPremium: true, premiumExpiresAt: { $gt: now }, isAdmin: { $ne: true } }).select("_id premiumExpiresAt accessSource").lean(),
     Promise.all([
@@ -290,6 +337,7 @@ const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, 
     distinctEventUsers(AnalyticsEvent, yesterdayMatch),
     buildFunnel(AnalyticsEvent, eventMatch),
     getDailySubscriptionSeries(AnalyticsEvent, Subscription, range),
+    buildCampaignAnalytics({ AnalyticsEvent, campaign, now }),
   ]);
 
   const activeActorIds = activeSubscribers.map((user) => String(user._id));
@@ -451,6 +499,7 @@ const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, 
     attribution: sourceRows,
     content: { experiences: topExperiences, opportunities: topOpportunities, companies: topCompanies, majors: topMajors, cities: topCities, companyDirectory },
     risk: { benefiting: engagedIds.length, inactive: inactive7, atRisk },
+    campaignAnalytics,
   };
 };
 

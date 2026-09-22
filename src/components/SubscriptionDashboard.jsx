@@ -47,6 +47,14 @@ const formatDuration = (seconds) => {
   if (total < 60) return `${Math.round(total)} ث`;
   return `${Math.floor(total / 60)} د ${Math.round(total % 60)} ث`;
 };
+const formatCountdown = (seconds) => {
+  const safeSeconds = Math.max(0, Number(seconds || 0));
+  return [
+    Math.floor(safeSeconds / 3600),
+    Math.floor((safeSeconds % 3600) / 60),
+    safeSeconds % 60,
+  ].map((value) => String(value).padStart(2, "0")).join(":");
+};
 
 const Section = ({ title, description = "", children, action = null }) => (
   <section
@@ -137,6 +145,7 @@ const SubscriptionDashboard = ({ data, loading, onRefresh, onOpenUsers }) => {
   const activity = dashboard.activity || {};
   const content = dashboard.content || {};
   const funnel = dashboard.funnel || [];
+  const campaign = dashboard.campaignAnalytics;
   const rangeNotice = dashboard.range?.trackingNotice || "تبدأ المقاييس التي تعتمد على ربط الحساب من تاريخ تفعيل التتبع.";
   const activeUsageRows = useMemo(
     () => Object.entries(usage.metrics || {}).map(([key, stat]) => ({ key, ...(stat || {}) })),
@@ -181,6 +190,25 @@ const SubscriptionDashboard = ({ data, loading, onRefresh, onOpenUsers }) => {
           {tabs.map(([key, label]) => tabButton(key, label))}
         </div>
       </Section>
+
+      {campaign?.id === "national-day-90d-960" && (
+        <Section
+          title="إحصائيات عرض اليوم الوطني"
+          description="أرقام الحملة الفعلية منذ بدء تتبعها، وليست تقديرات."
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 10 }}>
+            {metricCard("مشاهدات الـPopup", formatNumber(campaign.popupViews))}
+            {metricCard("CTA داخل الـPopup", formatNumber(campaign.popupCtaClicks))}
+            {metricCard("ضغطات شريط العداد", formatNumber(campaign.countdownClicks))}
+            {metricCard("بدأوا Checkout", formatNumber(campaign.checkoutStarts))}
+            {metricCard("دفع ناجح", formatNumber(campaign.paid), "عمليات ميسر الناجحة فقط", "#8ee7dc")}
+            {metricCard("Popup → Checkout", campaign.popupToCheckout === null ? "—" : `${campaign.popupToCheckout}%`)}
+            {metricCard("Checkout → Paid", campaign.checkoutToPaid === null ? "—" : `${campaign.checkoutToPaid}%`)}
+            {metricCard("إيراد العرض", formatCurrency(campaign.revenueSar), "تحصيل فعلي فقط", "#fbbf24")}
+            {metricCard("الوقت المتبقي", campaign.isActive ? formatCountdown(campaign.remainingSeconds) : "انتهى", "وقت الخادم", "#60a5fa")}
+          </div>
+        </Section>
+      )}
 
       {activeTab === "overview" && (
         <>

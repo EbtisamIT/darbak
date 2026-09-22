@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import API_BASE_URL from "../config/api";
+import { trackEvent } from "../utils/analytics";
 import {
   formatOfferCountdown,
   getCampaignRemainingMs,
@@ -60,6 +61,9 @@ export default function NationalDayOffer() {
     try {
       if (!window.localStorage.getItem(getSeenKey(campaign.id))) {
         window.localStorage.setItem(getSeenKey(campaign.id), "1");
+        trackEvent("national_day_popup_shown", {
+          metadata: { campaignId: campaign.id },
+        });
         setShowPopup(true);
       }
     } catch {
@@ -77,7 +81,13 @@ export default function NationalDayOffer() {
     () => "/subscribe?plan=one_time_90&source=national_day_campaign",
     []
   );
-  const goToSubscribe = () => {
+  const goToSubscribe = (source = "popup") => {
+    trackEvent(
+      source === "countdown_bar"
+        ? "national_day_countdown_clicked"
+        : "national_day_popup_cta_clicked",
+      { metadata: { campaignId: campaign?.id || "national-day-90d-960" } }
+    );
     setShowPopup(false);
     navigate(subscribeUrl);
   };
@@ -92,7 +102,7 @@ export default function NationalDayOffer() {
         <button
           type="button"
           className="national-day-offer-bar"
-          onClick={goToSubscribe}
+          onClick={() => goToSubscribe("countdown_bar")}
           dir="rtl"
         >
           <span className="national-day-offer-bar-desktop">
@@ -119,12 +129,19 @@ export default function NationalDayOffer() {
             aria-labelledby="national-day-offer-title"
             dir="rtl"
           >
-            <span className="national-day-offer-eyebrow">عرض اليوم الوطني 🇸🇦</span>
-            <h2 id="national-day-offer-title">باقة دربك الشاملة لمدة 3 أشهر بـ 9.60 ريال</h2>
-            <p>احتفالًا باليوم الوطني، بدل 15 ريال. فرصة مناسبة لموسم التدريب، والعرض متاح لمدة 24 ساعة فقط.</p>
-            <button type="button" className="national-day-offer-primary" onClick={goToSubscribe}>
-              اشترك بـ 9.60 ريال
+            <span className="national-day-offer-eyebrow">🇸🇦 عرض اليوم الوطني</span>
+            <h2 id="national-day-offer-title">3 أشهر في دربك بـ <strong>9.60 ريال</strong></h2>
+            <div className="national-day-offer-price-note">
+              <del>15 ريال</del>
+              <span>وفّر 5.40 ريال</span>
+            </div>
+            <p>استفد من دربك طوال موسم التدريب: تجارب الطلاب، الفرص، المقابلات وأدوات سيرتي في مكان واحد.</p>
+            <strong className="national-day-offer-countdown">ينتهي العرض بعد {countdown}</strong>
+            <small className="national-day-offer-limit">العرض ينتهي خلال 24 ساعة فقط.</small>
+            <button type="button" className="national-day-offer-primary" onClick={() => goToSubscribe("popup")}>
+              اشترك الآن بـ 9.60 ريال
             </button>
+            <span className="national-day-offer-payment-note">دفعة واحدة • 3 أشهر</span>
             <button type="button" className="national-day-offer-later" onClick={() => setShowPopup(false)}>
               لاحقًا
             </button>
