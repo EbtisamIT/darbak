@@ -81,19 +81,21 @@ const PremiumPlanCard = ({
         <h3>{plan.title}</h3>
         <p>{plan.description}</p>
       </div>
-      <div className="premium-plan-price">
+      <div className="premium-plan-price-block">
+        <div className="premium-plan-price">
+          {pricing.active && (
+            <span className="premium-plan-normal-price">
+              {pricing.normalPrice.toLocaleString("en-US")}
+            </span>
+          )}
+          <strong>{formatPlanAmount(displayPlan)}</strong>
+          <span>ر.س</span>
+          <small>/ {formatPlanPeriod(plan)}</small>
+        </div>
         {pricing.active && (
-          <span className="premium-plan-normal-price">
-            {pricing.normalPrice.toLocaleString("en-US")}
-          </span>
+          <span className="premium-plan-offer-badge">عرض اليوم الوطني — 24 ساعة</span>
         )}
-        <strong>{formatPlanAmount(displayPlan)}</strong>
-        <span>ر.س</span>
-        <small>/ {formatPlanPeriod(plan)}</small>
       </div>
-      {pricing.active && (
-        <span className="premium-plan-offer-badge">عرض اليوم الوطني — 24 ساعة</span>
-      )}
       <ul>
         {plan.perks.map((perk) => (
           <li key={perk}>

@@ -1536,6 +1536,12 @@ body {
   white-space: nowrap;
 }
 
+.premium-plan-price-block {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+}
+
 .premium-plan-price strong {
   color: var(--app-brand);
   font-size: 40px;
@@ -1725,9 +1731,10 @@ body {
 
 .premium-plan-offer-badge {
   display: inline-flex;
+  align-self: start;
   justify-self: center;
-  margin: -3px 0 2px;
-  padding: 4px 9px;
+  margin: 0;
+  padding: 4px 10px;
   border-radius: 999px;
   background: #f1bf55;
   color: #382302;
