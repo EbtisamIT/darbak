@@ -72,7 +72,9 @@ const {
   getPlanAiResumeUsageLimit,
   getPlanEntitlements,
   getPublicSubscriptionPlans,
+  getNationalDayOffer,
   getSubscriptionPlan: resolveSubscriptionPlan,
+  getSubscriptionCheckoutPricing,
   isResumePlanLaunchEnabled,
   normalizePlanKey,
 } = require("./subscriptionPlans");
@@ -12256,11 +12258,14 @@ app.get('/api/portfolios/:slug', async (req, res) => {
 });
 
 app.get('/api/subscriptions/plans', (req, res) => {
-  const plans = getPublicSubscriptionPlans(process.env);
+  const now = new Date();
+  const plans = getPublicSubscriptionPlans(process.env, now);
 
   res.json({
     resumePlanLaunchEnabled: RESUME_PLAN_LAUNCH_ENABLED,
     plans,
+    campaign: getNationalDayOffer(now),
+    serverNow: now.toISOString(),
   });
 });
 
@@ -12831,6 +12836,10 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     const accessCode = normalizeAccessCode(req.body.accessCode);
     const selectedPlan = getSubscriptionPlan(req.body.planId);
     const selectedPlanKey = selectedPlan.planKey || normalizePlanKey(selectedPlan.id);
+    const checkoutPricing = getSubscriptionCheckoutPricing({
+      plan: selectedPlan,
+      now: new Date(),
+    });
     const visitorId = sanitizeAnalyticsText(req.body.visitorId, 90);
 
     if (
@@ -12953,6 +12962,11 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       ) {
         const isSamePendingPlan =
           getSubscriptionPlanKey(existingSubscription) === selectedPlanKey;
+        const isSamePendingPrice =
+          Math.abs(
+            Number(getSubscriptionPriceSar(existingSubscription)) -
+              Number(checkoutPricing.priceSar)
+          ) < 0.001;
         const invoice = await getMoyasarInvoice(
           existingSubscription.providerPaymentId
         );
@@ -12986,7 +13000,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           await Subscription.findByIdAndUpdate(existingSubscription._id, {
             status: "cancelled",
           });
-        } else if (isSamePendingPlan && invoice.url) {
+        } else if (isSamePendingPlan && isSamePendingPrice && invoice.url) {
           return res.json({
             checkoutUrl: invoice.url,
             provider: "moyasar",
@@ -13002,7 +13016,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
     const successUrl = getSafeSubscriptionReturnUrl(req.body.returnUrl);
     const moyasarCallbackUrl = `${getPublicApiUrl(req)}/api/subscriptions/moyasar/callback`;
 
-    const amountHalalas = Math.round(selectedPlan.priceSar * 100);
+    const amountHalalas = Math.round(checkoutPricing.priceSar * 100);
     const currentActiveSubscription =
       existingSubscription?.status === "active" &&
       existingSubscription.expiresAt &&
@@ -13029,6 +13043,9 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           darbak_contact: contact,
           plan_id: selectedPlan.id,
           plan_key: selectedPlanKey,
+          campaign_id: checkoutPricing.campaign?.id || "",
+          original_price_sar: String(checkoutPricing.originalPriceSar),
+          paid_price_sar: String(checkoutPricing.priceSar),
           source: "darbak_plus",
         },
       });
@@ -13048,7 +13065,10 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           planId: selectedPlan.id,
           planKey: selectedPlanKey,
           entitlements: subscriptionEntitlements,
-          priceSar: selectedPlan.priceSar,
+          priceSar: checkoutPricing.priceSar,
+          campaignId: checkoutPricing.campaign?.id || "",
+          originalPriceSar: checkoutPricing.originalPriceSar,
+          paidPriceSar: checkoutPricing.priceSar,
           durationDays: selectedPlan.durationDays,
           startsAt: accessWindow.startsAt,
           expiresAt: accessWindow.expiresAt,
@@ -13072,7 +13092,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         invoiceId: invoice.id,
         planId: selectedPlan.id,
         planKey: selectedPlanKey,
-        priceSar: selectedPlan.priceSar,
+        priceSar: checkoutPricing.priceSar,
         durationDays: selectedPlan.durationDays,
       });
     }
@@ -13083,7 +13103,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       try {
         const url = new URL(SUBSCRIPTION_CHECKOUT_URL);
         url.searchParams.set("email", contact);
-        url.searchParams.set("amount", String(selectedPlan.priceSar));
+        url.searchParams.set("amount", String(checkoutPricing.priceSar));
         url.searchParams.set("duration", String(selectedPlan.durationDays));
         url.searchParams.set("plan", selectedPlan.id);
         url.searchParams.set("planKey", selectedPlanKey);
@@ -13107,7 +13127,10 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           planId: selectedPlan.id,
           planKey: selectedPlanKey,
           entitlements: subscriptionEntitlements,
-          priceSar: selectedPlan.priceSar,
+          priceSar: checkoutPricing.priceSar,
+          campaignId: checkoutPricing.campaign?.id || "",
+          originalPriceSar: checkoutPricing.originalPriceSar,
+          paidPriceSar: checkoutPricing.priceSar,
           durationDays: selectedPlan.durationDays,
           startsAt: accessWindow.startsAt,
           expiresAt: accessWindow.expiresAt,
@@ -13130,7 +13153,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
         provider: "manual",
         planId: selectedPlan.id,
         planKey: selectedPlanKey,
-        priceSar: selectedPlan.priceSar,
+        priceSar: checkoutPricing.priceSar,
         durationDays: selectedPlan.durationDays,
       });
     }

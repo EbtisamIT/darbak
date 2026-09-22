@@ -31,6 +31,7 @@ import {
   getStoredPremiumPass,
   hasActivePremiumPass,
 } from "./utils/premiumAccess";
+import NationalDayOffer from "./components/NationalDayOffer";
 
 const ExperiencesPage = lazy(() => import("./pages/ExperiencesPage"));
 const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
@@ -1358,6 +1359,7 @@ function AppLayout({ theme, setTheme }) {
   return (
     <div style={appStyle}>
       {!isCompanyApplicationsSharePage && !isCompanyPortalPage && <Navbar theme={theme} setTheme={setTheme} />}
+      <NationalDayOffer />
 
       <PageBanner />
       {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && !isCompanyPortalPage && <PlatformUpdateNotice />}

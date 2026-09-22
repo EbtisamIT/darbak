@@ -8,6 +8,10 @@ import {
 import { useLocation } from "react-router-dom";
 import API_BASE_URL from "../config/api";
 import {
+  getPlanOfferPricing,
+  getServerTimeOffset,
+} from "../utils/nationalDayOffer";
+import {
   PREMIUM_ACCESS_EVENT,
   PREMIUM_STATUS_EVENT,
   getStoredAccessIdentity,
@@ -59,7 +63,11 @@ const PremiumPlanCard = ({
   isUpgradePlan,
   onSelect,
   loading,
+  now,
 }) => {
+  const pricing = getPlanOfferPricing(plan, now);
+  const displayPlan = { ...plan, priceSar: pricing.price };
+
   return (
     <article className={`premium-plan-card${selected ? " is-selected" : ""}${plan.id === RESUME_PLAN_ID ? " is-resume-plan" : ""}${isCurrentPlan ? " is-current-plan" : ""}`}>
       {isCurrentPlan ? (
@@ -74,10 +82,18 @@ const PremiumPlanCard = ({
         <p>{plan.description}</p>
       </div>
       <div className="premium-plan-price">
-        <strong>{formatPlanAmount(plan)}</strong>
+        {pricing.active && (
+          <span className="premium-plan-normal-price">
+            {pricing.normalPrice.toLocaleString("en-US")}
+          </span>
+        )}
+        <strong>{formatPlanAmount(displayPlan)}</strong>
         <span>ر.س</span>
         <small>/ {formatPlanPeriod(plan)}</small>
       </div>
+      {pricing.active && (
+        <span className="premium-plan-offer-badge">عرض اليوم الوطني — 24 ساعة</span>
+      )}
       <ul>
         {plan.perks.map((perk) => (
           <li key={perk}>
@@ -457,6 +473,8 @@ export default function PremiumAccessGate() {
   );
   const [plansLoading, setPlansLoading] = useState(true);
   const [plansError, setPlansError] = useState("");
+  const [serverTimeOffset, setServerTimeOffset] = useState(0);
+  const [offerClock, setOfferClock] = useState(() => Date.now());
   const [resetToken, setResetToken] = useState("");
   const [isResetMode, setIsResetMode] = useState(false);
   const [subscriptionReminder, setSubscriptionReminder] = useState(null);
@@ -481,6 +499,19 @@ export default function PremiumAccessGate() {
     subscriptionPlans[0] ||
     fallbackSubscriptionPlans[0];
   const currentPlanId = getStoredPremiumPass()?.planId || "";
+  const selectedPlanPricing = getPlanOfferPricing(
+    selectedPlan,
+    offerClock + serverTimeOffset
+  );
+  const selectedPlanDisplay = {
+    ...selectedPlan,
+    priceSar: selectedPlanPricing.price,
+  };
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setOfferClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -499,6 +530,7 @@ export default function PremiumAccessGate() {
           : fallbackSubscriptionPlans;
 
         setSubscriptionPlans(nextPlans);
+        setServerTimeOffset(getServerTimeOffset(data.serverNow));
         setPlansError("");
         setSelectedPlanId((currentPlanId) =>
           findSubscriptionPlanById(nextPlans, currentPlanId)
@@ -1520,7 +1552,10 @@ export default function PremiumAccessGate() {
                 >
                   <div className="premium-selected-plan-summary">
                     <span>{selectedPlan.note}</span>
-                    <strong>{formatPlanPrice(selectedPlan)}</strong>
+                    {selectedPlanPricing.active && (
+                      <del>{selectedPlanPricing.normalPrice.toLocaleString("en-US")} ريال</del>
+                    )}
+                    <strong>{formatPlanPrice(selectedPlanDisplay)}</strong>
                     <small>{formatPlanDuration(selectedPlan)} · بدون تجديد تلقائي</small>
                   </div>
                   <div className="premium-access-fields">
@@ -1624,6 +1659,7 @@ export default function PremiumAccessGate() {
                       }
                       loading={plansLoading || isStartingCheckout}
                       onSelect={selectPlanAndCreateAccount}
+                      now={offerClock + serverTimeOffset}
                     />
                     ))
                   )}

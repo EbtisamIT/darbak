@@ -5,8 +5,10 @@ const {
   RESUME_ENTITLEMENT,
   RESUME_PLAN_KEY,
   calculateAccessWindow,
+  getNationalDayOffer,
   getPlanEntitlements,
   getPublicSubscriptionPlans,
+  getSubscriptionCheckoutPricing,
   getSubscriptionPlan,
   hasPlanEntitlement,
   isResumePlanLaunchEnabled,
@@ -58,6 +60,46 @@ assert.deepStrictEqual(
   getPublicSubscriptionPlans(env).map((plan) => plan.id),
   [PLUS_PLAN_KEY, "one_time_90"]
 );
+
+const nationalDayStart = new Date("2026-09-22T21:00:00.000Z");
+const nationalDayEnd = new Date("2026-09-23T21:00:00.000Z");
+const nationalDayActive = getNationalDayOffer(
+  new Date("2026-09-22T21:00:01.000Z")
+);
+assert.strictEqual(nationalDayActive.id, "national-day-90d-960");
+assert.strictEqual(nationalDayActive.isActive, true);
+assert.strictEqual(nationalDayActive.startsAt, nationalDayStart.toISOString());
+assert.strictEqual(nationalDayActive.endsAt, nationalDayEnd.toISOString());
+assert.strictEqual(
+  getNationalDayOffer(nationalDayEnd).isActive,
+  false,
+  "the offer must end exactly at the configured end timestamp"
+);
+
+const ninetyDayPlan = getSubscriptionPlan("one_time_90", env);
+const activeCampaignPricing = getSubscriptionCheckoutPricing({
+  plan: ninetyDayPlan,
+  now: new Date("2026-09-22T22:00:00.000Z"),
+});
+assert.strictEqual(activeCampaignPricing.priceSar, 9.6);
+assert.strictEqual(activeCampaignPricing.originalPriceSar, 15);
+assert.strictEqual(activeCampaignPricing.campaign.id, "national-day-90d-960");
+assert.strictEqual(ninetyDayPlan.durationDays, 90, "offer cannot change entitlement duration");
+
+const expiredCampaignPricing = getSubscriptionCheckoutPricing({
+  plan: ninetyDayPlan,
+  now: nationalDayEnd,
+});
+assert.strictEqual(expiredCampaignPricing.priceSar, 15);
+assert.strictEqual(expiredCampaignPricing.campaign, null);
+
+const activePublicNinetyDayPlan = getPublicSubscriptionPlans(
+  env,
+  new Date("2026-09-22T22:00:00.000Z")
+).find((plan) => plan.id === "one_time_90");
+assert.strictEqual(activePublicNinetyDayPlan.priceSar, 9.6);
+assert.strictEqual(activePublicNinetyDayPlan.normalPriceSar, 15);
+assert.strictEqual(activePublicNinetyDayPlan.durationDays, 90);
 assert.deepStrictEqual(
   getPublicSubscriptionPlans({
     ...env,

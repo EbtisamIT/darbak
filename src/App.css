@@ -1609,6 +1609,135 @@ body {
   cursor: default;
 }
 
+.national-day-offer-bar {
+  width: 100%;
+  border: 0;
+  background: linear-gradient(90deg, #08776f, #54cfc0);
+  color: #06231f;
+  padding: 9px 16px;
+  cursor: pointer;
+  font: 800 13px/1.4 'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif;
+  text-align: center;
+}
+
+.national-day-offer-bar i {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin: 0 8px 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.national-day-offer-bar-mobile { display: none; }
+
+.national-day-offer-expired {
+  width: min(760px, calc(100% - 28px));
+  margin: 12px auto 0;
+  padding: 10px 14px;
+  border: 1px solid #b5812b;
+  border-radius: 12px;
+  background: #2a2111;
+  color: #f3c46e;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.national-day-offer-backdrop {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 12, 12, 0.7);
+  backdrop-filter: blur(5px);
+}
+
+.national-day-offer-popup {
+  width: min(460px, 100%);
+  border: 1px solid var(--app-brand-border);
+  border-radius: 24px;
+  background: var(--app-surface);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.35);
+  padding: 28px;
+  text-align: right;
+}
+
+.national-day-offer-eyebrow {
+  display: inline-flex;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: var(--app-brand-soft);
+  color: var(--app-brand);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.national-day-offer-popup h2 {
+  margin: 16px 0 8px;
+  color: var(--app-text);
+  font-size: 25px;
+  line-height: 1.5;
+}
+
+.national-day-offer-popup p {
+  margin: 0 0 22px;
+  color: var(--app-text-soft);
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+.national-day-offer-primary,
+.national-day-offer-later {
+  width: 100%;
+  border-radius: 13px;
+  padding: 13px 16px;
+  cursor: pointer;
+  font: 900 15px/1.4 'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif;
+}
+
+.national-day-offer-primary {
+  border: 1px solid var(--app-brand);
+  background: var(--app-brand);
+  color: #06231f;
+}
+
+.national-day-offer-later {
+  margin-top: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--app-text-soft);
+}
+
+.premium-plan-offer-badge {
+  display: inline-flex;
+  justify-self: center;
+  margin: -3px 0 2px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #f1bf55;
+  color: #382302;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.premium-plan-price .premium-plan-normal-price {
+  color: var(--app-muted);
+  font-size: 16px;
+  font-weight: 800;
+  text-decoration: line-through;
+}
+
+@media (max-width: 620px) {
+  .national-day-offer-bar { padding: 8px 10px; font-size: 12px; }
+  .national-day-offer-bar-desktop { display: none; }
+  .national-day-offer-bar-mobile { display: inline; }
+  .national-day-offer-popup { padding: 24px 20px; }
+  .national-day-offer-popup h2 { font-size: 22px; }
+}
+
 .premium-subscriber-badge {
   width: fit-content;
   margin: -2px auto 2px;

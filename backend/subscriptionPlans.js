@@ -5,6 +5,18 @@ const RESUME_PLAN_KEY = "darbak_resume";
 const PLUS_ENTITLEMENT = "darbak_plus";
 const RESUME_ENTITLEMENT = "resume_builder";
 
+// Keep this campaign in one server-owned definition. The timestamps are UTC
+// equivalents of 23–24 September 2026, 00:00 Asia/Riyadh.
+const NATIONAL_DAY_OFFER = Object.freeze({
+  id: "national-day-90d-960",
+  planId: "one_time_90",
+  normalPrice: 15,
+  offerPrice: 9.6,
+  startsAt: "2026-09-22T21:00:00.000Z",
+  endsAt: "2026-09-23T21:00:00.000Z",
+  enabled: true,
+});
+
 const toPositiveNumber = (value, fallback) => {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : fallback;
@@ -114,18 +126,52 @@ const getPlanAiResumeUsageLimit = (planId = "", env = process.env) => {
   return Number(plan.aiResumeUsageLimit || 0);
 };
 
-const serializeSubscriptionPlan = (plan = {}) => ({
-  id: plan.id,
-  planKey: plan.planKey,
-  label: plan.label,
-  priceSar: plan.priceSar,
-  durationDays: plan.durationDays,
-  entitlements: Array.isArray(plan.entitlements) ? plan.entitlements : [],
-  aiResumeUsageLimit: Number(plan.aiResumeUsageLimit || 0),
-  badge: plan.badge || "",
-});
+const getNationalDayOffer = (now = new Date()) => {
+  const startsAt = new Date(NATIONAL_DAY_OFFER.startsAt);
+  const endsAt = new Date(NATIONAL_DAY_OFFER.endsAt);
+  const currentTime = now instanceof Date ? now.getTime() : new Date(now).getTime();
+  const isActive =
+    NATIONAL_DAY_OFFER.enabled &&
+    Number.isFinite(currentTime) &&
+    currentTime >= startsAt.getTime() &&
+    currentTime < endsAt.getTime();
 
-const getPublicSubscriptionPlans = (env = process.env) => {
+  return {
+    ...NATIONAL_DAY_OFFER,
+    isActive,
+  };
+};
+
+const getSubscriptionCheckoutPricing = ({ plan, now = new Date() } = {}) => {
+  const currentPlan = plan || {};
+  const campaign = getNationalDayOffer(now);
+  const applies = campaign.isActive && currentPlan.id === campaign.planId;
+
+  return {
+    priceSar: applies ? campaign.offerPrice : Number(currentPlan.priceSar || 0),
+    originalPriceSar: applies ? campaign.normalPrice : Number(currentPlan.priceSar || 0),
+    campaign: applies ? campaign : null,
+  };
+};
+
+const serializeSubscriptionPlan = (plan = {}, now = new Date()) => {
+  const pricing = getSubscriptionCheckoutPricing({ plan, now });
+
+  return {
+    id: plan.id,
+    planKey: plan.planKey,
+    label: plan.label,
+    priceSar: pricing.priceSar,
+    normalPriceSar: pricing.originalPriceSar,
+    durationDays: plan.durationDays,
+    entitlements: Array.isArray(plan.entitlements) ? plan.entitlements : [],
+    aiResumeUsageLimit: Number(plan.aiResumeUsageLimit || 0),
+    badge: plan.badge || "",
+    campaign: pricing.campaign,
+  };
+};
+
+const getPublicSubscriptionPlans = (env = process.env, now = new Date()) => {
   const plans = buildSubscriptionPlans(env);
   const resumeLaunchEnabled = isResumePlanLaunchEnabled(env);
   const publicPlans = [plans[PLUS_PLAN_KEY], plans.one_time_90];
@@ -134,7 +180,7 @@ const getPublicSubscriptionPlans = (env = process.env) => {
     publicPlans.push(plans[RESUME_PLAN_KEY]);
   }
 
-  return publicPlans.map(serializeSubscriptionPlan);
+  return publicPlans.map((plan) => serializeSubscriptionPlan(plan, now));
 };
 
 const calculateAccessWindow = ({
@@ -165,9 +211,11 @@ module.exports = {
   RESUME_PLAN_KEY,
   buildSubscriptionPlans,
   calculateAccessWindow,
+  getNationalDayOffer,
   getPlanAiResumeUsageLimit,
   getPlanEntitlements,
   getPublicSubscriptionPlans,
+  getSubscriptionCheckoutPricing,
   getSubscriptionPlan,
   hasPlanEntitlement,
   isResumePlanLaunchEnabled,

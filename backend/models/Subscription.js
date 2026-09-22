@@ -40,6 +40,9 @@ const subscriptionSchema = new mongoose.Schema(
       type: Number,
       default: 5,
     },
+    campaignId: { type: String, default: "", trim: true, maxlength: 120 },
+    originalPriceSar: { type: Number, default: 0, min: 0 },
+    paidPriceSar: { type: Number, default: 0, min: 0 },
     durationDays: {
       type: Number,
       default: 30,
