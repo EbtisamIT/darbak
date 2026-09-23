@@ -604,12 +604,7 @@ function PlatformUpdateNotice() {
 
   const openTrainingFinder = () => {
     closeNotice();
-    const params = new URLSearchParams();
-
-    if (answers.major) params.set("major", answers.major);
-    if (answers.city) params.set("city", answers.city);
-
-    navigate(`/where-to-train${params.toString() ? `?${params}` : ""}`);
+    navigate("/where-to-train");
   };
 
   const completeDiagnosis = () => {

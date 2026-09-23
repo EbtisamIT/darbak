@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   useLocation,
@@ -29,7 +29,6 @@ import { trackEvent } from "../utils/analytics";
 import {
   PREMIUM_STATUS_EVENT,
   getAccessHeaders,
-  getStoredAccessIdentity,
   hasCoreAccess,
   isPremiumGateEnabled,
   requestPremiumAccess,
@@ -56,14 +55,12 @@ import {
   markSearchSummarySeen,
 } from "../utils/searchSummarySession";
 import {
+  clearTrainingFinderSessionFilters,
   getTrainingFinderInitialFilters,
-  getTrainingFinderPreferenceKey,
+  getTrainingFinderSessionFilters,
+  saveTrainingFinderSessionFilters,
 } from "../utils/trainingFinderPreferences";
-import {
-  getStoredJourneyPreferences,
-  hasJourneyPreferences,
-  saveStoredJourneyPreferences,
-} from "../utils/studentJourneyPreferences";
+import { rankOpportunitiesForPersonalization } from "../utils/trainingFinderRanking";
 
 const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_FINDER_FAQ = false;
@@ -1517,13 +1514,13 @@ export default function TrainingFinderPage() {
   const queryCity = searchParams.get("city") || "";
   const queryOrganization =
     searchParams.get("organization") || searchParams.get("company") || "";
-  const storedJourneyPreferences = getStoredJourneyPreferences();
+  const storedSessionFilters = getTrainingFinderSessionFilters();
   const initialFinderFilters = getTrainingFinderInitialFilters({
     routeSpecialty,
     querySpecialty,
     routeCity,
     queryCity,
-    preferences: storedJourneyPreferences,
+    sessionFilters: storedSessionFilters,
   });
   const initialSpecialty = initialFinderFilters.specialty;
   const initialCity = initialFinderFilters.city;
@@ -1573,71 +1570,6 @@ export default function TrainingFinderPage() {
     () => !isPremiumGateEnabled() || hasCoreAccess()
   );
   const handledRouteOpportunityIdRef = useRef("");
-  const lastSavedJourneyPreferenceKeyRef = useRef(
-    getTrainingFinderPreferenceKey({
-      major: storedJourneyPreferences.preferredMajor,
-      city: storedJourneyPreferences.preferredCity,
-    })
-  );
-  const [preferencesVersion, setPreferencesVersion] = useState(0);
-
-  const persistJourneyPreferences = useCallback((major = "", cityValue = "") => {
-    const nextPreferences = {
-      preferredMajor: String(major || "").trim(),
-      preferredCity: String(cityValue || "").trim(),
-    };
-
-    if (!hasJourneyPreferences(nextPreferences)) return;
-
-    const preferenceKey = getTrainingFinderPreferenceKey({
-      major: nextPreferences.preferredMajor,
-      city: nextPreferences.preferredCity,
-    });
-    if (lastSavedJourneyPreferenceKeyRef.current === preferenceKey) return;
-
-    lastSavedJourneyPreferenceKeyRef.current = preferenceKey;
-    saveStoredJourneyPreferences(nextPreferences);
-
-    const identity = getStoredAccessIdentity();
-    if (!identity.contact || !identity.accessCode) return;
-
-    axios
-      .post(
-        `${API_BASE_URL}/api/account/student-preferences`,
-        {
-          major: nextPreferences.preferredMajor,
-          city: nextPreferences.preferredCity,
-        },
-        { headers: getAccessHeaders() }
-      )
-      .catch(() => null);
-  }, []);
-
-  const hydrateJourneyPreferences = useCallback(() => {
-    const identity = getStoredAccessIdentity();
-    if (!identity.contact || !identity.accessCode) return;
-
-    axios
-      .get(`${API_BASE_URL}/api/account/student-preferences`, {
-        headers: getAccessHeaders(),
-      })
-      .then(({ data }) => {
-        const preferences = {
-          preferredMajor: data?.preferences?.major || "",
-          preferredCity: data?.preferences?.city || "",
-        };
-        if (!hasJourneyPreferences(preferences)) return;
-
-        const saved = saveStoredJourneyPreferences(preferences);
-        lastSavedJourneyPreferenceKeyRef.current = getTrainingFinderPreferenceKey({
-          major: saved.preferredMajor,
-          city: saved.preferredCity,
-        });
-        setPreferencesVersion((version) => version + 1);
-      })
-      .catch(() => null);
-  }, []);
-
   useEffect(() => {
     const updateSavedItems = () => setSavedItemIds(getSavedItemIds());
     window.addEventListener("darbak:saved-items-updated", updateSavedItems);
@@ -1656,24 +1588,9 @@ export default function TrainingFinderPage() {
   }, []);
 
   useEffect(() => {
-    hydrateJourneyPreferences();
-    window.addEventListener(PREMIUM_STATUS_EVENT, hydrateJourneyPreferences);
-    window.addEventListener("darbak:free-account-saved", hydrateJourneyPreferences);
-    return () => {
-      window.removeEventListener(PREMIUM_STATUS_EVENT, hydrateJourneyPreferences);
-      window.removeEventListener("darbak:free-account-saved", hydrateJourneyPreferences);
-    };
-  }, [hydrateJourneyPreferences]);
-
-  useEffect(() => {
-    if (!selectedSpecialty || !city) return undefined;
-
-    const saveTimer = window.setTimeout(() => {
-      persistJourneyPreferences(selectedSpecialty, city);
-    }, 350);
-
-    return () => window.clearTimeout(saveTimer);
-  }, [city, persistJourneyPreferences, selectedSpecialty]);
+    if (routeOpportunityId) return;
+    saveTrainingFinderSessionFilters({ specialty: selectedSpecialty, city });
+  }, [city, routeOpportunityId, selectedSpecialty]);
 
   useEffect(() => {
     if (!selectedOpportunity && !selectedGuideOrganization) return undefined;
@@ -1896,10 +1813,6 @@ export default function TrainingFinderPage() {
     visibleTargetNames,
   ]);
   const visibleOpportunities = useMemo(() => {
-    const allowedCities =
-      selectedCityScope.length > 0
-        ? new Set(selectedCityScope.map(normalizeName))
-        : null;
     const filteredOpportunities = opportunities.filter((opportunity) => {
       if (
         !entityMatchesOrganizationQuery(
@@ -1908,14 +1821,6 @@ export default function TrainingFinderPage() {
         )
       ) {
         return false;
-      }
-
-      if (allowedCities) {
-        const opportunityCities = getOpportunityCities(opportunity);
-        const matchesSelectedCity = opportunityCities.some((opportunityCity) =>
-          allowedCities.has(normalizeName(opportunityCity))
-        );
-        if (!matchesSelectedCity) return false;
       }
 
       const applicationState = getOpportunityApplicationState(
@@ -1945,19 +1850,25 @@ export default function TrainingFinderPage() {
       );
     });
 
-    if (opportunityFilters.freshness === "recent") {
-      return [...filteredOpportunities].sort(
+    const generallyRanked = opportunityFilters.freshness === "recent"
+      ? [...filteredOpportunities].sort(
         (first, second) =>
           getOpportunityCreatedAtTimestamp(second) -
           getOpportunityCreatedAtTimestamp(first)
-      );
-    }
+      )
+      : filteredOpportunities;
 
-    return filteredOpportunities;
+    return rankOpportunitiesForPersonalization(generallyRanked, {
+      specialty: selectedSpecialtyLabel,
+      majorCategories: selectedMajorCategories,
+      cityScope: selectedCityScope,
+    });
   }, [
     normalizedOrganizationQuery,
     opportunities,
     opportunityFilters,
+    selectedMajorCategories,
+    selectedSpecialtyLabel,
     selectedCityScope,
   ]);
   const hasActiveOpportunityFilters = Object.values(opportunityFilters).some(
@@ -2208,7 +2119,10 @@ export default function TrainingFinderPage() {
             })
           : Promise.resolve({ data: { data: [] } }),
         axios.get(`${API_BASE_URL}/api/opportunities`, {
-          params: queryParams,
+          params: {
+            organization: resolvedOrganizationQuery,
+            search: resolvedOrganizationQuery,
+          },
         }),
       ]);
 
@@ -2282,13 +2196,13 @@ export default function TrainingFinderPage() {
   useEffect(() => {
     if (routeOpportunityId) return;
 
-    const savedPreferences = getStoredJourneyPreferences();
+    const savedSessionFilters = getTrainingFinderSessionFilters();
     const nextFilters = getTrainingFinderInitialFilters({
       routeSpecialty,
       querySpecialty,
       routeCity,
       queryCity,
-      preferences: savedPreferences,
+      sessionFilters: savedSessionFilters,
     });
     const nextMajor = nextFilters.specialty;
     const nextCity = nextFilters.city;
@@ -2322,7 +2236,6 @@ export default function TrainingFinderPage() {
     queryCity,
     queryOrganization,
     querySpecialty,
-    preferencesVersion,
     routeCity,
     routeOpportunityId,
     routeSpecialty,
@@ -2440,6 +2353,24 @@ export default function TrainingFinderPage() {
   const fetchTrainingTargets = async (event) => {
     event.preventDefault();
     runTrainingTargetSearch(specialtyInput, city, organizationQuery);
+  };
+
+  const clearDiscoveryFilters = () => {
+    clearTrainingFinderSessionFilters();
+    setSelectedSpecialty("");
+    setSpecialtyInput("");
+    setCity("");
+    setOrganizationQuery("");
+    setTargets([]);
+    setSearched(false);
+    setShowSearchInsightModal(false);
+    setActiveResultsTab("opportunities");
+    setOpportunityFilters({ status: "", reward: "", mode: "", freshness: "" });
+    fetchOpportunities();
+
+    if (location.pathname !== "/where-to-train" || location.search) {
+      navigate("/where-to-train", { replace: true });
+    }
   };
 
   const openOpportunityRequestModal = () => {
@@ -3329,7 +3260,7 @@ export default function TrainingFinderPage() {
           style={{
             display: "grid",
             gridTemplateColumns:
-              "minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr) auto",
+              "minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr) auto auto",
             gap: "10px",
             alignItems: "end",
             background: "var(--app-surface)",
@@ -3494,6 +3425,25 @@ export default function TrainingFinderPage() {
           >
             {loading ? "جاري البحث..." : "ابحث"}
           </button>
+          {(selectedSpecialty || city || organizationQuery) && (
+            <button
+              type="button"
+              onClick={clearDiscoveryFilters}
+              style={{
+                background: "transparent",
+                color: "var(--app-text-soft)",
+                border: "1px solid var(--app-border)",
+                borderRadius: "12px",
+                padding: "13px 14px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontWeight: "800",
+                whiteSpace: "nowrap",
+              }}
+            >
+              عرض كل الفرص
+            </button>
+          )}
         </form>
 
         <div className="opportunity-filter-bar" aria-label="فلاتر الفرص">
@@ -3652,6 +3602,19 @@ export default function TrainingFinderPage() {
             ) : (
               <>
               {visibleOpportunities.length > 0 && (
+              <>
+              {(selectedSpecialty || city) && (
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--app-text-soft)",
+                    fontSize: "13px",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  الأقرب لاختيارك يظهر أولًا، وتبقى جميع الفرص الأخرى متاحة لك.
+                </p>
+              )}
               <div
                 className="finder-card-grid opportunities-grid"
                 style={{
@@ -3967,6 +3930,7 @@ export default function TrainingFinderPage() {
                   );
                 })}
               </div>
+              </>
               )}
 
               {showSuggestionsWithOpportunities && !opportunitiesLoading && (
