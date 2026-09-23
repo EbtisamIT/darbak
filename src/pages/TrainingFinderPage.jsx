@@ -29,6 +29,7 @@ import { trackEvent } from "../utils/analytics";
 import {
   PREMIUM_STATUS_EVENT,
   getAccessHeaders,
+  getStoredAccessIdentity,
   hasCoreAccess,
   isPremiumGateEnabled,
   requestPremiumAccess,
@@ -1566,6 +1567,8 @@ export default function TrainingFinderPage() {
   const [savingOpportunityRequest, setSavingOpportunityRequest] = useState(false);
   const [opportunityRequestMessage, setOpportunityRequestMessage] = useState("");
   const [savedItemIds, setSavedItemIds] = useState(() => getSavedItemIds());
+  const [appliedOpportunityIds, setAppliedOpportunityIds] = useState(new Set());
+  const [savingApplicationId, setSavingApplicationId] = useState("");
   const [canViewGuideContacts, setCanViewGuideContacts] = useState(
     () => !isPremiumGateEnabled() || hasCoreAccess()
   );
@@ -1575,6 +1578,19 @@ export default function TrainingFinderPage() {
     window.addEventListener("darbak:saved-items-updated", updateSavedItems);
     return () =>
       window.removeEventListener("darbak:saved-items-updated", updateSavedItems);
+  }, []);
+
+  useEffect(() => {
+    const identity = getStoredAccessIdentity();
+    if (!identity.contact || !identity.accessCode) return undefined;
+    let active = true;
+    axios.get(`${API_BASE_URL}/api/application-tracker/me`, { headers: getAccessHeaders() })
+      .then(({ data }) => {
+        if (!active) return;
+        setAppliedOpportunityIds(new Set((data?.data || []).map((item) => item.opportunityId).filter(Boolean)));
+      })
+      .catch(() => null);
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -2705,6 +2721,34 @@ export default function TrainingFinderPage() {
         }
       }
     );
+  };
+
+  const markOpportunityApplied = async (opportunity) => {
+    const identity = getStoredAccessIdentity();
+    if (!identity.contact || !identity.accessCode) {
+      requestPremiumAccess({
+        loginOnly: true,
+        feature: "application_tracker",
+        title: "سجّل الدخول لإضافة تقديمك",
+        source: "where_to_train_application_tracker",
+      });
+      return;
+    }
+    const opportunityId = opportunity?._id || opportunity?.id;
+    if (!opportunityId) return;
+    setSavingApplicationId(opportunityId);
+    try {
+      await axios.post(
+        `${API_BASE_URL}/api/application-tracker`,
+        { opportunityId },
+        { headers: getAccessHeaders() }
+      );
+      setAppliedOpportunityIds((current) => new Set([...current, opportunityId]));
+    } catch (err) {
+      setError(err.response?.data?.error || "تعذر إضافة الفرصة إلى تقديماتك الآن.");
+    } finally {
+      setSavingApplicationId("");
+    }
   };
 
   const getOpportunityPremiumLockedItems = (opportunity = {}) => {
@@ -3875,7 +3919,7 @@ export default function TrainingFinderPage() {
                       <div
                         className="finder-card-actions opportunity-actions"
                         style={{
-                          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
                         }}
                       >
                         <button
@@ -3890,6 +3934,26 @@ export default function TrainingFinderPage() {
                         </button>
 
                         {renderResumeTailorCta({ opportunity })}
+
+                        <button
+                          type="button"
+                          className="opportunity-secondary-button"
+                          disabled={savingApplicationId === (opportunity._id || opportunity.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (appliedOpportunityIds.has(opportunity._id || opportunity.id)) {
+                              navigate("/applications");
+                              return;
+                            }
+                            markOpportunityApplied(opportunity);
+                          }}
+                        >
+                          {appliedOpportunityIds.has(opportunity._id || opportunity.id)
+                            ? "مضاف لتقديماتي ✓"
+                            : savingApplicationId === (opportunity._id || opportunity.id)
+                            ? "جارٍ الحفظ..."
+                            : "تم التقديم"}
+                        </button>
 
                         {(opportunity.applicationUrl ||
                           opportunity.darbakApplyUrl ||
@@ -5011,6 +5075,24 @@ export default function TrainingFinderPage() {
 
             <div className="opportunity-detail-actions">
               {renderResumeTailorCta({ opportunity: selectedOpportunity })}
+              <button
+                type="button"
+                className="opportunity-secondary-button"
+                disabled={savingApplicationId === (selectedOpportunity._id || selectedOpportunity.id)}
+                onClick={() => {
+                  if (appliedOpportunityIds.has(selectedOpportunity._id || selectedOpportunity.id)) {
+                    navigate("/applications");
+                    return;
+                  }
+                  markOpportunityApplied(selectedOpportunity);
+                }}
+              >
+                {appliedOpportunityIds.has(selectedOpportunity._id || selectedOpportunity.id)
+                  ? "مضاف لتقديماتي ✓"
+                  : savingApplicationId === (selectedOpportunity._id || selectedOpportunity.id)
+                  ? "جارٍ الحفظ..."
+                  : "تم التقديم"}
+              </button>
               <button
                 type="button"
                 onClick={closeOpportunityDetails}

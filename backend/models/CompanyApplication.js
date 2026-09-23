@@ -293,6 +293,11 @@ const companyApplicationSchema = new mongoose.Schema(
       index: true,
     },
     studentReportedAt: { type: Date, default: null },
+    studentStatus: {
+      type: String,
+      enum: ["saved", "applied", "under_review", "contacted", "interview", "offer", "rejected", "withdrawn"],
+      default: "applied",
+    },
     statusHistory: {
       type: [statusHistorySchema],
       default: [],

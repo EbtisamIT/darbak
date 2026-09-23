@@ -25,6 +25,25 @@ const terminalStatuses = {
   withdrawn: "منسحب",
 };
 
+const studentStatusLabels = {
+  saved: "حفظتها",
+  applied: "تم التقديم",
+  under_review: "تحت المراجعة",
+  contacted: "تم التواصل",
+  interview: "مقابلة",
+  offer: "عرض",
+  rejected: "مرفوض",
+  withdrawn: "منسحب",
+};
+
+const studentStatusOptions = Object.entries(studentStatusLabels);
+const sourceLabels = {
+  darbak: "عبر دربك",
+  external_link: "رابط خارجي",
+  email: "بالبريد الإلكتروني",
+  manual: "إضافة يدوية",
+};
+
 const studentReportOptions = [
   ["", "اختر التحديث"],
   ["contacted", "تواصلوا معي"],
@@ -37,6 +56,8 @@ const studentReportOptions = [
 const studentReportLabels = Object.fromEntries(studentReportOptions);
 
 const statusTone = {
+  saved: ["#cbd5e1", "rgba(203,213,225,0.11)"],
+  applied: ["#66d0c3", "rgba(102,208,195,0.13)"],
   submitted: ["#66d0c3", "rgba(102,208,195,0.13)"],
   under_review: ["#f2c94c", "rgba(242,201,76,0.13)"],
   shortlisted: ["#7ddbcd", "rgba(125,219,205,0.14)"],
@@ -44,6 +65,8 @@ const statusTone = {
   accepted: ["#86efac", "rgba(134,239,172,0.13)"],
   rejected: ["#fca5a5", "rgba(252,165,165,0.13)"],
   withdrawn: ["#cbd5e1", "rgba(203,213,225,0.11)"],
+  contacted: ["#93c5fd", "rgba(147,197,253,0.13)"],
+  offer: ["#86efac", "rgba(134,239,172,0.13)"],
 };
 
 const formatDateTime = (value) => {
@@ -87,7 +110,7 @@ const MyApplicationsPage = () => {
     }
 
     try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/company-applications/me`, {
+      const { data } = await axios.get(`${API_BASE_URL}/api/application-tracker/me`, {
         headers: getAccessHeaders(),
       });
       setApplications(Array.isArray(data.data) ? data.data : []);
@@ -137,6 +160,35 @@ const MyApplicationsPage = () => {
     );
   };
 
+  const saveStudentStatus = async (application, studentStatus) => {
+    if (!studentStatus) return;
+    const id = application.id || application._id;
+    setSavingReportId(id);
+    setReportMessage("");
+    try {
+      const { data } = await axios.patch(
+        `${API_BASE_URL}/api/application-tracker/me/${encodeURIComponent(id)}/status`,
+        { studentStatus, recordType: application.recordType || "tracker" },
+        { headers: getAccessHeaders() }
+      );
+      setApplications((current) => current.map((item) =>
+        (item.id || item._id) === id ? data.data : item
+      ));
+      setReportMessage("تم حفظ حالة تقديمك.");
+    } catch (err) {
+      setReportMessage(err.response?.data?.error || "تعذر حفظ الحالة الآن.");
+    } finally {
+      setSavingReportId("");
+    }
+  };
+
+  const summary = {
+    applied: applications.filter((item) => (item.studentStatus || "applied") === "applied").length,
+    underReview: applications.filter((item) => (item.companyStatus || item.studentStatus) === "under_review").length,
+    interviews: applications.filter((item) => (item.companyStatus || item.studentStatus) === "interview").length,
+    offers: applications.filter((item) => (item.companyStatus || item.studentStatus) === "accepted" || (item.studentStatus || "") === "offer").length,
+  };
+
   const saveStudentReport = async (applicationId, studentReportedStatus) => {
     if (!studentReportedStatus) return;
     setSavingReportId(applicationId);
@@ -164,8 +216,7 @@ const MyApplicationsPage = () => {
         <span>طلبات التدريب</span>
         <h1>طلباتي</h1>
         <p>
-          هنا تتابع طلبات التقديم التي أرسلتها عبر ملفك المهني في دربك، مع آخر
-          حالة ورسائل التحديث من الإدارة.
+          تابع كل فرصك في مكان واحد، حتى لو قدمت من خارج دربك.
         </p>
       </section>
 
@@ -188,9 +239,16 @@ const MyApplicationsPage = () => {
           <Link to="/where-to-train">استكشف الجهات والفرص</Link>
         </section>
       ) : (
+        <>
+        <section className="application-summary" aria-label="ملخص التقديمات">
+          <div><strong>{summary.applied}</strong><span>تم التقديم</span></div>
+          <div><strong>{summary.underReview}</strong><span>تحت المراجعة</span></div>
+          <div><strong>{summary.interviews}</strong><span>مقابلات</span></div>
+          <div><strong>{summary.offers}</strong><span>عروض</span></div>
+        </section>
         <section className="my-applications-list">
           {applications.map((application) => {
-            const status = application.status || "submitted";
+            const status = application.companyStatus || application.studentStatus || application.status || "applied";
             const [color, bg] = statusTone[status] || statusTone.submitted;
             const activeIndex = getActiveStepIndex(status);
             const latestHistory =
@@ -214,22 +272,24 @@ const MyApplicationsPage = () => {
                     <p>{[application.programType, application.opportunityTitle || "التدريب التعاوني"].filter(Boolean).join(" – ")}</p>
                   </div>
                   <span className="application-status" style={{ color, background: bg }}>
-                    {application.statusLabel || terminalStatuses[status] || "تم الإرسال"}
+                    {application.companyStatus
+                      ? `تحديث من الجهة: ${application.statusLabel || terminalStatuses[status] || "تم الإرسال"}`
+                      : studentStatusLabels[status] || application.statusLabel || "تم التقديم"}
                   </span>
                 </div>
 
                 <div className="application-meta-grid">
                   <div>
                     <span>تاريخ التقديم</span>
-                    <strong>{formatDateTime(application.submittedAt)}</strong>
+                    <strong>{formatDateTime(application.appliedAt || application.submittedAt)}</strong>
                   </div>
                   <div>
                     <span>آخر تحديث</span>
-                    <strong>{formatDateTime(application.updatedAt)}</strong>
+                    <strong>{formatDateTime(application.lastUpdatedAt || application.updatedAt)}</strong>
                   </div>
                   <div>
-                    <span>التخصص</span>
-                    <strong>{application.major || "غير مضاف"}</strong>
+                    <span>مصدر التقديم</span>
+                    <strong>{sourceLabels[application.sourceType] || "عبر دربك"}</strong>
                   </div>
                   <div>
                     <span>المدينة</span>
@@ -282,6 +342,21 @@ const MyApplicationsPage = () => {
 
                 <div className="application-student-report">
                   <div>
+                    <strong>تحديث الحالة</strong>
+                    <small>حدّث تقدمك الشخصي، ولا يغيّر تحديث الجهة الرسمي.</small>
+                  </div>
+                  <select
+                    aria-label={`حالة تقديم ${application.organizationName || "الجهة"}`}
+                    value={application.studentStatus || "applied"}
+                    disabled={savingReportId === (application.id || application._id)}
+                    onChange={(event) => saveStudentStatus(application, event.target.value)}
+                  >
+                    {studentStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </div>
+
+                <div className="application-student-report">
+                  <div>
                     <strong>وصلك تحديث من الجهة خارج دربك؟</strong>
                     <small>بلاغك لا يغيّر الحالة الرسمية التي تؤكدها الجهة.</small>
                   </div>
@@ -299,6 +374,7 @@ const MyApplicationsPage = () => {
             );
           })}
         </section>
+        </>
       )}
 
       {reportMessage && <p className="application-report-notice">{reportMessage}</p>}
@@ -346,6 +422,19 @@ const MyApplicationsPage = () => {
           display: grid;
           gap: 14px;
         }
+
+        .application-summary {
+          width: min(980px, 100%);
+          margin: 0 auto 14px;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .application-summary div { padding: 12px; text-align: center; border: 1px solid var(--app-border); border-radius: 16px; background: var(--app-surface); }
+        .application-summary strong, .application-summary span { display: block; }
+        .application-summary strong { color: var(--app-brand); font-size: 20px; }
+        .application-summary span { color: var(--app-text-soft); font-size: 12px; margin-top: 3px; }
+        @media (max-width: 560px) { .application-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
         .application-card,
         .my-applications-empty {
