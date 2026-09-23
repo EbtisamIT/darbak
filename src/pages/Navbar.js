@@ -316,7 +316,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
         <FiBriefcase aria-hidden="true" /> <span>Portfolio</span>
       </button>
       <Link to="/applications" role="menuitem" onClick={() => setMoreMenuOpen(false)}>
-        <FiClipboard aria-hidden="true" /> <span>طلباتي</span>
+        <FiClipboard aria-hidden="true" /> <span>تقديماتي</span>
       </Link>
       <button type="button" role="menuitem" onClick={openAccountModal}>
         <FiUser aria-hidden="true" /> <span>حسابي</span>

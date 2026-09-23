@@ -130,7 +130,7 @@ const MyApplicationsPage = () => {
   }, []);
 
   useEffect(() => {
-    document.title = "طلباتي | دربك";
+    document.title = "تقديماتي | دربك";
     trackEvent("student_applications_page_viewed", {
       page: "/applications",
     });
@@ -153,7 +153,7 @@ const MyApplicationsPage = () => {
         detail: {
           loginOnly: true,
           feature: "student_applications",
-          title: "تسجيل الدخول لعرض طلباتي",
+          title: "تسجيل الدخول لعرض تقديماتي",
           source: "student_applications",
         },
       })
@@ -213,8 +213,8 @@ const MyApplicationsPage = () => {
   return (
     <main dir="rtl" className="my-applications-page">
       <section className="my-applications-hero">
-        <span>طلبات التدريب</span>
-        <h1>طلباتي</h1>
+        <span>متابعة التدريب</span>
+        <h1>تقديماتي</h1>
         <p>
           تابع كل فرصك في مكان واحد، حتى لو قدمت من خارج دربك.
         </p>
