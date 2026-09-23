@@ -5235,14 +5235,20 @@ export default function TrainingFinderPage() {
             className="application-tracker-intro"
             onClick={(event) => event.stopPropagation()}
           >
-            <span>تمت إضافتها لتقديماتك ✓</span>
-            <h2 id="application-tracker-intro-title">تابع تقديمك من مكان واحد</h2>
+            <span>✨ خطوة حلوة!</span>
+            <h2 id="application-tracker-intro-title">أضفناها إلى تقديماتك</h2>
             <p>
-              دربك لا يقدّم نيابةً عنك. هذا الزر فقط يسجّل أنك قدمت على الفرصة، لتتابع حالتك وأي رد يصلك من الجهة داخل تقديماتي.
+              بعد ما تقدّم للجهة بنفسك، خلّ دربك يساعدك ما تضيع بين الروابط والإيميلات. من «تقديماتي» تقدر تشوف كل فرصك وتحدّث حالتك أولًا بأول.
             </p>
+            <div className="application-tracker-intro-steps" aria-label="كيف تعمل تقديماتي">
+              <span>1. قدّم بنفسك</span>
+              <span>2. حدّث حالتك</span>
+              <span>3. تابع رد الجهة</span>
+            </div>
+            <small>تنبيه بسيط: دربك لا يرسل الطلب نيابةً عنك، بل يرتّب لك متابعته.</small>
             <div>
               <button type="button" onClick={() => navigate("/applications")}>
-                فتح تقديماتي
+                استكشف تقديماتي ←
               </button>
               <button type="button" onClick={() => setShowApplicationTrackerIntro(false)}>
                 فهمت

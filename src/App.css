@@ -1714,6 +1714,9 @@ body {
 .application-tracker-intro > span { color: var(--app-brand); font-weight: 900; }
 .application-tracker-intro h2 { margin: 9px 0; font-size: 23px; }
 .application-tracker-intro p { margin: 0; color: var(--app-text-soft); line-height: 1.85; }
+.application-tracker-intro-steps { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+.application-tracker-intro-steps span { padding: 7px 9px; border: 1px solid var(--app-border); border-radius: 999px; color: var(--app-text); background: rgba(102, 208, 195, 0.07); font-size: 12px; font-weight: 800; }
+.application-tracker-intro > small { display: block; margin-top: 14px; color: var(--app-text-soft); font-size: 12px; line-height: 1.7; }
 .application-tracker-intro > div { display: flex; gap: 9px; margin-top: 22px; }
 .application-tracker-intro button { border: 1px solid var(--app-border); border-radius: 11px; padding: 11px 15px; background: transparent; color: var(--app-text); font: inherit; font-weight: 900; cursor: pointer; }
 .application-tracker-intro button:first-child { border-color: var(--app-brand); background: var(--app-brand); color: #07100e; }
