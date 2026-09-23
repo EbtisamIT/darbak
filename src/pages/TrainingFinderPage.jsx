@@ -73,6 +73,7 @@ const WHERE_TO_TRAIN_PREMIUM_DESCRIPTION =
   "افتح دربك+ لرؤية روابط التقديم المباشرة، إيميلات الجهات، وتفاصيل الفرص المناسبة لتخصصك ومدينتك.";
 const WHERE_TO_TRAIN_GATE_MESSAGE =
   "وقفت هنا... وباقي أهم تفاصيل الفرص والجهات. فعّل دربك+ للوصول لروابط التقديم ومعلومات التواصل المناسبة لك.";
+const APPLICATION_TRACKER_INTRO_KEY = "darbak:application-tracker:intro-seen:v1";
 
 const emptyOpportunityRequest = {
   organizationName: "",
@@ -1569,6 +1570,7 @@ export default function TrainingFinderPage() {
   const [savedItemIds, setSavedItemIds] = useState(() => getSavedItemIds());
   const [appliedOpportunityIds, setAppliedOpportunityIds] = useState(new Set());
   const [savingApplicationId, setSavingApplicationId] = useState("");
+  const [showApplicationTrackerIntro, setShowApplicationTrackerIntro] = useState(false);
   const [canViewGuideContacts, setCanViewGuideContacts] = useState(
     () => !isPremiumGateEnabled() || hasCoreAccess()
   );
@@ -2744,6 +2746,14 @@ export default function TrainingFinderPage() {
         { headers: getAccessHeaders() }
       );
       setAppliedOpportunityIds((current) => new Set([...current, opportunityId]));
+      try {
+        if (!window.localStorage.getItem(APPLICATION_TRACKER_INTRO_KEY)) {
+          window.localStorage.setItem(APPLICATION_TRACKER_INTRO_KEY, "true");
+          setShowApplicationTrackerIntro(true);
+        }
+      } catch {
+        setShowApplicationTrackerIntro(true);
+      }
     } catch (err) {
       setError(err.response?.data?.error || "تعذر إضافة الفرصة إلى تقديماتك الآن.");
     } finally {
@@ -5210,6 +5220,35 @@ export default function TrainingFinderPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showApplicationTrackerIntro && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="application-tracker-intro-title"
+          className="application-tracker-intro-backdrop"
+          onClick={() => setShowApplicationTrackerIntro(false)}
+        >
+          <section
+            className="application-tracker-intro"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span>تمت إضافتها لتقديماتك ✓</span>
+            <h2 id="application-tracker-intro-title">تابع تقديمك من مكان واحد</h2>
+            <p>
+              دربك لا يقدّم نيابةً عنك. هذا الزر فقط يسجّل أنك قدمت على الفرصة، لتتابع حالتك وأي رد يصلك من الجهة داخل تقديماتي.
+            </p>
+            <div>
+              <button type="button" onClick={() => navigate("/applications")}>
+                فتح تقديماتي
+              </button>
+              <button type="button" onClick={() => setShowApplicationTrackerIntro(false)}>
+                فهمت
+              </button>
+            </div>
+          </section>
         </div>
       )}
 
