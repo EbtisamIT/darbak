@@ -10,13 +10,13 @@ const campaign = {
   normalPrice: 15,
   offerPrice: 9.6,
   startsAt: "2026-09-22T16:00:00.000Z",
-  endsAt: "2026-09-23T16:00:00.000Z",
+  endsAt: "2026-09-23T18:00:00.000Z",
   enabled: true,
 };
 
 test("National Day offer is active only inside its 24-hour server window", () => {
   expect(isCampaignActive(campaign, Date.parse("2026-09-22T16:00:00.000Z"))).toBe(true);
-  expect(isCampaignActive(campaign, Date.parse("2026-09-23T16:00:00.000Z"))).toBe(false);
+  expect(isCampaignActive(campaign, Date.parse("2026-09-23T18:00:00.000Z"))).toBe(false);
 });
 
 test("offer pricing falls back to the normal 90-day price at expiry", () => {
@@ -26,7 +26,7 @@ test("offer pricing falls back to the normal 90-day price at expiry", () => {
     normalPrice: 15,
     price: 9.6,
   });
-  expect(getPlanOfferPricing(plan, Date.parse("2026-09-23T16:00:00.000Z"))).toMatchObject({
+  expect(getPlanOfferPricing(plan, Date.parse("2026-09-23T18:00:00.000Z"))).toMatchObject({
     active: false,
     price: 15,
   });
