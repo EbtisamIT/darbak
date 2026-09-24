@@ -13887,6 +13887,26 @@ app.patch('/api/admin/subscriptions/:id', requireAdmin, async (req, res) => {
         reason,
         createdAt: now,
       };
+    } else if (action === "change_plan") {
+      const requestedPlanId = String(req.body.planId || "").trim();
+      const availablePlans = buildSubscriptionPlans(process.env);
+      const selectedPlan = availablePlans[requestedPlanId];
+
+      if (!selectedPlan) {
+        return res.status(400).json({ error: "اختر باقة صالحة لتحديث الاشتراك." });
+      }
+
+      subscription.planId = selectedPlan.id;
+      subscription.planKey = selectedPlan.planKey || normalizePlanKey(selectedPlan.id);
+      subscription.entitlements = getPlanEntitlements(selectedPlan.id, process.env);
+      subscription.aiResumeUsageLimit = Number(selectedPlan.aiResumeUsageLimit || 0);
+      subscription.aiResumeUsageResetAt = subscription.expiresAt || null;
+      event = {
+        type: action,
+        label: `تم تغيير الباقة إلى ${selectedPlan.label}`,
+        reason,
+        createdAt: now,
+      };
     } else if (action === "refund_request") {
       subscription.refund.status = "requested";
       subscription.refund.requestedAt = now;

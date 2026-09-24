@@ -55,6 +55,12 @@ const refundLabels = {
   closed: "مغلق",
 };
 
+const adminPlanOptions = [
+  ["darbak_plus", "دربك+"],
+  ["one_time_90", "دربك+ 3 أشهر"],
+  ["darbak_resume", "دربك + سيرتي ✨"],
+];
+
 export const filterAdminSubscriptions = (subscriptions = [], filter = "all") =>
   subscriptions.filter((subscription) => {
     if (filter === "all") return true;
@@ -150,6 +156,7 @@ function SubscriberDrawer({
   const [refundReason, setRefundReason] = useState("");
   const [refundNote, setRefundNote] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
+  const [planId, setPlanId] = useState("");
 
   const subscription = details?.subscription || {};
   const refund = details?.refund || {};
@@ -161,6 +168,10 @@ function SubscriberDrawer({
       refund.refundedAmountSar > 0 ? String(refund.refundedAmountSar) : ""
     );
   }, [refund.adminNote, refund.reason, refund.refundedAmountSar]);
+
+  useEffect(() => {
+    setPlanId(subscription.planId === "monthly" ? "darbak_plus" : subscription.planId || "darbak_plus");
+  }, [subscription.planId]);
 
   const submitAction = (action, payload = {}) => onAction(action, payload);
 
@@ -285,6 +296,27 @@ function SubscriberDrawer({
                 <input value={compensationReason} onChange={(event) => setCompensationReason(event.target.value)} placeholder="سبب التعويض" style={inputStyle} />
                 <ActionButton disabled={busy || !compensationReason.trim()} onClick={() => submitAction("add_days", { days: Number(compensationDays), reason: compensationReason.trim() })}>إضافة مدة</ActionButton>
               </div>
+              <div className="admin-subscription-compensation-form" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, marginTop: 10 }}>
+                <label style={{ display: "grid", gap: 5, color: colors.muted, fontSize: 12 }}>
+                  تغيير الباقة — لا يحتاج رمز الطالب
+                  <select value={planId} onChange={(event) => setPlanId(event.target.value)} style={inputStyle}>
+                    {adminPlanOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+                <ActionButton
+                  disabled={busy || !planId || planId === (subscription.planId === "monthly" ? "darbak_plus" : subscription.planId)}
+                  onClick={() => {
+                    if (window.confirm("سيتم تغيير صلاحيات الباقة فقط. رمز دخول الطالب، قيمة الدفع، وتاريخ الانتهاء لن تتغير. هل تريدين المتابعة؟")) {
+                      submitAction("change_plan", { planId });
+                    }
+                  }}
+                >
+                  حفظ الباقة
+                </ActionButton>
+              </div>
+              <small style={{ display: "block", color: colors.muted, marginTop: 7, lineHeight: 1.6 }}>
+                هذا التعديل الإداري يحافظ على رمز دخول الطالب ومدة اشتراكه الحالية.
+              </small>
             </section>
 
             <section style={cardStyle}>

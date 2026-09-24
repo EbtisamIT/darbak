@@ -41,6 +41,7 @@ const subscriptions = [
 describe("AdminSubscriptionManagement", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.confirm = jest.fn(() => true);
   });
 
   test("filters lightweight subscription summaries deterministically", () => {
@@ -150,5 +151,52 @@ describe("AdminSubscriptionManagement", () => {
     fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
     expect(await screen.findByText("دربك + سيرتي")).toBeInTheDocument();
     expect(axios.get).toHaveBeenCalledTimes(2);
+  });
+
+  test("changes a subscriber plan without collecting or sending their access code", async () => {
+    const details = {
+      account: { email: "student@example.com" },
+      subscription: {
+        id: "subscription-1",
+        planId: "darbak_plus",
+        planLabel: "دربك+",
+        status: "active",
+        cancelAtPeriodEnd: false,
+      },
+      usage: { percentage: 0, features: [] },
+      refund: { status: "none" },
+      adminEvents: [],
+      resume: null,
+    };
+    axios.get.mockResolvedValue({ data: details });
+    axios.patch.mockResolvedValue({ data: { ok: true } });
+
+    render(
+      <AdminSubscriptionManagement
+        subscriptions={[subscriptions[0]]}
+        apiBaseUrl="http://localhost:3001"
+        authHeaders={{ Authorization: "admin" }}
+        getPlanLabel={(plan) => plan}
+        onRefresh={jest.fn()}
+        onMessage={jest.fn()}
+        onResendPaymentEmail={jest.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "التفاصيل" }));
+    await screen.findByRole("dialog", { name: "تفاصيل المشترك" });
+    await screen.findAllByText("دربك+");
+    fireEvent.change(screen.getByLabelText("تغيير الباقة — لا يحتاج رمز الطالب"), {
+      target: { value: "darbak_resume" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ الباقة" }));
+
+    await waitFor(() => expect(axios.patch).toHaveBeenCalledTimes(1));
+    expect(axios.patch).toHaveBeenCalledWith(
+      "http://localhost:3001/api/admin/subscriptions/subscription-1",
+      { action: "change_plan", planId: "darbak_resume" },
+      { headers: { Authorization: "admin" } }
+    );
+    expect(JSON.stringify(axios.patch.mock.calls[0][1])).not.toContain("accessCode");
   });
 });
