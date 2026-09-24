@@ -93,7 +93,7 @@ const PremiumPlanCard = ({
           <small>/ {formatPlanPeriod(plan)}</small>
         </div>
         {pricing.active && (
-          <span className="premium-plan-offer-badge">عرض اليوم الوطني — 24 ساعة</span>
+          <span className="premium-plan-offer-badge">تم تمديد العرض حتى 3 مساءً</span>
         )}
       </div>
       <ul>

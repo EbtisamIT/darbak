@@ -137,7 +137,7 @@ export default function NationalDayOffer() {
             </div>
             <p>استفد من دربك طوال موسم التدريب: تجارب الطلاب، الفرص، المقابلات وأدوات سيرتي في مكان واحد.</p>
             <strong className="national-day-offer-countdown">ينتهي العرض بعد {countdown}</strong>
-            <small className="national-day-offer-limit">العرض ينتهي خلال 24 ساعة فقط.</small>
+            <small className="national-day-offer-limit">تم تمديد العرض لفترة محدودة حتى 3 مساءً.</small>
             <button type="button" className="national-day-offer-primary" onClick={() => goToSubscribe("popup")}>
               اشترك الآن بـ 9.60 ريال
             </button>
