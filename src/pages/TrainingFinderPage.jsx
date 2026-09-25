@@ -6877,16 +6877,16 @@ export default function TrainingFinderPage() {
           }
 
           .opportunities-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 7px !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 10px !important;
           }
 
           .finder-result-card,
           .opportunity-card {
-            padding: 8px !important;
+            padding: 14px !important;
             border-radius: 13px !important;
-            gap: 6px !important;
-            min-height: 150px !important;
+            gap: 10px !important;
+            min-height: 0 !important;
           }
 
           .opportunity-card {
@@ -6894,18 +6894,7 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-card::after {
-            content: "تفاصيل";
-            display: inline-grid;
-            place-items: center;
-            min-height: 24px;
-            margin-top: auto;
-            border-radius: 999px;
-            background: var(--app-brand-soft);
-            border: 1px solid var(--app-brand-border);
-            color: var(--app-brand);
-            font-size: 10px;
-            font-weight: 900;
-            line-height: 1;
+            display: none;
           }
 
           .opportunity-card .card-quick-actions {
@@ -6959,49 +6948,48 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-card .card-timestamp-row {
-            display: none !important;
+            display: flex !important;
           }
 
           .opportunity-card-head {
-            grid-template-columns: 1fr !important;
-            justify-items: center !important;
-            gap: 6px !important;
-            text-align: center !important;
+            grid-template-columns: 42px minmax(0, 1fr) !important;
+            justify-items: stretch !important;
+            gap: 10px !important;
+            text-align: right !important;
           }
 
           .opportunity-card-head .suggested-organization-logo {
-            width: 36px !important;
-            height: 36px !important;
-            min-width: 36px !important;
-            min-height: 36px !important;
-            max-width: 36px !important;
-            max-height: 36px !important;
+            width: 42px !important;
+            height: 42px !important;
+            min-width: 42px !important;
+            min-height: 42px !important;
+            max-width: 42px !important;
+            max-height: 42px !important;
             border-radius: 12px !important;
           }
 
           .opportunity-card-head .organization-logo-image-frame,
           .opportunity-card-head .organization-logo-initial {
-            width: 28px !important;
-            height: 28px !important;
-            min-width: 28px !important;
-            min-height: 28px !important;
+            width: 34px !important;
+            height: 34px !important;
+            min-width: 34px !important;
+            min-height: 34px !important;
             border-radius: 9px !important;
           }
 
           .opportunity-card-head .organization-logo-image-frame img {
-            width: 22px !important;
-            height: 22px !important;
-            min-width: 22px !important;
-            min-height: 22px !important;
-            max-width: 22px !important;
-            max-height: 22px !important;
+            width: 27px !important;
+            height: 27px !important;
+            min-width: 27px !important;
+            min-height: 27px !important;
+            max-width: 27px !important;
+            max-height: 27px !important;
           }
 
           .opportunity-card-badges {
-            grid-column: 1 / -1 !important;
             display: flex !important;
-            justify-content: center !important;
-            gap: 4px !important;
+            justify-content: flex-start !important;
+            gap: 5px !important;
           }
 
           .opportunity-status,
@@ -7012,11 +7000,11 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-organization-name {
-            min-height: 30px !important;
+            min-height: 0 !important;
             margin-bottom: 3px !important;
-            font-size: 11.5px !important;
-            line-height: 1.3 !important;
-            text-align: center !important;
+            font-size: 15px !important;
+            line-height: 1.4 !important;
+            text-align: right !important;
             display: -webkit-box !important;
             -webkit-line-clamp: 2 !important;
             -webkit-box-orient: vertical !important;
@@ -7034,21 +7022,26 @@ export default function TrainingFinderPage() {
 
           .opportunity-actions {
             display: grid !important;
-            grid-template-columns: 1fr !important;
-            margin-top: 8px !important;
-          }
-
-          .opportunity-actions > :not(.resume-tailor-cta) {
-            display: none !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 8px !important;
+            margin-top: 2px !important;
           }
 
           .opportunity-card-title {
-            display: none !important;
+            display: -webkit-box !important;
+            min-height: 0 !important;
+            font-size: 13px !important;
+            text-align: right !important;
           }
 
-          .opportunity-interaction-count,
+          .opportunity-interaction-count {
+            display: flex !important;
+            justify-content: flex-start !important;
+            margin: 0 !important;
+          }
+
           .opportunity-card .finder-card-info {
-            display: none !important;
+            display: grid !important;
           }
 
           .opportunity-chip {
@@ -7264,34 +7257,55 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-card.suggested-target-card {
-            padding: 8px !important;
-            gap: 6px !important;
-            min-height: 150px !important;
+            padding: 14px !important;
+            gap: 10px !important;
+            min-height: 0 !important;
           }
 
           .opportunity-card .opportunity-card-head {
-            grid-template-columns: 1fr !important;
-            justify-items: center !important;
-            text-align: center !important;
+            grid-template-columns: 42px minmax(0, 1fr) !important;
+            justify-items: stretch !important;
+            text-align: right !important;
           }
 
           .opportunity-card .suggested-card-title-row {
-            display: grid !important;
-            grid-template-columns: minmax(0, 1fr) !important;
-            justify-items: center !important;
-            gap: 4px !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: flex-start !important;
+            gap: 8px !important;
           }
 
-          .opportunity-card .finder-card-info,
-          .opportunity-card .opportunity-card-title,
+          .opportunity-card .finder-card-info {
+            display: grid !important;
+          }
+
+          .opportunity-card .opportunity-card-title {
+            display: -webkit-box !important;
+          }
+
           .opportunity-card .opportunity-interaction-count {
-            display: none !important;
+            display: flex !important;
+            justify-content: flex-start !important;
           }
         }
 
         @media (min-width: 520px) and (max-width: 760px) {
           .opportunities-grid {
-            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+
+          .opportunity-card .opportunity-card-head,
+          .opportunity-card-head {
+            grid-template-columns: 38px minmax(0, 1fr) !important;
+          }
+
+          .opportunity-card .suggested-card-title-row {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+
+          .opportunity-card-badges {
+            justify-content: flex-start !important;
           }
         }
 
