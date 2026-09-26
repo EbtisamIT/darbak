@@ -9,7 +9,22 @@ import {
   isCampaignActive,
 } from "../utils/nationalDayOffer";
 
-const getSeenKey = (campaignId = "") => `darbak:campaign:${campaignId}:seen`;
+const POPUP_INITIAL_DELAY_MS = 8000;
+const POPUP_RETRY_DELAY_MS = 15000;
+const getSeenKey = (campaign = {}) =>
+  `darbak:campaign:${campaign?.id || "unknown"}:${campaign?.noticeVersion || campaign?.endsAt || "v1"}:seen`;
+
+const hasBlockingAttentionLayer = () =>
+  Boolean(
+    document.querySelector(
+      [
+        '[role="dialog"][aria-modal="true"]',
+        ".subscription-reminder-overlay",
+        ".subscription-reminder-bar",
+        ".premium-access-overlay",
+      ].join(",")
+    )
+  );
 
 const isCampaignResponse = (campaign) =>
   campaign?.id === "national-day-90d-960" && campaign?.planId === "one_time_90";
@@ -23,6 +38,7 @@ export default function NationalDayOffer() {
   const [showPopup, setShowPopup] = useState(false);
   const [didExpire, setDidExpire] = useState(false);
   const wasActiveRef = useRef(false);
+  const popupTimerRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -58,18 +74,42 @@ export default function NationalDayOffer() {
 
   useEffect(() => {
     if (!isActive || !campaign?.id) return;
-    try {
-      if (!window.localStorage.getItem(getSeenKey(campaign.id))) {
-        window.localStorage.setItem(getSeenKey(campaign.id), "1");
+
+    const clearPopupTimer = () => {
+      if (popupTimerRef.current) {
+        window.clearTimeout(popupTimerRef.current);
+        popupTimerRef.current = null;
+      }
+    };
+
+    const tryToShowPopup = () => {
+      if (document.visibilityState !== "visible" || hasBlockingAttentionLayer()) {
+        popupTimerRef.current = window.setTimeout(tryToShowPopup, POPUP_RETRY_DELAY_MS);
+        return;
+      }
+
+      try {
+        const seenKey = getSeenKey(campaign);
+        if (window.localStorage.getItem(seenKey)) return;
+        window.localStorage.setItem(seenKey, "1");
         trackEvent("national_day_popup_shown", {
           metadata: { campaignId: campaign.id },
         });
         setShowPopup(true);
+      } catch {
+        // If storage is unavailable, keep the campaign non-blocking.
       }
+    };
+
+    try {
+      if (window.localStorage.getItem(getSeenKey(campaign))) return undefined;
+      popupTimerRef.current = window.setTimeout(tryToShowPopup, POPUP_INITIAL_DELAY_MS);
     } catch {
       // If storage is unavailable, keep the campaign non-blocking.
     }
-  }, [campaign?.id, isActive]);
+
+    return clearPopupTimer;
+  }, [campaign, isActive]);
 
   useEffect(() => {
     if (!didExpire) return undefined;
@@ -92,7 +132,11 @@ export default function NationalDayOffer() {
     navigate(subscribeUrl);
   };
 
-  if (location.pathname.startsWith("/company") || location.pathname.startsWith("/p/")) {
+  if (
+    location.pathname.startsWith("/company") ||
+    location.pathname.startsWith("/p/") ||
+    location.pathname.startsWith("/subscribe")
+  ) {
     return null;
   }
 
@@ -137,7 +181,7 @@ export default function NationalDayOffer() {
             </div>
             <p>استفد من دربك طوال موسم التدريب: تجارب الطلاب، الفرص، المقابلات وأدوات سيرتي في مكان واحد.</p>
             <strong className="national-day-offer-countdown">ينتهي العرض بعد {countdown}</strong>
-            <small className="national-day-offer-limit">تم تمديد العرض لفترة محدودة حتى 3 مساءً.</small>
+            <small className="national-day-offer-limit">العرض لفترة محدودة فقط.</small>
             <button type="button" className="national-day-offer-primary" onClick={() => goToSubscribe("popup")}>
               اشترك الآن بـ 9.60 ريال
             </button>

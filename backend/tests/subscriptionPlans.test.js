@@ -68,6 +68,7 @@ const nationalDayActive = getNationalDayOffer(
 );
 assert.strictEqual(nationalDayActive.id, "national-day-90d-960");
 assert.strictEqual(nationalDayActive.isActive, true);
+assert.strictEqual(nationalDayActive.noticeVersion, "2026-09-27-48h");
 assert.strictEqual(nationalDayActive.startsAt, nationalDayStart.toISOString());
 assert.strictEqual(nationalDayActive.endsAt, nationalDayEnd.toISOString());
 assert.strictEqual(

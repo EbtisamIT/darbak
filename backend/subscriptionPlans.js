@@ -14,6 +14,7 @@ const NATIONAL_DAY_OFFER = Object.freeze({
   offerPrice: 9.6,
   startsAt: "2026-09-26T19:10:49.000Z",
   endsAt: "2026-09-28T19:10:49.000Z",
+  noticeVersion: "2026-09-27-48h",
   enabled: true,
 });
 

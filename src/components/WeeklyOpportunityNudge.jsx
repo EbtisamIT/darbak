@@ -5,6 +5,7 @@ import { PREMIUM_ACCESS_EVENT } from "../utils/premiumAccess";
 import {
   hasBlockingAttentionLayer,
   markWeeklyOpportunityNudgeSeen,
+  migrateLegacyWeeklyOpportunityNudgeSeen,
   normalizeWeeklyOpportunityHighlight,
   wasWeeklyOpportunityNudgeSeen,
 } from "../utils/weeklyOpportunityNudge";
@@ -56,6 +57,7 @@ export default function WeeklyOpportunityNudge() {
           await response.json()
         );
         if (!isMounted || !normalized.count || !normalized.periodKey) return;
+        migrateLegacyWeeklyOpportunityNudgeSeen(normalized.periodKey);
         if (wasWeeklyOpportunityNudgeSeen(normalized.periodKey)) return;
         setHighlight(normalized);
       } catch {

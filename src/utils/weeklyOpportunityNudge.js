@@ -1,5 +1,10 @@
 export const WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY =
   "darbak_weekly_opportunity_nudge_seen_v1";
+const WEEKLY_OPPORTUNITY_NUDGE_PERIOD_PREFIX =
+  "darbak_weekly_opportunity_nudge_seen_v2";
+
+const getWeeklyOpportunityNudgePeriodKey = (periodKey = "") =>
+  `${WEEKLY_OPPORTUNITY_NUDGE_PERIOD_PREFIX}:${String(periodKey || "").trim()}`;
 
 export const normalizeWeeklyOpportunityHighlight = (payload = {}) => {
   const count = Number(payload.count);
@@ -31,22 +36,38 @@ export const hasBlockingAttentionLayer = (documentRef = document) =>
   );
 
 export const wasWeeklyOpportunityNudgeSeen = (
-  _periodKey,
+  periodKey,
   storage = window.localStorage
 ) => {
   try {
-    return Boolean(storage.getItem(WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY));
+    return Boolean(storage.getItem(getWeeklyOpportunityNudgePeriodKey(periodKey)));
   } catch {
     return false;
   }
 };
 
 export const markWeeklyOpportunityNudgeSeen = (
-  _periodKey,
+  periodKey,
   storage = window.localStorage
 ) => {
   try {
-    storage.setItem(WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY, "seen");
+    storage.setItem(getWeeklyOpportunityNudgePeriodKey(periodKey), "seen");
+  } catch {
+    // The nudge is optional; restricted storage must not break the page.
+  }
+};
+
+// The old implementation kept a single forever key. Preserve the current
+// week's dismissal once during the transition, then allow future weekly batches.
+export const migrateLegacyWeeklyOpportunityNudgeSeen = (
+  periodKey,
+  storage = window.localStorage
+) => {
+  try {
+    const currentKey = getWeeklyOpportunityNudgePeriodKey(periodKey);
+    if (periodKey && storage.getItem(WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY) && !storage.getItem(currentKey)) {
+      storage.setItem(currentKey, "seen");
+    }
   } catch {
     // The nudge is optional; restricted storage must not break the page.
   }

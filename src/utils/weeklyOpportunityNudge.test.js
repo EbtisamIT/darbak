@@ -2,6 +2,7 @@ import {
   WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY,
   hasBlockingAttentionLayer,
   markWeeklyOpportunityNudgeSeen,
+  migrateLegacyWeeklyOpportunityNudgeSeen,
   normalizeWeeklyOpportunityHighlight,
   wasWeeklyOpportunityNudgeSeen,
 } from "./weeklyOpportunityNudge";
@@ -26,14 +27,18 @@ describe("weekly opportunity nudge", () => {
     });
   });
 
-  test("shows only once ever, even when a newer weekly batch is published", () => {
+  test("shows once per weekly batch, without suppressing future batches", () => {
     expect(wasWeeklyOpportunityNudgeSeen("2026-09-07")).toBe(false);
     markWeeklyOpportunityNudgeSeen("2026-09-07");
-    expect(
-      window.localStorage.getItem(WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY)
-    ).toBe("seen");
     expect(wasWeeklyOpportunityNudgeSeen("2026-09-07")).toBe(true);
-    expect(wasWeeklyOpportunityNudgeSeen("2026-09-14")).toBe(true);
+    expect(wasWeeklyOpportunityNudgeSeen("2026-09-14")).toBe(false);
+  });
+
+  test("keeps the current legacy dismissal once, then allows the next batch", () => {
+    window.localStorage.setItem(WEEKLY_OPPORTUNITY_NUDGE_SEEN_KEY, "seen");
+    migrateLegacyWeeklyOpportunityNudgeSeen("2026-09-07");
+    expect(wasWeeklyOpportunityNudgeSeen("2026-09-07")).toBe(true);
+    expect(wasWeeklyOpportunityNudgeSeen("2026-09-14")).toBe(false);
   });
 
   test("detects subscription and daily-limit attention layers", () => {
