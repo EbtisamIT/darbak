@@ -5,15 +5,15 @@ const RESUME_PLAN_KEY = "darbak_resume";
 const PLUS_ENTITLEMENT = "darbak_plus";
 const RESUME_ENTITLEMENT = "resume_builder";
 
-// Keep this campaign in one server-owned definition. It starts with the
-// production release and ends exactly 24 hours later.
+// Keep this campaign in one server-owned definition. The server remains the
+// single source of truth for its seven-day validity window.
 const NATIONAL_DAY_OFFER = Object.freeze({
   id: "national-day-90d-960",
   planId: "one_time_90",
   normalPrice: 15,
   offerPrice: 9.6,
-  startsAt: "2026-09-22T16:00:00.000Z",
-  endsAt: "2026-09-24T12:00:00.000Z",
+  startsAt: "2026-09-26T19:02:14.000Z",
+  endsAt: "2026-10-03T19:02:14.000Z",
   enabled: true,
 });
 
