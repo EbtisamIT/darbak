@@ -3,6 +3,10 @@ const mongoose = require('mongoose');
 const cors = require("cors");
 const crypto = require("crypto");
 require('dotenv').config();
+const {
+  canonicalizeEmail,
+  buildLegacyEmailIdentityPattern,
+} = require("./services/emailIdentity");
 
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
@@ -396,7 +400,7 @@ const normalizeArabicDigits = (value = "") =>
     .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
     .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
 
-const normalizeEmail = (value = "") => value.toString().trim().toLowerCase();
+const normalizeEmail = (value = "") => canonicalizeEmail(value);
 
 const isValidEmail = (value = "") =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
@@ -937,6 +941,14 @@ const hashAccessCode = (contact = "", accessCode = "") =>
     )
     .digest("hex");
 
+// Compatibility only: validates a legacy identity before it is canonicalized.
+// New writes must always use hashAccessCode(), which uses canonical contact data.
+const hashLegacyAccessCode = (contact = "", accessCode = "") =>
+  crypto
+    .createHmac("sha256", SUBSCRIPTION_SECRET)
+    .update(`${contact.toString().trim().toLowerCase()}:${normalizeAccessCode(accessCode)}`)
+    .digest("hex");
+
 const generateAccessResetToken = () => crypto.randomBytes(32).toString("hex");
 
 const hashAccessResetToken = (token = "") =>
@@ -1106,6 +1118,39 @@ const ensureAccessUser = async ({ contact = "", accessCode = "", visitorId = "" 
     isValidSubscriberContact(normalizedContact) && isValidAccessCode(normalizedCode);
 
   if (isContactIdentity) {
+    const existingUser = await User.findOne({
+      contact: normalizedContact,
+      accessCodeHash,
+    });
+
+    if (existingUser) {
+      existingUser.contact = normalizedContact;
+      existingUser.accessCodeHash = accessCodeHash;
+      if (isAdminContact(normalizedContact, normalizedCode)) existingUser.isAdmin = true;
+      return existingUser.save();
+    }
+
+    // A prior version allowed invisible direction/format characters in emails.
+    // Reuse a verified legacy account rather than silently creating a duplicate.
+    if (isValidEmail(normalizedContact)) {
+      const legacyCandidates = await User.find({
+        contact: { $regex: buildLegacyEmailIdentityPattern(normalizedContact) },
+      }).limit(10);
+      const legacyUser = legacyCandidates.find(
+        (candidate) =>
+          candidate.contact !== normalizedContact &&
+          normalizeEmail(candidate.contact) === normalizedContact &&
+          candidate.accessCodeHash === hashLegacyAccessCode(candidate.contact, normalizedCode)
+      );
+
+      if (legacyUser) {
+        legacyUser.contact = normalizedContact;
+        legacyUser.accessCodeHash = accessCodeHash;
+        if (isAdminContact(normalizedContact, normalizedCode)) legacyUser.isAdmin = true;
+        return legacyUser.save();
+      }
+    }
+
     return User.findOneAndUpdate(
       { contact: normalizedContact, accessCodeHash },
       {
