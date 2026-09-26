@@ -27,5 +27,9 @@ const legacyPattern = buildLegacyEmailIdentityPattern(canonical);
 assert.ok(legacyPattern.test("\u200Fmaramaljhdlli@gmail.com"));
 assert.ok(legacyPattern.test("m\u200Baramaljhdlli@gmail.com\u200F"));
 assert.ok(!legacyPattern.test("another@gmail.com"));
+assert.ok(
+  !legacyPattern.source.includes("\\u"),
+  "legacy compatibility regex must remain valid for MongoDB PCRE2"
+);
 
 console.log("emailIdentity tests passed");
