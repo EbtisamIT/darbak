@@ -6,14 +6,14 @@ const PLUS_ENTITLEMENT = "darbak_plus";
 const RESUME_ENTITLEMENT = "resume_builder";
 
 // Keep this campaign in one server-owned definition. The server remains the
-// single source of truth for its seven-day validity window.
+// single source of truth for its 48-hour validity window.
 const NATIONAL_DAY_OFFER = Object.freeze({
   id: "national-day-90d-960",
   planId: "one_time_90",
   normalPrice: 15,
   offerPrice: 9.6,
-  startsAt: "2026-09-26T19:02:14.000Z",
-  endsAt: "2026-10-03T19:02:14.000Z",
+  startsAt: "2026-09-26T19:10:49.000Z",
+  endsAt: "2026-09-28T19:10:49.000Z",
   enabled: true,
 });
 

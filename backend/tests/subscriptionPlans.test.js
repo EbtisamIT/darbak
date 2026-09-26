@@ -61,10 +61,10 @@ assert.deepStrictEqual(
   [PLUS_PLAN_KEY, "one_time_90"]
 );
 
-const nationalDayStart = new Date("2026-09-26T19:02:14.000Z");
-const nationalDayEnd = new Date("2026-10-03T19:02:14.000Z");
+const nationalDayStart = new Date("2026-09-26T19:10:49.000Z");
+const nationalDayEnd = new Date("2026-09-28T19:10:49.000Z");
 const nationalDayActive = getNationalDayOffer(
-  new Date("2026-09-26T19:02:15.000Z")
+  new Date("2026-09-26T19:10:50.000Z")
 );
 assert.strictEqual(nationalDayActive.id, "national-day-90d-960");
 assert.strictEqual(nationalDayActive.isActive, true);
@@ -79,7 +79,7 @@ assert.strictEqual(
 const ninetyDayPlan = getSubscriptionPlan("one_time_90", env);
 const activeCampaignPricing = getSubscriptionCheckoutPricing({
   plan: ninetyDayPlan,
-  now: new Date("2026-09-26T20:00:00.000Z"),
+  now: new Date("2026-09-26T20:10:00.000Z"),
 });
 assert.strictEqual(activeCampaignPricing.priceSar, 9.6);
 assert.strictEqual(activeCampaignPricing.originalPriceSar, 15);
@@ -95,7 +95,7 @@ assert.strictEqual(expiredCampaignPricing.campaign, null);
 
 const activePublicNinetyDayPlan = getPublicSubscriptionPlans(
   env,
-  new Date("2026-09-26T20:00:00.000Z")
+  new Date("2026-09-26T20:10:00.000Z")
 ).find((plan) => plan.id === "one_time_90");
 assert.strictEqual(activePublicNinetyDayPlan.priceSar, 9.6);
 assert.strictEqual(activePublicNinetyDayPlan.normalPriceSar, 15);
