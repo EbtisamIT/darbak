@@ -6877,15 +6877,15 @@ export default function TrainingFinderPage() {
           }
 
           .opportunities-grid {
-            grid-template-columns: minmax(0, 1fr) !important;
-            gap: 10px !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 8px !important;
           }
 
           .finder-result-card,
           .opportunity-card {
-            padding: 14px !important;
+            padding: 10px !important;
             border-radius: 13px !important;
-            gap: 10px !important;
+            gap: 8px !important;
             min-height: 0 !important;
           }
 
@@ -6952,38 +6952,38 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-card-head {
-            grid-template-columns: 42px minmax(0, 1fr) !important;
+            grid-template-columns: 36px minmax(0, 1fr) !important;
             justify-items: stretch !important;
-            gap: 10px !important;
+            gap: 7px !important;
             text-align: right !important;
           }
 
           .opportunity-card-head .suggested-organization-logo {
-            width: 42px !important;
-            height: 42px !important;
-            min-width: 42px !important;
-            min-height: 42px !important;
-            max-width: 42px !important;
-            max-height: 42px !important;
+            width: 36px !important;
+            height: 36px !important;
+            min-width: 36px !important;
+            min-height: 36px !important;
+            max-width: 36px !important;
+            max-height: 36px !important;
             border-radius: 12px !important;
           }
 
           .opportunity-card-head .organization-logo-image-frame,
           .opportunity-card-head .organization-logo-initial {
-            width: 34px !important;
-            height: 34px !important;
-            min-width: 34px !important;
-            min-height: 34px !important;
+            width: 28px !important;
+            height: 28px !important;
+            min-width: 28px !important;
+            min-height: 28px !important;
             border-radius: 9px !important;
           }
 
           .opportunity-card-head .organization-logo-image-frame img {
-            width: 27px !important;
-            height: 27px !important;
-            min-width: 27px !important;
-            min-height: 27px !important;
-            max-width: 27px !important;
-            max-height: 27px !important;
+            width: 22px !important;
+            height: 22px !important;
+            min-width: 22px !important;
+            min-height: 22px !important;
+            max-width: 22px !important;
+            max-height: 22px !important;
           }
 
           .opportunity-card-badges {
@@ -7002,8 +7002,8 @@ export default function TrainingFinderPage() {
           .opportunity-organization-name {
             min-height: 0 !important;
             margin-bottom: 3px !important;
-            font-size: 15px !important;
-            line-height: 1.4 !important;
+            font-size: 12px !important;
+            line-height: 1.35 !important;
             text-align: right !important;
             display: -webkit-box !important;
             -webkit-line-clamp: 2 !important;
@@ -7257,13 +7257,13 @@ export default function TrainingFinderPage() {
           }
 
           .opportunity-card.suggested-target-card {
-            padding: 14px !important;
-            gap: 10px !important;
+            padding: 10px !important;
+            gap: 8px !important;
             min-height: 0 !important;
           }
 
           .opportunity-card .opportunity-card-head {
-            grid-template-columns: 42px minmax(0, 1fr) !important;
+            grid-template-columns: 36px minmax(0, 1fr) !important;
             justify-items: stretch !important;
             text-align: right !important;
           }
@@ -7290,10 +7290,6 @@ export default function TrainingFinderPage() {
         }
 
         @media (min-width: 520px) and (max-width: 760px) {
-          .opportunities-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-
           .opportunity-card .opportunity-card-head,
           .opportunity-card-head {
             grid-template-columns: 38px minmax(0, 1fr) !important;
