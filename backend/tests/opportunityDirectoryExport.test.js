@@ -25,10 +25,18 @@ const data = buildOpportunityDirectoryExport({
     sourceType: "admin",
     createdAt: "2026-09-02T00:00:00.000Z",
   }],
+  companySuggestions: [{
+    key: "name:company-beta",
+    suggestedName: "شركة باء",
+    aliases: ["شركة باء", "Beta Co"],
+    opportunitiesCount: 2,
+  }],
 });
 
 assert.strictEqual(data.companies.length, 1);
 assert.strictEqual(data.opportunities.length, 1);
+assert.strictEqual(data.companySuggestions.length, 1);
+assert.strictEqual(data.companySuggestions[0].recordType, "company_suggestion");
 assert.deepStrictEqual(data.opportunities[0].emails, ["coop@alpha.sa", "training@alpha.sa"]);
 assert.deepStrictEqual(data.emailEligibleCoverage, [{
   specialty: "نظم المعلومات",
@@ -38,6 +46,7 @@ assert.deepStrictEqual(data.emailEligibleCoverage, [{
 }]);
 assert.ok(!JSON.stringify(data).includes("student"));
 assert.strictEqual(buildDirectoryCsvRows(data, "records")[0][0], "recordType");
+assert.strictEqual(buildDirectoryCsvRows(data, "records").length, 4);
 assert.strictEqual(buildDirectoryCsvRows(data, "coverage")[1][2], 1);
 
 console.log("opportunity directory export tests passed");

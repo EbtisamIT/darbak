@@ -39,7 +39,11 @@ const getSource = (item = {}) => {
 
 const flattenForCsv = (value) => (Array.isArray(value) ? value.join(" | ") : value || "");
 
-const buildOpportunityDirectoryExport = ({ companies = [], opportunities = [] } = {}) => {
+const buildOpportunityDirectoryExport = ({
+  companies = [],
+  opportunities = [],
+  companySuggestions = [],
+} = {}) => {
   const companyById = new Map(companies.map((company) => [String(company._id), company]));
   const companyRows = companies.map((company) => {
     const source = getSource(company);
@@ -95,6 +99,35 @@ const buildOpportunityDirectoryExport = ({ companies = [], opportunities = [] } 
     };
   });
 
+  const companySuggestionRows = companySuggestions
+    .filter((suggestion) => !suggestion.company)
+    .map((suggestion) => ({
+      recordType: "company_suggestion",
+      id: toText(suggestion.key),
+      companyId: "",
+      name: toText(suggestion.suggestedName),
+      nameAr: "",
+      nameEn: "",
+      title: "",
+      specialties: [],
+      cities: [],
+      emails: [],
+      applicationChannel: "",
+      applicationUrl: "",
+      logoUrl: "",
+      website: "",
+      sourceType: "content_suggestion",
+      sourceUrl: "",
+      status: "suggested",
+      createdAt: "",
+      updatedAt: "",
+      deadline: "",
+      aliases: toList(suggestion.aliases),
+      experiencesCount: Number(suggestion.experiencesCount || 0),
+      interviewsCount: Number(suggestion.interviewsCount || 0),
+      opportunitiesCount: Number(suggestion.opportunitiesCount || 0),
+    }));
+
   const coverage = new Map();
   opportunityRows
     .filter((row) => row.status === "active" && row.emails.length > 0)
@@ -135,6 +168,7 @@ const buildOpportunityDirectoryExport = ({ companies = [], opportunities = [] } 
     generatedAt: new Date().toISOString(),
     companies: companyRows,
     opportunities: opportunityRows,
+    companySuggestions: companySuggestionRows,
     emailEligibleCoverage,
   };
 };
@@ -156,11 +190,16 @@ const buildDirectoryCsvRows = (exportData, view = "records") => {
     "recordType", "id", "companyId", "name", "nameAr", "nameEn", "title",
     "specialties", "cities", "emails", "applicationChannel", "applicationUrl",
     "logoUrl", "website", "sourceType", "sourceUrl", "status", "createdAt",
-    "updatedAt", "deadline",
+    "updatedAt", "deadline", "aliases", "experiencesCount", "interviewsCount",
+    "opportunitiesCount",
   ];
   return [
     fields,
-    ...[...exportData.companies, ...exportData.opportunities].map((row) =>
+    ...[
+      ...exportData.companies,
+      ...exportData.opportunities,
+      ...exportData.companySuggestions,
+    ].map((row) =>
       fields.map((field) => flattenForCsv(row[field]))
     ),
   ];

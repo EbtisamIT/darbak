@@ -19438,15 +19438,20 @@ app.get('/api/admin/opportunity-directory-export', requireAdmin, async (req, res
 
     const format = req.query.format === "csv" ? "csv" : "json";
     const view = req.query.view === "coverage" ? "coverage" : "records";
-    const [companies, opportunities] = await Promise.all([
+    const [companies, opportunities, companySuggestions] = await Promise.all([
       Company.find({})
         .select("_id name nameAr nameEn city contactEmail logoUrl website status sourceType sourceUrl fieldProvenance enrichment createdAt updatedAt")
         .lean(),
       Opportunity.find({})
         .select("_id companyId organizationName title city cities majorCategories specialties applicationMethod applicationUrl logoUrl sourceType sourceUrl status deadline createdAt updatedAt")
         .lean(),
+      getCompanySuggestions(),
     ]);
-    const exportData = buildOpportunityDirectoryExport({ companies, opportunities });
+    const exportData = buildOpportunityDirectoryExport({
+      companies,
+      opportunities,
+      companySuggestions,
+    });
     const date = new Date().toISOString().slice(0, 10);
 
     res.setHeader("Cache-Control", "private, no-store");
