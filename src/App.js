@@ -49,6 +49,7 @@ const CompaniesPage = lazy(() => import("./pages/CompaniesPage"));
 const CompanyProfilePage = lazy(() => import("./pages/CompanyProfilePage"));
 const MyApplicationsPage = lazy(() => import("./pages/MyApplicationsPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
+const ClubDemoPage = lazy(() => import("./pages/ClubDemoPage"));
 const MyResumePage = lazy(() => import("./pages/MyResumePage"));
 const PremiumAccessGate = lazy(() => import("./components/PremiumAccessGate"));
 const AccountModal = lazy(() => import("./components/AccountModal"));
@@ -1397,6 +1398,7 @@ function AppLayout({ theme, setTheme }) {
               <Route path="/my-resume/versions/:versionId" element={<MyResumePage />} />
               <Route path="/my-resume/tailor" element={<MyResumePage />} />
               <Route path="/partners" element={<PartnersPage />} />
+              <Route path="/clubs/demo" element={<ClubDemoPage />} />
               <Route path="/portofoili" element={<PortfolioBuilderPage />} />
               <Route path="/portfolio" element={<PortfolioBuilderPage />} />
               <Route path="/applications" element={<MyApplicationsPage />} />
