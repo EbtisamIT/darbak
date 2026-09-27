@@ -42,6 +42,27 @@ test("explicit route filters take priority over session filters", () => {
   })).toEqual({ specialty: "علوم الحاسب", city: "جدة" });
 });
 
+test("saved journey preferences initialize discovery when this session has no override", () => {
+  expect(getTrainingFinderInitialFilters({
+    journeyPreferences: {
+      preferredMajor: "نظم المعلومات",
+      preferredCity: "الخبر",
+    },
+  })).toEqual({ specialty: "نظم المعلومات", city: "الخبر" });
+});
+
+test("a manual session selection still wins over saved journey preferences", () => {
+  saveTrainingFinderSessionFilters({ specialty: "محاسبة", city: "جدة" });
+
+  expect(getTrainingFinderInitialFilters({
+    sessionFilters: getTrainingFinderSessionFilters(),
+    journeyPreferences: {
+      preferredMajor: "نظم المعلومات",
+      preferredCity: "الخبر",
+    },
+  })).toEqual({ specialty: "محاسبة", city: "جدة" });
+});
+
 test("clearing filters removes only session-scoped discovery state", () => {
   window.localStorage.setItem("unrelated-account-preference", "keep");
   saveTrainingFinderSessionFilters({ specialty: "نظم المعلومات", city: "الدمام" });

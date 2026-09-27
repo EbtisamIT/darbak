@@ -51,11 +51,16 @@ export const getTrainingFinderInitialFilters = ({
   routeCity = "",
   queryCity = "",
   sessionFilters = {},
+  journeyPreferences = {},
 } = {}) => {
   const saved = normalizeTrainingFinderFilters(sessionFilters);
+  const journey = normalizeTrainingFinderFilters({
+    specialty: journeyPreferences.preferredMajor,
+    city: journeyPreferences.preferredCity,
+  });
 
   return {
-    specialty: routeSpecialty || querySpecialty || saved.specialty,
-    city: routeCity || queryCity || saved.city,
+    specialty: routeSpecialty || querySpecialty || saved.specialty || journey.specialty,
+    city: routeCity || queryCity || saved.city || journey.city,
   };
 };
