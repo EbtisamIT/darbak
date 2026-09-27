@@ -58,6 +58,9 @@ const DarbakAssistant = lazy(() => import("./components/DarbakAssistant"));
 const WeeklyOpportunityNudge = lazy(() =>
   import("./components/WeeklyOpportunityNudge")
 );
+const StudentFeedbackSurvey = lazy(() =>
+  import("./components/StudentFeedbackSurvey")
+);
 
 const ADMIN_REVIEW_PATH = "/darbak-owner-review-2026";
 
@@ -1366,6 +1369,7 @@ function AppLayout({ theme, setTheme }) {
           <SavedItemsDrawer />
           <DarbakAssistant />
           <WeeklyOpportunityNudge />
+          <StudentFeedbackSurvey />
         </Suspense>
       )}
 

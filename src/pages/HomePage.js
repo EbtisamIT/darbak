@@ -11,6 +11,7 @@ import {
 } from "react-icons/fi";
 import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
+import PublicTestimonials from "../components/PublicTestimonials";
 import { cityOptions, specializationOptions } from "../data/trainingOptions";
 import {
   getStoredPremiumPass,
@@ -559,6 +560,8 @@ const HomePage = () => {
           {statItems.map((item) => <Link key={item.label} to={item.to}><strong>{typeof item.value === "number" ? <AnimatedCount value={item.value} prefix="+" /> : "..."}</strong><span>{item.label}</span></Link>)}
         </div>
       </section>
+
+      <PublicTestimonials />
 
       <section className="home-company-section">
         <FiUsers aria-hidden="true" />

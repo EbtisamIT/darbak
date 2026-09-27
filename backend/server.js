@@ -10,6 +10,7 @@ const {
 
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
+const FeedbackResponse = require("./models/FeedbackResponse");
 const ContactMessage = require('./models/ContactMessage');
 const CompanyApplication = require('./models/CompanyApplication');
 const ApplicationTracker = require("./models/ApplicationTracker");
@@ -7182,6 +7183,13 @@ const buildSmartAssistantAnswer = ({
 };
 
 // ===== Middlewares =====
+// Keep public API reads available to the Darbak frontend even when an edge cache
+// serves a GET response without the header injected by the generic CORS middleware.
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.append("Vary", "Origin");
+  next();
+});
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
@@ -12885,22 +12893,34 @@ app.post('/api/subscriptions/reset-code', async (req, res) => {
   }
 });
 
-app.post('/api/subscriptions/start-checkout', async (req, res) => {
+const startSubscriptionCheckout = async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ error: "Database is not connected" });
     }
 
-    const rawContact = req.body.email || req.body.contact;
+    // An existing Darbak access identity is authoritative for checkout. The
+    // body credentials are only a guest fallback, so an authenticated buyer
+    // can never accidentally pay into a different account.
+    const authenticatedContact = req.get("x-darbak-contact") || "";
+    const authenticatedAccessCode = req.get("x-darbak-access-code") || "";
+    const rawContact =
+      authenticatedContact || req.body.email || req.body.contact || "";
     const contact = normalizeSubscriberContact(rawContact);
-    const accessCode = normalizeAccessCode(req.body.accessCode);
+    const accessCode = normalizeAccessCode(
+      authenticatedAccessCode || req.body.accessCode || ""
+    );
     const selectedPlan = getSubscriptionPlan(req.body.planId);
     const selectedPlanKey = selectedPlan.planKey || normalizePlanKey(selectedPlan.id);
     const checkoutPricing = getSubscriptionCheckoutPricing({
       plan: selectedPlan,
       now: new Date(),
     });
-    const visitorId = sanitizeAnalyticsText(req.body.visitorId, 90);
+    const visitorId = sanitizeAnalyticsText(
+      req.get("x-darbak-visitor-id") || req.body.visitorId,
+      90
+    );
+    const checkoutSource = sanitizeAnalyticsText(req.body.source, 90);
 
     if (
       !isValidSubscriberContact(rawContact) ||
@@ -13106,7 +13126,7 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
           campaign_id: checkoutPricing.campaign?.id || "",
           original_price_sar: String(checkoutPricing.originalPriceSar),
           paid_price_sar: String(checkoutPricing.priceSar),
-          source: "darbak_plus",
+          source: checkoutSource || "darbak_plus",
         },
       });
 
@@ -13237,7 +13257,12 @@ app.post('/api/subscriptions/start-checkout', async (req, res) => {
       providerMessage: flattenProviderError(err.details),
     });
   }
-});
+};
+
+// Keep the legacy URL for in-flight clients, while all new entry points use
+// the explicit shared checkout endpoint above.
+app.post("/api/subscriptions/checkout", startSubscriptionCheckout);
+app.post("/api/subscriptions/start-checkout", startSubscriptionCheckout);
 
 app.post('/api/subscriptions/moyasar/callback', async (req, res) => {
   try {
@@ -14941,6 +14966,78 @@ app.post('/api/suggestions', async (req, res) => {
   }
 });
 
+app.post("/api/student-feedback", async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+    const rating = Number(req.body?.rating);
+    const feedbackText = (req.body?.feedbackText || "").trim();
+    if (!Number.isInteger(rating) || rating < 1 || rating > 4) {
+      return res.status(400).json({ error: "اختاري تقييمًا للتجربة أولًا." });
+    }
+    if (feedbackText.length > 1200 || containsBlockedTerms(feedbackText)) {
+      return res.status(400).json({ error: "اكتبي رأيك بصياغة مناسبة." });
+    }
+
+    const identity = getAccessIdentityFromRequest(req);
+    const contact = normalizeSubscriberContact(identity.contact);
+    const accessCode = normalizeAccessCode(identity.accessCode);
+    const accessCodeHash =
+      contact && accessCode ? hashAccessCode(contact, accessCode) : "";
+    const user = accessCodeHash
+      ? await User.findOne({ contact, accessCodeHash }).lean()
+      : null;
+    const activeSubscription = accessCodeHash
+      ? await Subscription.findOne(getActiveSubscriptionFilter(contact, accessCodeHash))
+          .sort({ updatedAt: -1 })
+          .lean()
+      : null;
+    const resumeProfile = user?._id
+      ? await ResumeProfile.findOne({ userId: user._id })
+          .select("personalInfo.studentStatus")
+          .lean()
+      : null;
+
+    await FeedbackResponse.create({
+      userId: user?._id || null,
+      rating,
+      feedbackText,
+      originalFeedbackText: feedbackText,
+      publicConsent: req.body?.publicConsent === true,
+      major: user?.preferredMajor || "",
+      city: user?.preferredCity || "",
+      studentStatus: resumeProfile?.personalInfo?.studentStatus || "",
+      subscriptionType: activeSubscription
+        ? getSubscriptionPlanKey(activeSubscription) || "premium"
+        : "free",
+      pageContext: sanitizeAnalyticsText(req.body?.pageContext, 180),
+    });
+    res.status(201).json({ success: true });
+  } catch (err) {
+    console.error("❌ Student feedback save error:", err.message);
+    res.status(500).json({ error: "تعذر حفظ رأيك الآن." });
+  }
+});
+
+app.get("/api/student-feedback/testimonials", async (req, res) => {
+  try {
+    const data = await FeedbackResponse.find({
+      publicConsent: true,
+      published: true,
+      publicDisplayText: { $ne: "" },
+    })
+      .select("publicDisplayText major city studentStatus subscriptionType featured displayOrder")
+      .sort({ featured: -1, displayOrder: 1, createdAt: -1 })
+      .limit(6)
+      .lean();
+    res.json({ data });
+  } catch (err) {
+    console.error("❌ Public testimonials fetch error:", err.message);
+    res.status(500).json({ error: "تعذر تحميل الآراء حاليًا." });
+  }
+});
+
 const companyApplicationFileParser = express.raw({
   type: ["application/pdf"],
   limit: "10mb",
@@ -16500,9 +16597,14 @@ app.get('/api/opportunities', async (req, res) => {
     }
 
     if (organization && !search) {
-      const organizationRegexes = getOrganizationSearchTerms(organization).map(
-        (term) => new RegExp(escapeRegex(term), "i")
-      );
+      const organizationRegexes = Array.from(
+        new Set(
+          organization
+            .split("|")
+            .flatMap((value) => getOrganizationSearchTerms(value.trim()))
+            .filter(Boolean)
+        )
+      ).map((term) => new RegExp(escapeRegex(term), "i"));
       andFilters.push({
         $or: organizationRegexes.flatMap((organizationRegex) => [
           { organizationName: organizationRegex },
@@ -17369,6 +17471,66 @@ app.get('/api/admin/suggestions', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("❌ Admin suggestions fetch error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/admin/student-feedback", requireAdmin, async (req, res) => {
+  try {
+    const [distribution, latest] = await Promise.all([
+      FeedbackResponse.aggregate([
+        { $group: { _id: "$rating", count: { $sum: 1 }, average: { $avg: "$rating" } } },
+      ]),
+      FeedbackResponse.find({ feedbackText: { $ne: "" } })
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .lean(),
+    ]);
+    const ratings = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    let total = 0;
+    let totalScore = 0;
+    distribution.forEach((item) => {
+      ratings[item._id] = item.count;
+      total += item.count;
+      totalScore += item._id * item.count;
+    });
+    res.json({
+      summary: {
+        count: total,
+        averageSatisfaction: total ? Number((totalScore / total).toFixed(2)) : 0,
+        ratings,
+      },
+      latest,
+    });
+  } catch (err) {
+    console.error("❌ Admin student feedback fetch error:", err.message);
+    res.status(500).json({ error: "تعذر تحميل آراء الطلاب." });
+  }
+});
+
+app.patch("/api/admin/student-feedback/:id", requireAdmin, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "معرّف الرأي غير صالح." });
+    }
+    const current = await FeedbackResponse.findById(req.params.id).lean();
+    if (!current) return res.status(404).json({ error: "الرأي غير موجود." });
+    const updates = {};
+    if (typeof req.body?.featured === "boolean") updates.featured = req.body.featured;
+    if (Number.isFinite(Number(req.body?.displayOrder))) updates.displayOrder = Number(req.body.displayOrder);
+    if (typeof req.body?.publicDisplayText === "string") {
+      updates.publicDisplayText = req.body.publicDisplayText.trim().slice(0, 1200);
+    }
+    if (typeof req.body?.published === "boolean") {
+      if (req.body.published && (!current.publicConsent || !(updates.publicDisplayText || current.publicDisplayText || current.feedbackText))) {
+        return res.status(400).json({ error: "لا يمكن النشر دون موافقة الطالب ونص عام." });
+      }
+      updates.published = req.body.published && Boolean(current.publicConsent);
+    }
+    const item = await FeedbackResponse.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true }).lean();
+    res.json({ data: item });
+  } catch (err) {
+    console.error("❌ Admin student feedback update error:", err.message);
+    res.status(500).json({ error: "تعذر تحديث الرأي." });
   }
 });
 
@@ -20129,11 +20291,4 @@ app.delete('/api/admin/company-applications/:id', requireAdmin, async (req, res)
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-});
-// Keep public API reads available to the Darbak frontend even when an edge cache
-// serves a GET response without the header injected by the generic CORS middleware.
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.append("Vary", "Origin");
-  next();
 });

@@ -1089,6 +1089,10 @@ export default function AdminReviewPage() {
   const [opportunityStatus, setOpportunityStatus] = useState("active");
   const [experiences, setExperiences] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [studentFeedback, setStudentFeedback] = useState({
+    summary: { count: 0, averageSatisfaction: 0, ratings: {} },
+    latest: [],
+  });
   const [contactMessages, setContactMessages] = useState([]);
   const [companyApplications, setCompanyApplications] = useState([]);
   const [companyApplicationStatus, setCompanyApplicationStatus] =
@@ -1186,7 +1190,9 @@ export default function AdminReviewPage() {
   const isUserManagementFiltered =
     adminView === "users" && (userStatus !== "all" || Boolean(userSearch.trim()));
   const currentItemsCount =
-    adminView === "suggestions"
+    adminView === "studentFeedback"
+      ? studentFeedback.summary.count
+      : adminView === "suggestions"
       ? suggestions.length
       : adminView === "contactMessages"
       ? contactMessages.length
@@ -1212,7 +1218,9 @@ export default function AdminReviewPage() {
           userManagement.users.length
       : visibleExperiences.length;
   const currentItemsLabel =
-    adminView === "suggestions"
+    adminView === "studentFeedback"
+      ? "رأي طالب"
+      : adminView === "suggestions"
       ? "اقتراح"
       : adminView === "contactMessages"
       ? "رسالة تواصل"
@@ -1288,6 +1296,46 @@ export default function AdminReviewPage() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStudentFeedback = async () => {
+    if (!password) {
+      setMessage("اكتب كلمة المرور لعرض المحتوى.");
+      return;
+    }
+    try {
+      setLoading(true);
+      setMessage("");
+      sessionStorage.setItem("darbak_admin_password", password);
+      const { data } = await axios.get(`${API_BASE_URL}/api/admin/student-feedback`, {
+        headers: authHeaders,
+      });
+      setStudentFeedback({
+        summary: { count: 0, averageSatisfaction: 0, ratings: {}, ...(data.summary || {}) },
+        latest: Array.isArray(data.latest) ? data.latest : [],
+      });
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.status === 401 ? "كلمة المرور غير صحيحة." : "تعذر تحميل آراء الطلاب.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateStudentFeedback = async (id, updates) => {
+    try {
+      const { data } = await axios.patch(
+        `${API_BASE_URL}/api/admin/student-feedback/${id}`,
+        updates,
+        { headers: authHeaders }
+      );
+      setStudentFeedback((current) => ({
+        ...current,
+        latest: current.latest.map((item) => item._id === id ? data.data : item),
+      }));
+    } catch (err) {
+      setMessage(err.response?.data?.error || "تعذر تحديث الرأي.");
     }
   };
 
@@ -1663,7 +1711,9 @@ export default function AdminReviewPage() {
   useEffect(() => {
     if (!password) return;
 
-    if (adminView === "suggestions") {
+    if (adminView === "studentFeedback") {
+      fetchStudentFeedback();
+    } else if (adminView === "suggestions") {
       fetchSuggestions();
     } else if (adminView === "contactMessages") {
       fetchContactMessages();
@@ -1706,6 +1756,10 @@ export default function AdminReviewPage() {
   ]);
 
   const refreshCurrentView = () => {
+    if (adminView === "studentFeedback") {
+      fetchStudentFeedback();
+      return;
+    }
     if (adminView === "suggestions") {
       fetchSuggestions();
       return;
@@ -4714,6 +4768,7 @@ export default function AdminReviewPage() {
           }}
         >
           <option value="experiences">التجارب</option>
+          <option value="studentFeedback">آراء الطلاب</option>
           <option value="suggestions">الاقتراحات</option>
           <option value="contactMessages">رسائل التواصل</option>
           <option value="companies">دليل الشركات</option>
@@ -5413,6 +5468,28 @@ export default function AdminReviewPage() {
         renderTelegramContent()
       ) : adminView === "users" ? (
         renderUserManagement()
+      ) : adminView === "studentFeedback" ? (
+        <div style={{ display: "grid", gap: "12px" }}>
+          <section style={{ ...cardStyle, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: "12px" }}>
+            <div><strong style={{ color: adminColors.brand, fontSize: "24px" }}>{studentFeedback.summary.count || 0}</strong><p style={{ color: adminColors.muted, margin: "4px 0 0" }}>إجمالي الردود</p></div>
+            <div><strong style={{ color: adminColors.brand, fontSize: "24px" }}>{studentFeedback.summary.averageSatisfaction || 0}/4</strong><p style={{ color: adminColors.muted, margin: "4px 0 0" }}>متوسط الرضا</p></div>
+            {[1, 2, 3, 4].map((rating) => <div key={rating}><strong style={{ color: adminColors.text }}>{["😕", "😐", "🙂", "😍"][rating - 1]} {studentFeedback.summary.ratings?.[rating] || 0}</strong><p style={{ color: adminColors.muted, margin: "4px 0 0" }}>تقييم {rating}</p></div>)}
+          </section>
+          {studentFeedback.latest.length === 0 && !loading ? <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>لا توجد آراء مكتوبة حاليًا.</div> : studentFeedback.latest.map((item) => (
+            <article key={item._id} style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}><strong style={{ color: adminColors.brand }}>تقييم {["😕", "😐", "🙂", "😍"][item.rating - 1] || ""} ({item.rating}/4)</strong><span style={{ color: adminColors.muted, fontSize: "13px" }}>{formatAdminDateTime(item.createdAt)}</span></div>
+              <p style={{ color: adminColors.text, lineHeight: 1.9, whiteSpace: "pre-wrap", marginBottom: 0 }}>{item.feedbackText}</p>
+              <p style={{ color: item.publicConsent ? adminColors.brand : adminColors.muted, fontSize: "12px" }}>الموافقة العامة: {item.publicConsent ? "مسموح" : "غير مسموح"} · النشر: {item.published ? "ظاهر" : "مخفي"}</p>
+              {item.publicConsent && <div style={{ display: "grid", gap: "8px" }}>
+                <textarea defaultValue={item.publicDisplayText || item.feedbackText} onBlur={(event) => updateStudentFeedback(item._id, { publicDisplayText: event.target.value })} style={{ minHeight: "76px", padding: "9px", borderRadius: "9px", background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, color: adminColors.text, fontFamily: "inherit" }} aria-label="النص العام" />
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button type="button" onClick={() => updateStudentFeedback(item._id, { published: !item.published })} style={{ padding: "8px 12px", borderRadius: "9px", border: 0, background: adminColors.brand, color: "#08201c", fontFamily: "inherit", fontWeight: 800 }}>{item.published ? "إخفاء" : "نشر في الموقع"}</button>
+                  <button type="button" onClick={() => updateStudentFeedback(item._id, { featured: !item.featured })} style={{ padding: "8px 12px", borderRadius: "9px", border: `1px solid ${adminColors.inputBorder}`, background: "transparent", color: adminColors.text, fontFamily: "inherit" }}>{item.featured ? "إلغاء التثبيت" : "تثبيت كمميز"}</button>
+                </div>
+              </div>}
+            </article>
+          ))}
+        </div>
       ) : adminView === "suggestions" ? (
         <div style={{ display: "grid", gap: "12px" }}>
           {suggestions.length === 0 && !loading ? (
