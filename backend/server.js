@@ -19418,18 +19418,6 @@ app.get('/api/admin/opportunities', requireAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/admin/interview-questions', requireAdmin, async (req, res) => {
-  try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database is not connected" });
-    }
-
-    const status = ["pending", "approved", "rejected"].includes(req.query.status)
-      ? req.query.status
-      : "pending";
-
-    const interviewQuestions = await InterviewQuestion.find({ status })
-      .sort({ createdAt: -1 })
 app.get('/api/admin/opportunity-directory-export', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -19480,6 +19468,18 @@ app.get('/api/admin/opportunity-directory-export', requireAdmin, async (req, res
   }
 });
 
+app.get('/api/admin/interview-questions', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const status = ["pending", "approved", "rejected"].includes(req.query.status)
+      ? req.query.status
+      : "pending";
+
+    const interviewQuestions = await InterviewQuestion.find({ status })
+      .sort({ createdAt: -1 })
       .limit(150)
       .lean();
 
