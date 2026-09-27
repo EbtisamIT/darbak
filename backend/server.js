@@ -57,6 +57,10 @@ const {
   shouldShowCompanyPortalDemo,
 } = require("./services/companyPortalDemo");
 const {
+  buildOpportunityDirectoryExport,
+  buildDirectoryCsvRows,
+} = require("./services/opportunityDirectoryExport");
+const {
   getMillisecondsUntilNextRiyadhDigest,
   runCompanyApplicationDigest,
 } = require("./services/companyApplicationDigest");
@@ -19426,6 +19430,51 @@ app.get('/api/admin/interview-questions', requireAdmin, async (req, res) => {
 
     const interviewQuestions = await InterviewQuestion.find({ status })
       .sort({ createdAt: -1 })
+app.get('/api/admin/opportunity-directory-export', requireAdmin, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+
+    const format = req.query.format === "csv" ? "csv" : "json";
+    const view = req.query.view === "coverage" ? "coverage" : "records";
+    const [companies, opportunities] = await Promise.all([
+      Company.find({})
+        .select("_id name nameAr nameEn city contactEmail logoUrl website status sourceType sourceUrl fieldProvenance enrichment createdAt updatedAt")
+        .lean(),
+      Opportunity.find({})
+        .select("_id companyId organizationName title city cities majorCategories specialties applicationMethod applicationUrl logoUrl sourceType sourceUrl status deadline createdAt updatedAt")
+        .lean(),
+    ]);
+    const exportData = buildOpportunityDirectoryExport({ companies, opportunities });
+    const date = new Date().toISOString().slice(0, 10);
+
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+
+    if (format === "json") {
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="darbak-opportunity-directory-${date}.json"`
+      );
+      return res.json(exportData);
+    }
+
+    const rows = buildDirectoryCsvRows(exportData, view);
+    const csv = `\ufeff${rows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n")}`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="darbak-opportunity-${view}-${date}.csv"`
+    );
+    return res.send(csv);
+  } catch (err) {
+    console.error("❌ Opportunity directory export error:", err);
+    return res.status(500).json({ error: "تعذر تصدير بيانات الجهات والفرص الآن." });
+  }
+});
+
       .limit(150)
       .lean();
 

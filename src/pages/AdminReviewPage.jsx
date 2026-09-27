@@ -1480,6 +1480,36 @@ export default function AdminReviewPage() {
     }
   };
 
+  const downloadOpportunityDirectoryExport = async (format, view = "records") => {
+    try {
+      setMessage("");
+      const response = await axios.get(
+        `${API_BASE_URL}/api/admin/opportunity-directory-export`,
+        {
+          params: { format, view },
+          headers: authHeaders,
+          responseType: "blob",
+        }
+      );
+      const extension = format === "json" ? "json" : "csv";
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `darbak-opportunity-${view}-${new Date().toISOString().slice(0, 10)}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      setMessage(
+        err.response?.status === 401
+          ? "كلمة المرور غير صحيحة."
+          : "تعذر تصدير بيانات الجهات والفرص."
+      );
+    }
+  };
+
   const fetchInterviewQuestions = async () => {
     if (!password) {
       setMessage("اكتب كلمة المرور لعرض المحتوى.");
@@ -6848,6 +6878,51 @@ export default function AdminReviewPage() {
                 flexWrap: "wrap",
               }}
             >
+              <button
+                type="button"
+                onClick={() => downloadOpportunityDirectoryExport("json")}
+                style={{
+                  background: "transparent",
+                  color: adminColors.brand,
+                  border: `1px solid ${adminColors.brand}`,
+                  borderRadius: "10px",
+                  padding: "9px 14px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                تصدير JSON
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadOpportunityDirectoryExport("csv")}
+                style={{
+                  background: "transparent",
+                  color: adminColors.brand,
+                  border: `1px solid ${adminColors.brand}`,
+                  borderRadius: "10px",
+                  padding: "9px 14px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                تصدير CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadOpportunityDirectoryExport("csv", "coverage")}
+                style={{
+                  background: "transparent",
+                  color: adminColors.textSoft,
+                  border: `1px solid ${adminColors.inputBorder}`,
+                  borderRadius: "10px",
+                  padding: "9px 14px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                تغطية البريد حسب التخصص والمدينة
+              </button>
               <button
                 type="button"
                 onClick={resetOpportunityFilters}
