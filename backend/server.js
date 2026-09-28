@@ -15025,13 +15025,23 @@ app.get("/api/student-feedback/testimonials", async (req, res) => {
     const data = await FeedbackResponse.find({
       publicConsent: true,
       published: true,
-      publicDisplayText: { $ne: "" },
+      $or: [
+        { publicDisplayText: { $regex: "\\S" } },
+        // Compatibility for opinions published before the public-display field
+        // was populated. Consent and explicit admin publishing still apply.
+        { feedbackText: { $regex: "\\S" } },
+      ],
     })
-      .select("publicDisplayText major city studentStatus subscriptionType featured displayOrder")
+      .select("publicDisplayText feedbackText major city studentStatus subscriptionType featured displayOrder")
       .sort({ featured: -1, displayOrder: 1, createdAt: -1 })
       .limit(6)
       .lean();
-    res.json({ data });
+    res.json({
+      data: data.map(({ feedbackText, publicDisplayText, ...item }) => ({
+        ...item,
+        publicDisplayText: publicDisplayText || feedbackText,
+      })),
+    });
   } catch (err) {
     console.error("❌ Public testimonials fetch error:", err.message);
     res.status(500).json({ error: "تعذر تحميل الآراء حاليًا." });
@@ -17578,6 +17588,9 @@ app.patch("/api/admin/student-feedback/:id", requireAdmin, async (req, res) => {
     if (typeof req.body?.published === "boolean") {
       if (req.body.published && (!current.publicConsent || !(updates.publicDisplayText || current.publicDisplayText || current.feedbackText))) {
         return res.status(400).json({ error: "لا يمكن النشر دون موافقة الطالب ونص عام." });
+      }
+      if (req.body.published && !updates.publicDisplayText && !current.publicDisplayText) {
+        updates.publicDisplayText = current.feedbackText;
       }
       updates.published = req.body.published && Boolean(current.publicConsent);
     }
