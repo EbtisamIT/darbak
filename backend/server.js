@@ -17486,7 +17486,7 @@ app.get("/api/admin/student-feedback", requireAdmin, async (req, res) => {
         : tab === "published"
           ? { publicConsent: true, published: true }
           : {};
-    const [distribution, latest, consentedResponses, publishedTestimonials] = await Promise.all([
+    const [distribution, feedbackRows, consentedResponses, publishedTestimonials] = await Promise.all([
       FeedbackResponse.aggregate([
         { $group: { _id: "$rating", count: { $sum: 1 }, average: { $avg: "$rating" } } },
       ]),
@@ -17497,6 +17497,47 @@ app.get("/api/admin/student-feedback", requireAdmin, async (req, res) => {
       FeedbackResponse.countDocuments({ ...meaningfulFeedback, publicConsent: true }),
       FeedbackResponse.countDocuments({ publicConsent: true, published: true }),
     ]);
+    const feedbackUserIds = feedbackRows
+      .map((item) => item.userId)
+      .filter(Boolean);
+    const [feedbackUsers, feedbackProfiles] = feedbackUserIds.length
+      ? await Promise.all([
+        User.find({ _id: { $in: feedbackUserIds } })
+          .select("_id contact firstName preferredMajor preferredCity planKey premiumExpiresAt")
+          .lean(),
+        ResumeProfile.find({ userId: { $in: feedbackUserIds } })
+          .select("userId personalInfo.fullName personalInfo.email personalInfo.phone personalInfo.city personalInfo.major personalInfo.university personalInfo.degree personalInfo.studentStatus")
+          .lean(),
+      ])
+      : [[], []];
+    const usersById = new Map(feedbackUsers.map((user) => [String(user._id), user]));
+    const profilesByUserId = new Map(
+      feedbackProfiles.map((profile) => [String(profile.userId), profile])
+    );
+    const latest = feedbackRows.map((item) => {
+      const user = item.userId ? usersById.get(String(item.userId)) : null;
+      const profile = item.userId ? profilesByUserId.get(String(item.userId)) : null;
+      const personalInfo = profile?.personalInfo || {};
+      return {
+        ...item,
+        // Internal-only contact snapshot. This property is deliberately added
+        // only to the admin endpoint, never to public testimonials.
+        adminStudent: user
+          ? {
+              fullName: personalInfo.fullName || user.firstName || "",
+              email: personalInfo.email || user.contact || "",
+              phone: personalInfo.phone || "",
+              major: personalInfo.major || user.preferredMajor || item.major || "",
+              city: personalInfo.city || user.preferredCity || item.city || "",
+              university: personalInfo.university || "",
+              degree: personalInfo.degree || "",
+              studentStatus: personalInfo.studentStatus || item.studentStatus || "",
+              planKey: user.planKey || item.subscriptionType || "free",
+              premiumExpiresAt: user.premiumExpiresAt || null,
+            }
+          : null,
+      };
+    });
     const ratings = { 1: 0, 2: 0, 3: 0, 4: 0 };
     let total = 0;
     let totalScore = 0;

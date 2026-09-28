@@ -1095,6 +1095,7 @@ export default function AdminReviewPage() {
   });
   const [studentFeedbackTab, setStudentFeedbackTab] = useState("all");
   const [expandedFeedbackId, setExpandedFeedbackId] = useState("");
+  const [expandedStudentContactId, setExpandedStudentContactId] = useState("");
   const [contactMessages, setContactMessages] = useState([]);
   const [companyApplications, setCompanyApplications] = useState([]);
   const [companyApplicationStatus, setCompanyApplicationStatus] =
@@ -1335,7 +1336,7 @@ export default function AdminReviewPage() {
       );
       setStudentFeedback((current) => ({
         ...current,
-        latest: current.latest.map((item) => item._id === id ? data.data : item),
+        latest: current.latest.map((item) => item._id === id ? { ...item, ...data.data, adminStudent: item.adminStudent } : item),
       }));
     } catch (err) {
       setMessage(err.response?.data?.error || "تعذر تحديث الرأي.");
@@ -5487,6 +5488,21 @@ export default function AdminReviewPage() {
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}><strong style={{ color: adminColors.brand }}>تقييم {["😕", "😐", "🙂", "😍"][item.rating - 1] || ""} ({item.rating}/4)</strong><span style={{ color: adminColors.muted, fontSize: "13px" }}>{formatAdminDateTime(item.createdAt)}</span></div>
               <p style={{ color: adminColors.text, lineHeight: 1.9, whiteSpace: "pre-wrap", marginBottom: 0 }}>{item.feedbackText}</p>
               <p style={{ color: item.publicConsent ? adminColors.brand : adminColors.muted, fontSize: "12px" }}>{item.publicConsent ? "✓ موافقة الطالب للنشر" : "للاستخدام الداخلي فقط"} · {item.major || "تخصص غير محدد"} · {item.city || "مدينة غير محددة"} · {item.subscriptionType === "free" ? "مجاني" : "مشترك"}</p>
+              <button type="button" onClick={() => setExpandedStudentContactId((current) => current === item._id ? "" : item._id)} style={{ width: "fit-content", padding: "8px 12px", borderRadius: "9px", border: `1px solid ${adminColors.inputBorder}`, background: "transparent", color: adminColors.text, fontFamily: "inherit", fontWeight: 800 }}>بيانات الطالب للتواصل</button>
+              {expandedStudentContactId === item._id && (item.adminStudent ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(175px, 1fr))", gap: "8px", padding: "12px", borderRadius: "10px", background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, color: adminColors.text, fontSize: "13px" }}>
+                  <span><strong>الاسم:</strong> {item.adminStudent.fullName || "غير محدد"}</span>
+                  <span><strong>البريد:</strong> {item.adminStudent.email || "غير متوفر"}</span>
+                  <span><strong>الجوال:</strong> {item.adminStudent.phone || "غير متوفر"}</span>
+                  <span><strong>التخصص:</strong> {item.adminStudent.major || "غير محدد"}</span>
+                  <span><strong>المدينة:</strong> {item.adminStudent.city || "غير محددة"}</span>
+                  <span><strong>الجامعة:</strong> {item.adminStudent.university || "غير محددة"}</span>
+                  <span><strong>الدرجة:</strong> {item.adminStudent.degree || "غير محددة"}</span>
+                  <span><strong>الحالة:</strong> {item.adminStudent.studentStatus === "graduate" ? "خريج/ة" : item.adminStudent.studentStatus === "student" ? "طالب/ة" : "غير محددة"}</span>
+                  <span><strong>الباقة:</strong> {item.adminStudent.planKey === "free" ? "مجاني" : item.adminStudent.planKey || "مشترك"}</span>
+                  {item.adminStudent.premiumExpiresAt && <span><strong>ينتهي الاشتراك:</strong> {formatAdminDateTime(item.adminStudent.premiumExpiresAt)}</span>}
+                </div>
+              ) : <small style={{ color: adminColors.muted }}>هذا الرد لم يُربط بحساب يمكن التواصل معه.</small>)}
               {item.publicConsent && expandedFeedbackId !== item._id && <button type="button" onClick={() => setExpandedFeedbackId(item._id)} style={{ width: "fit-content", padding: "8px 12px", borderRadius: "9px", border: `1px solid ${adminColors.inputBorder}`, background: "transparent", color: adminColors.brand, fontFamily: "inherit", fontWeight: 800 }}>تجهيز للنشر</button>}
               {item.publicConsent && expandedFeedbackId === item._id && <div style={{ display: "grid", gap: "8px" }}>
                 <small style={{ color: adminColors.muted }}>النص الأصلي (للقراءة فقط)</small>
