@@ -437,7 +437,7 @@ const getCanonicalEnglishResumeValue = (value = "", target = {}) => {
   const clean = String(value || "").trim();
   if (!clean) return "";
   const normalized = normalizeCanonicalTranslationKey(clean);
-  if (normalized === "دربك") return "Darbak";
+  if (normalized === "دربك" && ["title", "organization"].includes(target?.key)) return "Darbak";
   if (target?.key !== "title") return "";
   return CANONICAL_ENGLISH_RESUME_VALUES.get(normalized) || "";
 };
@@ -454,7 +454,7 @@ const getResumeEntries = (resume = {}, section) => {
 const collectResumeTextForTranslation = (resume = {}) => {
   const items = [];
   const seenKeys = new Set();
-  const add = (id, text, target) => {
+  const add = (id, text, target, sourceField = target?.key || "text") => {
     const cleanText = typeof text === "string" ? text.trim() : "";
     if (!cleanText || seenKeys.has(id)) return;
     seenKeys.add(id);
@@ -464,6 +464,8 @@ const collectResumeTextForTranslation = (resume = {}) => {
       key: id,
       itemId: target?.entryId || id,
       fieldPath: id,
+      sourceField,
+      sourceFieldExists: true,
       text: cleanText,
       sourceText: cleanText,
       sourceHash: translationSourceHash(cleanText),
@@ -519,13 +521,19 @@ const collectResumeTextForTranslation = (resume = {}) => {
             key: "organization",
           });
         }
-        const description = entry.description || entry.details || "";
+        // Only narrative fields can supply a description. Record the actual
+        // source field so legacy `details` remains traceable without using titles.
+        const descriptionField = ["description", "details"].find((field) =>
+          Object.prototype.hasOwnProperty.call(entry, field)
+          && typeof entry[field] === "string" && entry[field].trim(),
+        );
+        const description = descriptionField ? entry[descriptionField] : "";
         add(`${section}:${entryId}:description`, description, {
           kind: "entry",
           section,
           entryId,
           key: "description",
-        });
+        }, descriptionField);
         (Array.isArray(entry?.achievements) ? entry.achievements : []).forEach((achievement, bulletIndex) => {
           const bulletId = achievement?.id || `${bulletIndex}`;
           add(`${section}:${entryId}:achievement:${bulletId}`, achievement?.text, {
@@ -825,6 +833,18 @@ const applyResumeTranslations = (resume, items, translations) => {
       if (target.kind === "entry") {
         entry[target.key] = text;
         if (target.key === "description") entry.details = text;
+        // Fact sanitization/canonical composition may restore Arabic fields.
+        // Keep translations in the existing English-only presentation layer.
+        translatedResume.localizedDisplay = {
+          ...(translatedResume.localizedDisplay || {}),
+          entries: {
+            ...(translatedResume.localizedDisplay?.entries || {}),
+            [`${target.section}:${target.entryId}`]: {
+              ...(translatedResume.localizedDisplay?.entries?.[`${target.section}:${target.entryId}`] || {}),
+              [target.key]: text,
+            },
+          },
+        };
       } else {
         const achievement = (entry.achievements || []).find(
           (candidate, index) => (candidate?.id || `${index}`) === target.bulletId
@@ -832,6 +852,13 @@ const applyResumeTranslations = (resume, items, translations) => {
         if (!achievement) return;
         achievement.text = text;
         achievement.html = `<p>${escapeResumeHtml(text)}</p>`;
+        translatedResume.localizedDisplay = {
+          ...(translatedResume.localizedDisplay || {}),
+          achievements: {
+            ...(translatedResume.localizedDisplay?.achievements || {}),
+            [`${target.section}:${target.entryId}:${target.bulletId}`]: text,
+          },
+        };
       }
     } else if (target.kind === "skill") {
       if (typeof translatedResume.skills?.[target.index] === "string") {

@@ -8119,6 +8119,43 @@ const sanitizeResumePayload = (body = {}) => {
   };
 };
 
+// Translation must not inherit the facts sanitizer's synthesized descriptions
+// or fallback bullets. Preserve field existence on this detached payload only.
+const sanitizeResumeTranslationPayload = (body = {}) => {
+  const source = { ...body };
+  const sections = ["education", "experiences", "projects", "certifications", "volunteering"];
+  sections.forEach((section) => {
+    const originals = section === "experiences"
+      ? getCanonicalResumeExperiences(body)
+      : Array.isArray(body[section]) ? body[section] : [];
+    source[section] = originals.map((entry, index) => ({
+      ...entry,
+      id: sanitizeResumeId(entry.id) || `${section}-${index}`,
+      achievements: (Array.isArray(entry.achievements) ? entry.achievements : []).map((bullet, bulletIndex) => ({
+        ...bullet,
+        id: sanitizeResumeId(bullet.id) || `bullet-${bulletIndex}`,
+      })),
+    }));
+  });
+  const payload = sanitizeResumePayload(source);
+  sections.forEach((section) => {
+    const originalsById = new Map(source[section].map((entry) => [entry.id, entry]));
+    payload[section] = payload[section].map((entry) => {
+      const original = originalsById.get(entry.id);
+      const next = { ...entry };
+      ["description", "details"].forEach((field) => {
+        delete next[field];
+        if (Object.prototype.hasOwnProperty.call(original, field) && typeof original[field] === "string") {
+          next[field] = sanitizeResumeText(original[field], 900);
+        }
+      });
+      next.achievements = sanitizeResumeAchievements(original.achievements);
+      return next;
+    });
+  });
+  return payload;
+};
+
 const buildEnglishLocalizedDisplay = (resume = {}, generatedResume = {}) => {
   const personal = resume.personalInfo || {};
   const degree = (value = "") => {
@@ -10797,7 +10834,7 @@ app.get('/api/resume-agent/tailored-versions', requireResumeAccess, async (req, 
           : {};
         const sourceUpdatePlan = isEnglishTranslation && masterResume
           ? buildResumeTranslationUpdatePlan({
-              resume: sanitizeResumePayload(composeCanonicalResume(
+              resume: sanitizeResumeTranslationPayload(composeCanonicalResume(
                 masterResume,
                 portfolio || {},
                 req.darbakAccess.contact,
@@ -10907,7 +10944,7 @@ app.get('/api/resume-agent/tailored-versions/:id', requireResumeAccess, async (r
     const sourceUpdatePlan =
       version.variantType === "translation" && version.language === "en" && masterResume
         ? buildResumeTranslationUpdatePlan({
-            resume: sanitizeResumePayload(composeCanonicalResume(
+            resume: sanitizeResumeTranslationPayload(composeCanonicalResume(
               masterResume,
               portfolio || {},
               req.darbakAccess.contact,
@@ -11022,7 +11059,7 @@ app.patch('/api/resume/english/localizations/:key', requireResumeAccess, async (
     if (!version) return res.status(404).json({ error: "النسخة الإنجليزية غير موجودة." });
 
     const currentArabicPayload = masterResume
-      ? sanitizeResumePayload(composeCanonicalResume(
+      ? sanitizeResumeTranslationPayload(composeCanonicalResume(
           masterResume,
           portfolio || {},
           req.darbakAccess.contact,
@@ -11557,7 +11594,7 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
       language: "ar",
     });
 
-    const basePayload = sanitizeResumePayload(baseResume);
+    const basePayload = sanitizeResumeTranslationPayload(baseResume);
     // A returning student updates the one saved English version.  Reuse every
     // localized value whose Arabic source is unchanged, and translate only the
     // missing or changed fields on this explicit update action.
@@ -11603,7 +11640,7 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
           usage: {},
           translatedCount: 0,
         };
-    const translatedPresentation = sanitizeResumePayload({
+    const translatedPresentation = sanitizeResumeTranslationPayload({
       ...result.data,
       settings: {
         ...(result.data.settings || {}),
@@ -11611,7 +11648,7 @@ app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) =>
         direction: "ltr",
       },
     });
-    const translatedPayload = sanitizeResumePayload(composeResumePreview({
+    const translatedPayload = sanitizeResumeTranslationPayload(composeResumePreview({
       language: "en",
       localizedVersion: true,
       masterResume: basePayload,
