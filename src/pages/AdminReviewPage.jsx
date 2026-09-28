@@ -1093,6 +1093,8 @@ export default function AdminReviewPage() {
     summary: { count: 0, averageSatisfaction: 0, ratings: {} },
     latest: [],
   });
+  const [studentFeedbackTab, setStudentFeedbackTab] = useState("all");
+  const [expandedFeedbackId, setExpandedFeedbackId] = useState("");
   const [contactMessages, setContactMessages] = useState([]);
   const [companyApplications, setCompanyApplications] = useState([]);
   const [companyApplicationStatus, setCompanyApplicationStatus] =
@@ -1310,6 +1312,7 @@ export default function AdminReviewPage() {
       sessionStorage.setItem("darbak_admin_password", password);
       const { data } = await axios.get(`${API_BASE_URL}/api/admin/student-feedback`, {
         headers: authHeaders,
+        params: { tab: studentFeedbackTab },
       });
       setStudentFeedback({
         summary: { count: 0, averageSatisfaction: 0, ratings: {}, ...(data.summary || {}) },
@@ -1753,6 +1756,7 @@ export default function AdminReviewPage() {
     analyticsDays,
     userStatus,
     adminView,
+    studentFeedbackTab,
   ]);
 
   const refreshCurrentView = () => {
@@ -5473,15 +5477,22 @@ export default function AdminReviewPage() {
           <section style={{ ...cardStyle, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: "12px" }}>
             <div><strong style={{ color: adminColors.brand, fontSize: "24px" }}>{studentFeedback.summary.count || 0}</strong><p style={{ color: adminColors.muted, margin: "4px 0 0" }}>إجمالي الردود</p></div>
             <div><strong style={{ color: adminColors.brand, fontSize: "24px" }}>{studentFeedback.summary.averageSatisfaction || 0}/4</strong><p style={{ color: adminColors.muted, margin: "4px 0 0" }}>متوسط الرضا</p></div>
+            <div><strong style={{ color: adminColors.brand, fontSize: "24px" }}>{studentFeedback.summary.consentedResponses || 0}</strong><p style={{ color: adminColors.muted, margin: "4px 0 0" }}>موافقات للنشر</p></div>
+            <div><strong style={{ color: adminColors.brand, fontSize: "24px" }}>{studentFeedback.summary.publishedTestimonials || 0}</strong><p style={{ color: adminColors.muted, margin: "4px 0 0" }}>آراء منشورة</p></div>
             {[1, 2, 3, 4].map((rating) => <div key={rating}><strong style={{ color: adminColors.text }}>{["😕", "😐", "🙂", "😍"][rating - 1]} {studentFeedback.summary.ratings?.[rating] || 0}</strong><p style={{ color: adminColors.muted, margin: "4px 0 0" }}>تقييم {rating}</p></div>)}
           </section>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>{[["all", "كل الردود"], ["publishable", "قابلة للنشر"], ["published", "منشورة"]].map(([value, label]) => <button key={value} type="button" onClick={() => setStudentFeedbackTab(value)} style={{ padding: "8px 12px", borderRadius: "999px", border: `1px solid ${adminColors.inputBorder}`, background: studentFeedbackTab === value ? adminColors.brand : "transparent", color: studentFeedbackTab === value ? "#08201c" : adminColors.text, fontFamily: "inherit", fontWeight: 800 }}>{label}</button>)}</div>
           {studentFeedback.latest.length === 0 && !loading ? <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>لا توجد آراء مكتوبة حاليًا.</div> : studentFeedback.latest.map((item) => (
             <article key={item._id} style={cardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}><strong style={{ color: adminColors.brand }}>تقييم {["😕", "😐", "🙂", "😍"][item.rating - 1] || ""} ({item.rating}/4)</strong><span style={{ color: adminColors.muted, fontSize: "13px" }}>{formatAdminDateTime(item.createdAt)}</span></div>
               <p style={{ color: adminColors.text, lineHeight: 1.9, whiteSpace: "pre-wrap", marginBottom: 0 }}>{item.feedbackText}</p>
-              <p style={{ color: item.publicConsent ? adminColors.brand : adminColors.muted, fontSize: "12px" }}>الموافقة العامة: {item.publicConsent ? "مسموح" : "غير مسموح"} · النشر: {item.published ? "ظاهر" : "مخفي"}</p>
-              {item.publicConsent && <div style={{ display: "grid", gap: "8px" }}>
+              <p style={{ color: item.publicConsent ? adminColors.brand : adminColors.muted, fontSize: "12px" }}>{item.publicConsent ? "✓ موافقة الطالب للنشر" : "للاستخدام الداخلي فقط"} · {item.major || "تخصص غير محدد"} · {item.city || "مدينة غير محددة"} · {item.subscriptionType === "free" ? "مجاني" : "مشترك"}</p>
+              {item.publicConsent && expandedFeedbackId !== item._id && <button type="button" onClick={() => setExpandedFeedbackId(item._id)} style={{ width: "fit-content", padding: "8px 12px", borderRadius: "9px", border: `1px solid ${adminColors.inputBorder}`, background: "transparent", color: adminColors.brand, fontFamily: "inherit", fontWeight: 800 }}>تجهيز للنشر</button>}
+              {item.publicConsent && expandedFeedbackId === item._id && <div style={{ display: "grid", gap: "8px" }}>
+                <small style={{ color: adminColors.muted }}>النص الأصلي (للقراءة فقط)</small>
+                <p style={{ margin: 0, padding: "10px", color: adminColors.text, borderRadius: "9px", background: adminColors.inputBg }}>{item.originalFeedbackText || item.feedbackText}</p>
                 <textarea defaultValue={item.publicDisplayText || item.feedbackText} onBlur={(event) => updateStudentFeedback(item._id, { publicDisplayText: event.target.value })} style={{ minHeight: "76px", padding: "9px", borderRadius: "9px", background: adminColors.inputBg, border: `1px solid ${adminColors.inputBorder}`, color: adminColors.text, fontFamily: "inherit" }} aria-label="النص العام" />
+                <small style={{ color: adminColors.muted }}>معاينة: طالب {item.major || ""}{item.city ? ` — ${item.city}` : ""}<br />“{item.publicDisplayText || item.feedbackText}”</small>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   <button type="button" onClick={() => updateStudentFeedback(item._id, { published: !item.published })} style={{ padding: "8px 12px", borderRadius: "9px", border: 0, background: adminColors.brand, color: "#08201c", fontFamily: "inherit", fontWeight: 800 }}>{item.published ? "إخفاء" : "نشر في الموقع"}</button>
                   <button type="button" onClick={() => updateStudentFeedback(item._id, { featured: !item.featured })} style={{ padding: "8px 12px", borderRadius: "9px", border: `1px solid ${adminColors.inputBorder}`, background: "transparent", color: adminColors.text, fontFamily: "inherit" }}>{item.featured ? "إلغاء التثبيت" : "تثبيت كمميز"}</button>
