@@ -99,4 +99,24 @@ describe("Darbak ATS Classic preview", () => {
       "حللت بيانات المبيعات الشهرية."
     );
   });
+
+  test("localizes language labels for display without changing the source resume", () => {
+    const arabicResume = {
+      ...resume,
+      languages: [{ id: "language-1", name: "Arabic", level: "Native" }],
+      settings: { ...resume.settings, language: "ar", direction: "rtl" },
+    };
+    render(<ResumePreview resume={arabicResume} />);
+    expect(screen.getByText("العربية - اللغة الأم")).toBeInTheDocument();
+    expect(arabicResume.languages[0]).toEqual({ id: "language-1", name: "Arabic", level: "Native" });
+  });
+
+  test("opens a quick-edit section only through an explicit heading click", () => {
+    const onSectionClick = jest.fn();
+    render(<ResumePreview resume={resume} onSectionClick={onSectionClick} showPageEstimate={false} />);
+    expect(screen.queryByText(/المعاينة تقدّر السيرة/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "تعديل قسم Projects" }));
+    expect(onSectionClick).toHaveBeenCalledTimes(1);
+    expect(onSectionClick).toHaveBeenCalledWith("projects");
+  });
 });

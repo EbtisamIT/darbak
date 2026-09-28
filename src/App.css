@@ -8055,12 +8055,30 @@ body {
   margin-bottom: 16px;
 }
 
-.resume-paper-section h3 {
+.resume-paper-section h3,
+.resume-paper-section-edit {
   margin: 0 0 9px;
   color: var(--resume-accent, #195f59);
   border-bottom: 1px solid #d9e5e2;
   padding-bottom: 5px;
   font-size: 16px;
+}
+
+.resume-paper-section-edit {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border-inline: 0;
+  border-top: 0;
+  font: inherit;
+  font-weight: 700;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.resume-paper-section-edit:hover,
+.resume-paper-section-edit:focus-visible {
+  color: #0f8279;
 }
 
 .resume-paper-section p,
@@ -8158,7 +8176,8 @@ body {
   border-bottom-width: 4px;
 }
 
-.resume-paper.template-modern .resume-paper-section h3 {
+.resume-paper.template-modern .resume-paper-section h3,
+.resume-paper.template-modern .resume-paper-section-edit {
   border-bottom: 0;
   background: color-mix(in srgb, var(--resume-accent, #42cfc3) 12%, #fff);
   padding: 6px 9px;
@@ -8172,7 +8191,8 @@ body {
   border-bottom-color: #2f3d3b;
 }
 
-.resume-paper.template-formal .resume-paper-section h3 {
+.resume-paper.template-formal .resume-paper-section h3,
+.resume-paper.template-formal .resume-paper-section-edit {
   color: #1f2d2b;
   text-transform: uppercase;
 }
@@ -8219,7 +8239,8 @@ body {
   margin-bottom: 16px;
 }
 
-.resume-paper.template-ats-classic .resume-paper-section h3 {
+.resume-paper.template-ats-classic .resume-paper-section h3,
+.resume-paper.template-ats-classic .resume-paper-section-edit {
   margin-bottom: 7px;
   padding-bottom: 4px;
   background: transparent;
@@ -8294,7 +8315,8 @@ body {
   font-size: 0.8em;
 }
 
-.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-section h3 {
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-section h3,
+.resume-paper.template-ats-classic[dir="rtl"] .resume-paper-section-edit {
   padding-bottom: 5px;
   margin-bottom: 8px;
   text-align: right;
@@ -8359,7 +8381,8 @@ body {
   font-size: 0.8em;
 }
 
-.resume-paper.template-ats-classic[dir="ltr"] .resume-paper-section h3 {
+.resume-paper.template-ats-classic[dir="ltr"] .resume-paper-section h3,
+.resume-paper.template-ats-classic[dir="ltr"] .resume-paper-section-edit {
   padding-bottom: 5px;
   margin-bottom: 8px;
   text-align: left;
@@ -8427,7 +8450,8 @@ body {
   padding-top: 2px;
 }
 
-.resume-paper.template-ats-classic.ats-density-short .resume-paper-section h3 {
+.resume-paper.template-ats-classic.ats-density-short .resume-paper-section h3,
+.resume-paper.template-ats-classic.ats-density-short .resume-paper-section-edit {
   margin-bottom: 8px;
 }
 
@@ -8457,7 +8481,8 @@ body {
   margin-bottom: 12px;
 }
 
-.resume-paper.template-ats-classic.ats-density-long .resume-paper-section h3 {
+.resume-paper.template-ats-classic.ats-density-long .resume-paper-section h3,
+.resume-paper.template-ats-classic.ats-density-long .resume-paper-section-edit {
   margin-bottom: 5px;
 }
 
@@ -9672,6 +9697,11 @@ body {
 .resume-data-more input { width: 100%; box-sizing: border-box; border: 1px solid var(--app-border); border-radius: 13px; background: var(--app-input-bg); color: var(--app-text); font: inherit; padding: 11px 12px; }
 .resume-data-tags { display: grid; gap: 8px; margin-top: 10px; }
 .resume-data-tags > strong { color: var(--app-text-soft); font-size: 13px; }
+.resume-skill-suggestions { display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--app-border); }
+.resume-skill-suggestions > strong { color: var(--app-text-soft); font-size: 13px; }
+.resume-skill-suggestions > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.resume-skill-suggestions button { border: 1px solid var(--app-brand-border); border-radius: 999px; padding: 7px 10px; background: var(--app-brand-soft); color: var(--app-brand); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.resume-skill-suggestions button:hover, .resume-skill-suggestions button:focus-visible { background: var(--app-brand); color: #072321; }
 .resume-data-summary-grid { display: flex !important; flex-wrap: wrap; gap: 7px !important; }
 .resume-data-summary-grid span { padding: 7px 10px; border-radius: 99px; background: var(--app-brand-soft); color: var(--app-brand); font-size: 12px; font-weight: 900; }
 .resume-setup-review-summary > small { color: var(--app-text-muted); }
@@ -9686,8 +9716,26 @@ body {
   .resume-data-simple-form .resume-simple-row { align-items: stretch; flex-direction: column; }
   .resume-data-final-actions { grid-template-columns: 1fr; }
   .resume-data-final-actions > span { display: none; }
-  .resume-data-final-actions button { width: 100%; }
+.resume-data-final-actions button { width: 100%; }
 }
+
+.resume-quick-edit-overlay { position: fixed; inset: 0; z-index: 1500; display: grid; place-items: center; padding: 18px; overflow: auto; background: rgba(3, 12, 12, .72); backdrop-filter: blur(5px); }
+.resume-quick-edit-card { width: min(100%, 760px); max-height: min(88vh, 820px); display: grid; gap: 16px; overflow: auto; padding: 20px; border: 1px solid var(--app-border); border-radius: 18px; background: var(--app-surface); box-shadow: 0 24px 70px rgba(0,0,0,.32); }
+.resume-quick-edit-card > header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.resume-quick-edit-card > header span { color: var(--app-brand); font-size: 12px; font-weight: 900; }
+.resume-quick-edit-card > header h2 { margin: 4px 0 0; color: var(--app-text); font-size: 21px; }
+.resume-quick-edit-card > header > button { width: 34px; height: 34px; border: 1px solid var(--app-border); border-radius: 50%; background: transparent; color: var(--app-text); font: inherit; font-size: 22px; cursor: pointer; }
+.resume-quick-edit-card > p { margin: 0; color: var(--app-text-soft); line-height: 1.8; }
+.resume-quick-edit-fields { min-width: 0; }
+.resume-quick-edit-fields .resume-data-section { padding: 0; border: 0; background: transparent; }
+.resume-quick-edit-fields .resume-builder-section { margin: 0; }
+.resume-quick-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.resume-quick-edit-actions button { min-height: 42px; border-radius: 10px; padding: 0 15px; font: inherit; font-weight: 900; cursor: pointer; }
+.resume-quick-edit-actions .is-primary { border: 0; background: var(--app-brand); color: #06221f; }
+.resume-quick-edit-actions .is-secondary { border: 1px solid var(--app-border); background: transparent; color: var(--app-text); }
+.resume-agent-insights li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.resume-agent-note-action { flex: 0 0 auto; border: 1px solid var(--app-brand-border); border-radius: 8px; padding: 5px 8px; background: transparent; color: var(--app-brand); font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
+@media (max-width: 640px) { .resume-quick-edit-overlay { align-items: end; padding: 0; } .resume-quick-edit-card { width: 100%; max-height: 90vh; border-radius: 18px 18px 0 0; padding: 16px; } .resume-quick-edit-actions { position: sticky; bottom: 0; padding-top: 10px; background: var(--app-surface); } .resume-quick-edit-actions button { flex: 1; } }
 
 .resume-match-panel {
   max-width: 980px;

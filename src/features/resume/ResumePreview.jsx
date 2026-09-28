@@ -15,6 +15,7 @@ import {
   getResumeEntryTools,
   isAtsClassicTemplate,
 } from "./resumeAtsClassic";
+import { getResumeLanguageDisplay } from "./resumeLanguageDisplay";
 
 const labels = {
   ar: {
@@ -87,7 +88,7 @@ const EntryPreview = ({ entry, language, sectionKey, personal, resume, atsClassi
   );
 };
 
-const ResumePreview = ({ resume }) => {
+const ResumePreview = ({ resume, onSectionClick, showPageEstimate = true }) => {
   resume = getLocalizedResumeForDisplay(resume);
   const atsClassic = isAtsClassicTemplate(resume);
   const atsDensity = atsClassic ? getAtsClassicDensityMode(resume) : "";
@@ -108,10 +109,20 @@ const ResumePreview = ({ resume }) => {
   const accentColor = resume.settings?.accentColor || "#42cfc3";
 
   const renderSection = (sectionKey) => {
+    const sectionHeading = (label) => onSectionClick ? (
+      <button
+        type="button"
+        className="resume-paper-section-edit"
+        onClick={() => onSectionClick(sectionKey)}
+        aria-label={`تعديل قسم ${label}`}
+      >
+        {label}
+      </button>
+    ) : <h3>{label}</h3>;
     if (sectionKey === "summary" && resume.summary) {
       return (
         <section className="resume-paper-section" data-section={sectionKey} key={sectionKey}>
-          <h3>{titles.summary}</h3>
+          {sectionHeading(titles.summary)}
           <p>{resume.summary}</p>
         </section>
       );
@@ -124,7 +135,7 @@ const ResumePreview = ({ resume }) => {
 
       return (
         <section className="resume-paper-section" data-section={sectionKey} key={sectionKey}>
-          <h3>{titles[sectionKey]}</h3>
+          {sectionHeading(titles[sectionKey])}
           {visibleEntries.map((entry) => (
             <EntryPreview key={entry.id || entry.title} entry={entry} language={language} sectionKey={sectionKey} personal={personal} resume={resume} atsClassic={atsClassic} />
           ))}
@@ -135,7 +146,7 @@ const ResumePreview = ({ resume }) => {
     if (sectionKey === "skills" && resume.skills?.length) {
       return (
         <section className="resume-paper-section" data-section={sectionKey} key={sectionKey}>
-          <h3>{titles.skills}</h3>
+          {sectionHeading(titles.skills)}
           {atsClassic
             ? <p className="resume-paper-skills-line">{resume.skills.join(" | ")}</p>
             : <div className="resume-paper-chips">
@@ -152,10 +163,10 @@ const ResumePreview = ({ resume }) => {
       if (!languages.length) return null;
       return (
         <section className="resume-paper-section" data-section={sectionKey} key={sectionKey}>
-          <h3>{titles.languages}</h3>
+          {sectionHeading(titles.languages)}
           <div className="resume-paper-language-list">
             {languages.map((item) => (
-              <span key={item.id}>{[item.name, item.level].filter(Boolean).join(atsClassic ? " - " : " — ")}</span>
+              <span key={item.id}>{Object.values(getResumeLanguageDisplay(item, language)).filter(Boolean).join(atsClassic ? " - " : " — ")}</span>
             ))}
           </div>
         </section>
@@ -192,7 +203,7 @@ const ResumePreview = ({ resume }) => {
           </div>
         )}
 
-      {estimatedPages > 1 && (
+      {showPageEstimate && estimatedPages > 1 && (
         <div className="resume-paper-page-note">المعاينة تقدّر السيرة بحوالي {estimatedPages} صفحات.</div>
       )}
     </div>

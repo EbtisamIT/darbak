@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { FiArrowLeft } from "react-icons/fi";
 import ResumeDataSimpleForm from "./ResumeDataSimpleForm";
 import { getResumeCompletionItems } from "./resumeValidation";
@@ -20,6 +20,15 @@ const ResumeSetupJourney = ({ resume, onChange, onAutosave, onBuild, building = 
   const missing = completion.filter((item) => item.status !== "complete");
   const experience = resume.experience || resume.experiences || [];
   const isReviewMode = mode === "review";
+
+  useEffect(() => {
+    const target = window.location.hash.replace("#", "");
+    if (!target) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const finish = async () => {
     const saved = await onAutosave?.(resume);

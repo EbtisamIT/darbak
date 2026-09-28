@@ -78,6 +78,18 @@ const DRAFT_SECTIONS = [
   ["languages", "اللغات"],
 ];
 
+const getReviewTarget = (note = "") => {
+  const normalizedNote = String(note).toLowerCase();
+  if (normalizedNote.includes("التخرج") || normalizedNote.includes("graduation") || normalizedNote.includes("education")) return "education";
+  if (normalizedNote.includes("المشروع") || normalizedNote.includes("project")) return "projects";
+  if (normalizedNote.includes("الخبر") || normalizedNote.includes("experience")) return "experience";
+  if (normalizedNote.includes("النشاط") || normalizedNote.includes("activity")) return "activities";
+  if (normalizedNote.includes("المهار") || normalizedNote.includes("skill")) return "skills";
+  if (normalizedNote.includes("الشهاد") || normalizedNote.includes("certif")) return "certifications";
+  if (normalizedNote.includes("اللغ") || normalizedNote.includes("language")) return "languages";
+  return null;
+};
+
 const getAgentErrorMessage = (err) => {
   const status = err.response?.status;
   const data = err.response?.data;
@@ -211,6 +223,7 @@ const ResumeAgentFlow = ({
   onApproved,
   onRejected,
   onCancel,
+  onEditFacts,
 }) => {
   const [session, setSession] = useState(null);
   const [output, setOutput] = useState(null);
@@ -671,7 +684,18 @@ const ResumeAgentFlow = ({
                   <strong>ملاحظات للمراجعة</strong>
                   <ul>
                     {getStudentVisibleAgentMessages(output.warnings).map((item, index) => (
-                      <li key={`warning-${index}`}>{item}</li>
+                      <li key={`warning-${index}`}>
+                        <span>{item}</span>
+                        {getReviewTarget(item) && onEditFacts && (
+                          <button
+                            type="button"
+                            className="resume-agent-note-action"
+                            onClick={() => onEditFacts(getReviewTarget(item))}
+                          >
+                            تعديل الآن
+                          </button>
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </div>

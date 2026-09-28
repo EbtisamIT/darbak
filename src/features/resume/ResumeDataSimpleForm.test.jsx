@@ -30,4 +30,26 @@ describe("simplified Resume Data form", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "إضافة" }).slice(-1)[0]);
     expect(screen.getByRole("button", { name: /Microsoft Excel/ })).toBeInTheDocument();
   });
+
+  it("adds a suggested skill only after the student clicks it", () => {
+    render(<Harness initial={{ personalInfo: { major: "نظم المعلومات" }, skills: [] }} />);
+    expect(screen.getByTestId("state")).not.toHaveTextContent("تحليل البيانات");
+    fireEvent.click(screen.getByRole("button", { name: "+ تحليل البيانات" }));
+    expect(screen.getByTestId("state")).toHaveTextContent("تحليل البيانات");
+  });
+
+  it("keeps activity dates optional and persists the current flag", () => {
+    render(<Harness initial={{ volunteering: [{ id: "activity-1", title: "نادي التقنية" }] }} />);
+    fireEvent.click(screen.getAllByText("تفاصيل إضافية").slice(-1)[0]);
+    fireEvent.click(screen.getByLabelText("حتى الآن"));
+    expect(screen.getByTestId("state")).toHaveTextContent('"isCurrent":true');
+  });
+
+  it("shows expiry only for professional certifications", () => {
+    render(<Harness initial={{ certifications: [{ id: "cert-1", entryType: "certification", title: "ITIL" }] }} />);
+    expect(screen.getByText("تاريخ الانتهاء")).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("شهادة مهنية"), { target: { value: "course" } });
+    expect(screen.getByText("تاريخ الإكمال")).toBeInTheDocument();
+    expect(screen.queryByText("تاريخ الانتهاء")).not.toBeInTheDocument();
+  });
 });

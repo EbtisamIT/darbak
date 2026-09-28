@@ -33,6 +33,7 @@ import ResumeJobMatchPanel from "../features/resume/ResumeJobMatchPanel";
 import ResumeDashboard from "../features/resume/ResumeDashboard";
 import ResumeFactsReviewJourney from "../features/resume/ResumeFactsReviewJourney";
 import ResumeSetupJourney from "../features/resume/ResumeSetupJourney";
+import ResumeDataSimpleForm from "../features/resume/ResumeDataSimpleForm";
 import ApplicationPackPanel from "../features/resume/ApplicationPackPanel";
 import {
   ResumeJourneyPersonal,
@@ -63,6 +64,17 @@ import { RESUME_FEATURE_FLAGS } from "../features/resume/resumeFeatureFlags";
 const LEGACY_LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
 const APPLICATION_PACK_RESULT_LOAD_ATTEMPTS = 3;
 const JOURNEY_AUTOSAVE_DELAY = 900;
+
+const MASTER_QUICK_EDIT_LABELS = {
+  summary: "النبذة المهنية",
+  education: "التعليم",
+  experience: "الخبرات",
+  projects: "المشاريع",
+  skills: "المهارات",
+  certifications: "الدورات والشهادات",
+  volunteering: "الأنشطة والتطوع",
+  languages: "اللغات",
+};
 
 const hasText = (value) => typeof value === "string" && value.trim().length > 0;
 
@@ -207,6 +219,10 @@ const MyResumePage = () => {
   const [journeyCompletedSteps, setJourneyCompletedSteps] = useState([]);
   const [journeyView, setJourneyView] = useState("start");
   const [journeySource, setJourneySource] = useState("portfolio");
+  const [quickEditSection, setQuickEditSection] = useState("");
+  const [quickEditMode, setQuickEditMode] = useState(false);
+  const [quickEditDraft, setQuickEditDraft] = useState(null);
+  const [quickEditSaving, setQuickEditSaving] = useState(false);
   const [resumeStorageScope, setResumeStorageScope] = useState(() =>
     getResumeStorageScope(getStoredAccessIdentity())
   );
@@ -511,6 +527,34 @@ const MyResumePage = () => {
       factsSaveQueueRef.current = queuedSave;
       return queuedSave;
   }, [resume]);
+
+  const openMasterQuickEdit = useCallback((section) => {
+    if (!MASTER_QUICK_EDIT_LABELS[section]) return;
+    setQuickEditSection(section);
+    setQuickEditMode(false);
+    setQuickEditDraft(normalizeResume(resume));
+  }, [resume]);
+
+  const closeMasterQuickEdit = useCallback(() => {
+    setQuickEditSection("");
+    setQuickEditMode(false);
+    setQuickEditDraft(null);
+  }, []);
+
+  const saveMasterQuickEdit = useCallback(async () => {
+    if (!quickEditSection || !quickEditDraft) return;
+    setQuickEditSaving(true);
+    const saved = quickEditSection === "summary"
+      ? await saveResume({ manual: true, resumeOverride: quickEditDraft, silent: true })
+      : await saveJourneyDraft(quickEditDraft);
+    setQuickEditSaving(false);
+    if (!saved) return;
+    setResume(normalizeResume(quickEditDraft));
+    setMessage(quickEditSection === "summary"
+      ? "تم حفظ النبذة."
+      : "تم حفظ البيانات. حدّث المسودة عندما تريد تطبيقها على الصياغة.");
+    closeMasterQuickEdit();
+  }, [closeMasterQuickEdit, quickEditDraft, quickEditSection, saveJourneyDraft, saveResume]);
 
   const loadFreshMasterResume = useCallback(async () => {
     const { data } = await axios.get(`${API_BASE_URL}/api/resume/me`, {
@@ -1431,7 +1475,7 @@ const MyResumePage = () => {
           {error}
         </div>
       )}
-      {estimatedPages > 2 && (
+      {routeView !== "master" && estimatedPages > 2 && (
         <div className="resume-page-warning">
           سيرتك تجاوزت صفحتين، جرّب اختصار بعض المحتوى. يمكنك التحميل رغم ذلك.
         </div>
@@ -1538,6 +1582,10 @@ const MyResumePage = () => {
           onApproved={handleAgentApproved}
           onRejected={handleAgentRejected}
           onCancel={cancelAgent}
+          onEditFacts={(section) => {
+            const target = section === "education" ? "resume-section-education-facts" : `resume-data-${section}`;
+            navigate(`/my-resume/review#${target}`);
+          }}
         />
       )}
 
@@ -1625,7 +1673,7 @@ const MyResumePage = () => {
               <div className="resume-pane-head">
                 <div>
                   <h2>معاينة A4</h2>
-                  <p>{estimatedPages} صفحة تقريبًا</p>
+                  {routeView !== "master" && <p>{estimatedPages} صفحة تقريبًا</p>}
                 </div>
                 <button type="button" onClick={handleCustomizeLater}>
                   <FiZap aria-hidden="true" />
@@ -1633,12 +1681,58 @@ const MyResumePage = () => {
                 </button>
               </div>
               <div className="resume-paper-stage">
-                <ResumePreview resume={normalizeResume(resume)} />
+                <ResumePreview
+                  resume={normalizeResume(resume)}
+                  showPageEstimate={routeView !== "master"}
+                  onSectionClick={routeView === "master" && !editingTailoredVersion ? openMasterQuickEdit : undefined}
+                />
               </div>
             </aside>
           </section>
           </>}
         </>
+      )}
+
+      {quickEditSection && quickEditDraft && (
+        <div className="resume-quick-edit-overlay" role="dialog" aria-modal="true" aria-labelledby="resume-quick-edit-title" onMouseDown={(event) => { if (event.target === event.currentTarget) closeMasterQuickEdit(); }}>
+          <section className="resume-quick-edit-card" dir="rtl">
+            <header>
+              <div>
+                <span>تعديل سريع</span>
+                <h2 id="resume-quick-edit-title">{MASTER_QUICK_EDIT_LABELS[quickEditSection]}</h2>
+              </div>
+              <button type="button" onClick={closeMasterQuickEdit} aria-label="إغلاق">×</button>
+            </header>
+            {!quickEditMode ? <>
+              <p>يمكنك عرض بيانات هذا القسم ثم تعديله من نفس حقول المراجعة المعتادة.</p>
+              <div className="resume-quick-edit-actions">
+                <button type="button" className="is-primary" onClick={() => setQuickEditMode(true)}>تعديل</button>
+                <button type="button" className="is-secondary" onClick={closeMasterQuickEdit}>إغلاق</button>
+              </div>
+            </> : <>
+              <div className="resume-quick-edit-fields">
+                {quickEditSection === "summary" ? <ResumeBuilder
+                  resume={quickEditDraft}
+                  onChange={(nextResume) => setQuickEditDraft(normalizeResume(nextResume))}
+                  visibleSections={["summary"]}
+                  showStartOptions={false}
+                  showCompletionPanel={false}
+                  showSettings={false}
+                  showPersonalInfo={false}
+                  showApplicationDetails={false}
+                /> : <ResumeDataSimpleForm
+                  resume={quickEditDraft}
+                  onChange={(nextResume) => setQuickEditDraft(normalizeResume(nextResume))}
+                  visibleSections={[quickEditSection]}
+                />}
+              </div>
+              <div className="resume-quick-edit-actions">
+                <button type="button" className="is-primary" onClick={saveMasterQuickEdit} disabled={quickEditSaving}>{quickEditSaving ? "جارٍ الحفظ..." : "حفظ"}</button>
+                <button type="button" className="is-secondary" onClick={closeMasterQuickEdit} disabled={quickEditSaving}>إلغاء</button>
+              </div>
+            </>}
+          </section>
+        </div>
       )}
 
       {resumeMode === "editor" && !englishReviewOpen && <div className="resume-sticky-actions">
