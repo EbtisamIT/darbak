@@ -5486,7 +5486,10 @@ export default function AdminReviewPage() {
           {studentFeedback.latest.length === 0 && !loading ? <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>لا توجد آراء مكتوبة حاليًا.</div> : studentFeedback.latest.map((item) => (
             <article key={item._id} style={cardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}><strong style={{ color: adminColors.brand }}>تقييم {["😕", "😐", "🙂", "😍"][item.rating - 1] || ""} ({item.rating}/4)</strong><span style={{ color: adminColors.muted, fontSize: "13px" }}>{formatAdminDateTime(item.createdAt)}</span></div>
-              <p style={{ color: adminColors.text, lineHeight: 1.9, whiteSpace: "pre-wrap", marginBottom: 0 }}>{item.feedbackText}</p>
+              <div style={{ display: "grid", gap: "5px", padding: "10px 0" }}>
+                <strong style={{ color: adminColors.text, fontSize: "13px" }}>رأي الطالب</strong>
+                <p style={{ color: item.feedbackText ? adminColors.text : adminColors.muted, lineHeight: 1.9, whiteSpace: "pre-wrap", margin: 0 }}>{item.originalFeedbackText || item.feedbackText || "لم يترك الطالب تعليقًا مكتوبًا؛ أرسل التقييم فقط."}</p>
+              </div>
               <p style={{ color: item.publicConsent ? adminColors.brand : adminColors.muted, fontSize: "12px" }}>{item.publicConsent ? "✓ موافقة الطالب للنشر" : "للاستخدام الداخلي فقط"} · {item.major || "تخصص غير محدد"} · {item.city || "مدينة غير محددة"} · {item.subscriptionType === "free" ? "مجاني" : "مشترك"}</p>
               <button type="button" onClick={() => setExpandedStudentContactId((current) => current === item._id ? "" : item._id)} style={{ width: "fit-content", padding: "8px 12px", borderRadius: "9px", border: `1px solid ${adminColors.inputBorder}`, background: "transparent", color: adminColors.text, fontFamily: "inherit", fontWeight: 800 }}>بيانات الطالب للتواصل</button>
               {expandedStudentContactId === item._id && (item.adminStudent ? (
