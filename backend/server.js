@@ -17,6 +17,7 @@ const ApplicationTracker = require("./models/ApplicationTracker");
 const CompanyApplicationCampaign = require('./models/CompanyApplicationCampaign');
 const Company = require('./models/Company');
 const Opportunity = require('./models/Opportunity');
+const { createOpportunityCandidateRouter } = require('./services/opportunityCandidateRoutes');
 const { rankOpportunitySearchResults } = require('./services/opportunitySearch');
 const { buildSubscriptionDashboard } = require("./services/subscriptionDashboard");
 const {
@@ -19616,6 +19617,17 @@ app.post(
     }
   }
 );
+
+app.use('/api/admin/opportunity-candidates', createOpportunityCandidateRouter({
+  requireAdmin,
+  sanitizeOpportunityPayload,
+  containsBlockedTerms,
+  onPublish: () => {
+    for (const key of readCache.keys()) {
+      if (key.startsWith("opportunities") || key.startsWith("home-stats") || key.startsWith("company")) readCache.delete(key);
+    }
+  },
+}));
 
 app.get('/api/admin/opportunities', requireAdmin, async (req, res) => {
   try {

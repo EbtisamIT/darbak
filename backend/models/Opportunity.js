@@ -7,6 +7,8 @@ const opportunitySchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    // Idempotency for inbox publications only; existing opportunities are unchanged.
+    automationKey: { type: String },
     companyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "companies",
@@ -125,6 +127,7 @@ const opportunitySchema = new mongoose.Schema(
 );
 
 opportunitySchema.index({ status: 1, featured: -1, createdAt: -1 });
+opportunitySchema.index({ automationKey: 1 }, { unique: true, partialFilterExpression: { automationKey: { $type: "string" } } });
 opportunitySchema.index({ status: 1, deadline: 1 });
 opportunitySchema.index({ status: 1, city: 1, createdAt: -1 });
 opportunitySchema.index({ status: 1, cities: 1, createdAt: -1 });

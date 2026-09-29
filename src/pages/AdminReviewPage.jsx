@@ -4,6 +4,7 @@ import API_BASE_URL from "../config/api";
 import majors from "../majors";
 import SubscriptionDashboard from "../components/SubscriptionDashboard";
 import AdminSubscriptionManagement from "../components/AdminSubscriptionManagement";
+import OpportunityInbox from "../components/opportunityInbox/OpportunityInbox";
 
 const adminColors = {
   brand: "#66d0c3",
@@ -1169,6 +1170,7 @@ export default function AdminReviewPage() {
   const [editingOpportunityId, setEditingOpportunityId] = useState(null);
   const [savingOpportunity, setSavingOpportunity] = useState(false);
 
+  const [inboxRefreshKey, setInboxRefreshKey] = useState(0);
   const authHeaders = password ? { "x-admin-password": password } : {};
   const normalizedExperienceSearch = normalizeAdminSearchText(experienceSearch);
   const visibleExperiences = normalizedExperienceSearch
@@ -1714,6 +1716,7 @@ export default function AdminReviewPage() {
 
   useEffect(() => {
     if (!password) return;
+    if (adminView === "opportunityInbox") return;
 
     if (adminView === "studentFeedback") {
       fetchStudentFeedback();
@@ -1761,6 +1764,7 @@ export default function AdminReviewPage() {
   ]);
 
   const refreshCurrentView = () => {
+    if (adminView === "opportunityInbox") { setInboxRefreshKey((value) => value + 1); return; }
     if (adminView === "studentFeedback") {
       fetchStudentFeedback();
       return;
@@ -4734,7 +4738,7 @@ export default function AdminReviewPage() {
               letterSpacing: 0,
             }}
           >
-            {currentItemsCount}
+            {adminView === "opportunityInbox" ? "—" : currentItemsCount}
           </strong>
         </div>
         <p
@@ -4745,7 +4749,7 @@ export default function AdminReviewPage() {
             lineHeight: 1.7,
           }}
         >
-          {currentItemsLabel} في العرض الحالي
+          {adminView === "opportunityInbox" ? "صندوق مراجعة الفرص المكتشفة" : `${currentItemsLabel} في العرض الحالي`}
         </p>
       </section>
 
@@ -4781,13 +4785,14 @@ export default function AdminReviewPage() {
           <option value="companyRequests">طلبات نشر برامج الجهات</option>
           <option value="companyApplications">طلبات التقديم</option>
           <option value="opportunities">الفرص</option>
+          <option value="opportunityInbox">Opportunity Inbox — صندوق الفرص</option>
           <option value="interviewQuestions">أسئلة المقابلات</option>
           <option value="telegramContent">محتوى قناة التليجرام</option>
           <option value="users">المستخدمين والاشتراكات</option>
           <option value="analytics">التحليلات</option>
         </select>
 
-        {adminView === "analytics" ? (
+        {adminView === "opportunityInbox" ? null : adminView === "analytics" ? (
           <select
             value={analyticsDays}
             onChange={(e) => setAnalyticsDays(e.target.value)}
@@ -6888,6 +6893,8 @@ export default function AdminReviewPage() {
             ))
           )}
         </div>
+      ) : adminView === "opportunityInbox" ? (
+        <OpportunityInbox password={password} refreshKey={inboxRefreshKey} />
       ) : adminView === "opportunities" ? (
         <div style={{ display: "grid", gap: "12px" }}>
           <section
