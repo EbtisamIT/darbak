@@ -39,6 +39,15 @@ beforeEach(() => {
 });
 afterEach(() => { jest.useRealTimers(); jest.restoreAllMocks(); });
 
+test("survey dismissal controls stay above the existing sticky subscription bar", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const sheetCss = fs.readFileSync(path.join(__dirname, "StudentFeedbackSurvey.css"), "utf8");
+  const appCss = fs.readFileSync(path.join(__dirname, "../App.css"), "utf8");
+  const layer = (css, selector) => Number(css.match(new RegExp(`${selector}\\s*\\{[^}]*z-index:\\s*(\\d+)`))[1]);
+  expect(layer(sheetCss, "\\.student-feedback-sheet-wrap")).toBeGreaterThan(layer(appCss, "\\.subscription-reminder-bar"));
+});
+
 test("does not open on mount, three arbitrary field clicks, or time alone", async () => {
   mount();
   for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole("textbox", { name: "حقل عادي" }));
