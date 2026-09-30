@@ -797,6 +797,7 @@ export default function PremiumAccessGate() {
       const isSubscriptionBrowseRequest = detail.feature === "subscribe_page";
       if (
         !isPremiumGateEnabled() &&
+        detail.accessStatus?.granted !== false &&
         !detail.loginOnly &&
         !isSubscriptionBrowseRequest
       ) {
@@ -820,7 +821,7 @@ export default function PremiumAccessGate() {
 
       // Read the current pass at click time. The React state is only used for
       // presentation and can briefly lag behind a freshly restored session.
-      if (!detail.loginOnly && hasRequestedPlanAccess) {
+      if (!detail.loginOnly && hasRequestedPlanAccess && accessStatus.granted !== false) {
         if (typeof detail.onGranted === "function") {
           detail.onGranted();
         }

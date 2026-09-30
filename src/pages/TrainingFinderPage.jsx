@@ -26,6 +26,7 @@ import { healthHospitalSuggestions } from "../data/healthHospitalSuggestions";
 import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDirectory";
 import { getOrganizationLogoCandidates } from "../data/organizationLogos";
 import { trackEvent } from "../utils/analytics";
+import { getOpportunityErrorMessage, requestOpportunityAccess } from "../utils/opportunityAccess";
 import {
   PREMIUM_STATUS_EVENT,
   getAccessHeaders,
@@ -1556,6 +1557,7 @@ export default function TrainingFinderPage() {
   const [loading, setLoading] = useState(false);
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [error, setError] = useState("");
+  const [opportunityRetry, setOpportunityRetry] = useState(null);
   const [faqExpanded, setFaqExpanded] = useState(false);
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [selectedGuideOrganization, setSelectedGuideOrganization] =
@@ -2377,15 +2379,25 @@ export default function TrainingFinderPage() {
 
     const openRouteOpportunity = () => {
       setError("");
-      requestPremiumAccess(
+      setOpportunityRetry(null);
+      setOpportunitiesLoading(true);
+      requestOpportunityAccess(
         {
           feature: "opportunity_details",
           source: "opportunity_direct_link",
           gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
           itemKey: `opportunity:${routeOpportunityId}`,
+          isActive: () => isActive,
+          onError: (err) => {
+            if (!isActive) return;
+            setOpportunitiesLoading(false);
+            setError(getOpportunityErrorMessage(err));
+            setOpportunityRetry(() => openRouteOpportunity);
+          },
           deferGateOnLimited: true,
           onLimited: () => {
             if (!isActive) return;
+            setOpportunitiesLoading(false);
             setSelectedOpportunity({
               _id: routeOpportunityId,
               organizationName: "فرصة تدريب",
@@ -2396,19 +2408,8 @@ export default function TrainingFinderPage() {
             });
           },
         },
-        async () => {
+        async (opportunity) => {
           try {
-            if (isActive) setOpportunitiesLoading(true);
-            const { data } = await axios.get(
-              `${API_BASE_URL}/api/opportunities/${routeOpportunityId}`,
-              {
-                headers: getAccessHeaders({
-                  itemKey: `opportunity:${routeOpportunityId}`,
-                }),
-              }
-            );
-            const opportunity = data?.data || data;
-
             if (!isActive || !opportunity?._id) return;
 
             setOpportunities([opportunity]);
@@ -2452,8 +2453,8 @@ export default function TrainingFinderPage() {
           } catch (err) {
             console.error(err);
             if (isActive) {
-              setError("تعذر فتح رابط الفرصة. قد تكون غير منشورة أو غير متاحة.");
-              setOpportunities([]);
+              setError(getOpportunityErrorMessage(err));
+              setOpportunityRetry(() => openRouteOpportunity);
             }
           } finally {
             if (isActive) setOpportunitiesLoading(false);
@@ -2616,6 +2617,8 @@ export default function TrainingFinderPage() {
   };
 
   const openOpportunityDetails = (opportunity) => {
+    setError("");
+    setOpportunityRetry(null);
     const opportunityId = opportunity._id || opportunity.id || "";
     const opportunityPath = buildOpportunityDetailPath(opportunity);
     setSelectedOpportunity({
@@ -2624,13 +2627,18 @@ export default function TrainingFinderPage() {
       isLoadingDetails: true,
     });
 
-    requestPremiumAccess(
+    requestOpportunityAccess(
       {
         feature: "opportunity_details",
         title: opportunity.title || opportunity.organizationName || "",
         source: "where_to_train",
         gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
         itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
+        onError: (err) => {
+          setSelectedOpportunity(null);
+          setError(getOpportunityErrorMessage(err));
+          setOpportunityRetry(() => () => openOpportunityDetails(opportunity));
+        },
         deferGateOnLimited: true,
         onLimited: () => {
           setSelectedOpportunity({
@@ -2644,17 +2652,8 @@ export default function TrainingFinderPage() {
           });
         },
       },
-      async () => {
+      async (fullOpportunity) => {
         try {
-          const { data } = opportunityId
-            ? await axios.get(`${API_BASE_URL}/api/opportunities/${opportunityId}`, {
-                headers: getAccessHeaders({
-                  itemKey: `opportunity:${opportunityId}`,
-                }),
-              })
-            : { data: { data: opportunity } };
-          const fullOpportunity = data?.data || data || opportunity;
-
           trackEvent("opportunity_details_clicked", {
             major: selectedSpecialty,
             city,
@@ -2682,7 +2681,8 @@ export default function TrainingFinderPage() {
         } catch (err) {
           console.error(err);
           setSelectedOpportunity(null);
-          setError("تعذر فتح تفاصيل الفرصة حاليًا.");
+          setError(getOpportunityErrorMessage(err));
+          setOpportunityRetry(() => () => openOpportunityDetails(opportunity));
         }
       }
     );
@@ -2748,6 +2748,8 @@ export default function TrainingFinderPage() {
   };
 
   const openOpportunityApplication = (opportunity) => {
+    setError("");
+    setOpportunityRetry(null);
     const opportunityId = opportunity._id || opportunity.id || "";
     const darbakApplyUrl =
       opportunity.darbakApplyUrl ||
@@ -2771,7 +2773,7 @@ export default function TrainingFinderPage() {
 
     if (!opportunity.applicationUrl && !opportunity.hasApplicationUrl) return;
 
-    requestPremiumAccess(
+    requestOpportunityAccess(
       {
         feature: "opportunity_apply",
         title: opportunity.title || opportunity.organizationName || "",
@@ -2779,6 +2781,11 @@ export default function TrainingFinderPage() {
         defaultPlanId: "darbak_plus",
         gateMessage: WHERE_TO_TRAIN_GATE_MESSAGE,
         itemKey: opportunityId ? `opportunity:${opportunityId}` : "",
+        onError: (err) => {
+          setSelectedOpportunity(null);
+          setError(getOpportunityErrorMessage(err));
+          setOpportunityRetry(() => () => openOpportunityApplication(opportunity));
+        },
         deferGateOnLimited: true,
         onLimited: () => {
           setSelectedOpportunity({
@@ -2792,36 +2799,33 @@ export default function TrainingFinderPage() {
           });
         },
       },
-      async () => {
+      async (fullOpportunity) => {
         try {
-          const { data } = opportunityId
-            ? await axios.get(`${API_BASE_URL}/api/opportunities/${opportunityId}`, {
-                headers: getAccessHeaders({
-                  itemKey: `opportunity:${opportunityId}`,
-                }),
-              })
-            : { data: { data: opportunity } };
-          const fullOpportunity = data?.data || data || opportunity;
-
           if (!fullOpportunity.applicationUrl) {
+            setSelectedOpportunity(null);
             setError("لا يوجد رابط تقديم مباشر لهذه الفرصة حاليًا.");
             return;
           }
 
-          trackEvent("opportunity_apply_clicked", {
-            major: selectedSpecialty,
-            city,
-            metadata: {
-              opportunityId,
-              opportunityTitle: fullOpportunity.title,
-              organizationName: fullOpportunity.organizationName,
-              applicationMethod: fullOpportunity.applicationMethod,
-            },
-          });
+          try {
+            trackEvent("opportunity_apply_clicked", {
+              major: selectedSpecialty,
+              city,
+              metadata: {
+                opportunityId,
+                opportunityTitle: fullOpportunity.title,
+                organizationName: fullOpportunity.organizationName,
+                applicationMethod: fullOpportunity.applicationMethod,
+              },
+            });
+          } catch {
+            // Telemetry must never block opening an application.
+          }
           window.location.assign(fullOpportunity.applicationUrl);
         } catch (err) {
           console.error(err);
-          setError("تعذر فتح رابط التقديم حاليًا.");
+          setSelectedOpportunity(null);
+          setError("رابط التقديم غير صالح. يمكنك فتح تفاصيل الفرصة أو اختيار فرصة أخرى.");
         }
       }
     );
@@ -3685,7 +3689,8 @@ export default function TrainingFinderPage() {
         </div>
 
         {error && (
-          <p
+          <div
+            role="alert"
             style={{
               margin: 0,
               color: "#fecdd3",
@@ -3697,7 +3702,12 @@ export default function TrainingFinderPage() {
             }}
           >
             {error}
-          </p>
+            {opportunityRetry && (
+              <button type="button" onClick={opportunityRetry} style={{ marginInlineStart: 12, padding: "8px 12px", font: "inherit", color: "inherit", background: "transparent", border: "1px solid currentColor", borderRadius: 8, cursor: "pointer" }}>
+                إعادة المحاولة
+              </button>
+            )}
+          </div>
         )}
 
         {showResultsPanel && (
