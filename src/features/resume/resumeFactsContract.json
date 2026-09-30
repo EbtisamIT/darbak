@@ -1,0 +1,7 @@
+{
+  "personalInfo": ["fullName", "englishName", "email", "phone", "city", "major", "university", "degree", "studentStatus", "grammaticalGender", "studyStartYear", "graduationYear", "expectedGraduationYear", "gpa", "gpaScale", "academicTrack", "relevantCoursework", "linkedinUrl", "portfolioUrl", "githubUrl", "personalUrl", "trainingStart", "trainingEnd", "trainingField"],
+  "entry": ["id", "title", "entryType", "subtitle", "organization", "period", "startDate", "endDate", "isCurrent", "location", "url", "userSourceDescription", "userSourceContributions", "technologies"],
+  "collections": ["education", "experiences", "projects", "certifications", "volunteering"],
+  "languages": ["id", "name", "level"],
+  "links": ["id", "label", "url"]
+}

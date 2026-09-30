@@ -20,7 +20,8 @@ import {
   getSubscriptionCapabilities,
 } from "../utils/premiumAccess";
 import { getVisitorId, trackEvent, trackEventOncePerSession } from "../utils/analytics";
-import { isCurrentAutosaveResponse } from "../utils/formAutosave";
+import useResumeFactsForm from "../features/resume/useResumeFactsForm";
+import { getResumeFactsFormState } from "../features/resume/resumeFactsForm";
 import ResumeAgentFlow, { getAgentSessionStorageKey } from "../features/resume/ResumeAgentFlow";
 import ResumeBuilder, { SettingsEditor } from "../features/resume/ResumeBuilder";
 import EnglishTranslationReview, {
@@ -44,13 +45,12 @@ import {
   createEmptyResume,
   getResumeFileName,
   normalizeResume,
-  prepareResumeFactsForSave,
   prepareResumeForSave,
 } from "../features/resume/resumeDefaults";
 import { estimateResumePages } from "../features/resume/resumeValidation";
 import { getEnglishPdfValidation, getEnglishReviewItems } from "../features/resume/resumeLocalization";
 import { markEnglishVersionFresh } from "../features/resume/englishVersionFreshness";
-import { canSaveResumeFacts, shouldAutosaveMasterResume } from "../features/resume/resumeLanguageIsolation";
+import { shouldAutosaveMasterResume } from "../features/resume/resumeLanguageIsolation";
 import {
   clearResumeJourneyProgress,
   getReachableJourneyProgress,
@@ -63,7 +63,6 @@ import { RESUME_FEATURE_FLAGS } from "../features/resume/resumeFeatureFlags";
 
 const LEGACY_LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
 const APPLICATION_PACK_RESULT_LOAD_ATTEMPTS = 3;
-const JOURNEY_AUTOSAVE_DELAY = 900;
 
 const MASTER_QUICK_EDIT_LABELS = {
   summary: "النبذة المهنية",
@@ -223,23 +222,16 @@ const MyResumePage = () => {
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [quickEditDraft, setQuickEditDraft] = useState(null);
   const [quickEditSaving, setQuickEditSaving] = useState(false);
+  const [accessEpoch, setAccessEpoch] = useState(0);
   const [resumeStorageScope, setResumeStorageScope] = useState(() =>
     getResumeStorageScope(getStoredAccessIdentity())
   );
 
   const hasLoadedRef = useRef(false);
   const saveTimerRef = useRef(null);
-  const journeySaveTimerRef = useRef(null);
   const lastSavedSnapshotRef = useRef("");
-  const latestResumeSnapshotRef = useRef(getSnapshot(resume));
-  const factsSaveRequestRef = useRef(0);
-  const factsSaveQueueRef = useRef(Promise.resolve(true));
   const lastRouteRef = useRef("");
   const masterHydrationRef = useRef(false);
-
-  // Autosave responses can arrive out of order. Keep the latest local draft
-  // visible while a prior request is finishing so typing never rolls back.
-  latestResumeSnapshotRef.current = getSnapshot(resume);
 
   useEffect(() => {
     // Previous releases stored the whole master resume under one global key.
@@ -284,6 +276,15 @@ const MyResumePage = () => {
     : "dashboard";
   const isTailoredApplicationFlow = routeView === "tailor" ||
     (editingTailoredVersion && editingVersionType === "tailored");
+  // Independent source DTO: neither preview hydration nor EN state can enter
+  // this editor. Navigation/auth invalidates every prior hydration/save cycle.
+  const factsForm = useResumeFactsForm({
+    cycleKey: `${resumeStorageScope}:${accessEpoch}:${location.pathname}:${location.search}`,
+    active: routeView !== "version",
+    onError: setError,
+    onSaved: (data) => setFactsFreshness(data.factsFreshness || { changed: true, changes: [] }),
+  });
+  const { save: saveSourceFacts, edit: editSourceFacts } = factsForm;
 
   const openResumeUpgrade = useCallback(() => {
     trackEvent("resume_upgrade_clicked", {
@@ -482,60 +483,17 @@ const MyResumePage = () => {
     return saved;
   }, [resumeStorageScope]);
 
-  const saveJourneyDraft = useCallback(async (resumeOverride = resume) => {
-      const saveLatestFacts = async () => {
-        // Check at execution time too: a queued save may outlive navigation.
-        if (!canSaveResumeFacts({ resume: resumeOverride, masterHydrating: masterHydrationRef.current })) return false;
-        try {
-          const submittedSnapshot = getSnapshot(resumeOverride);
-          const requestId = ++factsSaveRequestRef.current;
-          setSaveState("saving");
-          const { data } = await axios.put(
-            `${API_BASE_URL}/api/resume/me/facts`,
-            prepareResumeFactsForSave(resumeOverride),
-            { headers: getAccessHeaders({ itemKey: "resume:facts" }) },
-          );
-          const saved = normalizeResume(data.resume || resumeOverride);
-          // Do not hydrate a late response over text the student typed after
-          // this request started. The newer debounce will save that text next.
-          if (!isCurrentAutosaveResponse({
-            requestId,
-            latestRequestId: factsSaveRequestRef.current,
-            submittedSnapshot,
-            latestSnapshot: latestResumeSnapshotRef.current,
-          })) {
-            return true;
-          }
-          // Keep the live editor state authoritative while typing. The facts
-          // endpoint returns a normalized/composed payload which may trim a
-          // partial value or filter a newly added row; hydrating it here makes
-          // text and skill chips appear to disappear after the save delay.
-          setLastServerResume(saved);
-          setFactsFreshness(data.factsFreshness || { changed: true, changes: [] });
-          lastSavedSnapshotRef.current = submittedSnapshot;
-          setSaveState("saved");
-          return true;
-        } catch (err) {
-          setSaveState("error");
-          setError(err.response?.data?.error || "تعذر حفظ بيانات السيرة.");
-          return false;
-        }
-      };
-      // Serialize autosaves. An older request must finish before the explicit
-      // rebuild save, so it can never land last and restore stale facts.
-      const queuedSave = factsSaveQueueRef.current
-        .catch(() => true)
-        .then(saveLatestFacts);
-      factsSaveQueueRef.current = queuedSave;
-      return queuedSave;
-  }, [resume]);
+  // The callback deliberately ignores child/preview payloads. Only explicit
+  // form onChange events can mark the independent facts state dirty.
+  const saveJourneyDraft = useCallback(() => saveSourceFacts(), [saveSourceFacts]);
 
   const openMasterQuickEdit = useCallback((section) => {
     if (!MASTER_QUICK_EDIT_LABELS[section]) return;
+    if (section !== "summary" && factsForm.isHydrating) return;
     setQuickEditSection(section);
     setQuickEditMode(false);
-    setQuickEditDraft(normalizeResume(resume));
-  }, [resume]);
+    setQuickEditDraft(section === "summary" ? normalizeResume(resume) : getResumeFactsFormState(factsForm.facts));
+  }, [resume, factsForm.facts, factsForm.isHydrating]);
 
   const closeMasterQuickEdit = useCallback(() => {
     setQuickEditSection("");
@@ -546,25 +504,27 @@ const MyResumePage = () => {
   const saveMasterQuickEdit = useCallback(async () => {
     if (!quickEditSection || !quickEditDraft) return;
     setQuickEditSaving(true);
+    if (quickEditSection !== "summary") editSourceFacts(quickEditDraft);
     const saved = quickEditSection === "summary"
       ? await saveResume({ manual: true, resumeOverride: quickEditDraft, silent: true })
-      : await saveJourneyDraft(quickEditDraft);
+      : await saveJourneyDraft();
     setQuickEditSaving(false);
     if (!saved) return;
-    setResume(normalizeResume(quickEditDraft));
+    if (quickEditSection === "summary") setResume(normalizeResume(quickEditDraft));
+    else await loadResume();
     setMessage(quickEditSection === "summary"
       ? "تم حفظ النبذة."
       : "تم حفظ البيانات. حدّث المسودة عندما تريد تطبيقها على الصياغة.");
     closeMasterQuickEdit();
-  }, [closeMasterQuickEdit, quickEditDraft, quickEditSection, saveJourneyDraft, saveResume]);
+  }, [closeMasterQuickEdit, quickEditDraft, quickEditSection, saveJourneyDraft, saveResume, editSourceFacts, loadResume]);
 
-  const loadFreshMasterResume = useCallback(async () => {
-    const { data } = await axios.get(`${API_BASE_URL}/api/resume/me`, {
-      headers: getAccessHeaders({ itemKey: "resume:me" }),
+  const saveOfficialEnglishName = useCallback(async (englishName) => {
+    const { data } = await axios.get(`${API_BASE_URL}/api/resume/me/facts`, {
+      headers: getAccessHeaders({ itemKey: "resume:facts" }),
     });
-    const master = normalizeResume(data.resume || createEmptyResume());
-    setLastServerResume(master);
-    return master;
+    await axios.put(`${API_BASE_URL}/api/resume/me/facts`, { personalInfo: { englishName } }, {
+      headers: { ...getAccessHeaders({ itemKey: "resume:facts" }), "If-Match": data.version },
+    });
   }, []);
 
   const handleDownloadPdf = useCallback(async () => {
@@ -584,16 +544,7 @@ const MyResumePage = () => {
           }
           // Never use the open English ResumeTailoredVersion as a fallback for
           // a master write. This path only persists the official English name.
-          const master = await loadFreshMasterResume();
-          const masterPayload = prepareResumeFactsForSave({
-            ...master,
-            personalInfo: { ...master.personalInfo, englishName },
-          });
-          const { data } = await axios.put(`${API_BASE_URL}/api/resume/me/facts`, masterPayload, {
-            headers: getAccessHeaders({ itemKey: "resume:facts" }),
-          });
-          const savedMaster = normalizeResume(data.resume || masterPayload);
-          setLastServerResume(savedMaster);
+          await saveOfficialEnglishName(englishName);
           normalizedResume = normalizeResume({
             ...normalizedResume,
             personalInfo: { ...normalizedResume.personalInfo, englishName },
@@ -644,7 +595,7 @@ const MyResumePage = () => {
     } finally {
       setPdfLoading(false);
     }
-  }, [applicationPack?.packType, editingTailoredVersion, loadFreshMasterResume, resume]);
+  }, [applicationPack?.packType, editingTailoredVersion, saveOfficialEnglishName, resume]);
 
   const createEnglishVersion = useCallback(async () => {
     if (!RESUME_FEATURE_FLAGS.englishUpdate) return;
@@ -771,16 +722,7 @@ const MyResumePage = () => {
     if (/[\u0600-\u06FF]/.test(englishName)) return setEnglishNameError("استخدم أحرفًا إنجليزية فقط.");
     if (englishName.split(" ").filter(Boolean).length < 2) return setEnglishNameError("اكتب الاسم من كلمتين على الأقل.");
     try {
-      const master = await loadFreshMasterResume();
-      const payload = prepareResumeFactsForSave({
-        ...master,
-        personalInfo: { ...master.personalInfo, englishName },
-      });
-      const { data } = await axios.put(`${API_BASE_URL}/api/resume/me/facts`, payload, {
-        headers: getAccessHeaders({ itemKey: "resume:facts" }),
-      });
-      const savedMaster = normalizeResume(data.resume || payload);
-      setLastServerResume(savedMaster);
+      await saveOfficialEnglishName(englishName);
       setEnglishNameStepOpen(false);
       createEnglishVersion();
     } catch (err) {
@@ -799,6 +741,7 @@ const MyResumePage = () => {
 
   useEffect(() => {
     const refreshAfterAccessChange = () => {
+      setAccessEpoch((epoch) => epoch + 1);
       const nextScope = getResumeStorageScope(getStoredAccessIdentity());
       setResumeStorageScope(nextScope);
       setResume(normalizeResume(createEmptyResume()));
@@ -851,7 +794,6 @@ const MyResumePage = () => {
   useEffect(() => {
     const isJourneyStep = resumeMode === "dashboard" && ["setup", "personal", "missing"].includes(journeyView);
     if (!hasLoadedRef.current || !isJourneyStep) return undefined;
-    if (!canSaveResumeFacts({ resume, masterHydrating: masterHydrationRef.current })) return undefined;
 
     writeResumeJourneyProgress({
       currentStep: journeyView === "missing" ? "missing" : "data",
@@ -859,28 +801,8 @@ const MyResumePage = () => {
       source: journeySource,
     }, resumeStorageScope);
 
-    if (getSnapshot(resume) === lastSavedSnapshotRef.current) {
-      setSaveState("saved");
-      return undefined;
-    }
-
-    setSaveState("saving");
-    window.clearTimeout(journeySaveTimerRef.current);
-    journeySaveTimerRef.current = window.setTimeout(() => {
-      saveJourneyDraft(resume);
-    }, JOURNEY_AUTOSAVE_DELAY);
-
-    return () => window.clearTimeout(journeySaveTimerRef.current);
-  }, [journeyCompletedSteps, journeySource, journeyView, resume, resumeMode, resumeStorageScope, saveJourneyDraft]);
-
-  useEffect(() => {
-    if (!hasLoadedRef.current || resumeMode !== "dashboard" || journeyView !== "review") return undefined;
-    if (!canSaveResumeFacts({ resume, masterHydrating: masterHydrationRef.current })) return undefined;
-    if (getSnapshot(resume) === lastSavedSnapshotRef.current) return undefined;
-    window.clearTimeout(journeySaveTimerRef.current);
-    journeySaveTimerRef.current = window.setTimeout(() => saveJourneyDraft(resume), JOURNEY_AUTOSAVE_DELAY);
-    return () => window.clearTimeout(journeySaveTimerRef.current);
-  }, [journeyView, resume, resumeMode, saveJourneyDraft]);
+    return undefined;
+  }, [journeyCompletedSteps, journeySource, journeyView, resumeMode, resumeStorageScope]);
 
   const handleUsePortfolio = () => {
     loadResume();
@@ -906,14 +828,11 @@ const MyResumePage = () => {
     trackEvent("resume_create_scratch_clicked", { page: "/my-resume" });
   };
 
-  const startJourneyFromScratch = () => {
+  const startJourneyFromScratch = async () => {
+    if (factsForm.isHydrating) return;
+    factsForm.edit(createEmptyResume());
+    if (!await saveJourneyDraft()) return;
     setPersistedJourneyProgress({ currentStep: "data", completedSteps: [], source: "scratch" });
-    setResume((current) =>
-      normalizeResume({
-        ...createEmptyResume(),
-        access: current.access,
-      })
-    );
     navigate("/my-resume/setup");
     trackEvent("resume_create_scratch_clicked", {
       page: "/my-resume",
@@ -944,17 +863,7 @@ const MyResumePage = () => {
   };
 
   const finishJourneyBasics = async (resumeToSave) => {
-    window.clearTimeout(journeySaveTimerRef.current);
-    const setupCompleteResume = normalizeResume({
-      ...resumeToSave,
-      workflow: {
-        ...(resumeToSave.workflow || {}),
-        isSetupComplete: true,
-        lastStep: "review",
-      },
-    });
-    setResume(setupCompleteResume);
-    const saved = await saveJourneyDraft(setupCompleteResume);
+    const saved = await saveJourneyDraft();
     if (!saved) return;
     setPersistedJourneyProgress({
       currentStep: "draft",
@@ -970,7 +879,6 @@ const MyResumePage = () => {
   };
 
   const rebuildResumeFromFacts = async () => {
-    window.clearTimeout(journeySaveTimerRef.current);
     const saved = await saveJourneyDraft();
     if (!saved) return;
     const { data } = await axios.get(`${API_BASE_URL}/api/resume/me`, {
@@ -1313,9 +1221,11 @@ const MyResumePage = () => {
   };
 
   const renderSaveStatus = () => {
-    if (saveState === "saving") return "جاري الحفظ...";
-    if (saveState === "saved") return "تم الحفظ";
-    if (saveState === "error") return "تعذر الحفظ";
+    const currentState = resumeMode === "dashboard" && ["personal", "missing", "review", "setup"].includes(journeyView)
+      ? factsForm.saveState : saveState;
+    if (currentState === "saving") return "جاري الحفظ...";
+    if (currentState === "saved") return "تم الحفظ";
+    if (currentState === "error") return "تعذر الحفظ";
     return "جاهز للتحرير";
   };
 
@@ -1326,7 +1236,8 @@ const MyResumePage = () => {
     return <ResumeAccessPreview premiumPass={localPremiumPass} onUpgrade={openResumeUpgrade} onExplore={() => navigate("/")} />;
   }
 
-  if (loading) {
+  const needsFacts = resumeMode === "dashboard" && ["personal", "missing", "review", "setup"].includes(journeyView);
+  if (loading || (needsFacts && factsForm.isHydrating && factsForm.saveState !== "error")) {
     return (
       <main className="resume-page resume-page-v2" dir="rtl">
         <div className="resume-page-state">جارِ تجهيز سيرتك...</div>
@@ -1336,6 +1247,12 @@ const MyResumePage = () => {
 
   if (error && accessIssue) {
     return <ResumeAccessPreview premiumPass={localPremiumPass} onUpgrade={openResumeUpgrade} onExplore={() => navigate("/")} />;
+  }
+  if (needsFacts && factsForm.isHydrating) {
+    return <main className="resume-page resume-page-v2" dir="rtl">
+      <div className="resume-page-error">{error || "تعذر تحميل بيانات السيرة."}</div>
+      <button type="button" onClick={() => setAccessEpoch((epoch) => epoch + 1)}>إعادة المحاولة</button>
+    </main>;
   }
 
   const entryRedirect = getResumeEntryRedirect({
@@ -1517,9 +1434,9 @@ const MyResumePage = () => {
 
       {resumeMode === "dashboard" && journeyView === "personal" && (
         <ResumeJourneyPersonal
-          resume={resume}
+          resume={factsForm.facts}
           source={journeySource}
-          onChange={(nextResume) => setResume(normalizeResume(nextResume))}
+          onChange={factsForm.edit}
           onBack={() => {
             clearResumeJourneyProgress(resumeStorageScope);
             navigate("/my-resume");
@@ -1530,8 +1447,8 @@ const MyResumePage = () => {
 
       {resumeMode === "dashboard" && journeyView === "missing" && (
         <ResumeJourneyMissing
-          resume={resume}
-          onChange={(nextResume) => setResume(normalizeResume(nextResume))}
+          resume={factsForm.facts}
+          onChange={factsForm.edit}
           onBack={returnToJourneyData}
           onContinue={finishJourneyBasics}
           onAutosave={saveJourneyDraft}
@@ -1540,8 +1457,8 @@ const MyResumePage = () => {
 
       {resumeMode === "dashboard" && journeyView === "review" && (
         <ResumeFactsReviewJourney
-          resume={resume}
-          onChange={(nextResume) => setResume(normalizeResume(nextResume))}
+          resume={factsForm.facts}
+          onChange={factsForm.edit}
           onAutosave={saveJourneyDraft}
           onBack={() => navigate("/my-resume")}
           onRebuild={rebuildResumeFromFacts}
@@ -1552,8 +1469,8 @@ const MyResumePage = () => {
 
       {resumeMode === "dashboard" && journeyView === "setup" && (
         <ResumeSetupJourney
-          resume={resume}
-          onChange={(nextResume) => setResume(normalizeResume(nextResume))}
+          resume={factsForm.facts}
+          onChange={factsForm.edit}
           onAutosave={saveJourneyDraft}
           onBuild={finishJourneyBasics}
         />
@@ -1729,7 +1646,7 @@ const MyResumePage = () => {
                   showApplicationDetails={false}
                 /> : <ResumeDataSimpleForm
                   resume={quickEditDraft}
-                  onChange={(nextResume) => setQuickEditDraft(normalizeResume(nextResume))}
+                  onChange={(nextResume) => setQuickEditDraft(getResumeFactsFormState(nextResume))}
                   visibleSections={[quickEditSection]}
                 />}
               </div>

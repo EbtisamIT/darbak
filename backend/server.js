@@ -9780,51 +9780,23 @@ app.put('/api/resume/me', requireResumeAccess, async (req, res) => {
   }
 });
 
-// The resume review journey owns a private, editable copy of resume facts.
-// Portfolio is used as the initial import only, so this endpoint must never
-// write back to (or rehydrate from) the student's public professional profile.
-app.put('/api/resume/me/facts', requireResumeAccess, async (req, res) => {
-  try {
-    const { contact, accessCodeHash, user } = req.darbakAccess;
-    const incoming = getResumeFactsWritePayload(sanitizeResumePayload(req.body || {}));
-    const existingResume = await ResumeProfile.findOne({ contact, accessCodeHash }).select("workflow").lean();
-    const requestedWorkflow = req.body?.workflow && typeof req.body.workflow === "object"
-      ? req.body.workflow
-      : {};
-    const workflow = {
-      ...(existingResume?.workflow || {}),
-      factsOwner: "resume",
-      lastStep: sanitizePortfolioText(requestedWorkflow.lastStep, 40) || "review",
-      isSetupComplete: requestedWorkflow.isSetupComplete === true || Boolean(existingResume?.workflow?.isSetupComplete),
-    };
-    const savedResume = await ResumeProfile.findOneAndUpdate(
-      { contact, accessCodeHash },
-      {
-        $set: {
-          contact,
-          accessCodeHash,
-          userId: user?._id,
-          ...incoming,
-          workflow,
-        },
-      },
-      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
-    ).lean();
-    const canonical = composeCanonicalResume(savedResume || {}, {}, contact, {
+// Review is a source-facts editor, not a preview serializer. The dedicated
+// read DTO and revision-checked nested whitelist never import presentation.
+const resumeFactsHandlers = require("./services/resumeFactsBoundary").createResumeFactsHandlers({
+  ResumeProfile,
+  describeSaved: (savedResume, req) => {
+    const canonical = composeCanonicalResume(savedResume, {}, req.darbakAccess.contact, {
       frontendUrl: getFrontendUrl(), sectionOrder: RESUME_SECTION_KEYS,
     });
     const freshness = getResumeFactsFreshness({ verifiedFacts: canonical.verifiedResumeFacts || {}, workflow: savedResume?.workflow || {} });
-    res.json({
-      resume: serializeResume(canonical, req.darbakAccess),
+    return {
       factsFreshness: { changed: freshness.changed, contentRefreshNeeded: freshness.contentRefreshNeeded, deterministicChanged: freshness.deterministicChanged, baselineMissing: freshness.baselineMissing, changes: freshness.changes, currentHash: freshness.currentHash, lastBuiltHash: freshness.lastBuiltHash },
       factsProvenance: canonical.factsProvenance || { factsOwner: "resume", fallbackUsed: false },
-      message: "تم حفظ بيانات السيرة.",
-    });
-  } catch (err) {
-    console.error("❌ Resume facts save error:", err);
-    res.status(500).json({ error: "تعذر حفظ بيانات السيرة." });
-  }
+    };
+  },
 });
+app.get("/api/resume/me/facts", requireResumeAccess, resumeFactsHandlers.read);
+app.put("/api/resume/me/facts", requireResumeAccess, resumeFactsHandlers.save);
 
 // Summary refresh is a deliberate user action. It updates the master only;
 // English remains unchanged until the student explicitly refreshes it.

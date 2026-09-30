@@ -7,8 +7,6 @@ import { getResumeSkillSuggestions } from "./resumeSkillSuggestions";
 
 const updateSourceNarrative = (entry, value) => ({
   ...entry,
-  description: value,
-  details: value,
   userSourceDescription: value,
   userSourceContributions: value.trim() ? [value.trim()] : [],
 });

@@ -125,7 +125,7 @@ assert(!/\.save\s*\(/.test(masterReadRoute));
 
 const masterWriteRoute = between(
   "app.put('/api/resume/me'",
-  "app.put('/api/resume/me/facts'",
+  "const resumeFactsHandlers",
 );
 assert(/getArabicMasterWritePayload/.test(masterWriteRoute));
 assert(!/\.\.\.sanitizeResumePayload\(req\.body/.test(masterWriteRoute));
@@ -147,10 +147,7 @@ const englishReadRoute = between(
 assert(!/ResumeProfile\.(?:findOneAndUpdate|updateOne|create)/.test(englishReadRoute));
 assert(!/ResumeTailoredVersion\.(?:findOneAndUpdate|updateOne|create)/.test(englishReadRoute));
 
-const factsWriteRoute = between(
-  "app.put('/api/resume/me/facts'",
-  "app.post('/api/resume/ai/improve-summary'",
-);
+const factsWriteRoute = fs.readFileSync(path.join(__dirname, "../services/resumeFactsBoundary.js"), "utf8");
 assert.strictEqual(
   (factsWriteRoute.match(/ResumeProfile\.findOneAndUpdate/g) || []).length,
   1,
@@ -188,10 +185,11 @@ const frontendSource = fs.readFileSync(
   "utf8",
 );
 const englishNameSave = frontendSource.slice(
-  frontendSource.indexOf("const submitEnglishNameStep"),
-  frontendSource.indexOf("useEffect(() =>", frontendSource.indexOf("const submitEnglishNameStep")),
+  frontendSource.indexOf("const saveOfficialEnglishName"),
+  frontendSource.indexOf("const handleDownloadPdf"),
 );
 assert(/\/api\/resume\/me\/facts/.test(englishNameSave));
 assert(!/\/api\/resume\/me`/.test(englishNameSave));
 
 console.log("resume architecture contract tests passed");
+require("./resumeFactsBoundary.test");

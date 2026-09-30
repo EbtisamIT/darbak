@@ -322,20 +322,7 @@ export const prepareResumeForSave = (resume = {}) => {
 
 // The Resume Data journey owns source facts only. Presentation fields such as
 // summary, localizedDisplay, template and section order use their own saves.
-export const prepareResumeFactsForSave = (resume = {}) => {
-  const payload = prepareResumeForSave(resume);
-  return {
-    personalInfo: payload.personalInfo,
-    education: payload.education,
-    experiences: payload.experiences,
-    projects: payload.projects,
-    certifications: payload.certifications,
-    volunteering: payload.volunteering,
-    languages: payload.languages,
-    links: payload.links,
-    skills: payload.skills,
-  };
-};
+export { prepareResumeFactsForSave } from "./resumeFactsForm";
 
 export const getVisibleSectionOrder = (resume = {}) =>
   normalizeSectionOrder(resume.sectionOrder).filter(
