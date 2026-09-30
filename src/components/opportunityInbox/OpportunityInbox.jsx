@@ -5,6 +5,7 @@ import API_BASE_URL from "../../config/api";
 import CandidateCard, { CandidateContent } from "./CandidateCard";
 import CandidateEditor from "./CandidateEditor";
 import CandidateComparison from "./CandidateComparison";
+import DiscoveryPanel from "./DiscoveryPanel";
 import { statusLabels, sourceLabels, programLabels } from "./candidateLabels";
 import "./OpportunityInbox.css";
 
@@ -23,6 +24,7 @@ export default function OpportunityInbox({ password, refreshKey = 0 }) {
   const [detail, setDetail] = useState(null);
   const [mode, setMode] = useState("");
   const [reload, setReload] = useState(0);
+  const refreshCandidates = useCallback(() => setReload((v) => v + 1), []);
   const [duplicateTarget, setDuplicateTarget] = useState("");
   const [duplicateType, setDuplicateType] = useState("existingOpportunityId");
   const request = useCallback((method, path = "", data) => axios({ method, url: `${endpoint}${path}`, data, headers: { "x-admin-password": password } }), [password]);
@@ -66,6 +68,7 @@ export default function OpportunityInbox({ password, refreshKey = 0 }) {
       <button onClick={() => setReload((v) => v + 1)} disabled={busy || loading}><FiRefreshCw />تحديث</button>
       {process.env.NODE_ENV === "development" && <button onClick={() => mutate("post", "/seed", {})} disabled={busy}>إضافة 5 حالات تجريبية</button>}
     </div></header>
+    <DiscoveryPanel password={password} onComplete={refreshCandidates} />
     <div className="oi-summary">{[["discoveredToday", "المكتشفة اليوم (UTC)"], ["ready", "جاهزة"], ["needs_review", "تحتاج مراجعة"], ["update_existing", "تحديثات"], ["duplicate", "مكررة"], ["rejected", "مرفوضة"]].map(([key, label]) => <div key={key}><strong>{result.summary[key] || 0}</strong><span>{label}</span></div>)}</div>
     <form className="oi-filters" onSubmit={(e) => { e.preventDefault(); setPage(1); setApplied({ ...filters }); }}>
       {[["status", "الحالة", statusLabels], ["sourceType", "المصدر", sourceLabels], ["programType", "البرنامج", programLabels]].map(([field, label, options]) => <label key={field}>{label}<select value={filters[field]} onChange={(e) => setFilters({ ...filters, [field]: e.target.value })}><option value="">الكل</option>{Object.entries(options).map(([v, text]) => <option key={v} value={v}>{text}</option>)}</select></label>)}

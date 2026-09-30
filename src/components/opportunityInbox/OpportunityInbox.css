@@ -51,4 +51,15 @@
 .oi-diff label { grid-column: 1 / -1; }
 .oi-diff > div { min-width: 0; }
 .oi-empty { padding-block: 30px; color: #bfccc9; }
+.oi-discovery { border-block: 1px solid #35433f; padding-block: 12px; margin-bottom: 20px; }
+.oi-discovery ul { padding-inline-start: 20px; font-size: 13px; }
+.oi-discovery li { padding-block: 8px; overflow-wrap: anywhere; }
+.oi-discovery small { display: block; text-align: start; margin-top: 4px; }
 @media (max-width: 680px) { .oi-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .oi-two, .oi-diff { grid-template-columns: 1fr; } .oi-card { padding: 14px; } .oi-actions { gap: 8px; } }
+.oi-discovery-tools details { margin: 12px 0; padding-block: 8px; border-bottom: 1px solid var(--border-color, #334443); }
+.oi-discovery-tools summary, .oi-discovery summary { cursor: pointer; }
+.oi-discovery-tools textarea { box-sizing: border-box; width: 100%; color: inherit; background: transparent; border: 1px solid var(--border-color, #334443); }
+.oi-discovery-tools pre { max-height: 280px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.oi-test-result { margin-block: 12px; padding: 12px; border: 1px solid var(--border-color, #334443); border-radius: 8px; }
+.oi-test-result dl { display: grid; grid-template-columns: minmax(85px, 1fr) minmax(0, 3fr); gap: 8px; }
+.oi-test-result dd { margin: 0; overflow-wrap: anywhere; }

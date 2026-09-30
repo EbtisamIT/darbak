@@ -5,6 +5,9 @@ const Opportunity = require("../models/Opportunity");
 const { STATUSES, SOURCE_TYPES, PROGRAM_TYPES, buildCandidateDiff } = require("./opportunityCandidateData");
 const { createOpportunityCandidate, editCandidate, publishCandidate, existingEmails, fail } = require("./opportunityCandidates");
 const { seedOpportunityCandidates } = require("./opportunityCandidateSeed");
+const { startDiscovery, discoveryStatus } = require("./opportunityDiscovery/service");
+const { registrySources, importSources, approveSource, testKnownUrl, sourceExport } = require("./opportunityDiscovery/management");
+const EmailLead = require("../models/OpportunityEmailLead");
 
 function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPayload, containsBlockedTerms, onPublish = () => {} }) {
   const router = express.Router();
@@ -51,6 +54,31 @@ function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPay
     ]);
     res.json({ data: await enrich(rows), total, page, pages: Math.ceil(total / limit),
       summary: { discoveredToday, ...Object.fromEntries(groups.map((g) => [g._id, g.count])) } });
+  }));
+  router.get("/discovery", handle(async (req, res) => res.json(await discoveryStatus())));
+  // A separate short lease prevents parallel expensive URL tests across workers.
+  router.post("/discovery/test-url", handle(async (req, res) => {
+    const Run = require("../models/OpportunityDiscoveryRun");
+    await Run.init();
+    await Run.updateMany({ lock: "known-url", leaseUntil: { $lte: new Date() } }, { $set: { status: "interrupted" }, $unset: { lock: 1 } });
+    let lease;
+    try { lease = await Run.create({ runType: "known-url", lock: "known-url", leaseUntil: new Date(Date.now() + 120000), status: "running" }); }
+    catch (e) { if (e.code === 11000) fail(429, "يوجد اختبار رابط قيد التشغيل."); throw e; }
+    let result;
+    try { result = await testKnownUrl(req.body); }
+    finally { await Run.deleteOne({ _id: lease._id, lock: "known-url" }); }
+    res.json(result);
+  }));
+  router.get("/discovery/sources/export", handle(async (req, res) => res.json((await registrySources()).map(sourceExport))));
+  router.post("/discovery/sources/import", handle(async (req, res) => res.json(await importSources(req.body.sources))));
+  router.post("/discovery/sources/:key/approve", handle(async (req, res) => res.json(await approveSource(req.params.key, req.body.reviewedOfficialOwnership))));
+  router.get("/discovery/leads", handle(async (req, res) => {
+    const page = Math.max(1, Math.min(1000, parseInt(req.query.page, 10) || 1));
+    res.json({ data: await EmailLead.find({}).sort({ discoveredAt: -1 }).skip((page - 1) * 20).limit(20).lean(), page });
+  }));
+  router.post("/discovery/run", handle(async (req, res) => {
+    const run = await startDiscovery();
+    res.status(202).json({ runId: run._id, status: run.status });
   }));
   router.post("/seed", handle(async (req, res) => res.json({ data: await seedOpportunityCandidates() })));
   router.post("/", handle(async (req, res) => res.status(201).json(await createOpportunityCandidate(req.body))));

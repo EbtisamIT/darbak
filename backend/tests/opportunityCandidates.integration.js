@@ -36,7 +36,7 @@ const close = async () => { if (server) await new Promise((resolve) => server.cl
     sanitizeOpportunityPayload, containsBlockedTerms: () => false,
   }));
   if (serve) app.use((req, res) => res.json({ data: [], total: 0 }));
-  await new Promise((resolve) => { server = app.listen(serve ? 3111 : 0, "127.0.0.1", resolve); });
+  await new Promise((resolve, reject) => { server = app.listen(serve ? Number(process.env.INBOX_PREVIEW_PORT || 3111) : 0, "127.0.0.1", resolve); server.once("error", reject); });
   const url = `http://127.0.0.1:${server.address().port}/api/admin/opportunity-candidates`;
   const request = async (method, route = "", data, authenticated = true) => {
     const response = await fetch(`${url}${route}`, { method, headers: { "Content-Type": "application/json", ...(authenticated ? { "x-admin-password": password } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
@@ -45,7 +45,7 @@ const close = async () => { if (server) await new Promise((resolve) => server.cl
   if (serve) {
     process.env.NODE_ENV = "development"; process.env.ENABLE_OPPORTUNITY_INBOX_SEED = "true";
     await seedOpportunityCandidates();
-    console.log("Isolated demo API ready: http://127.0.0.1:3111 (no production connection)");
+    console.log(`Isolated demo API ready: http://127.0.0.1:${server.address().port} (no production connection)`);
     process.once("SIGINT", () => close().then(() => process.exit(0)));
     process.once("SIGTERM", () => close().then(() => process.exit(0)));
     return;
