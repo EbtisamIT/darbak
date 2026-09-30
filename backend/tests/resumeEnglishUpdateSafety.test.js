@@ -1,0 +1,17 @@
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+const pause = require("../services/resumeEnglishUpdateSafety");
+
+let nextCalls = 0;
+const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
+pause({ method: "POST" }, res, () => { nextCalls += 1; });
+assert.strictEqual(res.code, 503);
+assert.strictEqual(res.body.code, "RESUME_EN_UPDATE_PAUSED");
+assert.strictEqual(nextCalls, 0, "no auth, model or persistence handler can execute");
+pause({ method: "OPTIONS" }, res, () => { nextCalls += 1; });
+assert.strictEqual(nextCalls, 1);
+const source = fs.readFileSync(path.join(__dirname, "../server.js"), "utf8");
+const gate = source.indexOf('app.use("/api/resume/ai/translate-en", require("./services/resumeEnglishUpdateSafety"))');
+assert.ok(gate >= 0 && gate < source.indexOf("app.post('/api/resume/ai/translate-en'"), "containment runs before the real route, cache and writes");
+console.log("English update containment: PASS (zero handler/model/persistence calls)");

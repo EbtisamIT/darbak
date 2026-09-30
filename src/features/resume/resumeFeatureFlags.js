@@ -4,4 +4,5 @@
 // available.
 export const RESUME_FEATURE_FLAGS = Object.freeze({
   improveSummary: false,
+  englishUpdate: false,
 });

@@ -1,4 +1,5 @@
 const assert = require("assert");
+require("./resumeEnglishUpdateSafety.test");
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");

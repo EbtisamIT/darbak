@@ -11572,6 +11572,7 @@ app.post('/api/resume/ai/tailor', requireResumeAccess, async (req, res) => {
   }
 });
 
+app.use("/api/resume/ai/translate-en", require("./services/resumeEnglishUpdateSafety"));
 app.post('/api/resume/ai/translate-en', requireResumeAccess, async (req, res) => {
   try {
     const idempotencyKey = getResumeAiIdempotencyKey(req, "translate_resume");

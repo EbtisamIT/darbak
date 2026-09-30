@@ -50,7 +50,7 @@ import {
 import { estimateResumePages } from "../features/resume/resumeValidation";
 import { getEnglishPdfValidation, getEnglishReviewItems } from "../features/resume/resumeLocalization";
 import { markEnglishVersionFresh } from "../features/resume/englishVersionFreshness";
-import { shouldAutosaveMasterResume } from "../features/resume/resumeLanguageIsolation";
+import { canSaveResumeFacts, shouldAutosaveMasterResume } from "../features/resume/resumeLanguageIsolation";
 import {
   clearResumeJourneyProgress,
   getReachableJourneyProgress,
@@ -484,6 +484,8 @@ const MyResumePage = () => {
 
   const saveJourneyDraft = useCallback(async (resumeOverride = resume) => {
       const saveLatestFacts = async () => {
+        // Check at execution time too: a queued save may outlive navigation.
+        if (!canSaveResumeFacts({ resume: resumeOverride, masterHydrating: masterHydrationRef.current })) return false;
         try {
           const submittedSnapshot = getSnapshot(resumeOverride);
           const requestId = ++factsSaveRequestRef.current;
@@ -645,6 +647,7 @@ const MyResumePage = () => {
   }, [applicationPack?.packType, editingTailoredVersion, loadFreshMasterResume, resume]);
 
   const createEnglishVersion = useCallback(async () => {
+    if (!RESUME_FEATURE_FLAGS.englishUpdate) return;
     try {
       setTranslating(true);
       setError("");
@@ -751,6 +754,7 @@ const MyResumePage = () => {
   }, [loadTailoredVersions, resume]);
 
   const handleTranslateToEnglish = useCallback(() => {
+    if (!RESUME_FEATURE_FLAGS.englishUpdate) return;
     const englishName = (lastServerResume?.personalInfo?.englishName || resume.personalInfo?.englishName || "").trim();
     if (englishName.split(/\s+/).filter(Boolean).length >= 2 && !/[\u0600-\u06FF]/.test(englishName)) {
       createEnglishVersion();
@@ -847,6 +851,7 @@ const MyResumePage = () => {
   useEffect(() => {
     const isJourneyStep = resumeMode === "dashboard" && ["setup", "personal", "missing"].includes(journeyView);
     if (!hasLoadedRef.current || !isJourneyStep) return undefined;
+    if (!canSaveResumeFacts({ resume, masterHydrating: masterHydrationRef.current })) return undefined;
 
     writeResumeJourneyProgress({
       currentStep: journeyView === "missing" ? "missing" : "data",
@@ -870,6 +875,7 @@ const MyResumePage = () => {
 
   useEffect(() => {
     if (!hasLoadedRef.current || resumeMode !== "dashboard" || journeyView !== "review") return undefined;
+    if (!canSaveResumeFacts({ resume, masterHydrating: masterHydrationRef.current })) return undefined;
     if (getSnapshot(resume) === lastSavedSnapshotRef.current) return undefined;
     window.clearTimeout(journeySaveTimerRef.current);
     journeySaveTimerRef.current = window.setTimeout(() => saveJourneyDraft(resume), JOURNEY_AUTOSAVE_DELAY);
@@ -1407,10 +1413,11 @@ const MyResumePage = () => {
                 type="button"
                 className="resume-icon-button"
                 onClick={handleTranslateToEnglish}
-                disabled={translating}
+                disabled={translating || !RESUME_FEATURE_FLAGS.englishUpdate}
+                title={!RESUME_FEATURE_FLAGS.englishUpdate ? "تحديث الإنجليزية متوقف مؤقتًا لحماية السيرة العربية" : undefined}
               >
                 <FiRefreshCw aria-hidden="true" />
-                {translating ? "جاري الترجمة..." : "ترجمة EN"}
+                {!RESUME_FEATURE_FLAGS.englishUpdate ? "ترجمة EN متوقفة مؤقتًا" : translating ? "جاري الترجمة..." : "ترجمة EN"}
               </button>
               {RESUME_FEATURE_FLAGS.improveSummary && !editingTailoredVersion && resume.settings?.language !== "en" && <button
                 type="button"
