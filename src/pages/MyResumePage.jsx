@@ -59,7 +59,7 @@ import {
 } from "../features/resume/resumeJourneyPersistence";
 import { getResumeStorageScope } from "../features/resume/resumeStorageScope";
 import { getResumeEntryRedirect } from "../features/resume/resumeRouteState";
-import { RESUME_FEATURE_FLAGS } from "../features/resume/resumeFeatureFlags";
+import { RESUME_FEATURE_FLAGS, isResumeEnglishUpdateEnabled } from "../features/resume/resumeFeatureFlags";
 
 const LEGACY_LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
 const APPLICATION_PACK_RESULT_LOAD_ATTEMPTS = 3;
@@ -185,6 +185,7 @@ const ResumeAccessPreview = ({ premiumPass, onUpgrade, onExplore }) => {
 };
 
 const MyResumePage = () => {
+  const englishUpdateEnabled = isResumeEnglishUpdateEnabled(getStoredAccessIdentity());
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -598,7 +599,7 @@ const MyResumePage = () => {
   }, [applicationPack?.packType, editingTailoredVersion, saveOfficialEnglishName, resume]);
 
   const createEnglishVersion = useCallback(async () => {
-    if (!RESUME_FEATURE_FLAGS.englishUpdate) return;
+    if (!englishUpdateEnabled) return;
     try {
       setTranslating(true);
       setError("");
@@ -676,7 +677,7 @@ const MyResumePage = () => {
     } finally {
       setTranslating(false);
     }
-  }, [loadTailoredVersions, navigate, resume]);
+  }, [englishUpdateEnabled, loadTailoredVersions, navigate, resume]);
 
   const handleImproveSummary = useCallback(async () => {
     try {
@@ -705,7 +706,7 @@ const MyResumePage = () => {
   }, [loadTailoredVersions, resume]);
 
   const handleTranslateToEnglish = useCallback(() => {
-    if (!RESUME_FEATURE_FLAGS.englishUpdate) return;
+    if (!englishUpdateEnabled) return;
     const englishName = (lastServerResume?.personalInfo?.englishName || resume.personalInfo?.englishName || "").trim();
     if (englishName.split(/\s+/).filter(Boolean).length >= 2 && !/[\u0600-\u06FF]/.test(englishName)) {
       createEnglishVersion();
@@ -714,7 +715,7 @@ const MyResumePage = () => {
     setEnglishNameInput(englishName);
     setEnglishNameError("");
     setEnglishNameStepOpen(true);
-  }, [createEnglishVersion, lastServerResume, resume.personalInfo?.englishName]);
+  }, [createEnglishVersion, englishUpdateEnabled, lastServerResume, resume.personalInfo?.englishName]);
 
   const submitEnglishNameStep = async () => {
     const englishName = englishNameInput.trim().replace(/\s+/g, " ");
@@ -1330,11 +1331,11 @@ const MyResumePage = () => {
                 type="button"
                 className="resume-icon-button"
                 onClick={handleTranslateToEnglish}
-                disabled={translating || !RESUME_FEATURE_FLAGS.englishUpdate}
-                title={!RESUME_FEATURE_FLAGS.englishUpdate ? "تحديث الإنجليزية متوقف مؤقتًا لحماية السيرة العربية" : undefined}
+                disabled={translating || !englishUpdateEnabled}
+                title={!englishUpdateEnabled ? "تحديث الإنجليزية متوقف مؤقتًا لحماية السيرة العربية" : undefined}
               >
                 <FiRefreshCw aria-hidden="true" />
-                {!RESUME_FEATURE_FLAGS.englishUpdate ? "ترجمة EN متوقفة مؤقتًا" : translating ? "جاري الترجمة..." : "ترجمة EN"}
+                {!englishUpdateEnabled ? "ترجمة EN متوقفة مؤقتًا" : translating ? "جاري الترجمة..." : "ترجمة EN"}
               </button>
               {RESUME_FEATURE_FLAGS.improveSummary && !editingTailoredVersion && resume.settings?.language !== "en" && <button
                 type="button"

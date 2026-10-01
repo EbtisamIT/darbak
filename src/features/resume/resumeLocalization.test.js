@@ -112,7 +112,10 @@ describe("English resume presentation", () => {
     expect(localized.personalInfo.headline).toBe("Management Information Systems Student");
     expect(localized.personalInfo.major).toBe("Management Information Systems");
     expect(localized.personalInfo.academicTrack || "").toBe("");
-    expect(localized.summary).toBe("Built a Power BI project for business analysis.");
+    // Invalid mixed-language legacy text requires an explicit translation,
+    // not render-time sentence stripping/reconstruction presented as valid.
+    expect(localized.summary).toBe("");
+    expect(getEnglishPdfValidation(sara).unresolvedFields).toContain("summary");
     expect(education.title).toBe("Bachelor's Degree in Management Information Systems");
     expect(education.facts.some((fact) => fact.includes("Academic Track"))).toBe(false);
   });
@@ -718,7 +721,7 @@ describe("English resume presentation", () => {
       "Time Management",
       "Web Development",
     ]);
-    expect(localized.summary).toMatch(/^Information Technology Graduate\./);
+    expect(localized.summary).toBe(resume.summary);
     expect(localized.projects[0].title).toBe("Darbak");
     expect(getEnglishReviewItems(resume).some((item) => item.value === "دربك")).toBe(false);
     expect(assertNoArabicScript(localized)).toBe(true);

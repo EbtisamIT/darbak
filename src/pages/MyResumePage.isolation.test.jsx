@@ -16,7 +16,10 @@ jest.mock("../features/resume/ResumeDashboard", () => () => null);
 jest.mock("../features/resume/ApplicationPackPanel", () => () => null);
 jest.mock("../features/resume/resumeLocalization", () => ({ getEnglishPdfValidation: () => ({ valid: true }), getEnglishReviewItems: () => [] }));
 // Exercise the preserved translation success journey while production is paused.
-jest.mock("../features/resume/resumeFeatureFlags", () => ({ RESUME_FEATURE_FLAGS: { englishUpdate: true, improveSummary: false } }));
+jest.mock("../features/resume/resumeFeatureFlags", () => ({
+  RESUME_FEATURE_FLAGS: { englishUpdate: true, improveSummary: false },
+  isResumeEnglishUpdateEnabled: () => true,
+}));
 jest.mock("../utils/analytics", () => ({ getVisitorId: () => "test", trackEvent: jest.fn(), trackEventOncePerSession: jest.fn() }));
 jest.mock("../utils/premiumAccess", () => ({
   PREMIUM_ACCESS_EVENT: "test-access", PREMIUM_STATUS_EVENT: "test-status",
