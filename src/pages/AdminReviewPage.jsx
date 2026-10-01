@@ -5,6 +5,7 @@ import majors from "../majors";
 import SubscriptionDashboard from "../components/SubscriptionDashboard";
 import AdminSubscriptionManagement from "../components/AdminSubscriptionManagement";
 import OpportunityInbox from "../components/opportunityInbox/OpportunityInbox";
+import StudentFeedbackControls from "../components/StudentFeedbackControls";
 
 const adminColors = {
   brand: "#66d0c3",
@@ -1093,8 +1094,10 @@ export default function AdminReviewPage() {
   const [studentFeedback, setStudentFeedback] = useState({
     summary: { count: 0, averageSatisfaction: 0, ratings: {} },
     latest: [],
+    pagination: { page: 1, limit: 30, total: 0, totalPages: 1 },
   });
-  const [studentFeedbackTab, setStudentFeedbackTab] = useState("all");
+  const [studentFeedbackTab, setStudentFeedbackTab] = useState("written");
+  const [studentFeedbackPage, setStudentFeedbackPage] = useState(1);
   const [expandedFeedbackId, setExpandedFeedbackId] = useState("");
   const [expandedStudentContactId, setExpandedStudentContactId] = useState("");
   const [contactMessages, setContactMessages] = useState([]);
@@ -1315,11 +1318,18 @@ export default function AdminReviewPage() {
       sessionStorage.setItem("darbak_admin_password", password);
       const { data } = await axios.get(`${API_BASE_URL}/api/admin/student-feedback`, {
         headers: authHeaders,
-        params: { tab: studentFeedbackTab },
+        params: { tab: studentFeedbackTab, page: studentFeedbackPage },
       });
       setStudentFeedback({
         summary: { count: 0, averageSatisfaction: 0, ratings: {}, ...(data.summary || {}) },
         latest: Array.isArray(data.latest) ? data.latest : [],
+        pagination: {
+          page: 1,
+          limit: 30,
+          total: 0,
+          totalPages: 1,
+          ...(data.pagination || {}),
+        },
       });
     } catch (err) {
       console.error(err);
@@ -1761,6 +1771,7 @@ export default function AdminReviewPage() {
     userStatus,
     adminView,
     studentFeedbackTab,
+    studentFeedbackPage,
   ]);
 
   const refreshCurrentView = () => {
@@ -5487,8 +5498,9 @@ export default function AdminReviewPage() {
             <div><strong style={{ color: adminColors.brand, fontSize: "24px" }}>{studentFeedback.summary.publishedTestimonials || 0}</strong><p style={{ color: adminColors.muted, margin: "4px 0 0" }}>آراء منشورة</p></div>
             {[1, 2, 3, 4].map((rating) => <div key={rating}><strong style={{ color: adminColors.text }}>{["😕", "😐", "🙂", "😍"][rating - 1]} {studentFeedback.summary.ratings?.[rating] || 0}</strong><p style={{ color: adminColors.muted, margin: "4px 0 0" }}>تقييم {rating}</p></div>)}
           </section>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>{[["all", "كل الردود"], ["publishable", "قابلة للنشر"], ["published", "منشورة"]].map(([value, label]) => <button key={value} type="button" onClick={() => setStudentFeedbackTab(value)} style={{ padding: "8px 12px", borderRadius: "999px", border: `1px solid ${adminColors.inputBorder}`, background: studentFeedbackTab === value ? adminColors.brand : "transparent", color: studentFeedbackTab === value ? "#08201c" : adminColors.text, fontFamily: "inherit", fontWeight: 800 }}>{label}</button>)}</div>
-          {studentFeedback.latest.length === 0 && !loading ? <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>لا توجد آراء مكتوبة حاليًا.</div> : studentFeedback.latest.map((item) => (
+          <StudentFeedbackControls tab={studentFeedbackTab} pagination={studentFeedback.pagination} loading={loading} colors={adminColors}
+            onTabChange={(tab) => { setStudentFeedbackTab(tab); setStudentFeedbackPage(1); }} onPageChange={setStudentFeedbackPage} />
+          {studentFeedback.latest.length === 0 && !loading ? <div style={{ ...cardStyle, color: adminColors.muted, textAlign: "center" }}>لا توجد ردود مطابقة لهذا الفلتر.</div> : studentFeedback.latest.map((item) => (
             <article key={item._id} style={cardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}><strong style={{ color: adminColors.brand }}>تقييم {["😕", "😐", "🙂", "😍"][item.rating - 1] || ""} ({item.rating}/4)</strong><span style={{ color: adminColors.muted, fontSize: "13px" }}>{formatAdminDateTime(item.createdAt)}</span></div>
               <div style={{ display: "grid", gap: "5px", padding: "10px 0" }}>
@@ -5524,6 +5536,9 @@ export default function AdminReviewPage() {
               </div>}
             </article>
           ))}
+          {studentFeedback.pagination.totalPages > 1 && (
+            <StudentFeedbackControls showTabs={false} pagination={studentFeedback.pagination} loading={loading} colors={adminColors} onPageChange={setStudentFeedbackPage} />
+          )}
         </div>
       ) : adminView === "suggestions" ? (
         <div style={{ display: "grid", gap: "12px" }}>

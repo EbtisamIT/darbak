@@ -11,6 +11,7 @@ const {
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
 const FeedbackResponse = require("./models/FeedbackResponse");
+const { listStudentFeedback, writtenFeedbackFilter } = require("./services/studentFeedbackListing");
 const ContactMessage = require('./models/ContactMessage');
 const CompanyApplication = require('./models/CompanyApplication');
 const ApplicationTracker = require("./models/ApplicationTracker");
@@ -17497,27 +17498,15 @@ app.get('/api/admin/suggestions', requireAdmin, async (req, res) => {
 
 app.get("/api/admin/student-feedback", requireAdmin, async (req, res) => {
   try {
-    const tab = ["all", "publishable", "published"].includes(req.query.tab)
-      ? req.query.tab
-      : "all";
-    const meaningfulFeedback = { feedbackText: { $regex: "\\S" } };
-    const listFilter =
-      tab === "publishable"
-        ? { ...meaningfulFeedback, publicConsent: true, published: false }
-        : tab === "published"
-          ? { publicConsent: true, published: true }
-          : {};
-    const [distribution, feedbackRows, consentedResponses, publishedTestimonials] = await Promise.all([
+    const [distribution, feedbackPage, consentedResponses, publishedTestimonials] = await Promise.all([
       FeedbackResponse.aggregate([
         { $group: { _id: "$rating", count: { $sum: 1 }, average: { $avg: "$rating" } } },
       ]),
-      FeedbackResponse.find(listFilter)
-        .sort({ createdAt: -1 })
-        .limit(30)
-        .lean(),
-      FeedbackResponse.countDocuments({ ...meaningfulFeedback, publicConsent: true }),
+      listStudentFeedback(FeedbackResponse, req.query),
+      FeedbackResponse.countDocuments({ ...writtenFeedbackFilter(), publicConsent: true }),
       FeedbackResponse.countDocuments({ publicConsent: true, published: true }),
     ]);
+    const feedbackRows = feedbackPage.rows;
     const feedbackUserIds = feedbackRows
       .map((item) => item.userId)
       .filter(Boolean);
@@ -17576,6 +17565,7 @@ app.get("/api/admin/student-feedback", requireAdmin, async (req, res) => {
         publishedTestimonials,
       },
       latest,
+      pagination: feedbackPage.pagination,
     });
   } catch (err) {
     console.error("❌ Admin student feedback fetch error:", err.message);
