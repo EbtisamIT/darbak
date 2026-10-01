@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "pretest": "node tests/opportunityCandidates.test.js && node tests/opportunityDiscovery.test.js && node tests/opportunityDiscoveryHybrid.test.js",
+    "pretest": "node tests/opportunityCandidates.test.js && node tests/opportunityDiscovery.test.js && node tests/opportunityDiscoveryHybrid.test.js && node tests/opportunityDiscoverySearch.test.js && node tests/opportunityApplicationPolicy.test.js && node tests/opportunityProductionReadiness.test.js && node tests/opportunityEnrichment.test.js",
+    "discovery:search": "node scripts/discoverOpportunities.js --search-only --load-brave-env",
+    "test:opportunity-enrichment": "node tests/opportunityEnrichment.test.js",
+    "test:opportunity-import": "node tests/opportunityImport.integration.js",
     "discovery:check": "node scripts/discoverOpportunities.js --verify",
     "discovery:dry-run": "node scripts/discoverOpportunities.js",
     "test": "node tests/resumeTranslationManifest.test.js && node tests/emailIdentity.test.js && node tests/opportunityDirectoryExport.test.js && node tests/companyApplicationFileIntegrity.test.js && node tests/companyApplicationWorkflow.test.js && node tests/companyApplicationDigest.test.js && node tests/companyPortalDemo.test.js && node tests/companyDirectorySchema.test.js && node tests/companyDirectorySeeds.test.js && node tests/companyEnrichment.test.js && node tests/companyHubContent.test.js && node tests/subscriptionPlans.test.js && node tests/subscriptionDashboard.test.js && node tests/subscriptionUsage.test.js && node tests/adminSubscriptionDetailsContract.test.js && node tests/resumeSkillRanking.test.js && node tests/resumeApprovedSkillsPersistence.test.js && node tests/resumeFactNormalization.test.js && node tests/resumeAgentAnswerLifecycle.test.js && node tests/resumeAgentValidation.test.js && node tests/resumeTranslationPipeline.test.js && node tests/resumePortfolioHydration.test.js && node tests/resumeArchitecture.test.js && node tests/resumeLanguageArchitectureJourney.test.js && node tests/resumeAgentDraftGuard.test.js && node tests/resumeProfessionalComposer.test.js && node tests/resumeDataIsolation.test.js",

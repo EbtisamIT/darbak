@@ -1,5 +1,6 @@
 function failureCode(error) {
   const code = String(error?.code || error?.message || error || "");
+  if (["SAUDI_EVIDENCE_MISSING", "OPEN_STATUS_UNCONFIRMED"].includes(code)) return code;
   if (/ROBOTS/.test(code)) return "ROBOTS_DENIED";
   if (/TLS|CERT|SSL|SELF_SIGNED|UNABLE_TO_VERIFY/.test(code)) return "TLS_ERROR";
   if (/TIMEOUT|TIME_LIMIT/.test(code)) return "TIMEOUT";

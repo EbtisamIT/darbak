@@ -3,6 +3,7 @@ import axios from "axios";
 import { FiPlay, FiRefreshCw } from "react-icons/fi";
 import API_BASE_URL from "../../config/api";
 import DiscoveryTools from "./DiscoveryTools";
+import SearchDiscoveryReport from "./SearchDiscoveryReport";
 
 const endpoint = `${API_BASE_URL}/api/admin/opportunity-candidates/discovery`;
 const states = { running: "قيد التشغيل", completed: "اكتمل", partial: "اكتمل مع ملاحظات", failed: "تعذر الاكتشاف", interrupted: "توقف قبل الاكتمال" };
@@ -24,10 +25,10 @@ export default function DiscoveryPanel({ password, onComplete }) {
     };
     load(); return () => { controller.abort(); clearTimeout(timer); };
   }, [expanded, password, refresh, onComplete]);
-  const run = async () => {
+  const run = async (mode) => {
     setBusy(true); setError("");
     try {
-      await axios.post(`${endpoint}/run`, {}, { headers: { "x-admin-password": password } });
+      await axios.post(`${endpoint}/run`, { mode, ...(mode === "full" ? { searchRunId: result.lastSearch._id } : {}) }, { headers: { "x-admin-password": password } });
       setResult((old) => ({ ...old, run: { status: "running" } })); setRefresh((v) => v + 1);
     } catch (e) { setError(e.response?.data?.error || "تعذر بدء الاكتشاف."); }
     finally { setBusy(false); }
@@ -36,12 +37,24 @@ export default function DiscoveryPanel({ password, onComplete }) {
     <button onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>الاكتشاف من المصادر الرسمية</button>
     {expanded && <>
       <div className="oi-actions">
-        <button onClick={run} disabled={busy || result?.run?.status === "running"}><FiPlay />Run Discovery Now</button>
+        <button onClick={() => run("automation")} disabled={busy || result?.run?.status === "running"}><FiPlay />Run Opportunity Automation</button>
+        <button onClick={() => run("search-only")} disabled={busy || result?.run?.status === "running"}><FiPlay />Run Search Discovery Only</button>
+        <button onClick={() => run("full")} disabled={busy || result?.run?.status === "running" || !["completed", "partial"].includes(result?.lastSearch?.status) || !result?.lastSearch?.summary?.officialUrlsAccepted}><FiPlay />Run Full Discovery</button>
         <button onClick={() => setRefresh((v) => v + 1)} disabled={busy}><FiRefreshCw />تحديث الحالة</button>
         <span role="status">{busy ? "جارٍ بدء الاكتشاف..." : states[result?.run?.status] || "لم يبدأ الاكتشاف"}</span>
       </div>
       {error && <p className="oi-error" role="alert">{error}</p>}
       {result && <p>البحث الخارجي: {result.searchConfigured ? "مهيأ" : "غير مهيأ"} · عرض المتصفح: {result.browserConfigured ? "مهيأ" : "غير مهيأ"}</p>}
+      {result?.run?.runType && <p>{result.run.runType === "search-only" ? "بحث فقط؛ لم تُجلب صفحات الإعلانات ولم يُنشأ مرشحون." : "فحص نتائج البحث؛ لا نشر تلقائي."}</p>}
+      <SearchDiscoveryReport key={result?.run?._id} report={result?.run?.searchReport} />
+      {result?.run?.summary && <div className="oi-summary">{[["pagesExtracted", "صفحات استُخرجت"], ["opportunitiesEnriched", "فرص أُثريت"], ["averageCompleteness", "متوسط الاكتمال %"],
+        ["readyForReview", "جاهزة للمراجعة"], ["needsDetails", "تحتاج تفاصيل"], ["needsVerification", "تحتاج تحقق"],
+        ["officialSourcesResolved", "روابط رسمية استُعيدت"], ["recoveryQueries", "استعلامات الاستعادة"]].map(([key, label]) => <div key={key}><strong>{result.run.summary[key] || 0}</strong><span>{label}</span></div>)}</div>}
+      {result?.run?.searchReport?.recoveryDetails?.length > 0 && <details><summary>استعادة المصادر الرسمية</summary><ul>{result.run.searchReport.recoveryDetails.map((item, index) => <li key={index}><bdi>{item.code}</bdi><p dir="ltr">{item.url || item.query}</p></li>)}</ul></details>}
+      {result?.run?.summary && <div className="oi-summary">{[["searchResultsReceived", "نتائج البحث"], ["uniqueUrlsDiscovered", "روابط بحث فريدة"],
+        ["officialUrlsClassified", "نتائج من نطاقات رسمية"],
+        ["recentTrainingHints", "نتائج بحث تدريب حديثة مبدئيًا"], ["needsReview", "مرشحون يحتاجون مراجعة"], ["discoveryLeads", "روابط للمراجعة المستقبلية"],
+        ["oldOpportunities", "إعلانات قديمة"]].map(([key, label]) => <div key={key}><strong>{result.run.summary[key] || 0}</strong><span>{label}</span></div>)}</div>}
       <DiscoveryTools endpoint={endpoint} password={password} sources={result?.sources || []} onRefresh={() => setRefresh((v) => v + 1)} />
       {result?.run?.summary && <div className="oi-summary">{[["sourcesChecked", "مصادر فُحصت"], ["searchQueriesRun", "استعلامات بحث"], ["urlsDiscovered", "روابط مكتشفة"], ["officialUrlsAccepted", "روابط رسمية"], ["urlsRejected", "روابط مرفوضة"], ["pagesFetched", "صفحات جُلبت"], ["fetchFailures", "تعذر جلبها"], ["trainingPagesDetected", "إعلانات تدريب"], ["opportunitiesExtracted", "إعلانات مستخرجة"], ["newCandidates", "مرشحون جدد"], ["duplicates", "مكررات"], ["updates", "تحديثات مقترحة"], ["emailLeads", "بريد مكتشف جديد"], ["closedOpportunities", "فرص مغلقة"], ["errors", "أخطاء"]].map(([key, label]) => <div key={key}><strong>{result.run.summary[key] || 0}</strong><span>{label}</span></div>)}</div>}
       <ul>{(result?.sources || []).map((source) => {

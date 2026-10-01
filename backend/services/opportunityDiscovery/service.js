@@ -8,6 +8,8 @@ const { runPipeline, emptySummary } = require("./pipeline");
 const { registrySources, saveEmailLead } = require("./management");
 const { configuredSearchProvider } = require("./search");
 const { renderPage } = require("./browser");
+const { executeSearch, runFromSearch, saveDiscoveryLead } = require("./searchWorkflow");
+const { runOpportunityAutomation } = require("./automation");
 
 async function initializeSources() {
   await Source.init();
@@ -23,11 +25,14 @@ async function execute(run) {
     await initializeSources();
     // Oldest-checked first rotates bounded batches fairly as the registry grows.
     const sources = (await registrySources({ activeOnly: true })).sort((a, b) =>
-      new Date(a.lastCheckedAt || 0) - new Date(b.lastCheckedAt || 0)).slice(0, 20);
+      new Date(a.lastCheckedAt || 0) - new Date(b.lastCheckedAt || 0));
+    if (run.runType === "search-only") { await executeSearch(run, sources, configuredSearchProvider()); return; }
     const companies = await Company.find({ logoUrl: { $nin: ["", null] } }).select("name nameAr nameEn aliases contentAliases logoUrl").lean();
-    const result = await runPipeline(sources, {
-      ingest: createOpportunityCandidate,
-      saveLead: saveEmailLead, searchProvider: configuredSearchProvider(),
+    const options = {
+      enrichment: true,
+      ingest: (data) => createOpportunityCandidate(data, { audit: { importedVia: "official_discovery" } }),
+      saveLead: saveEmailLead,
+      saveSearchLead: saveDiscoveryLead,
       browserRenderer: process.env.DISCOVERY_BROWSER_EXECUTABLE ? renderPage : undefined,
       getLogo: async (source) => {
         const matches = companies.filter((c) => companyAliasesMatchName(c, source.company));
@@ -43,20 +48,39 @@ async function execute(run) {
           ...(!success ? { $inc: { failureCount: 1 } } : {}),
         });
         await Run.updateOne({ _id: run._id, lock: "discovery" }, { $push: { sources: log }, $set: { summary } });
-        console.info("Opportunity discovery source", JSON.stringify(log));
+        console.info("Opportunity discovery source", { key: source.key, status: log.status, found: log.found,
+          durationMs: log.durationMs, requests: log.requests, error: log.error, warnings: log.warnings });
       },
-    });
-    await Run.updateOne({ _id: run._id, lock: "discovery" }, { $set: { status: result.status, summary: result.summary, finishedAt: new Date() }, $unset: { lock: 1 } });
+    };
+    const parent = run.runType === "full" ? await Run.findById(run.searchRunId).lean() : null;
+    if (run.runType === "full" && !parent?.searchReport) throw new Error("SEARCH_REPORT_UNAVAILABLE");
+    const result = run.runType === "automation" ? await runOpportunityAutomation(sources, {
+      ...options, provider: configuredSearchProvider(), rotation: run.searchRotation,
+      onSearch: (searchReport) => Run.updateOne({ _id: run._id }, { $set: { searchReport, summary: searchReport.summary } }),
+    }) : parent ? await runFromSearch(sources, parent.searchReport, options) : await runPipeline(sources, options);
+    await Run.updateOne({ _id: run._id, lock: "discovery" }, { $set: { status: result.status, summary: result.summary,
+      sources: result.sources, ...(result.searchReport ? { searchReport: result.searchReport } : parent ? { searchReport: parent.searchReport } : {}), finishedAt: new Date() }, $unset: { lock: 1 } });
   } catch {
     await Run.updateOne({ _id: run._id }, { $set: { status: "failed", error: "DISCOVERY_RUN_FAILED", finishedAt: new Date() }, $unset: { lock: 1 } });
   }
 }
-async function startDiscovery() {
+async function startDiscovery({ mode = "search-only", searchRunId } = {}) {
+  if (!["search-only", "full", "automation"].includes(mode)) fail(400, "اختاري search-only أو full أو automation.");
+  if (["search-only", "automation"].includes(mode) && !configuredSearchProvider()) fail(503, "SEARCH_PROVIDER_NOT_CONFIGURED: أضيفي BRAVE_SEARCH_API_KEY إلى بيئة الباك إند.");
+  if (mode === "full") {
+    if (!/^[a-f0-9]{24}$/i.test(searchRunId || "")) fail(400, "اختاري تشغيل بحث مكتمل أولًا.");
+    const parent = await Run.findOne({ _id: searchRunId, runType: "search-only", status: { $in: ["completed", "partial"] },
+      createdAt: { $gt: new Date(Date.now() - 86400000) } }).lean();
+    if (!parent?.searchReport?.results?.some((r) => r.accepted)) fail(422, "لا يوجد بحث حديث بروابط رسمية مؤهلة للاستخراج.");
+  }
   await Run.init(); await expireInterruptedRuns();
   const recent = await Run.findOne({ runType: { $ne: "known-url" }, createdAt: { $gt: new Date(Date.now() - 60000) } }).select("_id").lean();
   if (recent) fail(429, "انتظري دقيقة بين تشغيلات الاكتشاف.");
   let run;
-  try { run = await Run.create({ status: "running", lock: "discovery", leaseUntil: new Date(Date.now() + 15 * 60000), summary: emptySummary(), sources: [] }); }
+  const previous = await Run.findOne({ runType: "search-only" }).sort({ createdAt: -1 }).select("searchRotation").lean();
+  try { run = await Run.create({ runType: mode, searchRunId: mode === "full" ? searchRunId : undefined,
+    searchRotation: previous ? previous.searchRotation + 1 : 0,
+    status: "running", lock: "discovery", leaseUntil: new Date(Date.now() + 15 * 60000), summary: emptySummary(), sources: [] }); }
   catch (e) { if (e.code === 11000) fail(409, "يوجد اكتشاف قيد التشغيل بالفعل."); throw e; }
   setImmediate(() => execute(run).catch(() => console.error("Opportunity discovery persistence failed; lease will expire.")));
   return run;
@@ -64,7 +88,11 @@ async function startDiscovery() {
 async function discoveryStatus() {
   await expireInterruptedRuns();
   const run = await Run.findOne({ runType: { $ne: "known-url" } }).sort({ createdAt: -1 }).select("-lock -__v").lean();
-  return { run, sources: await registrySources(), searchConfigured: Boolean(process.env.DISCOVERY_SEARCH_PROVIDER_MODULE),
+  const lastSearch = await Run.findOne({ runType: "search-only" }).sort({ createdAt: -1 }).select("_id status summary createdAt").lean();
+  return { run, lastSearch, sources: await registrySources(), searchConfigured: Boolean(process.env.DISCOVERY_SEARCH_PROVIDER_MODULE || process.env.BRAVE_SEARCH_API_KEY?.trim()),
+    readiness: { databaseConnected: require("mongoose").connection.readyState === 1,
+      importConfigured: (process.env.DARBAK_DISCOVERY_IMPORT_TOKEN || "").length >= 32,
+      searchBudget: require("./queryPack").searchSettings(), deploymentCommit: process.env.RENDER_GIT_COMMIT || "local" },
     browserConfigured: Boolean(process.env.DISCOVERY_BROWSER_EXECUTABLE) };
 }
 module.exports = { startDiscovery, discoveryStatus, initializeSources };

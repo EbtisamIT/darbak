@@ -6,7 +6,7 @@ import CandidateCard, { CandidateContent } from "./CandidateCard";
 import CandidateEditor from "./CandidateEditor";
 import CandidateComparison from "./CandidateComparison";
 import DiscoveryPanel from "./DiscoveryPanel";
-import { statusLabels, sourceLabels, programLabels } from "./candidateLabels";
+import { statusLabels, sourceLabels, programLabels, reviewLabels } from "./candidateLabels";
 import "./OpportunityInbox.css";
 
 const endpoint = `${API_BASE_URL}/api/admin/opportunity-candidates`;
@@ -50,6 +50,10 @@ export default function OpportunityInbox({ password, refreshKey = 0 }) {
   };
   const action = async (nextMode, item) => {
     setError(""); setMessage("");
+    if (nextMode === "retry-enrichment") {
+      if (window.confirm("إعادة قراءة المصدر الرسمي؟ ستبقى التعديلات اليدوية محفوظة، ولن يتم النشر.")) await mutate("post", `/${item._id}/retry-enrichment`, {});
+      return;
+    }
     if (["publish", "reject"].includes(nextMode)) {
       if (window.confirm(nextMode === "publish" ? "نشر هذه الفرصة في دربك؟" : "رفض هذا المرشح؟")) await mutate("post", `/${item._id}/${nextMode}`, {});
       return;
@@ -69,9 +73,9 @@ export default function OpportunityInbox({ password, refreshKey = 0 }) {
       {process.env.NODE_ENV === "development" && <button onClick={() => mutate("post", "/seed", {})} disabled={busy}>إضافة 5 حالات تجريبية</button>}
     </div></header>
     <DiscoveryPanel password={password} onComplete={refreshCandidates} />
-    <div className="oi-summary">{[["discoveredToday", "المكتشفة اليوم (UTC)"], ["ready", "جاهزة"], ["needs_review", "تحتاج مراجعة"], ["update_existing", "تحديثات"], ["duplicate", "مكررة"], ["rejected", "مرفوضة"]].map(([key, label]) => <div key={key}><strong>{result.summary[key] || 0}</strong><span>{label}</span></div>)}</div>
+    <div className="oi-summary">{[["discoveredToday", "اكتشفت اليوم (UTC)"], ["readyForReview", "جاهزة للمراجعة"], ["needsDetails", "تحتاج تفاصيل"], ["needsVerification", "تحتاج تحقق"], ["update_existing", "تحديثات"], ["duplicate", "مكررة"], ["closed", "مغلقة"], ["emailLeads", "Email Leads"]].map(([key, label]) => <div key={key}><strong>{result.summary[key] || 0}</strong><span>{label}</span></div>)}</div>
     <form className="oi-filters" onSubmit={(e) => { e.preventDefault(); setPage(1); setApplied({ ...filters }); }}>
-      {[["status", "الحالة", statusLabels], ["sourceType", "المصدر", sourceLabels], ["programType", "البرنامج", programLabels]].map(([field, label, options]) => <label key={field}>{label}<select value={filters[field]} onChange={(e) => setFilters({ ...filters, [field]: e.target.value })}><option value="">الكل</option>{Object.entries(options).map(([v, text]) => <option key={v} value={v}>{text}</option>)}</select></label>)}
+      {[["status", "الحالة", statusLabels], ["reviewStatus", "حالة الإثراء", reviewLabels], ["sourceType", "المصدر", sourceLabels], ["programType", "البرنامج", programLabels]].map(([field, label, options]) => <label key={field}>{label}<select value={filters[field] || ""} onChange={(e) => setFilters({ ...filters, [field]: e.target.value })}><option value="">الكل</option>{Object.entries(options).map(([v, text]) => <option key={v} value={v}>{text}</option>)}</select></label>)}
       {[ ["company", "الجهة"], ["city", "المدينة"], ["minConfidence", "أقل درجة ثقة"] ].map(([field, label]) => <label key={field}>{label}<input type={field === "minConfidence" ? "number" : "text"} min="0" max="100" value={filters[field]} onChange={(e) => setFilters({ ...filters, [field]: e.target.value })} /></label>)}
       <button disabled={loading}>تطبيق الفلاتر</button>
     </form>

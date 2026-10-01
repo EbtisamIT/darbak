@@ -12,7 +12,8 @@ const source = { key: "test", name: "Official", company: "Test Company", sourceT
 const now = new Date("2026-09-30T12:00:00Z"), direct = "https://official.example/careers/job/42";
 const job = { "@type": "JobPosting", title: "COOP Marketing Intern", hiringOrganization: { name: source.company },
   description: "<p>University students gain practical training. Contact coop@official.example</p><h2>Responsibilities</h2><p>Prepare campaigns.</p><h2>Requirements</h2><p>Enrolled at university.</p>",
-  datePosted: "2026-09-29", validThrough: "2026-11-01", url: direct };
+  datePosted: "2026-09-29", validThrough: "2026-11-01", url: direct,
+  jobLocation: { address: { addressCountry: "SA", addressLocality: "Riyadh" } } };
 const html = (posting = job) => `<script type="application/ld+json">${JSON.stringify(posting)}</script><main><a href="${direct}/apply?jobId=42&utm_source=chatgpt">Apply now</a></main>`;
 const reader = (body = html()) => ({ read: async (url) => ({ url, text: body, status: 200 }), requests: 1 });
 (async () => {

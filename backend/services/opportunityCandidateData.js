@@ -1,10 +1,11 @@
 const { z } = require("zod");
 const { normalizeCompanyComparable: normalize } = require("./companyDirectorySeeds");
+const { PAGE_AVAILABILITY, APPLICATION_STATES, readyForReview } = require("./opportunityApplicationPolicy");
 
 const STATUSES = ["new", "ready", "needs_review", "duplicate", "update_existing", "rejected", "published", "expired"];
-const PROGRAM_TYPES = ["coop", "internship", "summer", "graduate", "unknown"];
+const PROGRAM_TYPES = ["coop", "internship", "summer", "graduate", "student_program", "graduate_program", "unknown"];
 const SOURCE_TYPES = ["company", "ats", "linkedin", "university", "x", "telegram", "job_board", "other"];
-const EMAIL_TYPES = ["application", "coop", "training", "careers", "recruitment", "hr", "general"];
+const EMAIL_TYPES = ["application", "coop", "training", "internship", "careers", "recruitment", "hr", "general"];
 
 function cleanOpportunityUrl(value = "") {
   if (!value) return "";
@@ -43,6 +44,20 @@ const inputSchema = z.object({
     companyVerified: z.boolean().nullable().default(null),
   }).default({}),
   aiNotes: text(5000).default(""),
+  duration: text(240).optional(), verificationNotes: text(5000).optional(),
+  pageAvailability: z.enum(PAGE_AVAILABILITY).optional(), applicationState: z.enum(APPLICATION_STATES).optional(),
+  realJobPosting: z.boolean().optional(), verificationWarnings: z.array(text(500)).max(10).optional(),
+  enrichmentVersion: z.literal(1).optional(), enrichedAt: date.optional(),
+  majorScope: z.enum(["specific", "all", "broad", "unknown"]).optional(), rawMajors: list.optional(), rawCities: list.optional(),
+  extractionEvidence: z.record(z.string().max(80), z.object({
+    sourceUrl: url, method: text(80), heading: text(240).optional(), rawText: text(6000).optional(),
+  })).optional(),
+  searchDiscovery: z.preprocess((value) => value && typeof value === "object" &&
+    Object.values(value).every((entry) => entry == null || entry === "" || (Array.isArray(entry) && !entry.length)) ? undefined : value,
+  z.object({ provider: text(80), resultTitle: text(500), resultDescription: text(2000),
+    resultPublishedAt: date, firstDiscoveredAt: date,
+    discoveredByQueries: z.array(text(600)).max(100), classification: text(80),
+  }).optional()),
   discoveredEmails: z.array(z.object({
     email: z.string().trim().toLowerCase().email().max(254), type: z.enum(EMAIL_TYPES).default("general"),
     sourceUrl: url.default(""), confidence: z.number().min(0).max(100).default(0),
@@ -60,6 +75,7 @@ const similarity = (a, b) => {
   return x.size && y.size ? [...x].filter((v) => y.has(v)).length / new Set([...x, ...y]).size : 0;
 };
 function inferProgramType(row) {
+  if (row.programType === "graduate_program") return "graduate";
   if (row.programType && row.programType !== "unknown") return row.programType;
   const title = normalize(row.title);
   if (/تعاوني|\bcoop\b|co op/.test(title)) return "coop";
@@ -133,9 +149,10 @@ function getMissingFields(candidate) {
     .filter((key) => !candidate[key] || (Array.isArray(candidate[key]) && !candidate[key].length));
 }
 function isPublishable(candidate, now = new Date()) {
+  if (candidate.deadline && dateKey(candidate.deadline) < dateKey(now)) return false;
+  if (candidate.pageAvailability || candidate.applicationState) return readyForReview(candidate);
   return Boolean(candidate.title && candidate.company && candidate.applicationUrl && candidate.sourceUrl &&
-    Object.values(candidate.verification).length === 5 && Object.values(candidate.verification).every((v) => v === true) &&
-    (!candidate.deadline || dateKey(candidate.deadline) >= dateKey(now)));
+    ["urlWorks", "officialSource", "appearsOpen", "dateVerified", "companyVerified"].every((key) => candidate.verification?.[key] === true));
 }
 module.exports = { STATUSES, PROGRAM_TYPES, SOURCE_TYPES, EMAIL_TYPES, inputSchema, cleanOpportunityUrl,
   normalize, matchOpportunity, candidateToOpportunity, buildCandidateDiff, hasAdditionalData, getMissingFields, isPublishable };

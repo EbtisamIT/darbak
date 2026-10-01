@@ -13,6 +13,7 @@ const rows = [
   ["jarir", "مكتبة جرير", "retail", "https://www.jarir.com/job-opportunities", "generic", ["Jarir", "Jarir Bookstore"], ["https://www.jarir.com/job-opportunities", "https://jobapp.jarir.com/"]],
   ["pwc", "PwC", "consulting", "https://www.pwc.com/m1/en/careers/student-jobs.html", "generic", ["PwC Middle East", "PricewaterhouseCoopers"], ["https://www.pwc.com/m1/en/careers/", "https://careers.pwc.com/"]],
   ["alrajhi", "مصرف الراجحي", "banking", "https://careers.alrajhibank.com.sa/en/page/coop-program/", "generic", ["Al Rajhi Bank", "alrajhi bank"], ["https://careers.alrajhibank.com.sa/"]],
+  ["chalhoub", "Chalhoub Group", "retail", "https://careers.chalhoubgroup.com/jobs", "teamtailor", ["Chalhoub", "مجموعة شلهوب"], ["https://careers.chalhoubgroup.com/"]],
 ];
 
 const SOURCES = rows.map(([key, company, sector, sourceUrl, adapter, aliases, scopes]) => ({

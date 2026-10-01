@@ -1,7 +1,10 @@
 const mongoose = require("mongoose");
 
 const schema = new mongoose.Schema({
-  runType: { type: String, default: "discovery", enum: ["discovery", "known-url"] },
+  runType: { type: String, default: "discovery", enum: ["discovery", "known-url", "search-only", "full", "automation"] },
+  searchRotation: { type: Number, default: 0 },
+  searchReport: mongoose.Schema.Types.Mixed,
+  searchRunId: { type: mongoose.Schema.Types.ObjectId, ref: "OpportunityDiscoveryRun" },
   status: { type: String, enum: ["running", "completed", "partial", "failed", "interrupted"], required: true },
   // Unique partial index is the cross-process lease; never use only a JS boolean.
   lock: String, leaseUntil: Date, finishedAt: Date,

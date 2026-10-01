@@ -19,6 +19,7 @@ const CompanyApplicationCampaign = require('./models/CompanyApplicationCampaign'
 const Company = require('./models/Company');
 const Opportunity = require('./models/Opportunity');
 const { createOpportunityCandidateRouter } = require('./services/opportunityCandidateRoutes');
+const { createOpportunityImportRouter } = require('./services/opportunityDiscovery/importRoutes');
 const { rankOpportunitySearchResults } = require('./services/opportunitySearch');
 const { buildSubscriptionDashboard } = require("./services/subscriptionDashboard");
 const {
@@ -19580,6 +19581,8 @@ app.post(
     }
   }
 );
+
+app.use('/api/internal/opportunity-discovery/import', createOpportunityImportRouter());
 
 app.use('/api/admin/opportunity-candidates', createOpportunityCandidateRouter({
   requireAdmin,

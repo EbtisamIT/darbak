@@ -4,10 +4,13 @@ const { strategyFor } = require("./strategies");
 const { queriesFor, searchOpportunityUrls } = require("./search");
 const { failureCode } = require("./failures");
 const { emails, text, trainingType } = require("./extract");
+const { availabilityFromError } = require("../opportunityApplicationPolicy");
 
 const counterKeys = ["sourcesChecked", "searchQueriesRun", "urlsDiscovered", "officialUrlsAccepted", "urlsRejected",
   "pagesFetched", "fetchFailures", "trainingPagesDetected", "opportunitiesExtracted", "candidatesCreated",
-  "duplicates", "updates", "emailLeads", "closedOpportunities", "errors", "opportunitiesFound", "newCandidates"];
+  "duplicates", "updates", "emailLeads", "closedOpportunities", "errors", "opportunitiesFound", "newCandidates",
+  "searchResultsReceived", "uniqueUrlsDiscovered", "officialUrlsClassified", "discoveryLeads", "trainingSearchHints", "recentTrainingHints", "needsReview", "oldOpportunities",
+  "opportunitiesEnriched", "pagesExtracted", "completenessTotal", "averageCompleteness", "readyForReview", "needsDetails", "needsVerification", "officialSourcesResolved", "recoveryQueries"];
 const counters = () => Object.fromEntries(counterKeys.map((key) => [key, 0]));
 function observeReader(reader, counts, details) {
   const seen = new Set();
@@ -56,18 +59,28 @@ async function discoverUrls(source, reader, { searchProvider, counts = counters(
 }
 async function extractOpportunity(reference, source, reader, { browserRenderer } = {}) {
   const adapter = strategyFor(source);
-  let result = await adapter.extractJob(reference, source, reader);
+  let result;
+  try { result = await adapter.extractJob(reference, source, reader); }
+  catch (error) {
+    if (availabilityFromError(error) === "GONE" && /\/(?:jobs?|positions?)\//i.test(new URL(reference.url).pathname)) {
+      return { jobs: [], pageAvailability: "GONE", reason: "CLOSED", fetchMethod: source.atsIdentifiers?.apiUrl ? "ats_api" : "http" };
+    }
+    throw error;
+  }
   if (result.reason === "DYNAMIC_PAGE" && browserRenderer) {
     const rendered = await browserRenderer(reference.url, source, reader);
     result = await adapter.extractJob(reference, source, { ...reader, read: async (url) => url === reference.url ? rendered : reader.read(url) });
     result.fetchMethod = "browser";
   }
+  result.pageAvailability = result.page?.status == null || result.page.status === 200 ? "AVAILABLE" : "ERROR";
+  for (const job of result.jobs) job.pageAvailability = result.pageAvailability;
   return result;
 }
 async function verifyExtracted(job, source, reader, options) {
+  if (options?.enrichment) job = require("../opportunityEnrichment").enrichExtractedJob(job, source, options);
   const result = await strategyFor(source).verifyJob(job, source, reader, options);
   if (result.skip) return { ...result, code: failureCode(result.skip) };
-  return { ...result, missingFields: getMissingFields(result.data), code: result.data.verification.appearsOpen === false ? "CLOSED" : "VERIFIED_FOR_REVIEW" };
+  return { ...result, missingFields: result.data.missingFields || getMissingFields(result.data), code: result.data.verification.appearsOpen === false ? "CLOSED" : "VERIFIED_FOR_REVIEW" };
 }
 function emailLeads(page, source) {
   if (!page || !allowedUrl(page.url, source)) return [];
@@ -75,26 +88,33 @@ function emailLeads(page, source) {
   return emails(text(page.text), page.url).map((item) => ({ company: source.company, email: item.email,
     emailType: item.type, sourceUrl: item.sourceUrl, officialSource: true, confidence: item.confidence, status: "new" }));
 }
-async function testOpportunityUrl(source, url, { reader, browserRenderer, now = new Date(), logo = "" } = {}) {
+async function testOpportunityUrl(source, url, { reader, browserRenderer, now = new Date(), logo = "", enrichment = false } = {}) {
   const counts = counters(), details = [], refs = acceptUrls([{ url, via: "known_url" }], source, counts, details);
   if (!refs.length) return { stage: "discovery", code: "POLICY_DENIED", results: [], counters: counts, details };
   const observed = observeReader(reader, counts, details);
   try {
     const extracted = await extractOpportunity(refs[0], source, observed, { browserRenderer });
     counts.opportunitiesExtracted = extracted.jobs.length;
+    if (extracted.jobs.length) counts.pagesExtracted++;
     if (!extracted.jobs.length) {
       if (extracted.reason === "CLOSED") counts.closedOpportunities++;
       return { stage: "extraction", code: extracted.reason, fetchMethod: extracted.fetchMethod,
+        pageAvailability: extracted.pageAvailability, applicationState: extracted.reason === "CLOSED" ? "CLOSED" : "UNKNOWN",
         results: [], leads: emailLeads(extracted.page, source), counters: counts, details };
     }
     const results = [];
     for (const job of extracted.jobs.slice(0, 5)) {
       if (trainingType(job.title, job.description)) counts.trainingPagesDetected++;
-      const verified = await verifyExtracted(job, source, observed, { now, logo });
+      const verified = await verifyExtracted(job, source, observed, { now, logo, enrichment, fetchMethod: extracted.fetchMethod });
+      if (enrichment && verified.data) {
+        counts.opportunitiesEnriched++; counts.completenessTotal += verified.data.completenessScore;
+        counts.averageCompleteness = Math.round(counts.completenessTotal / counts.opportunitiesEnriched);
+      }
       if (verified.code === "CLOSED") counts.closedOpportunities++;
       results.push({ title: job.title, extracted: job, ...verified, fetchMethod: extracted.fetchMethod });
     }
     return { stage: "verification", code: "TEST_COMPLETED", results, counters: counts, details };
-  } catch (e) { counts.errors++; return { stage: "extraction", code: failureCode(e), results: [], counters: counts, details }; }
+  } catch (e) { counts.errors++; return { stage: "extraction", code: failureCode(e), pageAvailability: availabilityFromError(e),
+    applicationState: "UNKNOWN", results: [], counters: counts, details }; }
 }
 module.exports = { counters, observeReader, acceptUrls, discoverUrls, extractOpportunity, verifyExtracted, emailLeads, testOpportunityUrl };

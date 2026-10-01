@@ -35,11 +35,9 @@ const reader = { requests: 1, read: async (url) => ({ text: html(), url, status:
   assert.equal((await verifyJob({ ...jobs[0], companyName: "Other Company" }, source, reader, { now })).skip, "COMPANY_MISMATCH");
   assert.equal((await verifyJob({ ...jobs[0], countries: ["US"] }, source, reader, { now })).skip, "OUTSIDE_SAUDI_ARABIA");
   const closed = await verifyJob({ ...jobs[0], closed: true }, source, reader, { now });
-  assert.equal(closed.data.verification.appearsOpen, false);
-  assert.ok(closed.data.confidenceScore < candidate.confidenceScore);
+  assert.equal(closed.skip, "CLOSED");
   const broken = await verifyJob(jobs[0], source, { read: async () => { const e = new Error("HTTP_404"); e.code = "HTTP_404"; throw e; } }, { now });
-  assert.equal(broken.data.verification.urlWorks, false);
-  assert.notEqual(broken.data.verification.appearsOpen, true);
+  assert.equal(broken.skip, "OPEN_STATUS_UNCONFIRMED");
   assert.equal(freshness({ ...jobs[0], postedAt: "2024-01-01" }, now).skip, true);
   assert.equal(freshness({ ...jobs[0], title: "Internship 2024", postedAt: null }, now).skip, true);
   assert.equal(freshness({ ...jobs[0], description: "Applications for the 2024 intake are welcome.", postedAt: null }, now).skip, true);
@@ -47,7 +45,7 @@ const reader = { requests: 1, read: async (url) => ({ text: html(), url, status:
   const noDate = await verifyJob({ ...jobs[0], postedAt: null, deadline: null }, source, reader, { now });
   assert.equal(noDate.data.postedAt, null); assert.equal(noDate.data.verification.dateVerified, null);
   assert.deepEqual(emails("Contact coop@official.example or personal@official.example", posting.url).map((v) => v.email), ["coop@official.example"]);
-  assert.equal(confidence(closed.data, true), closed.data.confidenceScore);
+  assert.equal(confidence(candidate, true), candidate.confidenceScore);
   assert.equal(allowedUrl("https://official.example.evil.test/careers/", source), false);
   assert.equal(allowedUrl("https://official.example/private", source), false);
   assert.equal(allowedUrl("http://official.example/careers/", source), false);

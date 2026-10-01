@@ -4,6 +4,7 @@ const schema = new mongoose.Schema({
   email: { type: String, required: true, lowercase: true, trim: true }, emailType: String,
   city: String, majors: [String], sourceUrl: { type: String, required: true },
   officialSource: Boolean, confidence: Number, discoveredAt: { type: Date, default: Date.now },
+  importedVia: String, importSource: String, importRunId: String, importedAt: Date,
   status: { type: String, enum: ["new", "existing", "approved", "rejected"], default: "new" },
 }, { timestamps: true });
 schema.index({ companyNormalized: 1, email: 1 }, { unique: true });

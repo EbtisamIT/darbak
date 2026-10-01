@@ -1,7 +1,10 @@
 export const statusLabels = { new: "جديدة", ready: "جاهزة", needs_review: "تحتاج مراجعة", duplicate: "مكررة", update_existing: "تحديث مقترح", rejected: "مرفوضة", published: "منشورة", expired: "منتهية" };
-export const programLabels = { coop: "تدريب تعاوني", internship: "تدريب", summer: "تدريب صيفي", graduate: "برنامج خريجين", unknown: "غير محدد" };
+export const reviewLabels = { READY_FOR_REVIEW: "جاهزة للمراجعة", NEEDS_DETAILS: "تحتاج تفاصيل", NEEDS_VERIFICATION: "تحتاج تحقق", UPDATE_EXISTING: "تحديث مقترح", DUPLICATE: "مكررة", CLOSED: "مغلقة" };
+export const programLabels = { coop: "تدريب تعاوني", internship: "تدريب", summer: "تدريب صيفي", graduate: "برنامج خريجين", graduate_program: "برنامج خريجين", student_program: "برنامج طلاب", unknown: "غير محدد" };
 export const sourceLabels = { company: "الشركة", ats: "نظام توظيف", linkedin: "LinkedIn", university: "جامعة", x: "X", telegram: "Telegram", job_board: "موقع وظائف", other: "أخرى" };
 export const verificationLabels = { urlWorks: "الرابط يعمل", officialSource: "مصدر رسمي", appearsOpen: "التقديم مفتوح", dateVerified: "التاريخ متحقق منه", companyVerified: "الجهة متحقق منها" };
+export const pageAvailabilityLabels = { AVAILABLE: "الصفحة متاحة", GONE: "الإعلان غير متاح", BLOCKED: "القراءة محجوبة", ERROR: "تعذر تحميل الصفحة" };
+export const applicationStateLabels = { OPEN: "التقديم مفتوح", CLOSED: "التقديم مغلق", UNKNOWN_BUT_ACTIONABLE: "زر التقديم متاح للمراجعة", UNKNOWN: "حالة التقديم غير مؤكدة" };
 export const fieldLabels = { title: "العنوان", company: "الجهة", organizationName: "الجهة", companyLogo: "رابط الشعار", logoUrl: "الشعار", cities: "المدن", city: "المدينة", majors: "التخصصات", specialties: "التخصصات", description: "الوصف", responsibilities: "المهام", requirements: "الشروط", applicationUrl: "رابط التقديم", sourceUrl: "رابط المصدر", deadline: "آخر موعد", trainingStartDate: "بداية التدريب", postedAt: "تاريخ الإعلان", note: "التفاصيل", trainingMode: "نمط التدريب", rawContent: "النص الأصلي", aiNotes: "ملاحظات المعالجة" };
 export const formatValue = (value) => Array.isArray(value) ? value.join("، ") : value == null || value === "" ? "غير مذكور" : String(value);
 export const dateValue = (value) => value ? new Date(value).toISOString().slice(0, 10) : "";

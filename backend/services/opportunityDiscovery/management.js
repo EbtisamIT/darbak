@@ -37,10 +37,12 @@ async function approveSource(key, confirmation) {
   if (!SOURCES.some((s) => s.key === key)) validateSource(sourceExport(row));
   return Source.findOneAndUpdate({ key }, { $set: { active: true, reviewStatus: "approved", reviewedAt: new Date() } }, { new: true });
 }
-async function saveEmailLead(lead) {
-  const known = await existingEmails([{ discoveredEmails: [{ email: lead.email }] }]);
-  const result = await Lead.updateOne({ companyNormalized: normalize(lead.company), email: lead.email.toLowerCase() },
-    { $setOnInsert: { ...lead, companyNormalized: normalize(lead.company), status: known.has(lead.email.toLowerCase()) ? "existing" : "new" } }, { upsert: true });
+async function saveEmailLead(lead, { session = null, dryRun = false } = {}) {
+  const filter = { companyNormalized: normalize(lead.company), email: lead.email.trim().toLowerCase() };
+  if (dryRun) return !(await Lead.exists(filter));
+  const known = await existingEmails([{ discoveredEmails: [{ email: filter.email }] }], { session });
+  const result = await Lead.updateOne(filter,
+    { $setOnInsert: { ...lead, ...filter, status: known.has(filter.email) ? "existing" : "new" } }, { upsert: true, session });
   return Boolean(result.upsertedCount);
 }
 async function testKnownUrl({ sourceKey, url, sendToInbox = false }) {
@@ -50,6 +52,7 @@ async function testKnownUrl({ sourceKey, url, sendToInbox = false }) {
   const companies = await Company.find({ logoUrl: { $nin: ["", null] } }).select("name nameAr nameEn aliases contentAliases logoUrl").lean();
   const matches = companies.filter((company) => companyAliasesMatchName(company, source.company));
   const result = await testOpportunityUrl(source, url, { reader: createReader(source),
+    enrichment: true,
     logo: matches.length === 1 ? matches[0].logoUrl : "",
     browserRenderer: process.env.DISCOVERY_BROWSER_EXECUTABLE ? renderPage : undefined });
   if (sendToInbox) {
@@ -57,7 +60,8 @@ async function testKnownUrl({ sourceKey, url, sendToInbox = false }) {
     if (!valid.length) fail(400, "لا يوجد إعلان مؤهل لإرساله للصندوق. راجعي نتيجة الاختبار.");
     result.candidates = [];
     for (const row of valid) {
-      const candidate = await createOpportunityCandidate({ ...row.data, aiNotes: `${row.data.aiNotes} fetchMethod=${row.fetchMethod}` });
+      const candidate = await createOpportunityCandidate({ ...row.data, aiNotes: `${row.data.aiNotes} fetchMethod=${row.fetchMethod}` },
+        { audit: { importedVia: "official_discovery" } });
       result.candidates.push({ id: candidate._id, status: candidate.status });
     }
   }

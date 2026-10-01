@@ -40,7 +40,7 @@ const htmlAdapter = {
       const detail = $(".jobdescription,[itemprop=description]").first();
       if (/\/job(?:-invite)?\//.test(new URL(page.url).pathname) && detail.length) {
         jobs = [{ ...jobFromHtml(page.text, page.url, source), description: text(detail.html()), rawContent: text(detail.html()),
-          ...sections(detail.html()), actualPosting: true }]; method = "http";
+          ...sections(detail.html(), true), actualPosting: true }]; method = "http";
       } else if (source.metadata.selectors?.detail && $(source.metadata.selectors.detail).length) {
         jobs = [{ ...jobFromHtml(page.text, page.url, source), actualPosting: true }]; method = "http";
       }
@@ -77,6 +77,15 @@ function apiAdapter(kind) {
       return { urls, pages: [page], warnings: (data.totalFound > rows.length || rows.length >= 100) ? ["ATS_PAGE_LIMIT_REACHED"] : [] };
     },
     async extractJob(reference, source, reader) {
+      // An approved company-owned mirror should use its own structured HTML,
+      // rather than deriving a different ATS API request from its numeric URL.
+      if (!reference.apiUrl) {
+        const referenceHost = new URL(reference.url).hostname;
+        const providerHost = { greenhouse: /(?:^|\.)greenhouse\.io$/, lever: /(?:^|\.)lever\.co$/, smartrecruiters: /(?:^|\.)smartrecruiters\.com$/ }[kind];
+        if (!providerHost.test(referenceHost) && new URL(reference.url).origin !== new URL(apiUrl(source)).origin) {
+          return htmlAdapter.extractJob(reference, source, reader);
+        }
+      }
       reference = knownReference(reference, source, kind);
       // API identifiers are derived from tenant listings, never from untrusted result metadata.
       if (!reference.apiUrl) return htmlAdapter.extractJob(reference, source, reader);
@@ -104,11 +113,19 @@ function apiAdapter(kind) {
           requirements: text(parts.qualifications?.text) ? [text(parts.qualifications.text)] : [],
           applicationUrl: linkedUrl(row.applyUrl, page.url, source), sourceUrl: linkedUrl(row.postingUrl || reference.url, page.url, source), postedAt: isoDate(row.releasedDate) };
       }
-      return { jobs: [{ ...sections(html), description: text(html), rawContent: text(html), ...job, actualPosting: true, applyVisible: true }], page, fetchMethod: "ats_api", reason: "" };
+      const extractionEvidence = { ...sections(html, true).extractionEvidence };
+      for (const key of ["title", "cities", "postedAt", "deadline", "applicationUrl", "requirements"]) {
+        if (job[key]?.length) extractionEvidence[key] = { sourceUrl: page.url, method: "ats_api", rawText: String(job[key]).slice(0, 6000) };
+      }
+      for (const entry of Object.values(extractionEvidence)) entry.sourceUrl ||= page.url;
+      return { jobs: [{ ...sections(html), description: text(html), rawContent: text(html), ...job, extractionEvidence, actualPosting: true, applyVisible: true }], page, fetchMethod: "ats_api", reason: "" };
     }, verifyJob,
   };
 }
-const strategies = { generic: htmlAdapter, successfactors: htmlAdapter, workday: htmlAdapter, oracle: htmlAdapter,
+// Teamtailor's public company pages expose JSON-LD and in-page Apply buttons.
+// Both are parsed by the shared HTML implementation without a private API.
+const teamtailorAdapter = { ...htmlAdapter };
+const strategies = { generic: htmlAdapter, teamtailor: teamtailorAdapter, successfactors: htmlAdapter, workday: htmlAdapter, oracle: htmlAdapter,
   greenhouse: apiAdapter("greenhouse"), lever: apiAdapter("lever"), smartrecruiters: apiAdapter("smartrecruiters") };
 function strategyFor(source) { const adapter = strategies[source.atsProvider || source.metadata.adapter]; if (!adapter) throw new Error("PARSER_FAILED"); return adapter; }
-module.exports = { strategies, strategyFor, htmlLinks, htmlAdapter };
+module.exports = { strategies, strategyFor, htmlLinks, htmlAdapter, teamtailorAdapter };

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { FiDownload, FiPlay, FiUpload } from "react-icons/fi";
+import { pageAvailabilityLabels, applicationStateLabels } from "./candidateLabels";
 
 const fields = { title: "العنوان", company: "الجهة", programType: "نوع البرنامج", majors: "التخصصات", cities: "المدن",
   responsibilities: "المهام", requirements: "الشروط", postedAt: "تاريخ النشر", deadline: "آخر موعد", trainingStartDate: "بداية التدريب",
@@ -42,9 +43,12 @@ export default function DiscoveryTools({ endpoint, password, sources, onRefresh 
           {row.data && <dl>{Object.entries(fields).map(([key, label]) => <React.Fragment key={key}><dt>{label}</dt>
             <dd>{Array.isArray(row.data[key]) ? row.data[key].join(" · ") || "غير مذكور" : row.data[key] ?? "غير مذكور"}</dd></React.Fragment>)}
             <dt>التقديم مفتوح</dt><dd>{row.data.verification.appearsOpen === null ? "غير مؤكد" : row.data.verification.appearsOpen ? "نعم" : "لا"}</dd>
+            {row.data.pageAvailability && <><dt>حالة الصفحة</dt><dd>{pageAvailabilityLabels[row.data.pageAvailability]}</dd></>}
+            {row.data.applicationState && <><dt>حالة التقديم</dt><dd>{applicationStateLabels[row.data.applicationState]}</dd></>}
             <dt>البريد</dt><dd>{row.data.discoveredEmails.map((v) => v.email).join(" · ") || "غير مذكور"}</dd>
             <dt>الحقول الناقصة</dt><dd>{row.missingFields.join(" · ") || "لا يوجد"}</dd>
           </dl>}
+          {row.data?.verificationWarnings?.map((warning) => <p className="oi-notes" key={warning}>{warning}</p>)}
         </article>)}
         <details><summary>تفاصيل الاختبار</summary><pre dir="ltr">{JSON.stringify(result, null, 2)}</pre></details>
       </div>}

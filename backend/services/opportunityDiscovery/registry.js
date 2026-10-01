@@ -2,7 +2,7 @@ const { z } = require("zod");
 const { normalize, cleanOpportunityUrl } = require("../opportunityCandidateData");
 const { allowedUrl, publicAddress } = require("./http");
 const net = require("net");
-const providers = ["generic", "greenhouse", "lever", "smartrecruiters", "workday", "oracle", "successfactors"];
+const providers = ["generic", "teamtailor", "greenhouse", "lever", "smartrecruiters", "workday", "oracle", "successfactors"];
 const domain = z.string().trim().toLowerCase().max(253).refine((v) =>
   /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(v) && v.includes(".") && !v.endsWith(".local") &&
   !v.endsWith(".internal") && !v.includes("..") && (!net.isIP(v) || publicAddress(v)), "Invalid domain");
