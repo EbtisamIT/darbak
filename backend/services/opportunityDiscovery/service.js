@@ -10,6 +10,7 @@ const { configuredSearchProvider } = require("./search");
 const { renderPage } = require("./browser");
 const { executeSearch, runFromSearch, saveDiscoveryLead } = require("./searchWorkflow");
 const { runOpportunityAutomation } = require("./automation");
+const { admitRun, schedulingConfiguration, runMetrics } = require("./runControl");
 
 async function initializeSources() {
   await Source.init();
@@ -21,6 +22,10 @@ async function expireInterruptedRuns() {
   });
 }
 async function execute(run) {
+  const heartbeat = setInterval(() => Run.updateOne({ _id: run._id, lock: "discovery" },
+    { $set: { leaseUntil: new Date(Date.now() + 15 * 60000) } }).catch(() =>
+    console.error("Opportunity discovery lease renewal failed.")), 30000);
+  heartbeat.unref();
   try {
     await initializeSources();
     // Oldest-checked first rotates bounded batches fairly as the registry grows.
@@ -30,7 +35,10 @@ async function execute(run) {
     const companies = await Company.find({ logoUrl: { $nin: ["", null] } }).select("name nameAr nameEn aliases contentAliases logoUrl").lean();
     const options = {
       enrichment: true,
-      ingest: (data) => createOpportunityCandidate(data, { audit: { importedVia: "official_discovery" } }),
+      ingest: async (data) => {
+        if (!await Run.exists({ _id: run._id, lock: "discovery", leaseUntil: { $gt: new Date() } })) throw new Error("RUN_LEASE_LOST");
+        return createOpportunityCandidate(data, { audit: { importedVia: "official_discovery" } });
+      },
       saveLead: saveEmailLead,
       saveSearchLead: saveDiscoveryLead,
       browserRenderer: process.env.DISCOVERY_BROWSER_EXECUTABLE ? renderPage : undefined,
@@ -62,6 +70,9 @@ async function execute(run) {
       sources: result.sources, ...(result.searchReport ? { searchReport: result.searchReport } : parent ? { searchReport: parent.searchReport } : {}), finishedAt: new Date() }, $unset: { lock: 1 } });
   } catch {
     await Run.updateOne({ _id: run._id }, { $set: { status: "failed", error: "DISCOVERY_RUN_FAILED", finishedAt: new Date() }, $unset: { lock: 1 } });
+  } finally {
+    clearInterval(heartbeat);
+    await Run.updateOne({ _id: run._id }, { $set: { durationMs: Date.now() - new Date(run.startedAt || run.createdAt).getTime() } });
   }
 }
 async function startDiscovery({ mode = "search-only", searchRunId } = {}) {
@@ -74,14 +85,14 @@ async function startDiscovery({ mode = "search-only", searchRunId } = {}) {
     if (!parent?.searchReport?.results?.some((r) => r.accepted)) fail(422, "لا يوجد بحث حديث بروابط رسمية مؤهلة للاستخراج.");
   }
   await Run.init(); await expireInterruptedRuns();
+  if (await Run.exists({ lock: "discovery" })) fail(409, "SKIP_ALREADY_RUNNING: يوجد تشغيل قيد التنفيذ.");
   const recent = await Run.findOne({ runType: { $ne: "known-url" }, createdAt: { $gt: new Date(Date.now() - 60000) } }).select("_id").lean();
   if (recent) fail(429, "انتظري دقيقة بين تشغيلات الاكتشاف.");
   let run;
-  const previous = await Run.findOne({ runType: "search-only" }).sort({ createdAt: -1 }).select("searchRotation").lean();
-  try { run = await Run.create({ runType: mode, searchRunId: mode === "full" ? searchRunId : undefined,
+  const previous = await Run.findOne({ runType: { $in: ["search-only", "automation"] } }).sort({ createdAt: -1 }).select("searchRotation").lean();
+  run = await admitRun({ runType: mode, searchRunId: mode === "full" ? searchRunId : undefined,
     searchRotation: previous ? previous.searchRotation + 1 : 0,
-    status: "running", lock: "discovery", leaseUntil: new Date(Date.now() + 15 * 60000), summary: emptySummary(), sources: [] }); }
-  catch (e) { if (e.code === 11000) fail(409, "يوجد اكتشاف قيد التشغيل بالفعل."); throw e; }
+    status: "running", lock: "discovery", leaseUntil: new Date(Date.now() + 15 * 60000), summary: emptySummary(), sources: [] });
   setImmediate(() => execute(run).catch(() => console.error("Opportunity discovery persistence failed; lease will expire.")));
   return run;
 }
@@ -89,7 +100,9 @@ async function discoveryStatus() {
   await expireInterruptedRuns();
   const run = await Run.findOne({ runType: { $ne: "known-url" } }).sort({ createdAt: -1 }).select("-lock -__v").lean();
   const lastSearch = await Run.findOne({ runType: "search-only" }).sort({ createdAt: -1 }).select("_id status summary createdAt").lean();
-  return { run, lastSearch, sources: await registrySources(), searchConfigured: Boolean(process.env.DISCOVERY_SEARCH_PROVIDER_MODULE || process.env.BRAVE_SEARCH_API_KEY?.trim()),
+  const history = await Run.find({ runType: { $ne: "known-url" } }).sort({ createdAt: -1 }).limit(10)
+    .select("runType status startedAt createdAt finishedAt durationMs summary error").lean();
+  return { run, lastSearch, recentRuns: history.map(runMetrics), scheduling: schedulingConfiguration(), sources: await registrySources(), searchConfigured: Boolean(process.env.DISCOVERY_SEARCH_PROVIDER_MODULE || process.env.BRAVE_SEARCH_API_KEY?.trim()),
     readiness: { databaseConnected: require("mongoose").connection.readyState === 1,
       importConfigured: (process.env.DARBAK_DISCOVERY_IMPORT_TOKEN || "").length >= 32,
       searchBudget: require("./queryPack").searchSettings(), deploymentCommit: process.env.RENDER_GIT_COMMIT || "local" },

@@ -4,6 +4,14 @@ import "@testing-library/jest-dom";
 import CandidateCard, { CandidateContent } from "./CandidateCard";
 import { candidateOrigin } from "./candidateOrigin";
 
+test("generic source content warning is explicit and absent for clean content", () => {
+  const view = render(<CandidateContent item={{ contentQualityWarning: true, responsibilities: [] }} />);
+  expect(screen.getByText("بعض محتوى الإعلان عام ويحتاج مراجعة")).toBeInTheDocument();
+  expect(screen.getByText("المهام غير مذكورة")).toBeInTheDocument();
+  view.rerender(<CandidateContent item={{ contentQualityWarning: false }} />);
+  expect(screen.queryByText("بعض محتوى الإعلان عام ويحتاج مراجعة")).not.toBeInTheDocument();
+});
+
 test.each([
   [{ importedVia: "agent", searchDiscovery: { provider: "brave" } }, "Agent"],
   [{ searchDiscovery: { provider: "brave" } }, "Brave"],

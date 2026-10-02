@@ -47,6 +47,7 @@ const inputSchema = z.object({
   duration: text(240).optional(), verificationNotes: text(5000).optional(),
   pageAvailability: z.enum(PAGE_AVAILABILITY).optional(), applicationState: z.enum(APPLICATION_STATES).optional(),
   realJobPosting: z.boolean().optional(), verificationWarnings: z.array(text(500)).max(10).optional(),
+  contentQualityWarning: z.boolean().optional(),
   enrichmentVersion: z.literal(1).optional(), enrichedAt: date.optional(),
   majorScope: z.enum(["specific", "all", "broad", "unknown"]).optional(), rawMajors: list.optional(), rawCities: list.optional(),
   extractionEvidence: z.record(z.string().max(80), z.object({

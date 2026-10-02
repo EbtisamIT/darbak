@@ -43,10 +43,10 @@ const html = (job) => `<script type="application/ld+json">${JSON.stringify(job)}
   const missing = await runSearchDiscovery([source], {});
   assert.equal(missing.error, "SEARCH_PROVIDER_NOT_CONFIGURED"); assert.equal(missing.summary.searchQueriesRun, 0);
   const settings = searchSettings({}); assert.deepEqual(settings, { maxQueries: 20, resultsPerQuery: 10, concurrency: 3 });
-  assert.equal(searchSettings({ DISCOVERY_MAX_SEARCH_QUERIES_PER_RUN: "99999" }).maxQueries, 50);
+  assert.equal(searchSettings({ DISCOVERY_MAX_SEARCH_QUERIES_PER_RUN: "99999" }).maxQueries, 20);
   const many = Array.from({ length: 100 }, (_, i) => ({ ...source, key: `s${i}`, officialDomains: [`s${i}.example`] }));
-  assert.equal(planQueries(many).length, 25); assert.notDeepEqual(planQueries(many, { rotation: 0 }), planQueries(many, { rotation: 1 }));
-  assert.equal(new Set(planQueries(many).map((p) => p.query)).size, 25);
+  assert.equal(planQueries(many).length, 20); assert.notDeepEqual(planQueries(many, { rotation: 0 }), planQueries(many, { rotation: 1 }));
+  assert.equal(new Set(planQueries(many).map((p) => p.query)).size, 20);
   assert.ok(planQueries(many).every((p) => p.freshness === "pm"));
   assert.equal(classifyUrl(direct, [source]).classification, "official_company");
   assert.equal(classifyUrl("https://official.example.evil.test/careers/job/42", [source]).classification, "unknown");

@@ -64,7 +64,7 @@ async function verifyJob(job, source, reader, { now = new Date(), logo = "", enr
     discoveredEmails: emails(job.rawContent || job.description, cleanOpportunityUrl(job.sourceUrl)),
   };
   if (enrichment) {
-    for (const key of ["enrichmentVersion", "enrichedAt", "majorScope", "rawMajors", "rawCities", "extractionEvidence", "duration", "companyNormalized"]) data[key] = job[key];
+    for (const key of ["enrichmentVersion", "enrichedAt", "majorScope", "rawMajors", "rawCities", "extractionEvidence", "duration", "companyNormalized", "contentQualityWarning"]) data[key] = job[key];
     Object.assign(data, require("../opportunityEnrichmentAssessment").assessEnrichment(data, now));
     if (data.discoveredEmails.length) data.extractionEvidence.discoveredEmails = { sourceUrl: data.sourceUrl,
       method: "official_page_email", rawText: data.discoveredEmails.map((entry) => entry.email).join("\n") };

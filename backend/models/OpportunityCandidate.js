@@ -22,6 +22,7 @@ const candidateSchema = new mongoose.Schema({
   applicationState: { type: String, enum: require("../services/opportunityApplicationPolicy").APPLICATION_STATES },
   realJobPosting: Boolean, verificationWarnings: [String],
   enrichmentVersion: Number, enrichedAt: Date, completenessScore: Number,
+  contentQualityWarning: { type: Boolean, default: false },
   reviewStatus: { type: String, enum: require("../services/opportunityEnrichmentAssessment").REVIEW_STATUSES },
   majorScope: { type: String, enum: ["specific", "all", "broad", "unknown"] }, rawMajors: [String], rawCities: [String],
   extractionEvidence: { type: mongoose.Schema.Types.Mixed, select: false }, manualFields: [String],

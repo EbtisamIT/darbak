@@ -2,6 +2,7 @@ const { cities: cityDictionary, majorGroups } = require("../../src/data/training
 const { normalize, cleanOpportunityUrl } = require("./opportunityCandidateData");
 const { text, trainingType, isoDate } = require("./opportunityDiscovery/extract");
 const { assessEnrichment } = require("./opportunityEnrichmentAssessment");
+const { cleanOpportunityContent } = require("./opportunityContentQuality");
 
 const majorAliases = {
   "علوم الحاسب": ["Computer Science", "CS", "علوم حاسب"],
@@ -119,11 +120,13 @@ function enrichExtractedJob(job, source, { logo = "", fetchMethod = "http", now 
   enriched.cities = normalizeCities(enriched.rawCities);
   const detected = trainingType(job.title, job.description || rawContent);
   enriched.programType = detected === "graduate" ? "graduate_program" : detected && /student program|university program|برنامج (?:طلاب|جامعي)/i.test(job.title) ? "student_program" : detected || "unknown";
-  enriched.responsibilities = unique((job.responsibilities || []).map((v) => text(v).slice(0, 2000))).slice(0, 80);
-  enriched.requirements = unique((job.requirements || []).map((v) => text(v).slice(0, 2000))).slice(0, 80);
-  const lines = String(job.description || rawContent).split("\n").map((line) => line.trim()).filter((line) => line.length > 35);
-  const relevant = lines.filter((line) => /intern|co[ -]?op|student|trainee|تدريب|متدرب|طلاب/i.test(line));
-  enriched.cardDescription = ((relevant.length ? relevant : lines).slice(0, 2).join(" ") || text(job.description || rawContent)).slice(0, 450);
+  const quality = cleanOpportunityContent(job);
+  enriched.responsibilities = quality.responsibilities.map((value) => value.slice(0, 2000)).slice(0, 80);
+  enriched.requirements = quality.requirements.map((value) => value.slice(0, 2000)).slice(0, 80);
+  enriched.cardDescription = quality.description;
+  enriched.contentQualityWarning = quality.contentQualityWarning;
+  if (quality.removed.length) enriched.extractionEvidence.contentQuality = { sourceUrl, method: "boilerplate_filter",
+    rawText: quality.removed.map((item) => `${item.field}: ${item.text}`).join("\n").slice(0, 6000) };
   for (const key of ["title", "company", "programType", "cities", "majors", "responsibilities", "requirements", "postedAt", "deadline", "trainingStartDate", "duration", "applicationUrl", "companyLogo", "description"]) {
     const value = key === "majors" ? rawMajors : key === "description" ? enriched.cardDescription : enriched[key];
     if (!value || (Array.isArray(value) && !value.length)) continue;

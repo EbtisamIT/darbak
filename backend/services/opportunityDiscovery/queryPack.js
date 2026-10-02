@@ -7,7 +7,7 @@ const QUERY_PACK = {
 };
 const int = (value, fallback, max) => Number.isInteger(Number(value)) && Number(value) > 0 ? Math.min(Number(value), max) : fallback;
 function searchSettings(env = process.env) {
-  return { maxQueries: int(env.DISCOVERY_MAX_SEARCH_QUERIES_PER_RUN, 20, 50),
+  return { maxQueries: int(env.DISCOVERY_MAX_SEARCH_QUERIES_PER_RUN || env.MAX_SEARCH_QUERIES_PER_RUN, 20, 20),
     resultsPerQuery: int(env.DISCOVERY_RESULTS_PER_QUERY, 10, 20),
     concurrency: int(env.DISCOVERY_SEARCH_CONCURRENCY, 3, 5) };
 }
@@ -16,7 +16,8 @@ function companyQueries(source) {
     [`site:${domain} internship Saudi Arabia`, `site:${domain} "cooperative training"`, `site:${domain} coop`]),
   ...(source.careerDomains || []).map((domain) => `site:${domain} intern Saudi Arabia`), ...(source.searchQueries || [])])];
 }
-function planQueries(sources, { maxQueries = 25, rotation = 0 } = {}) {
+function planQueries(sources, { maxQueries = 20, rotation = 0 } = {}) {
+  maxQueries = Math.min(maxQueries, 20);
   sources = require("./priority").prioritizeSources(sources, { rotation });
   const general = [...QUERY_PACK.coop, ...QUERY_PACK.internship], plan = [], seen = new Set();
   const add = (query, sourceKey = null) => { if (!seen.has(query) && plan.length < maxQueries) { seen.add(query); plan.push({ query, sourceKey, freshness: "pm" }); } };

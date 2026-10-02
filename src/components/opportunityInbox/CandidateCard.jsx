@@ -25,6 +25,7 @@ export function CandidateContent({ item }) {
       {item.applicationState && <span>{applicationStateLabels[item.applicationState]}</span>}
     </div>}
     {item.verificationWarnings?.map((warning) => <p className="oi-notes" key={warning}>{warning}</p>)}
+    {item.contentQualityWarning && <p className="oi-notes" role="note">بعض محتوى الإعلان عام ويحتاج مراجعة</p>}
     {item.missingFields?.length > 0 && <p>الناقص: {item.missingFields.map((f) => f === "duration" ? "مدة التدريب" : f === "programType" ? "نوع البرنامج" : fieldLabels[f] || f).join("، ")}</p>}
     {item.discoveredEmails?.map((entry, i) => <div className="oi-email" key={i}><b dir="ltr">{entry.email}</b><span>{entry.type} · الثقة {entry.confidence}% {entry.existing ? "· موجود مسبقًا (Existing)" : ""}</span>{entry.sourceUrl && <a href={entry.sourceUrl} target="_blank" rel="noreferrer">مصدر البريد <FiExternalLink /></a>}</div>)}
     {item.aiNotes && <p className="oi-notes">ملاحظات: {item.aiNotes}</p>}
