@@ -23,6 +23,12 @@ import { getVisitorId, trackEvent, trackEventOncePerSession } from "../utils/ana
 import useResumeFactsForm from "../features/resume/useResumeFactsForm";
 import { getResumeFactsFormState } from "../features/resume/resumeFactsForm";
 import ResumeAgentFlow, { getAgentSessionStorageKey } from "../features/resume/ResumeAgentFlow";
+import {
+  clearResumeBuildOperation,
+  createResumeBuildOperation,
+  readResumeBuildOperation,
+  resolveDraftAgentConfig,
+} from "../features/resume/resumeBuildOperation";
 import ResumeBuilder, { SettingsEditor } from "../features/resume/ResumeBuilder";
 import EnglishTranslationReview, {
   applyEnglishReviewGroup,
@@ -223,6 +229,7 @@ const MyResumePage = () => {
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [quickEditDraft, setQuickEditDraft] = useState(null);
   const [quickEditSaving, setQuickEditSaving] = useState(false);
+  const [buildingDraft, setBuildingDraft] = useState(false);
   const [accessEpoch, setAccessEpoch] = useState(0);
   const [resumeStorageScope, setResumeStorageScope] = useState(() =>
     getResumeStorageScope(getStoredAccessIdentity())
@@ -233,6 +240,8 @@ const MyResumePage = () => {
   const lastSavedSnapshotRef = useRef("");
   const lastRouteRef = useRef("");
   const masterHydrationRef = useRef(false);
+  const buildIntentRef = useRef(false);
+  const handleBuildSettled = useCallback(() => { buildIntentRef.current = false; }, []);
 
   useEffect(() => {
     // Previous releases stored the whole master resume under one global key.
@@ -864,38 +873,58 @@ const MyResumePage = () => {
   };
 
   const finishJourneyBasics = async (resumeToSave) => {
-    const saved = await saveJourneyDraft();
-    if (!saved) return;
-    setPersistedJourneyProgress({
-      currentStep: "draft",
-      completedSteps: ["data", "missing"],
-      source: journeySource,
-    });
-    startAgent({
-      purpose: "create_resume",
-      source: "professional_profile",
-      factsVersion: getSnapshot(resumeToSave),
-      forceFresh: true,
-    });
+    if (buildIntentRef.current) return;
+    buildIntentRef.current = true;
+    setBuildingDraft(true);
+    let launched = false;
+    try {
+      const saved = await saveJourneyDraft();
+      if (!saved) return;
+      setPersistedJourneyProgress({
+        currentStep: "draft",
+        completedSteps: ["data", "missing"],
+        source: journeySource,
+      });
+      startAgent({
+        purpose: "create_resume",
+        source: "professional_profile",
+        factsVersion: getSnapshot(resumeToSave),
+        forceFresh: true,
+      });
+      launched = true;
+    } finally {
+      if (!launched) buildIntentRef.current = false;
+      setBuildingDraft(false);
+    }
   };
 
   const rebuildResumeFromFacts = async () => {
-    const saved = await saveJourneyDraft();
-    if (!saved) return;
-    const { data } = await axios.get(`${API_BASE_URL}/api/resume/me`, {
-      headers: getAccessHeaders({ itemKey: "resume:me" }),
-    });
-    const freshResume = normalizeResume(data.resume || resume);
-    setResume(freshResume);
-    setLastServerResume(freshResume);
-    setFactsFreshness(data.factsFreshness || { changed: true, changes: [] });
-    lastSavedSnapshotRef.current = getSnapshot(freshResume);
-    startAgent({
-      purpose: "create_resume",
-      source: "professional_profile",
-      factsVersion: data.factsFreshness?.currentHash || "fresh",
-      forceFresh: true,
-    });
+    if (buildIntentRef.current) return;
+    buildIntentRef.current = true;
+    setBuildingDraft(true);
+    let launched = false;
+    try {
+      const saved = await saveJourneyDraft();
+      if (!saved) return;
+      const { data } = await axios.get(`${API_BASE_URL}/api/resume/me`, {
+        headers: getAccessHeaders({ itemKey: "resume:me" }),
+      });
+      const freshResume = normalizeResume(data.resume || resume);
+      setResume(freshResume);
+      setLastServerResume(freshResume);
+      setFactsFreshness(data.factsFreshness || { changed: true, changes: [] });
+      lastSavedSnapshotRef.current = getSnapshot(freshResume);
+      startAgent({
+        purpose: "create_resume",
+        source: "professional_profile",
+        factsVersion: data.factsFreshness?.currentHash || "fresh",
+        forceFresh: true,
+      });
+      launched = true;
+    } finally {
+      if (!launched) buildIntentRef.current = false;
+      setBuildingDraft(false);
+    }
   };
 
   const returnToJourneyData = async () => {
@@ -968,12 +997,16 @@ const MyResumePage = () => {
       });
       window.sessionStorage.removeItem(staleSessionKey);
     }
+    const buildOperation = purpose === "create_resume"
+      ? createResumeBuildOperation(window.sessionStorage, resumeStorageScope, factsVersion)
+      : null;
     setAgentConfig({
       purpose,
       source,
       language,
       opportunityId: purpose === "tailor_resume" ? routeOpportunityId : "",
       factsVersion,
+      buildRequestId: buildOperation?.id || "",
     });
     setResumeMode("agent");
     setJourneyStep("draft");
@@ -1094,12 +1127,8 @@ const MyResumePage = () => {
         setJourneyCompletedSteps(savedJourney.completedSteps);
       }
       if (step === "draft") {
-        setAgentConfig({
-          purpose: "create_resume",
-          source: "professional_profile",
-          language: "ar",
-          opportunityId: "",
-        });
+        const activeBuild = readResumeBuildOperation(window.sessionStorage, resumeStorageScope);
+        setAgentConfig((current) => resolveDraftAgentConfig(current, activeBuild));
         setResumeMode("agent");
         setJourneyStep("draft");
       } else {
@@ -1143,6 +1172,7 @@ const MyResumePage = () => {
   };
 
   const handleAgentApproved = (data = {}) => {
+    buildIntentRef.current = false;
     if (data.alreadyApproved) {
       setMessage(data.message || "هذه المسودة معتمدة بالفعل.");
       loadTailoredVersions();
@@ -1195,6 +1225,7 @@ const MyResumePage = () => {
   };
 
   const cancelAgent = () => {
+    buildIntentRef.current = false;
     setAgentConfig(null);
     setPersistedJourneyProgress({
       currentStep: "missing",
@@ -1205,6 +1236,7 @@ const MyResumePage = () => {
   };
 
   const handleAgentRejected = (data = {}) => {
+    buildIntentRef.current = false;
     setAgentConfig(null);
     const progress = setPersistedJourneyProgress({
       currentStep: "missing",
@@ -1453,6 +1485,7 @@ const MyResumePage = () => {
           onBack={returnToJourneyData}
           onContinue={finishJourneyBasics}
           onAutosave={saveJourneyDraft}
+          building={buildingDraft}
         />
       )}
 
@@ -1463,7 +1496,7 @@ const MyResumePage = () => {
           onAutosave={saveJourneyDraft}
           onBack={() => navigate("/my-resume")}
           onRebuild={rebuildResumeFromFacts}
-          rebuilding={false}
+          rebuilding={buildingDraft}
           storageScope={resumeStorageScope}
         />
       )}
@@ -1497,6 +1530,7 @@ const MyResumePage = () => {
           agentConfig.opportunityId,
             agentConfig.externalJob?.title || "",
             agentConfig.factsVersion || "",
+            agentConfig.buildRequestId || "",
           ].join(":")}
           purpose={agentConfig.purpose}
           source={agentConfig.source}
@@ -1504,6 +1538,13 @@ const MyResumePage = () => {
           opportunityId={agentConfig.opportunityId}
           externalJob={agentConfig.externalJob}
           storageScope={resumeStorageScope}
+          buildRequestId={agentConfig.buildRequestId || ""}
+          onStartBuild={() => startAgent({ purpose: "create_resume", source: "professional_profile", factsVersion: factsFreshness?.currentHash || "", forceFresh: true })}
+          onRetryBuild={() => {
+            clearResumeBuildOperation(window.sessionStorage, resumeStorageScope);
+            startAgent({ purpose: "create_resume", source: "professional_profile", factsVersion: factsFreshness?.currentHash || "", forceFresh: true });
+          }}
+          onBuildSettled={handleBuildSettled}
           onApproved={handleAgentApproved}
           onRejected={handleAgentRejected}
           onCancel={cancelAgent}

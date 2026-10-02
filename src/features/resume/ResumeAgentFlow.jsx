@@ -5,6 +5,7 @@ import API_BASE_URL from "../../config/api";
 import { getAccessHeaders } from "../../utils/premiumAccess";
 import { getVisitorId, trackEvent } from "../../utils/analytics";
 import { getScopedResumeStorageKey } from "./resumeStorageScope";
+import { clearResumeBuildOperation, runResumeBuildSingleFlight } from "./resumeBuildOperation";
 import {
   getStudentVisibleAgentMessages,
   getStudentVisibleMissingNotes,
@@ -220,6 +221,10 @@ const ResumeAgentFlow = ({
   opportunityId = "",
   externalJob = null,
   storageScope = "",
+  buildRequestId = "",
+  onStartBuild,
+  onRetryBuild,
+  onBuildSettled,
   onApproved,
   onRejected,
   onCancel,
@@ -232,6 +237,8 @@ const ResumeAgentFlow = ({
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [buildFailure, setBuildFailure] = useState(false);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   const questions = output?.status === "needs_information" ? output.questions || [] : [];
   const pendingDraftId = output?.pendingDraftId || session?.pendingDraftId || "";
@@ -259,36 +266,80 @@ const ResumeAgentFlow = ({
       try {
         setLoading(true);
         setError("");
+        setBuildFailure(false);
         setNotice("");
+        const loadSession = async (sessionId) => {
+          const { data } = await axios.get(
+            `${API_BASE_URL}/api/resume-agent/session/${encodeURIComponent(sessionId)}`,
+            { headers: getAccessHeaders({ itemKey: `resume-agent:session:${sessionId}` }) }
+          );
+          return data.session;
+        };
+        const showSession = (savedSession) => {
+          const restoredOutput = getPersistedSessionOutput(savedSession);
+          if (!restoredOutput || cancelled) return false;
+          setSession(savedSession);
+          setOutput(restoredOutput);
+          setAnswers(
+            (savedSession.answers || []).reduce((nextAnswers, answer) => {
+              const key = answer.fieldKey || answer.questionId;
+              if (key && answer.answer) nextAnswers[key] = answer.answer;
+              return nextAnswers;
+            }, {})
+          );
+          if (sessionStorageKey) window.sessionStorage.setItem(sessionStorageKey, savedSession.sessionId);
+          if (buildRequestId) clearResumeBuildOperation(window.sessionStorage, storageScope, buildRequestId);
+          onBuildSettled?.();
+          return true;
+        };
+        const pollSession = async (sessionId) => {
+          for (let attempt = 0; attempt < 150 && !cancelled; attempt += 1) {
+            const savedSession = await loadSession(sessionId);
+            if (showSession(savedSession)) return true;
+            if (savedSession.status === "failed") {
+              setBuildFailure(true);
+              throw new Error("تعذر تحديث المسودة. معلوماتك محفوظة؛ يمكنك إعادة المحاولة.");
+            }
+            if (attempt < 149) await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+          if (!cancelled) throw new Error("تأخر تحديث المسودة أكثر من المتوقع. معلوماتك محفوظة؛ تحقق من حالة العملية.");
+          return false;
+        };
         const savedSessionId = sessionStorageKey
           ? window.sessionStorage.getItem(sessionStorageKey)
           : "";
         if (savedSessionId) {
           try {
-            const { data } = await axios.get(
-              `${API_BASE_URL}/api/resume-agent/session/${encodeURIComponent(savedSessionId)}`,
-              { headers: getAccessHeaders({ itemKey: `resume-agent:session:${savedSessionId}` }) }
-            );
-            const restoredOutput = getPersistedSessionOutput(data.session);
-            if (restoredOutput) {
-              if (cancelled) return;
-              setSession(data.session);
-              setOutput(restoredOutput);
-              setAnswers(
-                (data.session.answers || []).reduce((nextAnswers, answer) => {
-                  const key = answer.fieldKey || answer.questionId;
-                  if (key && answer.answer) nextAnswers[key] = answer.answer;
-                  return nextAnswers;
-                }, {})
-              );
+            const savedSession = await loadSession(savedSessionId);
+            if (showSession(savedSession)) {
               setNotice("استعدنا إجاباتك المحفوظة ونكمل من نفس الخطوة.");
               return;
             }
-          } catch {
+            if (savedSession.status === "generating") {
+              await pollSession(savedSessionId);
+              return;
+            }
+          } catch (restoreError) {
+            if (restoreError.response?.status !== 404) throw restoreError;
             if (sessionStorageKey) window.sessionStorage.removeItem(sessionStorageKey);
           }
         }
-        const { data } = await axios.post(
+        if (purpose === "create_resume" && !buildRequestId) return;
+        if (buildRequestId) {
+          try {
+            const existing = await loadSession(buildRequestId);
+            if (showSession(existing)) return;
+            if (existing.status === "failed") {
+              setBuildFailure(true);
+              throw new Error("تعذر تحديث المسودة. معلوماتك محفوظة؛ يمكنك إعادة المحاولة.");
+            }
+            await pollSession(buildRequestId);
+            return;
+          } catch (lookupError) {
+            if (lookupError.response?.status !== 404) throw lookupError;
+          }
+        }
+        const { data } = await runResumeBuildSingleFlight(buildRequestId, () => axios.post(
           `${API_BASE_URL}/api/resume-agent/start`,
           {
             purpose,
@@ -296,17 +347,24 @@ const ResumeAgentFlow = ({
             language,
             opportunityId,
             externalJob,
+            ...(buildRequestId ? { buildRequestId } : {}),
             visitorId: getVisitorId(),
           },
           {
             headers: getAccessHeaders({ itemKey: "resume-agent:start" }),
           }
-        );
+        ));
         if (cancelled) return;
+        if (data.session?.status === "generating") {
+          await pollSession(data.session.sessionId);
+          return;
+        }
         setSession(data.session);
-        setOutput(data.output);
+        setOutput(data.output || getPersistedSessionOutput(data.session));
         setAnswers({});
         if (sessionStorageKey) window.sessionStorage.setItem(sessionStorageKey, data.session.sessionId);
+        if (buildRequestId) clearResumeBuildOperation(window.sessionStorage, storageScope, buildRequestId);
+        onBuildSettled?.();
         if (purpose === "tailor_resume") {
           trackEvent("application_pack_started", {
             page: "/my-resume/tailor",
@@ -329,6 +387,7 @@ const ResumeAgentFlow = ({
         });
       } catch (err) {
         if (cancelled) return;
+        onBuildSettled?.();
         if (purpose === "tailor_resume") {
           trackEvent("application_pack_failed", {
             page: "/my-resume/tailor",
@@ -341,7 +400,7 @@ const ResumeAgentFlow = ({
             },
           });
         }
-        setError(getAgentErrorMessage(err));
+        setError(err.response ? getAgentErrorMessage(err) : err.message || getAgentErrorMessage(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -352,7 +411,7 @@ const ResumeAgentFlow = ({
     return () => {
       cancelled = true;
     };
-  }, [purpose, source, language, opportunityId, externalJob, sessionStorageKey]);
+  }, [purpose, source, language, opportunityId, externalJob, sessionStorageKey, buildRequestId, storageScope, reconnectAttempt, onBuildSettled]);
 
   const updateAnswer = (question, index, value) => {
     setAnswers((current) => ({
@@ -589,6 +648,16 @@ const ResumeAgentFlow = ({
 
       {notice && <div className="resume-agent-notice">{notice}</div>}
       {error && <div className="resume-page-error">{error}</div>}
+
+      {!loading && purpose === "create_resume" && !output && (
+        <div className="resume-agent-actions">
+          <button type="button" onClick={buildFailure ? onRetryBuild : buildRequestId
+            ? () => setReconnectAttempt((value) => value + 1)
+            : onStartBuild}>
+            {buildFailure ? "إعادة المحاولة" : buildRequestId ? "التحقق من حالة المسودة" : "ابنِ سيرتي"}
+          </button>
+        </div>
+      )}
 
       {loading && (
         <div className="resume-agent-loading">

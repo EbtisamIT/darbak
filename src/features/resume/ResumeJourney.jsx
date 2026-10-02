@@ -207,7 +207,7 @@ const JOURNEY_MISSING_FIELDS = [
   ["headline", "المسمى المهني", "مثال: متخصص/ة في نظم المعلومات"],
 ];
 
-export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue, onAutosave }) => {
+export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue, onAutosave, building = false }) => {
   const personal = resume.personalInfo || {};
   // Keep this step's fields stable while the student types. Recomputing from
   // `resume` would remove an input after its first character and makes the
@@ -301,8 +301,8 @@ export const ResumeJourneyMissing = ({ resume, onChange, onBack, onContinue, onA
         <button type="button" className="is-secondary" onClick={onBack}>
           رجوع
         </button>
-        <button type="button" className="is-primary" onClick={continueToDraft}>
-          {missing.length ? "حفظ والمتابعة للمسودة" : "إنشاء المسودة الذكية"}
+        <button type="button" className="is-primary" onClick={continueToDraft} disabled={building}>
+          {building ? "جاري تحديث المسودة..." : missing.length ? "حفظ والمتابعة للمسودة" : "إنشاء المسودة الذكية"}
           {missing.length ? <FiCheck aria-hidden="true" /> : <FiArrowLeft aria-hidden="true" />}
         </button>
       </footer>

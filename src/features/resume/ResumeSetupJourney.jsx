@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { FiArrowLeft } from "react-icons/fi";
 import ResumeDataSimpleForm from "./ResumeDataSimpleForm";
 import { getResumeCompletionItems } from "./resumeValidation";
@@ -20,6 +20,7 @@ const ResumeSetupJourney = ({ resume, onChange, onAutosave, onBuild, building = 
   const missing = completion.filter((item) => item.status !== "complete");
   const experience = resume.experience || resume.experiences || [];
   const isReviewMode = mode === "review";
+  const buildClickRef = useRef(false);
 
   useEffect(() => {
     const target = window.location.hash.replace("#", "");
@@ -31,9 +32,15 @@ const ResumeSetupJourney = ({ resume, onChange, onAutosave, onBuild, building = 
   }, []);
 
   const finish = async () => {
-    const saved = await onAutosave?.(resume);
-    if (saved === false) return;
-    onBuild(resume);
+    if (buildClickRef.current || building) return;
+    buildClickRef.current = true;
+    try {
+      const saved = await onAutosave?.(resume);
+      if (saved === false) return;
+      await onBuild(resume);
+    } finally {
+      buildClickRef.current = false;
+    }
   };
 
   const jumpTo = (target) => {

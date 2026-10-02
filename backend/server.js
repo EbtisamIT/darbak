@@ -71,6 +71,7 @@ const {
 const ResumeProfile = require('./models/ResumeProfile');
 const ResumeAgentSession = require('./models/ResumeAgentSession');
 const ResumePendingDraft = require('./models/ResumePendingDraft');
+const { isValidBuildRequestId, claimResumeBuild } = require('./services/resumeBuildIdempotency');
 const ResumeTailoredVersion = require('./models/ResumeTailoredVersion');
 const TelegramPost = require('./models/TelegramPost');
 const TelegramContentItem = require('./models/TelegramContentItem');
@@ -9963,11 +9964,13 @@ app.post('/api/resume/match', requireResumeAccess, async (req, res) => {
 app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
   let session = null;
   try {
-    if (!checkResumeAiRateLimit(req, res, "resume_agent_start")) return;
-
     const purpose = sanitizeResumeAgentPurpose(req.body?.purpose);
     const source = sanitizeResumeAgentSource(req.body?.source);
     const language = sanitizeResumeAgentLanguage(req.body?.language);
+    const buildRequestId = purpose === "create_resume" ? req.body?.buildRequestId : null;
+    if (buildRequestId != null && !isValidBuildRequestId(buildRequestId)) {
+      return res.status(400).json({ error: "معرف عملية بناء السيرة غير صحيح.", reason: "invalid_build_request_id" });
+    }
     const opportunityId = sanitizeAccessItemKey(req.body?.opportunityId || "");
     let opportunitySnapshot = null;
     if (purpose === "tailor_resume" && opportunityId) {
@@ -9999,6 +10002,10 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
         }
       : null;
     const { contact, accessCodeHash, user } = req.darbakAccess;
+    const existingBuild = buildRequestId
+      ? await ResumeAgentSession.exists({ sessionId: buildRequestId, contact, accessCodeHash })
+      : null;
+    if (!existingBuild && !checkResumeAiRateLimit(req, res, "resume_agent_start")) return;
 
     const currentResume = await getResumeForAccess({ contact, accessCodeHash });
     if (purpose === "tailor_resume") {
@@ -10034,11 +10041,13 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
       }
     }
 
-    session = await ResumeAgentSession.create({
+    const sourceFactsHash = getResumeFactsFreshness({
+      verifiedFacts: composeCanonicalResume(currentResume || {}, {}, contact).verifiedResumeFacts || {},
+    }).currentHash;
+    const sessionFields = {
       userId: user?._id,
       contact,
       accessCodeHash,
-      sessionId: crypto.randomUUID(),
       purpose,
       source,
       language,
@@ -10057,7 +10066,29 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
           ? opportunityId
           : null,
       expiresAt: getResumeAgentExpiry(),
-    });
+    };
+    if (buildRequestId) {
+      const claim = await claimResumeBuild({
+        Session: ResumeAgentSession,
+        sessionId: buildRequestId,
+        owner: { contact, accessCodeHash },
+        sourceFactsHash,
+        sessionFields,
+      });
+      session = claim.session;
+      if (!claim.created) {
+        const pendingDraft = session.pendingDraftId
+          ? await getPendingResumeDraftForAccess(session.pendingDraftId.toString(), req.darbakAccess)
+          : null;
+        return res.status(session.status === "generating" ? 202 : 200).json({
+          session: serializeResumeAgentSession(session, pendingDraft),
+          output: null,
+          reused: true,
+        });
+      }
+    } else {
+      session = await ResumeAgentSession.create({ ...sessionFields, sessionId: crypto.randomUUID() });
+    }
 
     const agentResult = await runDarbakResumeAgent({
       access: req.darbakAccess,
@@ -10091,6 +10122,12 @@ app.post('/api/resume-agent/start', requireResumeAccess, async (req, res) => {
       usage: agentResult.usage,
     });
   } catch (err) {
+    if (["RESUME_BUILD_ID_COLLISION", "RESUME_BUILD_SOURCE_CONFLICT"].includes(err.code)) {
+      return res.status(409).json({
+        error: "تغيرت بيانات المسودة أثناء البناء. ابدأ تحديثًا جديدًا.",
+        reason: err.code,
+      });
+    }
     recordResumeQualityFailure({
       trace: err.resumeAgentTrace,
       purpose: req.body?.purpose,
