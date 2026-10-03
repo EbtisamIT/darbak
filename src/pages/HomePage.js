@@ -25,6 +25,8 @@ import {
   hasJourneyPreferences,
   saveStoredJourneyPreferences,
 } from "../utils/studentJourneyPreferences";
+import { getResumeDiscoveryUserState, trackResumeDiscovery } from "../utils/resumeDiscovery";
+import useResumeDiscoveryAccess from "../utils/useResumeDiscoveryAccess";
 
 const homeFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 
@@ -106,6 +108,7 @@ const OpportunityLogo = ({ opportunity }) => {
 };
 
 const HomePage = () => {
+  const resumeDiscovery = useResumeDiscoveryAccess();
   const initialJourneyPreferencesRef = useRef(getStoredJourneyPreferences());
   const initialJourneyPreferences = initialJourneyPreferencesRef.current;
   const [stats, setStats] = useState({});
@@ -125,6 +128,13 @@ const HomePage = () => {
   const [premiumPass, setPremiumPass] = useState(() => getStoredPremiumPass());
   const defaultPreviewsRef = useRef({ opportunities: [], experiences: [], interviews: [] });
   const pricingRef = useRef(null);
+
+  useEffect(() => {
+    trackResumeDiscovery("resume_discovery_view", {
+      onceKey: "homepage_card", source: "homepage", pageContext: "homepage_card",
+      userState: getResumeDiscoveryUserState({ hasAccess: resumeDiscovery.hasAccess, hasMaster: resumeDiscovery.hasMaster }),
+    });
+  }, [resumeDiscovery.hasAccess, resumeDiscovery.hasMaster]);
 
   useEffect(() => {
     let alive = true;
@@ -431,6 +441,26 @@ const HomePage = () => {
         </div>
       </section>}
 
+      <section className="home-resume-discovery" aria-label="سيرتي بدربك">
+        <div>
+          <span>سيرتي بدربك ✦</span>
+          <h2>سيرتك للتدريب، جاهزة من دربك</h2>
+          <p>ابنِ سيرة عربية وإنجليزية، وشوف كيف تقدر تخصصها للفرص اللي تقدم عليها.</p>
+        </div>
+        <div className="home-resume-discovery-actions">
+          <Link
+            to={resumeDiscovery.hasAccess ? "/my-resume" : "/resume?source=homepage"}
+            onClick={() => trackResumeDiscovery("resume_discovery_clicked", {
+              source: "homepage", pageContext: "homepage_card", planId: "darbak_resume",
+              userState: getResumeDiscoveryUserState(resumeDiscovery),
+            })}
+          >
+            {resumeDiscovery.hasAccess ? resumeDiscovery.hasMaster ? "افتح سيرتي" : "ابدأ بناء سيرتي" : "شاهد سيرتي بدربك"} <FiArrowLeft />
+          </Link>
+          <Link to="/resume?source=homepage" onClick={() => trackResumeDiscovery("resume_example_clicked", { source: "homepage", pageContext: "homepage_card" })}>شاهد نموذج</Link>
+        </div>
+      </section>
+
       {hasSavedJourney && todayItems.length > 0 && <section className="home-today-section" aria-label="لك اليوم">
         <div className="home-today-heading"><div><span>لك اليوم ✨</span><h2>أحدث ما يناسب رحلتك</h2></div><small>{journeyPreferences.preferredMajor} · {journeyPreferences.preferredCity}</small></div>
         <div className="home-today-grid">
@@ -576,7 +606,14 @@ const HomePage = () => {
         :root[data-theme="light"] .home-page { --app-bg: #062c2a; --app-surface: #0b3734; --app-surface-2: #10413d; --app-card: #0d3936; --app-text: #f2fffc; --app-text-soft: #c8e5e0; --app-muted: #94beb8; --app-muted-2: #d3ece8; --app-brand: #79dcd1; --app-brand-strong: #9aebe1; --app-brand-soft: rgba(121, 220, 209, .12); --app-brand-border: rgba(121, 220, 209, .38); --app-border: rgba(218, 255, 248, .14); --app-border-soft: rgba(218, 255, 248, .08); --app-input-bg: rgba(218, 255, 248, .055); --app-shadow: rgba(0, 20, 18, .32); background: #062c2a; }
         .home-page::before { content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none; opacity: .82; background-image: radial-gradient(circle, rgba(228, 255, 251, .48) 1px, transparent 1.6px), radial-gradient(circle, rgba(126, 222, 207, .32) 1px, transparent 1.5px), radial-gradient(circle, rgba(255, 255, 255, .24) .8px, transparent 1.4px), radial-gradient(ellipse at 20% 8%, rgba(59, 159, 154, .13), transparent 27%), radial-gradient(ellipse at 80% 50%, rgba(52, 121, 133, .08), transparent 29%); background-size: 137px 137px, 211px 211px, 89px 89px, auto, auto; background-position: 18px 29px, 83px 54px, 41px 9px, center, center; }
         .home-page::after { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 390px; right: -18%; width: 70%; height: 620px; background: radial-gradient(ellipse, rgba(99, 213, 196, .06), transparent 67%); }
-        .home-hero, .home-section, .home-company-section, .home-pricing-section, .home-resume-section { width: min(1200px, calc(100% - 40px)); margin-inline: auto; }
+        .home-hero, .home-section, .home-company-section, .home-pricing-section, .home-resume-section, .home-resume-discovery { width: min(1200px, calc(100% - 40px)); margin-inline: auto; }
+        .home-resume-discovery { box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-block: 22px 34px; padding: 20px 24px; border: 1px solid var(--app-brand-border); border-radius: 18px; background: linear-gradient(125deg, var(--app-brand-soft), var(--app-surface)); }
+        .home-resume-discovery span { color: var(--app-brand); font-size: 12px; font-weight: 900; }
+        .home-resume-discovery h2 { margin: 5px 0; font-size: clamp(20px, 2vw, 27px); line-height: 1.45; }
+        .home-resume-discovery p { margin: 0; color: var(--app-text-soft); line-height: 1.7; font-size: 14px; }
+        .home-resume-discovery-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .home-resume-discovery-actions a { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 8px 14px; border-radius: 10px; color: var(--app-brand); font-weight: 850; text-decoration: none; }
+        .home-resume-discovery-actions a:first-child { color: #052c28; background: var(--app-brand); }
         .home-hero { position: relative; padding: 64px 0 46px; }
         .home-hero-atmosphere { position: absolute; inset-block: 0; left: 50%; width: 100vw; transform: translateX(-50%); overflow: hidden; pointer-events: none; opacity: .92; }
         .home-hero-atmosphere::before { content: ""; position: absolute; width: min(61%, 710px); height: 250px; top: 18%; left: -4%; border-radius: 50%; background: radial-gradient(ellipse, rgba(59, 159, 154, .18), rgba(52, 121, 133, .07) 38%, transparent 72%); filter: blur(6px); }

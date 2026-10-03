@@ -1147,6 +1147,7 @@ export default function AdminReviewPage() {
     useState("");
   const [savingTelegram, setSavingTelegram] = useState(false);
   const [analyticsDays, setAnalyticsDays] = useState("30");
+  const [resumeSource, setResumeSource] = useState("all");
   const [userManagement, setUserManagement] = useState(emptyUserManagement);
   const [userStatus, setUserStatus] = useState("all");
   const [userSearch, setUserSearch] = useState("");
@@ -1619,7 +1620,7 @@ export default function AdminReviewPage() {
       sessionStorage.setItem("darbak_admin_password", password);
 
       const { data } = await axios.get(`${API_BASE_URL}/api/admin/subscription-dashboard`, {
-        params: { days: analyticsDays },
+        params: { days: analyticsDays, resumeSource },
         headers: authHeaders,
       });
       setSubscriptionDashboard(data || null);
@@ -1769,6 +1770,7 @@ export default function AdminReviewPage() {
     companyCampaignStatus,
     companyCampaignFollowUp,
     analyticsDays,
+    resumeSource,
     userStatus,
     adminView,
     studentFeedbackTab,
@@ -4668,6 +4670,8 @@ export default function AdminReviewPage() {
       loading={loading}
       onRefresh={fetchAnalytics}
       onOpenUsers={() => setAdminView("users")}
+      resumeSource={resumeSource}
+      onResumeSourceChange={setResumeSource}
     />
   );
 

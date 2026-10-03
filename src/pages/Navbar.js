@@ -7,6 +7,7 @@ import {
   hasResumeAccessPass,
 } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
+import { setResumeDiscoveryAttribution, trackResumeDiscovery } from "../utils/resumeDiscovery";
 import logo from "./logo.png";
 import AddExperienceModal from "./AddExperienceModal";
 import {
@@ -54,6 +55,13 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     shouldStickNavbar &&
     isNavbarCollapsed &&
     !showModal;
+
+  useEffect(() => {
+    trackResumeDiscovery("resume_discovery_view", {
+      onceKey: "navbar", source: "navbar", pageContext: location.pathname,
+      userState: hasResumeAccess ? "resume_subscriber" : "non_subscriber",
+    });
+  }, [hasResumeAccess, location.pathname]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -442,7 +450,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             <FiCompass aria-hidden="true" /> <span>وين أتدرب؟</span>
           </Link>
 
-          <Link to={resumeNavTarget} className="navbar-primary-link" style={linkStyle(resumeNavTarget)}>
+          <Link to={resumeNavTarget} className="navbar-primary-link" style={linkStyle(resumeNavTarget)} onClick={() => { if (!hasResumeAccess) setResumeDiscoveryAttribution({ source: "navbar", pageContext: location.pathname }); trackResumeDiscovery("resume_discovery_clicked", { source: "navbar", pageContext: location.pathname, userState: hasResumeAccess ? "resume_subscriber" : "non_subscriber" }); }}>
             <FiUser aria-hidden="true" /> <span>سيرتي</span>
           </Link>
 
@@ -524,7 +532,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               <div className="navbar-mobile-primary-links">
                 <Link to="/" style={floatingLinkStyle("/")}><FiHome aria-hidden="true" /><span>الرئيسية</span></Link>
                 <Link to="/where-to-train" style={floatingLinkStyle("/where-to-train")}><FiCompass aria-hidden="true" /><span>وين أتدرب؟</span></Link>
-                <Link to={resumeNavTarget} style={floatingLinkStyle(resumeNavTarget)}><FiFileText aria-hidden="true" /><span>سيرتي</span></Link>
+                <Link to={resumeNavTarget} style={floatingLinkStyle(resumeNavTarget)} onClick={() => { if (!hasResumeAccess) setResumeDiscoveryAttribution({ source: "navbar", pageContext: location.pathname }); trackResumeDiscovery("resume_discovery_clicked", { source: "navbar", pageContext: location.pathname, userState: hasResumeAccess ? "resume_subscriber" : "non_subscriber" }); }}><FiFileText aria-hidden="true" /><span>سيرتي</span></Link>
                 <Link to="/experiences" style={floatingLinkStyle("/experiences")}><FiClipboard aria-hidden="true" /><span>تجارب الطلاب</span></Link>
               </div>
               <button type="button" className="navbar-mobile-more-toggle" aria-expanded={mobileMoreOpen} onClick={() => setMobileMoreOpen((open) => !open)}>

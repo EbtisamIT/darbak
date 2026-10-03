@@ -4077,6 +4077,18 @@ const recordPremiumAccessVerifiedEvent = async ({
         sourcePage: source,
       }),
     });
+    recordAnalyticsEventAsync({
+      eventName: "resume_subscription_paid",
+      visitorId: cleanVisitorId,
+      actorId,
+      page: "/subscriptions/moyasar",
+      deviceType: "unknown",
+      metadata: sanitizeAnalyticsMetadata({
+        planId: RESUME_PLAN_KEY,
+        source: source?.startsWith("resume-") ? source.slice(7) : source,
+        providerPaymentId,
+      }),
+    });
   }
 
   return completedEvent;
@@ -7319,6 +7331,7 @@ app.get('/api/home-stats', async (req, res) => {
 
 const SERVER_ONLY_ANALYTICS_EVENTS = new Set([
   "subscription_completed",
+  "resume_subscription_paid",
   "premium_access_verified",
   "experience_reward_granted",
 ]);
@@ -14505,7 +14518,11 @@ app.get('/api/admin/subscription-dashboard', requireAdmin, async (req, res) => {
     const days = ["7", "30", "90"].includes(String(req.query.days))
       ? String(req.query.days)
       : "30";
-    const cacheKey = `subscription-dashboard:v1:${days}`;
+    const allowedResumeSources = new Set(["all", "homepage", "opportunity_card", "opportunity_page", "external_apply", "subscription_page", "navbar", "resume_landing", "opportunity", "direct"]);
+    const resumeSource = allowedResumeSources.has(String(req.query.resumeSource))
+      ? String(req.query.resumeSource)
+      : "all";
+    const cacheKey = `subscription-dashboard:v2:${days}:${resumeSource}`;
     const cached = getReadCache(cacheKey);
     if (cached) return res.json(cached);
 
@@ -14514,6 +14531,7 @@ app.get('/api/admin/subscription-dashboard', requireAdmin, async (req, res) => {
       Subscription,
       User,
       days,
+      resumeSource,
       campaign: getNationalDayOffer(),
     });
     res.json(

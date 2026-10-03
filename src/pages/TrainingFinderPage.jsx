@@ -12,7 +12,6 @@ import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
 import ShareButton from "../components/ShareButton";
 import PremiumInlineNotice from "../components/PremiumInlineNotice";
-import ResumeServicePromo from "../components/ResumeServicePromo";
 import {
   cityOptions,
   specializationOptions,
@@ -26,6 +25,13 @@ import { healthHospitalSuggestions } from "../data/healthHospitalSuggestions";
 import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDirectory";
 import { getOrganizationLogoCandidates } from "../data/organizationLogos";
 import { trackEvent } from "../utils/analytics";
+import {
+  getResumeDiscoveryUserState,
+  getResumeLandingPath,
+  setResumeDiscoveryAttribution,
+  trackResumeDiscovery,
+} from "../utils/resumeDiscovery";
+import useResumeDiscoveryAccess from "../utils/useResumeDiscoveryAccess";
 import { getOpportunityErrorMessage, requestOpportunityAccess } from "../utils/opportunityAccess";
 import {
   PREMIUM_STATUS_EVENT,
@@ -1513,6 +1519,7 @@ const getLockedContactPreviewValue = (type = "") =>
   type === "email" ? "apply@••••••.sa" : "متاح بعد دربك+";
 
 export default function TrainingFinderPage() {
+  const resumeDiscovery = useResumeDiscoveryAccess();
   const location = useLocation();
   const navigate = useNavigate();
   const routeParams = useParams();
@@ -1560,6 +1567,20 @@ export default function TrainingFinderPage() {
   const [opportunityRetry, setOpportunityRetry] = useState(null);
   const [faqExpanded, setFaqExpanded] = useState(false);
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
+  useEffect(() => {
+    trackResumeDiscovery("resume_discovery_view", {
+      onceKey: "opportunity_card", source: "opportunity_card", pageContext: "where_to_train",
+      userState: getResumeDiscoveryUserState({ hasAccess: resumeDiscovery.hasAccess, hasMaster: resumeDiscovery.hasMaster }),
+    });
+  }, [resumeDiscovery.hasAccess, resumeDiscovery.hasMaster]);
+  const selectedResumeOpportunityId = selectedOpportunity?._id || selectedOpportunity?.id || "";
+  useEffect(() => {
+    if (!selectedResumeOpportunityId) return;
+    trackResumeDiscovery("resume_discovery_view", {
+      source: "opportunity_page", pageContext: "opportunity_detail", opportunityId: selectedResumeOpportunityId,
+      userState: getResumeDiscoveryUserState({ hasAccess: resumeDiscovery.hasAccess, hasMaster: resumeDiscovery.hasMaster }),
+    });
+  }, [selectedResumeOpportunityId, resumeDiscovery.hasAccess, resumeDiscovery.hasMaster]);
   const [selectedGuideOrganization, setSelectedGuideOrganization] =
     useState(null);
   const [showSearchInsightModal, setShowSearchInsightModal] = useState(false);
@@ -3002,6 +3023,41 @@ export default function TrainingFinderPage() {
   };
 
   const renderResumeTailorCta = ({ opportunity = null, organization = null, compact = false }) => {
+    if (opportunity && !resumeDiscovery.hasAccess) {
+      const opportunityId = opportunity._id || opportunity.id || "";
+      const source = compact ? "opportunity_page" : "opportunity_card";
+      return (
+        <button
+          type="button"
+          className="opportunity-secondary-button resume-tailor-cta"
+          onClick={(event) => {
+            event.stopPropagation();
+            setResumeDiscoveryAttribution({ source, pageContext: source, opportunityId });
+            trackResumeDiscovery("resume_discovery_clicked", {
+              source, pageContext: source, opportunityId, planId: "darbak_resume",
+              userState: "non_subscriber",
+            });
+            navigate(getResumeLandingPath({ source, pageContext: source, opportunityId }));
+          }}
+        >
+          <span>جهّز سيرتك لهذه الفرصة</span>
+          {!compact && <small>شوف نموذج السيرة والتخصيص قبل التقديم.</small>}
+        </button>
+      );
+    }
+    if (opportunity && !resumeDiscovery.hasMaster) {
+      return (
+        <button type="button" className="opportunity-secondary-button resume-tailor-cta" onClick={(event) => {
+          event.stopPropagation();
+          trackResumeDiscovery("resume_discovery_clicked", {
+            source: compact ? "opportunity_page" : "opportunity_card",
+            pageContext: "resume_not_built", opportunityId: opportunity._id || opportunity.id || "",
+            userState: "resume_not_built", planId: "darbak_resume",
+          });
+          navigate("/my-resume");
+        }}><span>ابدأ بناء سيرتي</span></button>
+      );
+    }
     const contact = getGuideOrganizationContactPreview(organization || {});
     const includesApplicationPack = Boolean(opportunity?._id || opportunity?.id) ||
       contact.type === "email" ||
@@ -3013,10 +3069,15 @@ export default function TrainingFinderPage() {
         className="opportunity-secondary-button resume-tailor-cta"
         onClick={(event) => {
           event?.stopPropagation();
+          if (opportunity) trackResumeDiscovery("resume_discovery_clicked", {
+            source: compact ? "opportunity_page" : "opportunity_card",
+            pageContext: "tailoring", opportunityId: opportunity._id || opportunity.id || "",
+            userState: getResumeDiscoveryUserState(resumeDiscovery), planId: "darbak_resume",
+          });
           requestResumeTailorFromCard({ opportunity, organization });
         }}
       >
-        <span>✨ خلّ دربك يجهّز تقديمك</span>
+        <span>{opportunity ? "خصص سيرتك لهذه الفرصة" : "✨ خلّ دربك يجهّز تقديمك"}</span>
         {!compact && (
           <small>
             {includesApplicationPack
@@ -4113,6 +4174,17 @@ export default function TrainingFinderPage() {
                           </button>
                         )}
                       </div>
+                      {!opportunity.isDarbakApplication && (opportunity.applicationUrl || opportunity.hasApplicationUrl) && !resumeDiscovery.hasAccess && (
+                        <p className="resume-external-apply-hint" onClick={(event) => event.stopPropagation()}>
+                          قبل ما تقدم، تأكد إن سيرتك جاهزة. <Link
+                            to={getResumeLandingPath({ source: "external_apply", opportunityId: opportunity._id || opportunity.id || "" })}
+                            onClick={() => {
+                              setResumeDiscoveryAttribution({ source: "external_apply", pageContext: "opportunity_card", opportunityId: opportunity._id || opportunity.id || "" });
+                              trackResumeDiscovery("resume_discovery_clicked", { source: "external_apply", pageContext: "opportunity_card", opportunityId: opportunity._id || opportunity.id || "", userState: "non_subscriber" });
+                            }}
+                          >شاهد سيرتي بدربك</Link>
+                        </p>
+                      )}
                     </article>
                     </React.Fragment>
                   );
@@ -5195,10 +5267,14 @@ export default function TrainingFinderPage() {
               )}
             </div>
 
-            <ResumeServicePromo placement="opportunity_detail" compact />
+            {!resumeDiscovery.hasAccess && selectedOpportunity && (
+              <p className="resume-external-apply-hint">
+                جهّز سيرتك لهذه الفرصة. شوف نموذج السيرة وكيف تقدر تخصصها قبل التقديم.
+              </p>
+            )}
 
             <div className="opportunity-detail-actions">
-              {renderResumeTailorCta({ opportunity: selectedOpportunity })}
+              {renderResumeTailorCta({ opportunity: selectedOpportunity, compact: true })}
               <button
                 type="button"
                 className="opportunity-secondary-button"
@@ -6542,6 +6618,8 @@ export default function TrainingFinderPage() {
           cursor: pointer;
         }
 
+        .resume-external-apply-hint { margin: 0; color: var(--app-muted); font-size: 12px; line-height: 1.6; }
+        .resume-external-apply-hint a { color: var(--app-brand); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
         .resume-tailor-cta {
           display: grid;
           gap: 2px;

@@ -1,10 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import ResumePreview from "../features/resume/ResumePreview";
 import { hasResumeAccessPass, PREMIUM_STATUS_EVENT } from "../utils/premiumAccess";
 import { setPageSeo } from "../utils/seoMetadata";
 import { trackEvent } from "../utils/analytics";
+import {
+  getResumeDiscoveryAttribution,
+  setResumeDiscoveryAttribution,
+  trackResumeDiscovery,
+} from "../utils/resumeDiscovery";
 import { getDemoResume } from "./resumeLandingDemo";
+import useResumeDiscoveryAccess from "../utils/useResumeDiscoveryAccess";
 import "./ResumeLandingPage.css";
 
 const templates = [
@@ -98,6 +104,8 @@ function TailoredOutput({ tab }) {
 }
 
 export default function ResumeLandingPage() {
+  const location = useLocation();
+  const resumeDiscovery = useResumeDiscoveryAccess();
   const [language, setLanguage] = useState("ar");
   const [activeTemplate, setActiveTemplate] = useState("ats-classic");
   const [tailored, setTailored] = useState(false);
@@ -105,16 +113,31 @@ export default function ResumeLandingPage() {
   const [hasResumeAccess, setHasResumeAccess] = useState(() => hasResumeAccessPass());
   const demoRef = useRef(null);
   const templateRef = useRef(null);
-  const resumeTarget = hasResumeAccess ? "/my-resume" : "/subscribe?plan=darbak_resume&source=resume-landing";
-  const ctaLabel = hasResumeAccess ? "افتح سيرتي" : "ابدأ بناء سيرتي";
+  const attributionSource = new URLSearchParams(location.search).get("source") || getResumeDiscoveryAttribution().source;
+  const resumeTarget = hasResumeAccess
+    ? "/my-resume"
+    : `/subscribe?plan=darbak_resume&source=${encodeURIComponent(attributionSource ? `resume-${attributionSource}` : "resume-landing")}`;
+  const ctaLabel = hasResumeAccess ? resumeDiscovery.hasMaster ? "افتح سيرتي" : "ابدأ بناء سيرتي" : "ابدأ بناء سيرتي";
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const entrySource = params.get("source");
+    if (entrySource) setResumeDiscoveryAttribution({
+      source: entrySource,
+      pageContext: params.get("pageContext") || "resume_landing",
+      opportunityId: params.get("opportunityId") || "",
+    });
     setPageSeo({
       title: "سيرتي بدربك | سيرة عربية وإنجليزية محسنة للـ ATS",
       description: "ابنِ سيرتك الذاتية بالعربي والإنجليزي في دربك، بصياغة مهنية وقوالب واضحة ومصممة لتكون سهلة القراءة بواسطة أنظمة ATS.",
       path: "/resume",
     });
-    trackEvent("resume_landing_view");
+    const attribution = getResumeDiscoveryAttribution();
+    trackResumeDiscovery("resume_landing_view", {
+      source: attribution.source || "resume_landing", pageContext: "resume_landing",
+      opportunityId: attribution.opportunityId || "",
+      userState: hasResumeAccessPass() ? "resume_subscriber" : "non_subscriber",
+    });
     const refreshAccess = () => setHasResumeAccess(hasResumeAccessPass());
     window.addEventListener("focus", refreshAccess);
     window.addEventListener("storage", refreshAccess);
@@ -124,16 +147,19 @@ export default function ResumeLandingPage() {
       window.removeEventListener("storage", refreshAccess);
       window.removeEventListener(PREMIUM_STATUS_EVENT, refreshAccess);
     };
-  }, []);
+  }, [location.search]);
 
-  const trackCta = (placement) => trackEvent("resume_cta_clicked", { metadata: { placement, subscriber: hasResumeAccess } });
+  const trackCta = (placement) => trackResumeDiscovery("resume_cta_clicked", {
+    placement, subscriber: hasResumeAccess, userState: hasResumeAccess ? "resume_subscriber" : "non_subscriber",
+    pageContext: "resume_landing", planId: "darbak_resume",
+  });
   const showDemo = () => {
-    trackEvent("resume_example_clicked", { metadata: { placement: "hero" } });
+    trackResumeDiscovery("resume_example_clicked", { placement: "hero", pageContext: "resume_landing" });
     demoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const showTemplate = (template) => {
     setActiveTemplate(template);
-    trackEvent("resume_example_clicked", { metadata: { template, placement: "template_card" } });
+    trackResumeDiscovery("resume_example_clicked", { template, placement: "template_card", pageContext: "resume_landing" });
     templateRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const changeLanguage = (nextLanguage) => {
@@ -143,7 +169,7 @@ export default function ResumeLandingPage() {
   const startTailoringDemo = () => {
     setTailored(true);
     setOutputTab("resume");
-    trackEvent("resume_tailoring_demo_clicked");
+    trackResumeDiscovery("resume_tailoring_demo_clicked", { pageContext: "resume_landing" });
   };
 
   return (
@@ -207,7 +233,7 @@ export default function ResumeLandingPage() {
 
       <section className="resume-landing-section resume-landing-faq" aria-labelledby="resume-faq-title"><div className="resume-landing-section-heading"><span>عندك سؤال؟</span><h2 id="resume-faq-title">إجابات سريعة وواضحة</h2></div><div>{questions.map(([question, answer], index) => <details key={question}><summary onClick={(event) => { if (!event.currentTarget.parentElement.open) trackEvent("resume_faq_opened", { metadata: { questionIndex: index } }); }}>{question}</summary><p>{answer}</p></details>)}</div></section>
 
-      <section className="resume-landing-final"><span>الخطوة الجاية تبدأ منك</span><h2>جاهز تبدأ سيرتك؟</h2><p>معلوماتك الحقيقية، بصياغة مهنية ونسخ يمكن تخصيصها لكل فرصة.</p><Link className="resume-landing-button resume-landing-button-primary" to={resumeTarget} onClick={() => trackCta("final")}>{ctaLabel}</Link>{hasResumeAccess && <Link className="resume-landing-final-tailor" to="/my-resume/tailor" onClick={() => trackCta("final_tailor")}>سيرتك جاهزة؟ خصصها لفرصة</Link>}</section>
+      <section className="resume-landing-final"><span>الخطوة الجاية تبدأ منك</span><h2>جاهز تبدأ سيرتك؟</h2><p>معلوماتك الحقيقية، بصياغة مهنية ونسخ يمكن تخصيصها لكل فرصة.</p><Link className="resume-landing-button resume-landing-button-primary" to={resumeTarget} onClick={() => trackCta("final")}>{ctaLabel}</Link>{hasResumeAccess && resumeDiscovery.hasMaster && <Link className="resume-landing-final-tailor" to="/my-resume/tailor" onClick={() => trackCta("final_tailor")}>سيرتك جاهزة؟ خصصها لفرصة</Link>}</section>
     </main>
   );
 }

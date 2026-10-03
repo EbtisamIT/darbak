@@ -2,6 +2,7 @@ import API_BASE_URL from "../config/api";
 
 const VISITOR_ID_KEY = "darbak_visitor_id_v1";
 const SESSION_ID_KEY = "darbak_session_id_v1";
+const RESUME_ATTRIBUTION_KEY = "darbak_resume_discovery_attribution_v1";
 const LOCAL_DEDUPE_KEY = "darbak_analytics_dedupe_v1";
 const ACCESS_IDENTITY_KEY = "darbak_access_identity_v1";
 const ANALYTICS_BATCH_SIZE = 8;
@@ -170,6 +171,29 @@ export const trackEvent = (eventName, payload = {}) => {
   };
 
   queueAnalyticsEvent(eventName, body);
+
+  if (
+    eventName === "checkout_started" &&
+    payload.metadata?.planId === "darbak_resume"
+  ) {
+    let attribution = {};
+    try {
+      attribution = JSON.parse(window.sessionStorage.getItem(RESUME_ATTRIBUTION_KEY) || "{}");
+    } catch {
+      // Attribution is optional; the checkout event itself is still valid.
+    }
+    queueAnalyticsEvent("resume_checkout_started", {
+      ...body,
+      eventName: "resume_checkout_started",
+      metadata: {
+        ...body.metadata,
+        source: attribution.source || "direct",
+        pageContext: attribution.pageContext || body.page,
+        opportunityId: attribution.opportunityId || "",
+        planId: "darbak_resume",
+      },
+    });
+  }
 };
 
 const getDedupeStorageKey = (eventName, dedupeKey = "default") =>

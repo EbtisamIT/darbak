@@ -134,7 +134,7 @@ const usageLabels = {
   applicationSubmitted: "قدّم عبر دربك",
 };
 
-const SubscriptionDashboard = ({ data, loading, onRefresh, onOpenUsers }) => {
+const SubscriptionDashboard = ({ data, loading, onRefresh, onOpenUsers, resumeSource = "all", onResumeSourceChange }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const dashboard = data || {};
   const revenue = dashboard.revenue || {};
@@ -267,6 +267,34 @@ const SubscriptionDashboard = ({ data, loading, onRefresh, onOpenUsers }) => {
 
       {activeTab === "resume" && (
         <>
+          <Section title="تحويلات سيرتي" description="أحداث فعلية ضمن المدة المختارة؛ يبدأ القياس من إطلاق هذه الأحداث، ولا تُستنتج المدفوعات من النقرات.">
+            <label style={{ display: "grid", gap: 5, maxWidth: 240, color: colors.textSoft, fontSize: 12, marginBottom: 12 }}>
+              مصدر الوصول
+              <select value={resumeSource} onChange={(event) => onResumeSourceChange?.(event.target.value)} style={{ padding: 9, color: colors.text, background: "#102523", border: `1px solid ${colors.border}`, borderRadius: 8 }}>
+                <option value="all">كل المصادر</option>
+                <option value="homepage">الرئيسية</option>
+                <option value="opportunity_card">كرت الفرصة</option>
+                <option value="opportunity_page">تفاصيل الفرصة</option>
+                <option value="external_apply">التقديم الخارجي</option>
+                <option value="subscription_page">الاشتراك</option>
+                <option value="navbar">القائمة</option>
+                <option value="resume_landing">صفحة سيرتي مباشرة</option>
+                <option value="direct">دخول مباشر للدفع</option>
+              </select>
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))", gap: 10 }}>
+              {[
+                ["زيارات صفحة سيرتي", "resume_landing_view"],
+                ["معاينة النماذج", "resume_example_clicked"],
+                ["Demo التخصيص", "resume_tailoring_demo_clicked"],
+                ["ضغطات CTA", "resume_cta_clicked"],
+                ["بدأ Checkout", "resume_checkout_started"],
+                ["اشتراكات مدفوعة", "resume_subscription_paid"],
+              ].map(([label, key]) => metricCard(label, formatNumber(resume.discovery?.counts?.[key])))}
+              {metricCard("Landing → Checkout", resume.discovery?.landingToCheckout == null ? "—" : `${resume.discovery.landingToCheckout}%`)}
+              {metricCard("Checkout → Paid", resume.discovery?.checkoutToPaid == null ? "—" : `${resume.discovery.checkoutToPaid}%`)}
+            </div>
+          </Section>
           <Section title="قمع سيرتي بدربك" description="يبدأ القياس من أحداث السيرة المتوفرة؛ لا يُخمّن ما قبلها.">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))", gap: 10 }}>
               {(resume.funnel || []).map((item, index) => metricCard(

@@ -310,13 +310,41 @@ const buildCampaignAnalytics = async ({ AnalyticsEvent, campaign, now = new Date
   };
 };
 
-const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, days, campaign = null }) => {
+const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, days, campaign = null, resumeSource = "all" }) => {
   const range = getRange(days);
   const eventMatch = { createdAt: { $gte: range.start, $lt: range.end } };
   const todayMatch = { createdAt: { $gte: range.todayStart, $lt: range.tomorrowStart } };
   const yesterdayMatch = { createdAt: { $gte: range.yesterdayStart, $lt: range.todayStart } };
   const now = new Date();
   const activeSubscriptionFilter = { status: "active", expiresAt: { $gt: now } };
+  const discoveryEvents = [
+    "resume_discovery_view", "resume_discovery_clicked", "resume_landing_view",
+    "resume_example_clicked", "resume_tailoring_demo_clicked", "resume_cta_clicked",
+    "resume_checkout_started", "resume_subscription_paid",
+  ];
+  const discoveryRows = await AnalyticsEvent.aggregate([
+    { $match: {
+      ...eventMatch,
+      eventName: { $in: discoveryEvents },
+      ...(resumeSource !== "all" ? { "metadata.source": resumeSource } : {}),
+    } },
+    { $group: { _id: "$eventName", count: { $sum: 1 } } },
+  ]);
+  let paidForSource = null;
+  if (resumeSource !== "all") {
+    const checkoutPaymentIds = await AnalyticsEvent.distinct("metadata.providerPaymentId", {
+      ...eventMatch,
+      eventName: "resume_checkout_started",
+      "metadata.source": resumeSource,
+      "metadata.providerPaymentId": { $type: "string", $ne: "" },
+    });
+    paidForSource = checkoutPaymentIds.length
+      ? await AnalyticsEvent.countDocuments({ ...eventMatch, eventName: "resume_subscription_paid", "metadata.providerPaymentId": { $in: checkoutPaymentIds } })
+      : 0;
+  }
+  const discoveryCount = (name) => name === "resume_subscription_paid" && paidForSource !== null
+    ? paidForSource
+    : Number(discoveryRows.find((row) => row._id === name)?.count || 0);
 
   const [payments, activeSubscribers, subscriptionCounts, todayUsers, yesterdayUsers, funnel, dailySeries, campaignAnalytics] = await Promise.all([
     getPaymentAggregate(AnalyticsEvent, range),
@@ -471,6 +499,16 @@ const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, 
     },
     resume: {
       ...resumeStats,
+      discovery: {
+        source: resumeSource,
+        counts: Object.fromEntries(discoveryEvents.map((name) => [name, discoveryCount(name)])),
+        landingToCheckout: discoveryCount("resume_landing_view")
+          ? Number((100 * discoveryCount("resume_checkout_started") / discoveryCount("resume_landing_view")).toFixed(1))
+          : null,
+        checkoutToPaid: discoveryCount("resume_checkout_started")
+          ? Number((100 * discoveryCount("resume_subscription_paid") / discoveryCount("resume_checkout_started")).toFixed(1))
+          : null,
+      },
       funnel: resumeFunnel,
       averageTailorsPerUser: resumeStats.resumeTailored?.users
         ? Number((resumeStats.resumeTailored.events / resumeStats.resumeTailored.users).toFixed(1))
