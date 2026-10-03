@@ -69,3 +69,29 @@ export const getReachableJourneyProgress = (savedProgress, navigationProgress) =
   if (navigation?.completedSteps?.length || navigation?.currentStep === "data") return navigation;
   return saved;
 };
+
+export const getDraftJourneyProgress = (source = "portfolio") => ({
+  currentStep: "draft",
+  completedSteps: ["data", "missing"],
+  source,
+});
+
+export const canRestoreResumeDraft = ({
+  persistedProgress,
+  navigationProgress,
+  activeBuildId = "",
+  savedSessionId = "",
+  factsComplete = false,
+} = {}) => {
+  const hasDraftProgress = (progress) =>
+    progress?.completedSteps?.includes("data") &&
+    progress?.completedSteps?.includes("missing");
+
+  return Boolean(
+    hasDraftProgress(persistedProgress) ||
+    (!persistedProgress && hasDraftProgress(navigationProgress)) ||
+    activeBuildId ||
+    savedSessionId ||
+    factsComplete
+  );
+};

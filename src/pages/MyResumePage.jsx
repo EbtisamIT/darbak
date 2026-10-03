@@ -60,6 +60,8 @@ import { shouldAutosaveMasterResume } from "../features/resume/resumeLanguageIso
 import {
   clearResumeJourneyProgress,
   getReachableJourneyProgress,
+  getDraftJourneyProgress,
+  canRestoreResumeDraft,
   readResumeJourneyProgress,
   writeResumeJourneyProgress,
 } from "../features/resume/resumeJourneyPersistence";
@@ -880,11 +882,7 @@ const MyResumePage = () => {
     try {
       const saved = await saveJourneyDraft();
       if (!saved) return;
-      setPersistedJourneyProgress({
-        currentStep: "draft",
-        completedSteps: ["data", "missing"],
-        source: journeySource,
-      });
+      setPersistedJourneyProgress(getDraftJourneyProgress(journeySource));
       startAgent({
         purpose: "create_resume",
         source: "professional_profile",
@@ -914,6 +912,7 @@ const MyResumePage = () => {
       setLastServerResume(freshResume);
       setFactsFreshness(data.factsFreshness || { changed: true, changes: [] });
       lastSavedSnapshotRef.current = getSnapshot(freshResume);
+      setPersistedJourneyProgress(getDraftJourneyProgress(journeySource));
       startAgent({
         purpose: "create_resume",
         source: "professional_profile",
@@ -1109,14 +1108,27 @@ const MyResumePage = () => {
     }
     if (routeView === "build") {
       openMaster();
+      const persistedJourney = readResumeJourneyProgress(resumeStorageScope);
       const savedJourney = getReachableJourneyProgress(
-        readResumeJourneyProgress(resumeStorageScope),
+        persistedJourney,
         routeJourneyProgress,
       );
       const requestedStep = searchParams.get("step");
       const canOpenMissing = savedJourney?.completedSteps?.includes("data");
-      const canOpenDraft = savedJourney?.completedSteps?.includes("data") &&
-        savedJourney?.completedSteps?.includes("missing");
+      const activeBuild = readResumeBuildOperation(window.sessionStorage, resumeStorageScope);
+      const savedSessionId = window.sessionStorage.getItem(getAgentSessionStorageKey({
+        purpose: "create_resume",
+        source: "professional_profile",
+        language: "ar",
+        storageScope: resumeStorageScope,
+      }));
+      const canOpenDraft = canRestoreResumeDraft({
+        persistedProgress: persistedJourney,
+        navigationProgress: routeJourneyProgress,
+        activeBuildId: activeBuild?.id,
+        savedSessionId,
+        factsComplete: masterResumeExists || Boolean(resume.workflow?.isSetupComplete),
+      });
       const step = requestedStep === "missing" && !canOpenMissing
         ? ""
         : requestedStep === "draft" && !canOpenDraft
@@ -1127,7 +1139,6 @@ const MyResumePage = () => {
         setJourneyCompletedSteps(savedJourney.completedSteps);
       }
       if (step === "draft") {
-        const activeBuild = readResumeBuildOperation(window.sessionStorage, resumeStorageScope);
         setAgentConfig((current) => resolveDraftAgentConfig(current, activeBuild));
         setResumeMode("agent");
         setJourneyStep("draft");
@@ -1157,7 +1168,16 @@ const MyResumePage = () => {
     setResumeMode("dashboard");
     setJourneyView("start");
     setJourneyStep("data");
-  }, [loadResume, loadTailoredVersion, location.pathname, location.search, navigate, resumeStorageScope, routeJourneyProgress, routeVersionId, routeView, searchParams]);
+  }, [loadResume, loadTailoredVersion, location.pathname, location.search, masterResumeExists, navigate, resume.workflow?.isSetupComplete, resumeStorageScope, routeJourneyProgress, routeVersionId, routeView, searchParams]);
+
+  useEffect(() => {
+    if (routeView !== "build" || searchParams.get("step") !== "draft" || loading || resumeMode === "agent") return;
+    if (!masterResumeExists && !resume.workflow?.isSetupComplete) return;
+    const activeBuild = readResumeBuildOperation(window.sessionStorage, resumeStorageScope);
+    setAgentConfig((current) => resolveDraftAgentConfig(current, activeBuild));
+    setResumeMode("agent");
+    setJourneyStep("draft");
+  }, [loading, masterResumeExists, resume.workflow?.isSetupComplete, resumeMode, resumeStorageScope, routeView, searchParams]);
 
   const completeApplicationPackDetails = async ({ trainingStart, trainingEnd, targetField }) => {
     if (!editingVersionId) return;

@@ -1,5 +1,7 @@
 import {
+  canRestoreResumeDraft,
   clearResumeJourneyProgress,
+  getDraftJourneyProgress,
   getReachableJourneyProgress,
   readResumeJourneyProgress,
   writeResumeJourneyProgress,
@@ -64,5 +66,30 @@ describe("resume journey persistence", () => {
       completedSteps: [],
       source: "portfolio",
     })).toBeNull();
+  });
+
+  it("persists the same reachable Draft step for first builds and updates", () => {
+    const progress = writeResumeJourneyProgress(getDraftJourneyProgress("portfolio"), accountA);
+    expect(progress).toMatchObject({
+      currentStep: "draft",
+      completedSteps: ["data", "missing"],
+      source: "portfolio",
+    });
+    expect(canRestoreResumeDraft({ persistedProgress: readResumeJourneyProgress(accountA) })).toBe(true);
+  });
+
+  it("restores active and completed Drafts without transient navigation state", () => {
+    expect(canRestoreResumeDraft({ activeBuildId: "active-qa-build" })).toBe(true);
+    expect(canRestoreResumeDraft({ savedSessionId: "completed-qa-session" })).toBe(true);
+    expect(canRestoreResumeDraft({ factsComplete: true })).toBe(true);
+    expect(canRestoreResumeDraft()).toBe(false);
+  });
+
+  it("does not let stale navigation state demote persisted Draft progress", () => {
+    writeResumeJourneyProgress(getDraftJourneyProgress(), accountA);
+    expect(canRestoreResumeDraft({
+      persistedProgress: readResumeJourneyProgress(accountA),
+      navigationProgress: { currentStep: "data", completedSteps: [] },
+    })).toBe(true);
   });
 });
