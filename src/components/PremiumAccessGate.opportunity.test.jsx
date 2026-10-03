@@ -52,12 +52,13 @@ test("server denied guest receives the existing limit notice even if frontend ga
 
 test("authenticated subscription checkout does not ask for email or access code", async () => {
   localStorage.setItem("darbak_access_identity_v1", JSON.stringify({ contact: "qa@example.com", accessCode: "Qa1234" }));
+  axios.get.mockImplementation((url) => Promise.resolve({ data: url.includes("checkout-canary") ? { enabled: true } : {} }));
   render(<MemoryRouter><PremiumAccessGate /></MemoryRouter>);
   await act(async () => {});
   act(() => window.dispatchEvent(new CustomEvent(PREMIUM_ACCESS_EVENT, {
     detail: { feature: "subscribe_page", defaultPlanId: "darbak_plus", source: "navbar", openCheckout: true },
   })));
-  expect(screen.getByText("اشتراكك سيتفعّل مباشرة على حسابك الحالي بعد إتمام الدفع.")).toBeTruthy();
+  expect(await screen.findByText("اشتراكك سيتفعّل مباشرة على حسابك الحالي بعد إتمام الدفع.")).toBeTruthy();
   expect(screen.queryByText("البريد الإلكتروني")).toBeNull();
   expect(screen.queryByText("رمز الدخول")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "الانتقال للدفع الآمن" }));
@@ -65,5 +66,25 @@ test("authenticated subscription checkout does not ask for email or access code"
     expect.stringContaining("/api/subscriptions/checkout"),
     expect.not.objectContaining({ email: expect.anything(), accessCode: expect.anything() }),
     expect.objectContaining({ headers: expect.objectContaining({ "x-darbak-contact": "qa@example.com" }) })
+  ));
+});
+
+test("non-QA account keeps the legacy identity form and checkout route", async () => {
+  localStorage.setItem("darbak_access_identity_v1", JSON.stringify({ contact: "regular@example.com", accessCode: "Darb123" }));
+  axios.get.mockImplementation((url) => Promise.resolve({ data: url.includes("checkout-canary") ? { enabled: false } : {} }));
+  render(<MemoryRouter><PremiumAccessGate /></MemoryRouter>);
+  await act(async () => {});
+  act(() => window.dispatchEvent(new CustomEvent(PREMIUM_ACCESS_EVENT, {
+    detail: { feature: "subscribe_page", defaultPlanId: "darbak_plus", openCheckout: true },
+  })));
+  expect(await screen.findByText("البريد الإلكتروني")).toBeTruthy();
+  expect(screen.getByText("رمز الدخول")).toBeTruthy();
+  fireEvent.change(screen.getByPlaceholderText("example@email.com"), { target: { value: "regular@example.com" } });
+  fireEvent.change(screen.getByPlaceholderText("رمز تحفظه"), { target: { value: "Darb123" } });
+  fireEvent.click(screen.getByRole("button", { name: "الانتقال للدفع الآمن" }));
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining("/api/subscriptions/start-checkout"),
+    expect.objectContaining({ email: "regular@example.com", accessCode: "Darb123" }),
+    expect.anything()
   ));
 });

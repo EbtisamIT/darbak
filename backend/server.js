@@ -23,6 +23,7 @@ const { createOpportunityImportRouter } = require('./services/opportunityDiscove
 const { rankOpportunitySearchResults } = require('./services/opportunitySearch');
 const { buildSubscriptionDashboard } = require("./services/subscriptionDashboard");
 const { createCheckoutSingleFlight } = require("./services/checkoutSingleFlight");
+const { isCheckoutCanaryEnabled } = require("./services/checkoutCanary");
 const {
   buildSubscriptionUsageSummary,
   getSubscriptionUsageEventNames,
@@ -13412,6 +13413,30 @@ const startSubscriptionCheckout = async (req, res) => {
   }
 };
 
+const UNIFIED_CHECKOUT_QA_USER_ID = "6abd577bec30b3276baf2027";
+const getUnifiedCheckoutMode = () => (process.env.UNIFIED_CHECKOUT_MODE || "qa").trim().toLowerCase();
+
+const isUnifiedCheckoutAllowed = async (req) => {
+  const mode = getUnifiedCheckoutMode();
+  if (mode !== "qa") return isCheckoutCanaryEnabled({ mode });
+  const contact = normalizeSubscriberContact(req.get("x-darbak-contact") || "");
+  const accessCode = normalizeAccessCode(req.get("x-darbak-access-code") || "");
+  if (!contact || !isValidAccessCode(accessCode)) return false;
+  const user = await User.findOne({ contact, accessCodeHash: hashAccessCode(contact, accessCode) })
+    .select("_id")
+    .lean();
+  if (!user) return false;
+  return isCheckoutCanaryEnabled({ mode, userId: user._id, qaUserId: UNIFIED_CHECKOUT_QA_USER_ID });
+};
+
+app.get("/api/subscriptions/checkout-canary", async (req, res) => {
+  try {
+    return res.json({ enabled: await isUnifiedCheckoutAllowed(req) });
+  } catch (error) {
+    return res.json({ enabled: false });
+  }
+});
+
 const serializeSubscriptionCheckout = createCheckoutSingleFlight((req) => {
   const contact = normalizeSubscriberContact(
     req.get("x-darbak-contact") || req.body.email || req.body.contact || ""
@@ -13422,7 +13447,16 @@ const serializeSubscriptionCheckout = createCheckoutSingleFlight((req) => {
 
 // Keep the legacy URL for in-flight clients, while all new entry points use
 // the explicit shared checkout endpoint above.
-app.post("/api/subscriptions/checkout", serializeSubscriptionCheckout);
+app.post("/api/subscriptions/checkout", async (req, res, next) => {
+  try {
+    if (!(await isUnifiedCheckoutAllowed(req))) {
+      return res.status(403).json({ error: "مسار الدفع هذا غير متاح لهذا الحساب حاليًا." });
+    }
+    return serializeSubscriptionCheckout(req, res, next);
+  } catch (error) {
+    return next(error);
+  }
+});
 app.post("/api/subscriptions/start-checkout", serializeSubscriptionCheckout);
 
 app.post('/api/subscriptions/moyasar/callback', async (req, res) => {

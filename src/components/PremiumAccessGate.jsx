@@ -473,6 +473,7 @@ export default function PremiumAccessGate() {
   const [forceIdentityEntry, setForceIdentityEntry] = useState(false);
   const [checkoutSource, setCheckoutSource] = useState("");
   const [checkoutReturnTo, setCheckoutReturnTo] = useState("");
+  const [checkoutCanaryStatus, setCheckoutCanaryStatus] = useState("loading");
   const [selectedPlanId, setSelectedPlanId] = useState("darbak_plus");
   const [subscriptionPlans, setSubscriptionPlans] = useState(
     fallbackSubscriptionPlans
@@ -514,6 +515,24 @@ export default function PremiumAccessGate() {
     ...selectedPlan,
     priceSar: selectedPlanPricing.price,
   };
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    let active = true;
+    const identity = getStoredAccessIdentity();
+    if (!identity.contact || !identity.accessCode) {
+      setCheckoutCanaryStatus("legacy");
+      return undefined;
+    }
+    axios.get(`${API_BASE_URL}/api/subscriptions/checkout-canary`, { headers: getAccessHeaders() })
+      .then(({ data }) => {
+        if (active) setCheckoutCanaryStatus(data.enabled ? "canary" : "legacy");
+      })
+      .catch(() => {
+        if (active) setCheckoutCanaryStatus("legacy");
+      });
+    return () => { active = false; };
+  }, [isOpen]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setOfferClock(Date.now()), 1000);
@@ -867,6 +886,7 @@ export default function PremiumAccessGate() {
       setFeature(detail.feature || "");
       setCheckoutSource(detail.source || "unknown");
       setCheckoutReturnTo(getSafeSubscriptionReturnTo(detail.returnTo));
+      setCheckoutCanaryStatus("loading");
       setIsLimitGateOpen(false);
       setIsLoginOnly(Boolean(detail.loginOnly));
       setShowCheckoutForm(Boolean(detail.openCheckout) && !detail.loginOnly);
@@ -1253,7 +1273,7 @@ export default function PremiumAccessGate() {
     }
     setShowCheckoutForm(true);
     const identity = getStoredAccessIdentity();
-    setMessage(identity.contact && identity.accessCode
+    setMessage(checkoutCanaryStatus === "canary" && identity.contact && identity.accessCode
       ? "اشتراكك سيتفعّل مباشرة على حسابك الحالي بعد إتمام الدفع."
       : "اكتب البريد الإلكتروني ورمز الدخول لإنشاء حسابك أو ربط اشتراكك به.");
     trackEvent("subscription_plan_selected", {
@@ -1273,8 +1293,9 @@ export default function PremiumAccessGate() {
 
   const startCheckout = async (checkoutPlan = selectedPlan) => {
     if (checkoutInFlightRef.current) return;
+    if (checkoutCanaryStatus === "loading") return;
     const identity = getStoredAccessIdentity();
-    const authenticated = !forceIdentityEntry && Boolean(identity.contact && identity.accessCode);
+    const authenticated = checkoutCanaryStatus === "canary" && !forceIdentityEntry && Boolean(identity.contact && identity.accessCode);
     if (!authenticated && !isValidEmailContact(form.contact)) {
       setMessage("اكتب بريدًا إلكترونيًا صحيحًا حتى نربط الاشتراك بحسابك.");
       return;
@@ -1291,11 +1312,11 @@ export default function PremiumAccessGate() {
       setMessage("");
       setSelectedPlanId(checkoutPlan.id);
       const safeReturnTo = getSafeSubscriptionReturnTo(checkoutReturnTo);
-      const returnUrl = safeReturnTo
+      const returnUrl = authenticated && safeReturnTo
         ? `${window.location.origin}${safeReturnTo}`
         : window.location.href;
       const { data } = await axios.post(
-        `${API_BASE_URL}/api/subscriptions/checkout`,
+        `${API_BASE_URL}/api/subscriptions/${authenticated ? "checkout" : "start-checkout"}`,
         {
           ...(!authenticated ? {
             email: form.contact,
@@ -1604,7 +1625,7 @@ export default function PremiumAccessGate() {
                 <div className="premium-section-heading">
                   <span>دربك+</span>
                   <h2 id="premium-access-title">باقي خطوة وحدة وتبدأ رحلتك 🚀</h2>
-                  <p>{!forceIdentityEntry && getStoredAccessIdentity().contact && getStoredAccessIdentity().accessCode
+                  <p>{checkoutCanaryStatus === "canary" && !forceIdentityEntry && getStoredAccessIdentity().contact && getStoredAccessIdentity().accessCode
                     ? "اشتراكك سيتفعّل مباشرة على حسابك الحالي بعد إتمام الدفع."
                     : "اكتب إيميلك ورمز دخول بسيط، بعدها تنتقل للدفع الآمن."}</p>
                   <ul className="premium-checkout-gains">
@@ -1614,7 +1635,7 @@ export default function PremiumAccessGate() {
                   </ul>
                 </div>
 
-                <form
+                {checkoutCanaryStatus === "loading" ? <p role="status">جاري تجهيز الدفع...</p> : <form
                   className="premium-access-form premium-checkout-form"
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -1629,7 +1650,7 @@ export default function PremiumAccessGate() {
                     <strong>{formatPlanPrice(selectedPlanDisplay)}</strong>
                     <small>{formatPlanDuration(selectedPlan)} · بدون تجديد تلقائي</small>
                   </div>
-                  {(forceIdentityEntry || !(getStoredAccessIdentity().contact && getStoredAccessIdentity().accessCode)) && <div className="premium-access-fields">
+                  {(checkoutCanaryStatus !== "canary" || forceIdentityEntry || !(getStoredAccessIdentity().contact && getStoredAccessIdentity().accessCode)) && <div className="premium-access-fields">
                     <label className="premium-access-field">
                       <span>البريد الإلكتروني</span>
                       <input
@@ -1656,7 +1677,7 @@ export default function PremiumAccessGate() {
                       />
                     </label>
                   </div>}
-                  {(forceIdentityEntry || !(getStoredAccessIdentity().contact && getStoredAccessIdentity().accessCode)) && <span className="premium-access-code-hint">
+                  {(checkoutCanaryStatus !== "canary" || forceIdentityEntry || !(getStoredAccessIdentity().contact && getStoredAccessIdentity().accessCode)) && <span className="premium-access-code-hint">
                     مثال مناسب: Darb5 أو 2580. لا تستخدم رمزًا عامًا مثل 1111.
                   </span>}
                   <button
@@ -1668,7 +1689,7 @@ export default function PremiumAccessGate() {
                       ? "جاري تحويلك للدفع..."
                       : "الانتقال للدفع الآمن"}
                   </button>
-                </form>
+                </form>}
 
                 <PaymentMethods />
 
