@@ -3,10 +3,11 @@ const { cleanOpportunityUrl } = require("../opportunityCandidateData");
 const { searchOpportunityUrls } = require("./search");
 const { planQueries, searchSettings } = require("./queryPack");
 const { counters } = require("./stages");
+const { candidateAdmission } = require("./admission");
 
 const TRAINING = /\b(?:co-?op|cooperative training|internship|intern|student program|university program|summer training|trainee|industrial training)\b|تدريب تعاوني|تدريب صيفي|تدريب طلاب|برنامج طلاب|متدرب|فرصة تدريب|برنامج جامعي/i;
 const ATS = /(?:^|\.)(?:greenhouse\.io|lever\.co|smartrecruiters\.com|myworkdayjobs\.com|oraclecloud\.com|successfactors\.(?:com|eu))$/i;
-const SOCIAL = /(?:^|\.)(?:linkedin\.com|x\.com|twitter\.com|t\.me|telegram\.me|facebook\.com|instagram\.com)$/i;
+const SOCIAL = /(?:^|\.)(?:tiktok\.com|linkedin\.com|x\.com|twitter\.com|t\.me|telegram\.me|facebook\.com|instagram\.com)$/i;
 // Classification only: never permission to fetch these job boards.
 const JOB_BOARDS = new Set(["bayt.com", "www.bayt.com", "gulftalent.com", "www.gulftalent.com", "indeed.com", "sa.indeed.com"]);
 function canonicalUrl(value) {
@@ -69,12 +70,17 @@ async function runSearchDiscovery(sources, { provider, settings = searchSettings
   await Promise.all(Array.from({ length: Math.min(settings.concurrency, plan.length) }, worker));
   for (const item of byUrl.values()) {
     if (["official_company", "official_ats"].includes(item.classification)) summary.officialUrlsClassified++;
-    item.accepted = ["official_company", "official_ats"].includes(item.classification) && item.trainingHint;
+    const source = sources.find((s) => s.key === item.sourceKey);
+    const admission = candidateAdmission({ ...item, company: source?.company }, source);
+    item.admissionReason = admission.reason;
+    item.accepted = ["official_company", "official_ats"].includes(item.classification) && item.trainingHint && admission.accepted;
     if (!item.trainingHint) item.reason = "NOT_TRAINING_SEARCH_RESULT";
     else if (item.accepted) item.reason = "OFFICIAL_TRAINING_HINT_REQUIRES_EXTRACTION";
+    else if (!admission.accepted) item.reason = admission.reason;
+    if (item.trainingHint && admission.reason === "OUTSIDE_SAUDI") summary.excludedOutsideSaudi++;
     if (item.accepted) summary.officialUrlsAccepted++; else summary.urlsRejected++;
     item.recentHint = item.searchResults.some((r) => r.publishedAt && now - new Date(r.publishedAt) >= 0 && now - new Date(r.publishedAt) <= 31 * 86400000);
-    if (!item.accepted && item.trainingHint && await saveLead(item)) summary.discoveryLeads++;
+    if (!item.accepted && item.trainingHint && admission.reason !== "OUTSIDE_SAUDI" && await saveLead(item)) summary.discoveryLeads++;
     results.push(item);
   }
   summary.uniqueUrlsDiscovered = summary.urlsDiscovered = results.length;

@@ -42,6 +42,7 @@ async function runFromSearch(sources, report, options) {
     urlsRejected: report.summary.urlsRejected + selected.filter((r) => !r.accepted).length,
     discoveryLeads: result.summary.discoveryLeads + report.summary.discoveryLeads, trainingSearchHints: report.summary.trainingSearchHints,
     recentTrainingHints: report.summary.recentTrainingHints, errors: result.summary.errors + report.summary.errors };
+  result.summary.excludedOutsideSaudi += report.summary.excludedOutsideSaudi || 0;
   if (report.status === "partial" || remaining.length) result.status = "partial";
   return result;
 }

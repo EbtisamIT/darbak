@@ -3,6 +3,7 @@ const { counters, observeReader, discoverUrls, extractOpportunity, verifyExtract
 const { failureCode } = require("./failures");
 const { trainingType } = require("./extract");
 const { prioritizeSources } = require("./priority");
+const { candidateAdmission } = require("./admission");
 
 const emptySummary = counters;
 async function runPipeline(sources, { ingest, saveLead = async () => false, getLogo = async () => "", readerFactory = createReader,
@@ -44,7 +45,7 @@ async function runPipeline(sources, { ingest, saveLead = async () => false, getL
       async function preserveSearchLead(reference, code) {
         if (reference.via !== "search" || !require("./searchDiscovery").TRAINING.test(reference.title || "") ||
             /(?:internship|training|student) program manager|director|senior manager/i.test(reference.title || "") ||
-            !/Saudi|Riyadh|Jeddah|السعودية|الرياض|جدة/i.test(`${reference.title} ${(reference.discoveredByQueries || []).join(" ")}`)) return;
+            !candidateAdmission({ ...reference, company: source.company }, source).accepted) return;
         try {
           const candidate = await ingest({ title: reference.title, company: source.company, sourceUrl: reference.url,
             sourceType: source.sourceType, programType: trainingType(reference.title, "") || "unknown",
@@ -72,6 +73,14 @@ async function runPipeline(sources, { ingest, saveLead = async () => false, getL
           for (const job of extracted.jobs) {
             const identity = `${job.sourceUrl}|${job.title}`;
             if (seen.has(identity)) continue;
+            const admission = candidateAdmission(job, source);
+            if (!admission.accepted) {
+              seen.add(identity); log.skipped++;
+              if (admission.reason === "OUTSIDE_SAUDI") counts.excludedOutsideSaudi++;
+              else if (await saveSearchLead({ ...reference, sourceUrl: job.sourceUrl, reason: admission.reason })) counts.discoveryLeads++;
+              details.push({ stage: "admission", url: job.sourceUrl, code: admission.reason });
+              continue;
+            }
             if (trainingType(job.title, job.description)) counts.trainingPagesDetected++;
             stage = enrichment ? "enrichment_verification" : "verification";
             const result = await verifyExtracted(job, source, reader, { now: now(), logo, enrichment, fetchMethod: extracted.fetchMethod });

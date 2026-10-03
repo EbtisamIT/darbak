@@ -4,6 +4,7 @@ const { searchSettings } = require("./queryPack");
 const { runFromSearch, saveDiscoveryLead } = require("./searchWorkflow");
 const { normalize } = require("../opportunityCandidateData");
 const { runPipeline } = require("./pipeline");
+const { candidateAdmission } = require("./admission");
 
 function sameAdvertTitle(a, b, source) {
   const tokens = (value) => {
@@ -95,13 +96,20 @@ async function runOpportunityAutomation(sources, { provider, rotation = 0, setti
   const result = await runFromSearch(sources, report, { ...pipelineOptions, saveSearchLead, enrichment: true });
   // Secondary results stay unverified. Their snippets are evidence only, not
   // duties, eligibility, dates, or inferred location/major fields.
-  for (const lead of report.results.filter((row) => !row.accepted && TRAINING.test(row.title || "") &&
-    /Saudi|Riyadh|Jeddah|السعودية|الرياض|جدة/i.test(`${row.title} ${row.description} ${(row.discoveredByQueries || []).join(" ")}`)).slice(0, 10)) {
+  let considered = 0;
+  for (const lead of report.results.filter((row) => !row.accepted && TRAINING.test(row.title || ""))) {
     const hint = ` ${normalize(lead.title)} `;
     const identities = sources.filter((source) => [source.company, ...(source.metadata.aliases || [])]
       .some((alias) => normalize(alias).length >= 4 && hint.includes(` ${normalize(alias)} `)));
+    const company = identities.length === 1 ? identities[0].company : "";
+    const admission = candidateAdmission({ ...lead, company }, identities.length === 1 ? identities[0] : undefined);
+    if (!admission.accepted) {
+      report.recoveryDetails.push({ stage: "admission", url: lead.url, code: admission.reason });
+      continue;
+    }
+    if (considered++ >= 10) break;
     try {
-      const candidate = await pipelineOptions.ingest({ title: lead.title, company: identities.length === 1 ? identities[0].company : "",
+      const candidate = await pipelineOptions.ingest({ title: lead.title, company,
         sourceUrl: lead.url, sourceType: "other", verificationNotes: lead.reason,
         extractionEvidence: { sourceUrl: { sourceUrl: lead.url, method: "search_lead", rawText: `${lead.title}\n${lead.description}` } } });
       if (candidate.status === "duplicate") result.summary.duplicates++;

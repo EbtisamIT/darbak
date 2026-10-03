@@ -10,7 +10,7 @@ const counterKeys = ["sourcesChecked", "searchQueriesRun", "urlsDiscovered", "of
   "pagesFetched", "fetchFailures", "trainingPagesDetected", "opportunitiesExtracted", "candidatesCreated",
   "duplicates", "updates", "emailLeads", "closedOpportunities", "errors", "opportunitiesFound", "newCandidates",
   "searchResultsReceived", "uniqueUrlsDiscovered", "officialUrlsClassified", "discoveryLeads", "trainingSearchHints", "recentTrainingHints", "needsReview", "oldOpportunities",
-  "opportunitiesEnriched", "pagesExtracted", "completenessTotal", "averageCompleteness", "readyForReview", "needsDetails", "needsVerification", "officialSourcesResolved", "recoveryQueries"];
+  "opportunitiesEnriched", "pagesExtracted", "completenessTotal", "averageCompleteness", "readyForReview", "needsDetails", "needsVerification", "officialSourcesResolved", "recoveryQueries", "excludedOutsideSaudi"];
 const counters = () => Object.fromEntries(counterKeys.map((key) => [key, 0]));
 function observeReader(reader, counts, details) {
   const seen = new Set();
