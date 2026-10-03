@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "pretest": "node tests/opportunityContentQuality.test.js && node tests/opportunityCandidates.test.js && node tests/opportunityDiscovery.test.js && node tests/opportunityDiscoveryHybrid.test.js && node tests/opportunityDiscoverySearch.test.js && node tests/opportunityApplicationPolicy.test.js && node tests/opportunityProductionReadiness.test.js && node tests/opportunityEnrichment.test.js",
+    "pretest": "node tests/opportunityAdmission.test.js && node tests/opportunityContentQuality.test.js && node tests/opportunityCandidates.test.js && node tests/opportunityDiscovery.test.js && node tests/opportunityDiscoveryHybrid.test.js && node tests/opportunityDiscoverySearch.test.js && node tests/opportunityApplicationPolicy.test.js && node tests/opportunityProductionReadiness.test.js && node tests/opportunityEnrichment.test.js",
     "discovery:search": "node scripts/discoverOpportunities.js --search-only --load-brave-env",
     "test:opportunity-enrichment": "node tests/opportunityEnrichment.test.js",
     "test:opportunity-import": "node tests/opportunityImport.integration.js",
