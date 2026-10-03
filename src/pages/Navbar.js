@@ -3,6 +3,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ACCOUNT_MODAL_EVENT,
+  PREMIUM_STATUS_EVENT,
+  hasResumeAccessPass,
 } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
 import logo from "./logo.png";
@@ -33,10 +35,12 @@ const Navbar = ({ theme = "dark", setTheme }) => {
   const [floatingMenuOpen, setFloatingMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [hasResumeAccess, setHasResumeAccess] = useState(() => hasResumeAccessPass());
   const moreMenuRef = useRef(null);
 
   const location = useLocation();
   const navigate = useNavigate();
+  const resumeNavTarget = hasResumeAccess ? "/my-resume" : "/resume";
   const isExperiencesPage = location.pathname === "/experiences";
   const shouldStickNavbar = !isMobile && location.pathname !== "/experiences";
   const floatingNavTop = isExperiencesPage
@@ -57,6 +61,16 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    const refreshAccess = () => setHasResumeAccess(hasResumeAccessPass());
+    window.addEventListener(PREMIUM_STATUS_EVENT, refreshAccess);
+    window.addEventListener("storage", refreshAccess);
+    return () => {
+      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshAccess);
+      window.removeEventListener("storage", refreshAccess);
+    };
   }, []);
 
   useEffect(() => {
@@ -428,7 +442,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             <FiCompass aria-hidden="true" /> <span>وين أتدرب؟</span>
           </Link>
 
-          <Link to="/my-resume" className="navbar-primary-link" style={linkStyle("/my-resume")}>
+          <Link to={resumeNavTarget} className="navbar-primary-link" style={linkStyle(resumeNavTarget)}>
             <FiUser aria-hidden="true" /> <span>سيرتي</span>
           </Link>
 
@@ -510,7 +524,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               <div className="navbar-mobile-primary-links">
                 <Link to="/" style={floatingLinkStyle("/")}><FiHome aria-hidden="true" /><span>الرئيسية</span></Link>
                 <Link to="/where-to-train" style={floatingLinkStyle("/where-to-train")}><FiCompass aria-hidden="true" /><span>وين أتدرب؟</span></Link>
-                <Link to="/my-resume" style={floatingLinkStyle("/my-resume")}><FiFileText aria-hidden="true" /><span>سيرتي</span></Link>
+                <Link to={resumeNavTarget} style={floatingLinkStyle(resumeNavTarget)}><FiFileText aria-hidden="true" /><span>سيرتي</span></Link>
                 <Link to="/experiences" style={floatingLinkStyle("/experiences")}><FiClipboard aria-hidden="true" /><span>تجارب الطلاب</span></Link>
               </div>
               <button type="button" className="navbar-mobile-more-toggle" aria-expanded={mobileMoreOpen} onClick={() => setMobileMoreOpen((open) => !open)}>
