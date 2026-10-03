@@ -32,8 +32,10 @@ import {
   getSubscriptionCapabilities,
   getStoredPremiumPass,
   hasActivePremiumPass,
+  startSubscriptionFlow,
 } from "./utils/premiumAccess";
 import NationalDayOffer from "./components/NationalDayOffer";
+import PremiumAccessGate from "./components/PremiumAccessGate";
 
 const ExperiencesPage = lazy(() => import("./pages/ExperiencesPage"));
 const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
@@ -54,7 +56,6 @@ const PartnersPage = lazy(() => import("./pages/PartnersPage"));
 const ClubDemoPage = lazy(() => import("./pages/ClubDemoPage"));
 const MyResumePage = lazy(() => import("./pages/MyResumePage"));
 const ResumeLandingPage = lazy(() => import("./pages/ResumeLandingPage"));
-const PremiumAccessGate = lazy(() => import("./components/PremiumAccessGate"));
 const AccountModal = lazy(() => import("./components/AccountModal"));
 const SavedItemsDrawer = lazy(() => import("./components/SavedItemsDrawer"));
 const DarbakAssistant = lazy(() => import("./components/DarbakAssistant"));
@@ -278,6 +279,10 @@ function SubscribeRoute() {
     const params = new URLSearchParams(location.search);
     return params.get("step") || "";
   }, [location.search]);
+  const subscribeReturnTo = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("returnTo") || "";
+  }, [location.search]);
   const hasRequestedPlanAccess = useCallback(() => {
     const pass = getStoredPremiumPass();
     if (!pass) return false;
@@ -306,12 +311,13 @@ function SubscribeRoute() {
           feature: "subscribe_page",
           title: subscribePlan === "darbak_resume" ? "دربك+ سيرة" : "دربك+",
           source: subscribeSource,
+          returnTo: subscribeReturnTo,
           defaultPlanId: subscribePlan || "darbak_plus",
           openCheckout: subscribeStep === "checkout",
         },
       })
     );
-  }, [hasRequestedPlanAccess, subscribePlan, subscribeSource, subscribeStep]);
+  }, [hasRequestedPlanAccess, subscribePlan, subscribeSource, subscribeStep, subscribeReturnTo]);
 
   useEffect(() => {
     const refreshPremiumStatus = () =>
@@ -502,7 +508,7 @@ function SubscribeRoute() {
         >
           <button
             type="button"
-            onClick={() => navigate("/subscribe")}
+            onClick={() => startSubscriptionFlow({ source: "subscription_page", navigate })}
             style={{
               border: "none",
               borderRadius: "14px",
@@ -1367,9 +1373,9 @@ function AppLayout({ theme, setTheme }) {
 
       <PageBanner />
       {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && !isCompanyPortalPage && <PlatformUpdateNotice />}
+      {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && !isCompanyPortalPage && <PremiumAccessGate />}
       {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && !isCompanyPortalPage && (
         <Suspense fallback={null}>
-          <PremiumAccessGate />
           <AccountModal />
           <SavedItemsDrawer />
           <DarbakAssistant />

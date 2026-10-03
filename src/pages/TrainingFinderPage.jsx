@@ -40,6 +40,7 @@ import {
   hasCoreAccess,
   isPremiumGateEnabled,
   requestPremiumAccess,
+  startSubscriptionFlow,
 } from "../utils/premiumAccess";
 import {
   getSavedItemIds,
@@ -2099,9 +2100,6 @@ export default function TrainingFinderPage() {
   };
 
   const goToSubscribePage = (source, metadata = {}) => {
-    const subscribeParams = new URLSearchParams({ source });
-    subscribeParams.set("plan", metadata.planId || "darbak_plus");
-    if (metadata.step) subscribeParams.set("step", metadata.step);
     trackEvent("premium_cta_clicked", {
       major: selectedSpecialtyLabel,
       city,
@@ -2112,8 +2110,11 @@ export default function TrainingFinderPage() {
         ...metadata,
       },
     });
-    navigate(`/subscribe?${subscribeParams.toString()}`, {
-      state: { from: `${location.pathname}${location.search}` },
+    startSubscriptionFlow({
+      planId: metadata.planId || "darbak_plus",
+      source,
+      returnTo: `${location.pathname}${location.search}`,
+      navigate,
     });
   };
 
@@ -3405,7 +3406,11 @@ export default function TrainingFinderPage() {
           planId: "darbak_plus",
         })}
         className="opportunity-plus-inline-cta"
-        onClick={openOpportunityPremiumBanner}
+        onClick={(event) => {
+          event.preventDefault();
+          openOpportunityPremiumBanner();
+          startSubscriptionFlow({ planId: "darbak_plus", source: "where_to_train_opportunities_banner", returnTo: `${location.pathname}${location.search}`, navigate });
+        }}
         aria-label="افتح باقات دربك بلس لعرض فرصك المناسبة"
       >
         <span>افتح فرصك المناسبة</span>

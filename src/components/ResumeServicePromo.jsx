@@ -7,6 +7,7 @@ import {
   getStoredPremiumPass,
   hasDarbakPlusPass,
   hasResumeAccessPass,
+  startSubscriptionFlow,
 } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
 
@@ -81,12 +82,12 @@ const ResumeServicePromo = ({
       return;
     }
 
-    navigate("/subscribe?plan=darbak_resume&source=resume-service");
+    startSubscriptionFlow({ planId: RESUME_PLAN_ID, source: "resume-service", returnTo: "/my-resume", navigate });
   };
 
   const upgrade = () => {
     setShowUpgradeModal(false);
-    navigate("/subscribe?plan=darbak_resume&source=resume-upgrade");
+    startSubscriptionFlow({ planId: RESUME_PLAN_ID, source: "resume-upgrade", returnTo: "/my-resume", navigate });
   };
 
   const usageLimit = Number(resumePlan?.aiResumeUsageLimit || 0);

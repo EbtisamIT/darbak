@@ -9,6 +9,12 @@ const ANALYTICS_BATCH_SIZE = 8;
 const ANALYTICS_FLUSH_DELAY_MS = 1800;
 const URGENT_ANALYTICS_EVENTS = new Set([
   "checkout_started",
+  "subscription_cta_clicked",
+  "subscription_checkout_opened",
+  "payment_started",
+  "payment_succeeded",
+  "payment_failed",
+  "payment_cancelled",
   "premium_checkout_started",
   "subscription_completed",
   "premium_plan_selected",

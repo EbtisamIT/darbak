@@ -4,9 +4,9 @@ import axios from "axios";
 import API_BASE_URL from "../config/api";
 import {
   ACCOUNT_MODAL_EVENT,
-  PREMIUM_ACCESS_EVENT,
   clearAccessSession,
   getStoredAccessIdentity,
+  startSubscriptionFlow,
   getStoredPremiumPass,
   isPremiumGateEnabled,
   saveAccessIdentity,
@@ -151,16 +151,12 @@ export default function AccountModal() {
   };
 
   const openPremiumGate = () => {
+    if (isActive) {
+      setMessage("تغيير الباقة لا يزال غير متاح من الحساب النشط لأن احتساب الرصيد غير مفعّل. اشتراكك الحالي مستمر كما هو.");
+      return;
+    }
     setIsOpen(false);
-    window.dispatchEvent(
-      new CustomEvent(PREMIUM_ACCESS_EVENT, {
-        detail: {
-          feature: "account",
-          title: "حسابي",
-          source: "account_modal",
-        },
-      })
-    );
+    startSubscriptionFlow({ source: "account_renewal" });
   };
 
   const refreshSubscription = async () => {
@@ -487,7 +483,7 @@ export default function AccountModal() {
         <div className="account-modal-actions">
           {premiumGateVisible && (
             <button type="button" onClick={openPremiumGate}>
-              {isActive ? "تجديد أو تغيير الباقة" : "تفعيل دربك+"}
+              {isActive ? "تغيير الباقة" : "تجديد أو تفعيل دربك+"}
             </button>
           )}
           <button

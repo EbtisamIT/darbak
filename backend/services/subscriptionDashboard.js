@@ -310,6 +310,23 @@ const buildCampaignAnalytics = async ({ AnalyticsEvent, campaign, now = new Date
   };
 };
 
+const buildCheckoutFunnelSources = (rows = []) => {
+  const bySource = new Map();
+  for (const row of rows) {
+    const source = row._id?.source || "unattributed";
+    const counters = bySource.get(source) || { source, clicks: 0, checkoutOpened: 0, paymentStarted: 0, paid: 0 };
+    const field = {
+      subscription_cta_clicked: "clicks",
+      subscription_checkout_opened: "checkoutOpened",
+      payment_started: "paymentStarted",
+      subscription_completed: "paid",
+    }[row._id?.eventName];
+    if (field) counters[field] = Number(row.count || 0);
+    bySource.set(source, counters);
+  }
+  return [...bySource.values()].sort((a, b) => b.clicks - a.clicks);
+};
+
 const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, days, campaign = null, resumeSource = "all" }) => {
   const range = getRange(days);
   const eventMatch = { createdAt: { $gte: range.start, $lt: range.end } };
@@ -345,6 +362,20 @@ const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, 
   const discoveryCount = (name) => name === "resume_subscription_paid" && paidForSource !== null
     ? paidForSource
     : Number(discoveryRows.find((row) => row._id === name)?.count || 0);
+  const checkoutFunnelEvents = [
+    "subscription_cta_clicked",
+    "subscription_checkout_opened",
+    "payment_started",
+    "subscription_completed",
+  ];
+  const checkoutFunnelRows = await AnalyticsEvent.aggregate([
+    { $match: { ...eventMatch, eventName: { $in: checkoutFunnelEvents } } },
+    { $group: {
+      _id: { source: { $ifNull: ["$metadata.source", "unattributed"] }, eventName: "$eventName" },
+      count: { $sum: 1 },
+    } },
+  ]);
+  const checkoutFunnelSources = buildCheckoutFunnelSources(checkoutFunnelRows);
 
   const [payments, activeSubscribers, subscriptionCounts, todayUsers, yesterdayUsers, funnel, dailySeries, campaignAnalytics] = await Promise.all([
     getPaymentAggregate(AnalyticsEvent, range),
@@ -534,6 +565,9 @@ const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, 
       averageFreeSessionSeconds: sessionTotals.freeSessions ? Math.round(sessionTotals.free / sessionTotals.freeSessions) : 0,
     },
     funnel,
+    checkoutFunnel: {
+      sources: checkoutFunnelSources,
+    },
     attribution: sourceRows,
     content: { experiences: topExperiences, opportunities: topOpportunities, companies: topCompanies, majors: topMajors, cities: topCities, companyDirectory },
     risk: { benefiting: engagedIds.length, inactive: inactive7, atRisk },
@@ -543,5 +577,6 @@ const buildSubscriptionDashboard = async ({ AnalyticsEvent, Subscription, User, 
 
 module.exports = {
   buildSubscriptionDashboard,
+  buildCheckoutFunnelSources,
   getRange,
 };

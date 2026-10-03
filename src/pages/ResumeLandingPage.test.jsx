@@ -2,11 +2,11 @@ import React from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ResumeLandingPage from "./ResumeLandingPage";
-import { hasResumeAccessPass } from "../utils/premiumAccess";
+import { hasResumeAccessPass, startSubscriptionFlow } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
 import useResumeDiscoveryAccess from "../utils/useResumeDiscoveryAccess";
 
-jest.mock("../utils/premiumAccess", () => ({ hasResumeAccessPass: jest.fn() }));
+jest.mock("../utils/premiumAccess", () => ({ hasResumeAccessPass: jest.fn(), startSubscriptionFlow: jest.fn() }));
 jest.mock("../utils/analytics", () => ({ trackEvent: jest.fn() }));
 jest.mock("../utils/useResumeDiscoveryAccess", () => jest.fn());
 
@@ -63,6 +63,7 @@ test("routes non-subscribers to the existing resume plan checkout", () => {
   expect(ctas).toHaveLength(2);
   ctas.forEach((cta) => expect(cta).toHaveAttribute("href", "/subscribe?plan=darbak_resume&source=resume-landing"));
   fireEvent.click(ctas[0]);
+  expect(startSubscriptionFlow).toHaveBeenCalledWith(expect.objectContaining({ planId: "darbak_resume", source: "resume-landing" }));
   expect(trackEvent).toHaveBeenCalledWith("resume_cta_clicked", expect.objectContaining({ metadata: expect.objectContaining({ placement: "hero", subscriber: false }) }));
 });
 

@@ -41,6 +41,7 @@ const subscriptionSchema = new mongoose.Schema(
       default: 5,
     },
     campaignId: { type: String, default: "", trim: true, maxlength: 120 },
+    checkoutSource: { type: String, default: "", trim: true, maxlength: 90 },
     originalPriceSar: { type: Number, default: 0, min: 0 },
     paidPriceSar: { type: Number, default: 0, min: 0 },
     durationDays: {

@@ -1,6 +1,8 @@
 import {
   getSubscriptionCapabilities,
   hasSubscriptionFeatureAccess,
+  getSafeSubscriptionReturnTo,
+  getSubscriptionFlowPath,
 } from "./premiumAccess";
 
 test.each([
@@ -9,6 +11,13 @@ test.each([
   ["darbak_resume", { hasCoreAccess: true, hasResumeAccess: true }],
 ])("%s exposes the expected capabilities", (planId, expected) => {
   expect(getSubscriptionCapabilities({ planId, entitlements: [] })).toEqual(expected);
+});
+
+test("one subscription entry preserves the selected plan and only internal return paths", () => {
+  expect(getSubscriptionFlowPath({ planId: "one_time_90", source: "homepage", returnTo: "/opportunities/123" }))
+    .toBe("/subscribe?plan=one_time_90&step=checkout&source=homepage&returnTo=%2Fopportunities%2F123");
+  expect(getSafeSubscriptionReturnTo("//evil.example/pay")).toBe("");
+  expect(getSafeSubscriptionReturnTo("https://evil.example/pay")).toBe("");
 });
 
 test("no subscription has no protected capabilities", () => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import ResumePreview from "../features/resume/ResumePreview";
-import { hasResumeAccessPass, PREMIUM_STATUS_EVENT } from "../utils/premiumAccess";
+import { hasResumeAccessPass, PREMIUM_STATUS_EVENT, startSubscriptionFlow } from "../utils/premiumAccess";
 import { setPageSeo } from "../utils/seoMetadata";
 import { trackEvent } from "../utils/analytics";
 import {
@@ -104,6 +104,7 @@ function TailoredOutput({ tab }) {
 }
 
 export default function ResumeLandingPage() {
+  const navigate = useNavigate();
   const location = useLocation();
   const resumeDiscovery = useResumeDiscoveryAccess();
   const [language, setLanguage] = useState("ar");
@@ -185,7 +186,13 @@ export default function ResumeLandingPage() {
           <p>دربك يبني سيرتك من معلوماتك الحقيقية، يصيغها مهنيًا، ويعطيك نسخة عربية وإنجليزية قابلة للتخصيص لكل فرصة تقدم عليها.</p>
           <div className="resume-landing-badges"><span>عربي + إنجليزي</span><span>ATS-friendly</span><span>قابلة للتخصيص للفرص</span><span>PDF جاهز</span></div>
           <div className="resume-landing-actions">
-            <Link className="resume-landing-button resume-landing-button-primary" to={resumeTarget} onClick={() => trackCta("hero")}>{ctaLabel}</Link>
+            <Link className="resume-landing-button resume-landing-button-primary" to={resumeTarget} onClick={(event) => {
+              trackCta("hero");
+              if (!hasResumeAccess) {
+                event.preventDefault();
+                startSubscriptionFlow({ planId: "darbak_resume", source: attributionSource ? `resume-${attributionSource}` : "resume-landing", returnTo: "/my-resume", navigate });
+              }
+            }}>{ctaLabel}</Link>
             <button className="resume-landing-button resume-landing-button-secondary" type="button" onClick={showDemo}>شاهد كيف يشتغل دربك</button>
           </div>
           <small>خصص نفس سيرتك لكل فرصة بدون تغيير حقائقك أو اختراع معلومات.</small>
@@ -237,7 +244,13 @@ export default function ResumeLandingPage() {
 
       <section className="resume-landing-section resume-landing-faq" aria-labelledby="resume-faq-title"><div className="resume-landing-section-heading"><span>عندك سؤال؟</span><h2 id="resume-faq-title">إجابات سريعة وواضحة</h2></div><div>{questions.map(([question, answer], index) => <details key={question}><summary onClick={(event) => { if (!event.currentTarget.parentElement.open) trackEvent("resume_faq_opened", { metadata: { questionIndex: index } }); }}>{question}</summary><p>{answer}</p></details>)}</div></section>
 
-      <section className="resume-landing-final"><span>الخطوة الجاية تبدأ منك</span><h2>جاهز تبدأ سيرتك؟</h2><p>معلوماتك الحقيقية، بصياغة مهنية ونسخ يمكن تخصيصها لكل فرصة.</p><Link className="resume-landing-button resume-landing-button-primary" to={resumeTarget} onClick={() => trackCta("final")}>{ctaLabel}</Link>{hasResumeAccess && resumeDiscovery.hasMaster && <Link className="resume-landing-final-tailor" to="/my-resume/tailor" onClick={() => trackCta("final_tailor")}>سيرتك جاهزة؟ خصصها لفرصة</Link>}</section>
+      <section className="resume-landing-final"><span>الخطوة الجاية تبدأ منك</span><h2>جاهز تبدأ سيرتك؟</h2><p>معلوماتك الحقيقية، بصياغة مهنية ونسخ يمكن تخصيصها لكل فرصة.</p><Link className="resume-landing-button resume-landing-button-primary" to={resumeTarget} onClick={(event) => {
+        trackCta("final");
+        if (!hasResumeAccess) {
+          event.preventDefault();
+          startSubscriptionFlow({ planId: "darbak_resume", source: attributionSource ? `resume-${attributionSource}` : "resume-landing", returnTo: "/my-resume", navigate });
+        }
+      }}>{ctaLabel}</Link>{hasResumeAccess && resumeDiscovery.hasMaster && <Link className="resume-landing-final-tailor" to="/my-resume/tailor" onClick={() => trackCta("final_tailor")}>سيرتك جاهزة؟ خصصها لفرصة</Link>}</section>
     </main>
   );
 }

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import API_BASE_URL from "../config/api";
 import { trackEvent } from "../utils/analytics";
+import { startSubscriptionFlow } from "../utils/premiumAccess";
 import {
   formatOfferCountdown,
   getCampaignRemainingMs,
@@ -117,10 +118,6 @@ export default function NationalDayOffer() {
     return () => window.clearTimeout(timer);
   }, [didExpire]);
 
-  const subscribeUrl = useMemo(
-    () => "/subscribe?plan=one_time_90&source=national_day_campaign",
-    []
-  );
   const goToSubscribe = (source = "popup") => {
     trackEvent(
       source === "countdown_bar"
@@ -129,7 +126,7 @@ export default function NationalDayOffer() {
       { metadata: { campaignId: campaign?.id || "national-day-90d-960" } }
     );
     setShowPopup(false);
-    navigate(subscribeUrl);
+    startSubscriptionFlow({ planId: "one_time_90", source: "national_day_campaign", campaignId: campaign?.id, navigate });
   };
 
   if (

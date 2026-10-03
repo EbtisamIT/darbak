@@ -5,6 +5,7 @@ import {
   ACCOUNT_MODAL_EVENT,
   PREMIUM_STATUS_EVENT,
   hasResumeAccessPass,
+  startSubscriptionFlow,
 } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
 import { setResumeDiscoveryAttribution, trackResumeDiscovery } from "../utils/resumeDiscovery";
@@ -411,7 +412,10 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             />
           </Link>
           {themeToggleButton}
-          <Link to="/subscribe" style={{ ...premiumCtaButtonStyle, textDecoration: "none" }}>
+          <Link to="/subscribe" onClick={(event) => {
+            event.preventDefault();
+            startSubscriptionFlow({ source: "navbar", navigate });
+          }} style={{ ...premiumCtaButtonStyle, textDecoration: "none" }}>
               دربك+
           </Link>
           {isMobile && (

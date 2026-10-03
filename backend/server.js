@@ -22,6 +22,7 @@ const { createOpportunityCandidateRouter } = require('./services/opportunityCand
 const { createOpportunityImportRouter } = require('./services/opportunityDiscovery/importRoutes');
 const { rankOpportunitySearchResults } = require('./services/opportunitySearch');
 const { buildSubscriptionDashboard } = require("./services/subscriptionDashboard");
+const { createCheckoutSingleFlight } = require("./services/checkoutSingleFlight");
 const {
   buildSubscriptionUsageSummary,
   getSubscriptionUsageEventNames,
@@ -3976,7 +3977,7 @@ const recordPremiumAccessVerifiedEvent = async ({
     originalPriceSar: Number(subscription.originalPriceSar || 0),
     paidPriceSar: Number(subscription.paidPriceSar || getSubscriptionPriceSar(subscription)),
     durationDays: getSubscriptionDurationDays(subscription),
-    source,
+    source: subscription.checkoutSource || source,
   });
   const existingEvent = await AnalyticsEvent.findOne({
     eventName: "premium_access_verified",
@@ -3989,7 +3990,7 @@ const recordPremiumAccessVerifiedEvent = async ({
       existingEvent.actorId = existingEvent.actorId || actorId;
       existingEvent.metadata = {
         ...(existingEvent.metadata || {}),
-        source: source || existingEvent.metadata?.source || "",
+        source: subscription.checkoutSource || existingEvent.metadata?.source || source || "",
       };
       await existingEvent.save();
     }
@@ -4018,7 +4019,7 @@ const recordPremiumAccessVerifiedEvent = async ({
       existingCompletedEvent.actorId = existingCompletedEvent.actorId || actorId;
       existingCompletedEvent.metadata = {
         ...(existingCompletedEvent.metadata || {}),
-        source: source || existingCompletedEvent.metadata?.source || "",
+        source: subscription.checkoutSource || existingCompletedEvent.metadata?.source || source || "",
       };
       await existingCompletedEvent.save();
     }
@@ -12482,6 +12483,50 @@ app.post('/api/subscriptions/verify', async (req, res) => {
       });
     }
 
+    const requestedInvoiceId = sanitizeAnalyticsText(req.body.invoiceId, 120);
+    if (requestedInvoiceId) {
+      let checkoutSubscription = await Subscription.findOne({
+        email: contact,
+        accessCodeHash,
+        provider: "moyasar",
+        providerPaymentId: requestedInvoiceId,
+      }).lean();
+      if (!checkoutSubscription) {
+        return res.status(404).json({ error: "لم نعثر على عملية الدفع لهذا الحساب." });
+      }
+      if (checkoutSubscription.status === "pending") {
+        const invoice = await getMoyasarInvoice(requestedInvoiceId);
+        if (invoice.status === "paid") {
+          await activateMoyasarSubscriptionFromInvoiceId({ invoiceId: requestedInvoiceId, visitorId, source: "verify_return_paid" });
+          checkoutSubscription = await Subscription.findById(checkoutSubscription._id).lean();
+        } else {
+          return res.status(402).json({
+            reason: ["canceled", "cancelled"].includes(invoice.status)
+              ? "payment_cancelled"
+              : ["failed", "expired"].includes(invoice.status)
+                ? "payment_failed"
+                : "payment_pending",
+            error: "ما زلنا ننتظر تأكيد الدفع من ميسر.",
+          });
+        }
+      }
+      if (checkoutSubscription.status !== "active" || new Date(checkoutSubscription.expiresAt) <= new Date()) {
+        return res.status(402).json({ reason: "payment_not_active", error: "لم يتأكد الدفع بعد." });
+      }
+      return res.json({
+        active: true,
+        contact,
+        email: contact,
+        expiresAt: checkoutSubscription.expiresAt,
+        accessType: "premium",
+        ...buildSubscriptionAccessPayload(checkoutSubscription),
+        priceSar: getSubscriptionPriceSar(checkoutSubscription),
+        durationDays: getSubscriptionDurationDays(checkoutSubscription),
+        provider: checkoutSubscription.provider || "",
+        providerPaymentId: requestedInvoiceId,
+      });
+    }
+
     const subscription = await Subscription.findOne(
       getActiveSubscriptionFilter(contact, accessCodeHash)
     )
@@ -12989,12 +13034,25 @@ const startSubscriptionCheckout = async (req, res) => {
     // can never accidentally pay into a different account.
     const authenticatedContact = req.get("x-darbak-contact") || "";
     const authenticatedAccessCode = req.get("x-darbak-access-code") || "";
-    const rawContact =
-      authenticatedContact || req.body.email || req.body.contact || "";
+    const hasAuthenticatedIdentity = Boolean(authenticatedContact || authenticatedAccessCode);
+    if (hasAuthenticatedIdentity && (!authenticatedContact || !authenticatedAccessCode)) {
+      return res.status(401).json({ error: "تعذر التحقق من حسابك. سجّل الدخول وحاول مرة أخرى." });
+    }
+    const rawContact = hasAuthenticatedIdentity
+      ? authenticatedContact
+      : req.body.email || req.body.contact || "";
     const contact = normalizeSubscriberContact(rawContact);
     const accessCode = normalizeAccessCode(
-      authenticatedAccessCode || req.body.accessCode || ""
+      hasAuthenticatedIdentity ? authenticatedAccessCode : req.body.accessCode || ""
     );
+    const requestedPlanId = (req.body.planId || "").toString().trim();
+    const validPlanIds = new Set([
+      ...Object.keys(buildSubscriptionPlans(process.env)),
+      "monthly", "resume", "resume_builder", "darbak_plus_resume", "darbak_resume_monthly",
+    ]);
+    if (requestedPlanId && !validPlanIds.has(requestedPlanId)) {
+      return res.status(400).json({ error: "الباقة المختارة غير متاحة حاليًا." });
+    }
     const selectedPlan = getSubscriptionPlan(req.body.planId);
     const selectedPlanKey = selectedPlan.planKey || normalizePlanKey(selectedPlan.id);
     const checkoutPricing = getSubscriptionCheckoutPricing({
@@ -13018,6 +13076,14 @@ const startSubscriptionCheckout = async (req, res) => {
     }
 
     const accessCodeHash = hashAccessCode(contact, accessCode);
+    if (hasAuthenticatedIdentity) {
+      const authenticatedUser = await User.findOne({ contact, accessCodeHash }).select("_id").lean();
+      if (!authenticatedUser) {
+        return res.status(401).json({ error: "انتهت جلسة حسابك. سجّل الدخول وحاول مرة أخرى." });
+      }
+    } else if (!(await User.exists({ contact, accessCodeHash })) && await User.exists({ contact })) {
+      return res.status(409).json({ error: "هذا البريد مرتبط بحساب سابق. استخدم رمز الدخول الصحيح." });
+    }
 
     if (isLegacyMobileSubscriberContact(rawContact)) {
       const existingLegacySubscription = await Subscription.findOne({
@@ -13232,6 +13298,7 @@ const startSubscriptionCheckout = async (req, res) => {
           entitlements: subscriptionEntitlements,
           priceSar: checkoutPricing.priceSar,
           campaignId: checkoutPricing.campaign?.id || "",
+          checkoutSource,
           originalPriceSar: checkoutPricing.originalPriceSar,
           paidPriceSar: checkoutPricing.priceSar,
           durationDays: selectedPlan.durationDays,
@@ -13294,6 +13361,7 @@ const startSubscriptionCheckout = async (req, res) => {
           entitlements: subscriptionEntitlements,
           priceSar: checkoutPricing.priceSar,
           campaignId: checkoutPricing.campaign?.id || "",
+          checkoutSource,
           originalPriceSar: checkoutPricing.originalPriceSar,
           paidPriceSar: checkoutPricing.priceSar,
           durationDays: selectedPlan.durationDays,
@@ -13344,10 +13412,18 @@ const startSubscriptionCheckout = async (req, res) => {
   }
 };
 
+const serializeSubscriptionCheckout = createCheckoutSingleFlight((req) => {
+  const contact = normalizeSubscriberContact(
+    req.get("x-darbak-contact") || req.body.email || req.body.contact || ""
+  );
+  const planId = (req.body.planId || "").toString().trim();
+  return contact && planId ? `${contact}:${planId}` : "";
+}, startSubscriptionCheckout);
+
 // Keep the legacy URL for in-flight clients, while all new entry points use
 // the explicit shared checkout endpoint above.
-app.post("/api/subscriptions/checkout", startSubscriptionCheckout);
-app.post("/api/subscriptions/start-checkout", startSubscriptionCheckout);
+app.post("/api/subscriptions/checkout", serializeSubscriptionCheckout);
+app.post("/api/subscriptions/start-checkout", serializeSubscriptionCheckout);
 
 app.post('/api/subscriptions/moyasar/callback', async (req, res) => {
   try {

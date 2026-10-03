@@ -15,6 +15,8 @@ import {
   PREMIUM_ACCESS_EVENT,
   PREMIUM_STATUS_EVENT,
   getStoredAccessIdentity,
+  getAccessHeaders,
+  getSafeSubscriptionReturnTo,
   getStoredPremiumPass,
   hasActivePremiumPass,
   hasSubscriptionFeatureAccess,
@@ -22,6 +24,7 @@ import {
   isPremiumGateEnabled,
   saveAccessIdentity,
   savePremiumPass,
+  startSubscriptionFlow,
 } from "../utils/premiumAccess";
 import {
   getVisitorId,
@@ -53,8 +56,6 @@ const SUBSCRIPTION_RETURN_REMINDER_SESSION_KEY =
 const SUBSCRIPTION_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const SUBSCRIPTION_RETURN_REMINDER_COOLDOWN_MS = 3 * 24 * 60 * 60 * 1000;
 const SUBSCRIPTION_BROWSE_BAR_DELAY_MS = 3 * 60 * 1000;
-const SUBSCRIPTION_REMINDER_SUBSCRIBE_URL =
-  "/subscribe?source=experience-reminder";
 
 const PremiumPlanCard = ({
   plan,
@@ -145,7 +146,7 @@ const PaymentMethods = () => (
       </span>
     </div>
     <p className="premium-payment-help">
-      هذه الشعارات توضح وسائل الدفع المتاحة وليست أزرارًا. أدخل بياناتك ثم اضغط «انتقل للدفع الآمن الآن».
+      هذه الشعارات توضح وسائل الدفع المتاحة وليست أزرارًا. اضغط «الانتقال للدفع الآمن» لإكمال اشتراكك.
     </p>
   </div>
 );
@@ -469,6 +470,9 @@ export default function PremiumAccessGate() {
   const [isResettingCode, setIsResettingCode] = useState(false);
   const [isLoginOnly, setIsLoginOnly] = useState(false);
   const [showCheckoutForm, setShowCheckoutForm] = useState(false);
+  const [forceIdentityEntry, setForceIdentityEntry] = useState(false);
+  const [checkoutSource, setCheckoutSource] = useState("");
+  const [checkoutReturnTo, setCheckoutReturnTo] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState("darbak_plus");
   const [subscriptionPlans, setSubscriptionPlans] = useState(
     fallbackSubscriptionPlans
@@ -491,6 +495,7 @@ export default function PremiumAccessGate() {
     activeSubscribersCount: null,
   });
   const pendingActionRef = useRef(null);
+  const checkoutInFlightRef = useRef(false);
   const reminderDetailRef = useRef(null);
   const reminderBarTimerRef = useRef(null);
   const returnReminderEligibleRef = useRef(false);
@@ -673,7 +678,7 @@ export default function PremiumAccessGate() {
     });
     setSubscriptionReminder(null);
     setIsReminderBarVisible(false);
-    window.location.assign(SUBSCRIPTION_REMINDER_SUBSCRIBE_URL);
+    startSubscriptionFlow({ source: "experience-reminder", returnTo: `${window.location.pathname}${window.location.search}` });
   };
 
   useEffect(() => {
@@ -860,9 +865,12 @@ export default function PremiumAccessGate() {
         setSelectedPlanId(effectivePlan.id);
       }
       setFeature(detail.feature || "");
+      setCheckoutSource(detail.source || "unknown");
+      setCheckoutReturnTo(getSafeSubscriptionReturnTo(detail.returnTo));
       setIsLimitGateOpen(false);
       setIsLoginOnly(Boolean(detail.loginOnly));
       setShowCheckoutForm(Boolean(detail.openCheckout) && !detail.loginOnly);
+      setForceIdentityEntry(false);
       setIsResetMode(false);
       setResetToken("");
       const gateMessage = detail.gateMessage || "";
@@ -874,6 +882,15 @@ export default function PremiumAccessGate() {
           : ""
       );
       setIsOpen(true);
+      if (isSubscriptionBrowseRequest) {
+        trackEvent(detail.openCheckout ? "subscription_checkout_opened" : "subscription_plans_opened", {
+          metadata: {
+            source: detail.source || "subscribe_page",
+            planId: effectivePlan?.id || "",
+            authenticated: Boolean(getStoredAccessIdentity().accessCode),
+          },
+        });
+      }
       const gateType = detail.loginOnly ? "login_only" : "premium_gate";
       if (gateType === "premium_gate") {
         trackEventOncePerSession(
@@ -1014,21 +1031,42 @@ export default function PremiumAccessGate() {
       setIsVerifying(true);
       setMessage(
         options.auto
-          ? "تم الدفع بنجاح. نؤكد اشتراكك الآن ونفتح لك المزايا..."
+          ? "جاري تأكيد حالة الدفع وفتح المزايا على حسابك..."
           : ""
       );
-      const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
-        email: contactValue,
-        accessCode: normalizedCode,
-        visitorId: getVisitorId(),
-      });
+      let data;
+      const attempts = options.auto && options.invoiceId ? 6 : 1;
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        try {
+          ({ data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
+            email: contactValue,
+            accessCode: normalizedCode,
+            visitorId: getVisitorId(),
+            ...(options.invoiceId ? { invoiceId: options.invoiceId } : {}),
+          }));
+          break;
+        } catch (error) {
+          const stillPending = error.response?.status === 402 && error.response?.data?.reason === "payment_pending";
+          if (!stillPending || attempt === attempts - 1) throw error;
+          await new Promise((resolve) => window.setTimeout(resolve, 2500));
+        }
+      }
       saveAccessIdentity({ contact: contactValue, accessCode: normalizedCode });
       grantAccess(data);
+      if (options.auto && options.invoiceId) {
+        trackEventOnceLocal("payment_succeeded", { metadata: { planId: data.planId || "", providerPaymentId: options.invoiceId } }, options.invoiceId);
+      }
       return true;
     } catch (err) {
-      setMessage(
-        err.response?.data?.error || "تعذر التحقق من الاشتراك حاليًا."
-      );
+      const paymentReason = err.response?.data?.reason;
+      if (options.auto && options.invoiceId && ["payment_failed", "payment_cancelled"].includes(paymentReason)) {
+        trackEventOnceLocal(paymentReason === "payment_cancelled" ? "payment_cancelled" : "payment_failed", {
+          metadata: { providerPaymentId: options.invoiceId },
+        }, options.invoiceId);
+      }
+      setMessage(err.response?.data?.reason === "payment_pending"
+        ? "الدفع لم يتأكد بعد. معلوماتك محفوظة؛ تقدر تعيد التحقق بعد لحظات بدون دفع جديد."
+        : err.response?.data?.error || "تعذر التحقق من الاشتراك حاليًا.");
       return false;
     } finally {
       setIsVerifying(false);
@@ -1196,7 +1234,7 @@ export default function PremiumAccessGate() {
     window.history.replaceState({}, "", nextUrl);
 
     if (pendingContact && pendingAccessCode) {
-      verifyAccess(pendingContact, pendingAccessCode, { auto: true });
+      verifyAccess(pendingContact, pendingAccessCode, { auto: true, invoiceId: pending.invoiceId || pending.providerPaymentId || "" });
       return;
     }
 
@@ -1207,8 +1245,23 @@ export default function PremiumAccessGate() {
 
   const selectPlanAndCreateAccount = (plan) => {
     setSelectedPlanId(plan.id);
+    if (window.location.pathname === "/subscribe") {
+      const params = new URLSearchParams(window.location.search);
+      params.set("plan", plan.id);
+      params.set("step", "checkout");
+      window.history.replaceState({}, "", `/subscribe?${params.toString()}`);
+    }
     setShowCheckoutForm(true);
-    setMessage("اكتب البريد الإلكتروني والرمز، وبعد الضغط نوديك مباشرة لصفحة الدفع الآمنة.");
+    const identity = getStoredAccessIdentity();
+    setMessage(identity.contact && identity.accessCode
+      ? "اشتراكك سيتفعّل مباشرة على حسابك الحالي بعد إتمام الدفع."
+      : "اكتب البريد الإلكتروني ورمز الدخول لإنشاء حسابك أو ربط اشتراكك به.");
+    trackEvent("subscription_plan_selected", {
+      metadata: { source: checkoutSource || "premium_gate", planId: plan.id, authenticated: Boolean(identity.contact && identity.accessCode) },
+    });
+    trackEvent("subscription_checkout_opened", {
+      metadata: { source: checkoutSource || "premium_gate", planId: plan.id, authenticated: Boolean(identity.contact && identity.accessCode) },
+    });
     trackEventOncePerSession(
       "premium_plan_selected",
       {
@@ -1219,36 +1272,45 @@ export default function PremiumAccessGate() {
   };
 
   const startCheckout = async (checkoutPlan = selectedPlan) => {
-    if (!isValidEmailContact(form.contact)) {
+    if (checkoutInFlightRef.current) return;
+    const identity = getStoredAccessIdentity();
+    const authenticated = !forceIdentityEntry && Boolean(identity.contact && identity.accessCode);
+    if (!authenticated && !isValidEmailContact(form.contact)) {
       setMessage("اكتب بريدًا إلكترونيًا صحيحًا حتى نربط الاشتراك بحسابك.");
       return;
     }
 
-    if (!isValidAccessCode(form.accessCode)) {
+    if (!authenticated && !isValidAccessCode(form.accessCode)) {
       setMessage("اختَر رمز دخول من 4 إلى 12 رقم أو حرف إنجليزي، بدون تكرار كامل.");
       return;
     }
 
     try {
+      checkoutInFlightRef.current = true;
       setIsStartingCheckout(true);
       setMessage("");
       setSelectedPlanId(checkoutPlan.id);
-      saveAccessIdentity({
-        contact: form.contact,
-        accessCode: normalizeAccessCode(form.accessCode),
-      });
+      const safeReturnTo = getSafeSubscriptionReturnTo(checkoutReturnTo);
+      const returnUrl = safeReturnTo
+        ? `${window.location.origin}${safeReturnTo}`
+        : window.location.href;
       const { data } = await axios.post(
-        `${API_BASE_URL}/api/subscriptions/start-checkout`,
+        `${API_BASE_URL}/api/subscriptions/checkout`,
         {
-          email: form.contact,
-          accessCode: normalizeAccessCode(form.accessCode),
+          ...(!authenticated ? {
+            email: form.contact,
+            accessCode: normalizeAccessCode(form.accessCode),
+          } : {}),
           planId: checkoutPlan.id,
-          returnUrl: window.location.href,
+          source: checkoutSource,
+          returnUrl,
           visitorId: getVisitorId(),
-        }
+        },
+        { headers: authenticated ? getAccessHeaders() : {} }
       );
 
       if (data.active) {
+        if (!authenticated) saveAccessIdentity({ contact: form.contact, accessCode: normalizeAccessCode(form.accessCode) });
         grantAccess(data);
         return;
       }
@@ -1269,12 +1331,14 @@ export default function PremiumAccessGate() {
         data.invoiceId || data.providerPaymentId || `${checkoutPlan.id}:${Date.now()}`;
       const checkoutMetadata = {
         feature,
-        hasContact: Boolean(form.contact.trim()),
+        hasContact: authenticated || Boolean(form.contact.trim()),
         planId: checkoutPlan.id,
         campaignId: checkoutPlan.campaign?.id || "",
+        source: checkoutSource,
         provider: data.provider || "",
         providerPaymentId: data.invoiceId || data.providerPaymentId || "",
       };
+      if (!authenticated) saveAccessIdentity({ contact: form.contact, accessCode: normalizeAccessCode(form.accessCode) });
 
       trackEventOnceLocal(
         "premium_checkout_started",
@@ -1286,13 +1350,14 @@ export default function PremiumAccessGate() {
         { metadata: { ...checkoutMetadata, source: "darbak_plus" } },
         checkoutDedupeKey
       );
+      trackEventOnceLocal("payment_started", { metadata: checkoutMetadata }, checkoutDedupeKey);
 
       try {
         window.localStorage.setItem(
           PENDING_SUBSCRIPTION_KEY,
           JSON.stringify({
-            contact: form.contact,
-            accessCode: normalizeAccessCode(form.accessCode),
+            contact: authenticated ? identity.contact : form.contact,
+            accessCode: authenticated ? identity.accessCode : normalizeAccessCode(form.accessCode),
             planId: checkoutPlan.id,
             invoiceId: data.invoiceId || data.providerPaymentId || "",
             provider: data.provider || "",
@@ -1313,11 +1378,14 @@ export default function PremiumAccessGate() {
           reason: err.response?.data?.error || err.message || "unknown",
         },
       });
-      setMessage(
-        err.response?.data?.error ||
-          "الدفع غير مفعّل حاليًا. جهّزي رابط الدفع من ميسر أو تاب ثم نفعّله."
-      );
+      if (err.response?.status === 401) {
+        setForceIdentityEntry(true);
+        setMessage("انتهت جلسة حسابك. سجّل الدخول ببيانات حسابك ثم حاول مرة أخرى؛ الباقة المختارة محفوظة.");
+      } else {
+        setMessage("ما قدرنا نجهز الدفع الآن. معلومات حسابك محفوظة، حاول مرة أخرى.");
+      }
     } finally {
+      checkoutInFlightRef.current = false;
       setIsStartingCheckout(false);
     }
   };
@@ -1536,10 +1604,9 @@ export default function PremiumAccessGate() {
                 <div className="premium-section-heading">
                   <span>دربك+</span>
                   <h2 id="premium-access-title">باقي خطوة وحدة وتبدأ رحلتك 🚀</h2>
-                  <p>
-                    مانحتاج منك إلا إيميل ورمز دخول بسيط، بعدها تنتقل مباشرة
-                    للدفع الآمن.
-                  </p>
+                  <p>{!forceIdentityEntry && getStoredAccessIdentity().contact && getStoredAccessIdentity().accessCode
+                    ? "اشتراكك سيتفعّل مباشرة على حسابك الحالي بعد إتمام الدفع."
+                    : "اكتب إيميلك ورمز دخول بسيط، بعدها تنتقل للدفع الآمن."}</p>
                   <ul className="premium-checkout-gains">
                     <li>وصول كامل لكل التجارب</li>
                     <li>جهات مناسبة لتخصصك</li>
@@ -1562,7 +1629,7 @@ export default function PremiumAccessGate() {
                     <strong>{formatPlanPrice(selectedPlanDisplay)}</strong>
                     <small>{formatPlanDuration(selectedPlan)} · بدون تجديد تلقائي</small>
                   </div>
-                  <div className="premium-access-fields">
+                  {(forceIdentityEntry || !(getStoredAccessIdentity().contact && getStoredAccessIdentity().accessCode)) && <div className="premium-access-fields">
                     <label className="premium-access-field">
                       <span>البريد الإلكتروني</span>
                       <input
@@ -1588,10 +1655,10 @@ export default function PremiumAccessGate() {
                         maxLength={12}
                       />
                     </label>
-                  </div>
-                  <span className="premium-access-code-hint">
+                  </div>}
+                  {(forceIdentityEntry || !(getStoredAccessIdentity().contact && getStoredAccessIdentity().accessCode)) && <span className="premium-access-code-hint">
                     مثال مناسب: Darb5 أو 2580. لا تستخدم رمزًا عامًا مثل 1111.
-                  </span>
+                  </span>}
                   <button
                     type="submit"
                     className="premium-checkout-submit"
@@ -1599,7 +1666,7 @@ export default function PremiumAccessGate() {
                   >
                     {isStartingCheckout
                       ? "جاري تحويلك للدفع..."
-                      : "انتقل للدفع الآمن الآن"}
+                      : "الانتقال للدفع الآمن"}
                   </button>
                 </form>
 

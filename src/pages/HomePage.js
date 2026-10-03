@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   FiArrowLeft,
   FiCheck,
@@ -19,6 +19,7 @@ import {
   getAccessHeaders,
   passHasEntitlement,
   PREMIUM_STATUS_EVENT,
+  startSubscriptionFlow,
 } from "../utils/premiumAccess";
 import {
   getStoredJourneyPreferences,
@@ -108,6 +109,7 @@ const OpportunityLogo = ({ opportunity }) => {
 };
 
 const HomePage = () => {
+  const navigate = useNavigate();
   const resumeDiscovery = useResumeDiscoveryAccess();
   const initialJourneyPreferencesRef = useRef(getStoredJourneyPreferences());
   const initialJourneyPreferences = initialJourneyPreferencesRef.current;
@@ -577,7 +579,10 @@ const HomePage = () => {
                   <strong>{formatPlanPrice(plan)} <em>{formatPlanPeriod(plan)}</em></strong>
                 </div>
                 <p>{summary}</p>
-                {isCurrentPlan && isResumePlan ? <Link to="/my-resume">{cta}</Link> : <Link to={isCurrentPlan ? "#" : `/subscribe?plan=${plan.id}`} onClick={(event) => { if (isCurrentPlan) event.preventDefault(); }}>{cta}<FiArrowLeft aria-hidden="true" /></Link>}
+                {isCurrentPlan && isResumePlan ? <Link to="/my-resume">{cta}</Link> : <Link to={isCurrentPlan ? "#" : `/subscribe?plan=${plan.id}`} onClick={(event) => {
+                  event.preventDefault();
+                  if (!isCurrentPlan) startSubscriptionFlow({ planId: plan.id, source: "homepage", navigate });
+                }}>{cta}<FiArrowLeft aria-hidden="true" /></Link>}
                 {isResumePlan && <Link to="/resume">اكتشف سيرتي بدربك <FiArrowLeft aria-hidden="true" /></Link>}
               </article>
             );

@@ -1,5 +1,5 @@
 import API_BASE_URL from "../config/api";
-import { getVisitorId } from "./analytics";
+import { getVisitorId, trackEvent } from "./analytics";
 
 export const PREMIUM_ACCESS_EVENT = "darbak:request-premium-access";
 export const ACCOUNT_MODAL_EVENT = "darbak:open-account";
@@ -141,6 +141,45 @@ export const getStoredAccessIdentity = () => {
   } catch {
     return {};
   }
+};
+
+export const getSafeSubscriptionReturnTo = (value = "") => {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return "";
+  try {
+    const url = new URL(value, "https://darbak.local");
+    return url.origin === "https://darbak.local"
+      ? `${url.pathname}${url.search}${url.hash}`
+      : "";
+  } catch {
+    return "";
+  }
+};
+
+export const getSubscriptionFlowPath = ({ planId = "", source = "", returnTo = "", campaignId = "" } = {}) => {
+  const params = new URLSearchParams();
+  if (planId) params.set("plan", planId);
+  if (planId) params.set("step", "checkout");
+  if (source) params.set("source", source);
+  if (campaignId) params.set("campaignId", campaignId);
+  const safeReturnTo = getSafeSubscriptionReturnTo(returnTo);
+  if (safeReturnTo) params.set("returnTo", safeReturnTo);
+  return `/subscribe${params.toString() ? `?${params}` : ""}`;
+};
+
+export const startSubscriptionFlow = (options = {}) => {
+  if (typeof window === "undefined") return;
+  const path = getSubscriptionFlowPath(options);
+  trackEvent("subscription_cta_clicked", {
+    metadata: {
+      source: options.source || "unknown",
+      planId: options.planId || "",
+      campaignId: options.campaignId || "",
+      authenticated: Boolean(getStoredAccessIdentity().accessCode),
+      returnContext: Boolean(getSafeSubscriptionReturnTo(options.returnTo)),
+    },
+  });
+  if (typeof options.navigate === "function") options.navigate(path);
+  else window.location.assign(path);
 };
 
 export const saveAccessIdentity = ({ contact = "", email = "", accessCode = "" } = {}) => {

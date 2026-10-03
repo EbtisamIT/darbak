@@ -136,6 +136,7 @@ const usageLabels = {
 
 const SubscriptionDashboard = ({ data, loading, onRefresh, onOpenUsers, resumeSource = "all", onResumeSourceChange }) => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [checkoutSourceFilter, setCheckoutSourceFilter] = useState("all");
   const dashboard = data || {};
   const revenue = dashboard.revenue || {};
   const overview = dashboard.overview || {};
@@ -145,6 +146,15 @@ const SubscriptionDashboard = ({ data, loading, onRefresh, onOpenUsers, resumeSo
   const activity = dashboard.activity || {};
   const content = dashboard.content || {};
   const funnel = dashboard.funnel || [];
+  const checkoutSources = dashboard.checkoutFunnel?.sources || [];
+  const checkoutStage = checkoutSourceFilter === "all"
+    ? checkoutSources.reduce((totals, row) => ({
+      clicks: totals.clicks + Number(row.clicks || 0),
+      checkoutOpened: totals.checkoutOpened + Number(row.checkoutOpened || 0),
+      paymentStarted: totals.paymentStarted + Number(row.paymentStarted || 0),
+      paid: totals.paid + Number(row.paid || 0),
+    }), { clicks: 0, checkoutOpened: 0, paymentStarted: 0, paid: 0 })
+    : checkoutSources.find((row) => row.source === checkoutSourceFilter) || {};
   const campaign = dashboard.campaignAnalytics;
   const rangeNotice = dashboard.range?.trackingNotice || "تبدأ المقاييس التي تعتمد على ربط الحساب من تاريخ تفعيل التتبع.";
   const activeUsageRows = useMemo(
@@ -228,6 +238,18 @@ const SubscriptionDashboard = ({ data, loading, onRefresh, onOpenUsers, resumeSo
                 index ? `${stage.conversion ?? 0}% من السابقة` : "بداية القمع",
                 index === funnel.length - 1 ? "#8ee7dc" : colors.brand
               ))}
+            </div>
+          </Section>
+          <Section title="مسار الاشتراك حسب المدخل" description="أحداث فعلية خلال الفترة؛ المدفوعات القديمة بلا مصدر موثوق تظهر ضمن غير منسوب.">
+            <select value={checkoutSourceFilter} onChange={(event) => setCheckoutSourceFilter(event.target.value)} aria-label="مصدر الاشتراك" style={{ width: "min(280px, 100%)", background: "#14201f", color: colors.text, border: `1px solid ${colors.border}`, borderRadius: 8, padding: 9 }}>
+              <option value="all">كل المداخل</option>
+              {checkoutSources.map((row) => <option key={row.source} value={row.source}>{row.source === "unattributed" ? "غير منسوب" : row.source}</option>)}
+            </select>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 10 }}>
+              {metricCard("ضغطات CTA", formatNumber(checkoutStage.clicks))}
+              {metricCard("فتح ملخص الدفع", formatNumber(checkoutStage.checkoutOpened))}
+              {metricCard("بدء الدفع", formatNumber(checkoutStage.paymentStarted))}
+              {metricCard("دفع ناجح", formatNumber(checkoutStage.paid), "تأكيد الخادم فقط", "#8ee7dc")}
             </div>
           </Section>
         </>
