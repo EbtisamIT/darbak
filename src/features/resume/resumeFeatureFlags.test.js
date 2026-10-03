@@ -5,10 +5,10 @@ describe("resume production feature policy", () => {
     expect(RESUME_FEATURE_FLAGS.improveSummary).toBe(false);
   });
 
-  test("limits the first production English update to the verified QA identity", () => {
-    expect(RESUME_FEATURE_FLAGS.englishUpdate).toBe(false);
+  test("enables English updates after production QA closure", () => {
+    expect(RESUME_FEATURE_FLAGS.englishUpdate).toBe(true);
     expect(isResumeEnglishUpdateEnabled({ contact: "qa-resume-c8627f9d-20260930@example.invalid" })).toBe(true);
-    expect(isResumeEnglishUpdateEnabled({ contact: "another@example.invalid" })).toBe(false);
-    expect(isResumeEnglishUpdateEnabled()).toBe(false);
+    expect(isResumeEnglishUpdateEnabled({ contact: "another@example.invalid" })).toBe(true);
+    expect(isResumeEnglishUpdateEnabled()).toBe(true);
   });
 });
