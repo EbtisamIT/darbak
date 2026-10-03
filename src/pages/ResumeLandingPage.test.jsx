@@ -10,7 +10,7 @@ jest.mock("../utils/premiumAccess", () => ({ hasResumeAccessPass: jest.fn() }));
 jest.mock("../utils/analytics", () => ({ trackEvent: jest.fn() }));
 jest.mock("../utils/useResumeDiscoveryAccess", () => jest.fn());
 
-const renderPage = () => render(<MemoryRouter><ResumeLandingPage /></MemoryRouter>);
+const renderPage = (initialEntry = "/resume") => render(<MemoryRouter initialEntries={[initialEntry]}><ResumeLandingPage /></MemoryRouter>);
 
 beforeEach(() => {
   hasResumeAccessPass.mockReturnValue(false);
@@ -64,6 +64,14 @@ test("routes non-subscribers to the existing resume plan checkout", () => {
   ctas.forEach((cta) => expect(cta).toHaveAttribute("href", "/subscribe?plan=darbak_resume&source=resume-landing"));
   fireEvent.click(ctas[0]);
   expect(trackEvent).toHaveBeenCalledWith("resume_cta_clicked", expect.objectContaining({ metadata: expect.objectContaining({ placement: "hero", subscriber: false }) }));
+});
+
+test("keeps opportunity attribution after revisiting the example from subscriptions", () => {
+  sessionStorage.setItem("darbak_resume_discovery_attribution_v1", JSON.stringify({ source: "opportunity_card", pageContext: "opportunity_card", opportunityId: "op-1" }));
+  renderPage("/resume?source=subscription_page");
+  screen.getAllByRole("link", { name: "ابدأ بناء سيرتي" }).forEach((cta) =>
+    expect(cta).toHaveAttribute("href", "/subscribe?plan=darbak_resume&source=resume-opportunity_card")
+  );
 });
 
 test("routes existing resume subscribers into their resume", () => {

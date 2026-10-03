@@ -113,7 +113,11 @@ export default function ResumeLandingPage() {
   const [hasResumeAccess, setHasResumeAccess] = useState(() => hasResumeAccessPass());
   const demoRef = useRef(null);
   const templateRef = useRef(null);
-  const attributionSource = new URLSearchParams(location.search).get("source") || getResumeDiscoveryAttribution().source;
+  const routeSource = new URLSearchParams(location.search).get("source");
+  const storedSource = getResumeDiscoveryAttribution().source;
+  const attributionSource = routeSource === "subscription_page" && storedSource
+    ? storedSource
+    : routeSource || storedSource;
   const resumeTarget = hasResumeAccess
     ? "/my-resume"
     : `/subscribe?plan=darbak_resume&source=${encodeURIComponent(attributionSource ? `resume-${attributionSource}` : "resume-landing")}`;
@@ -122,7 +126,7 @@ export default function ResumeLandingPage() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const entrySource = params.get("source");
-    if (entrySource) setResumeDiscoveryAttribution({
+    if (entrySource && !(entrySource === "subscription_page" && getResumeDiscoveryAttribution().source)) setResumeDiscoveryAttribution({
       source: entrySource,
       pageContext: params.get("pageContext") || "resume_landing",
       opportunityId: params.get("opportunityId") || "",

@@ -25,7 +25,7 @@ import {
   specializationOptions,
 } from "./data/trainingOptions";
 import { trackEvent } from "./utils/analytics";
-import { setResumeDiscoveryAttribution, trackResumeDiscovery } from "./utils/resumeDiscovery";
+import { getResumeDiscoveryAttribution, setResumeDiscoveryAttribution, trackResumeDiscovery } from "./utils/resumeDiscovery";
 import {
   PREMIUM_ACCESS_EVENT,
   PREMIUM_STATUS_EVENT,
@@ -431,7 +431,7 @@ function SubscribeRoute() {
               ? "افتح سيرتي بدربك"
               : "استكشف الفرص والجهات"}
           </button>
-          {subscribePlan === "darbak_resume" && <p><Link to="/resume?source=subscription_page" style={{ color: "var(--app-brand)" }} onClick={() => { setResumeDiscoveryAttribution({ source: "subscription_page", pageContext: "subscribe" }); trackResumeDiscovery("resume_example_clicked", { source: "subscription_page", pageContext: "subscribe", planId: "darbak_resume" }); }}>شاهد نموذج السيرة قبل الاشتراك</Link></p>}
+          {subscribePlan === "darbak_resume" && <p><Link to="/resume?source=subscription_page" style={{ color: "var(--app-brand)" }} onClick={() => { if (!getResumeDiscoveryAttribution().source) setResumeDiscoveryAttribution({ source: "subscription_page", pageContext: "subscribe" }); trackResumeDiscovery("resume_example_clicked", { source: "subscription_page", pageContext: "subscribe", planId: "darbak_resume" }); }}>شاهد نموذج السيرة قبل الاشتراك</Link></p>}
         </div>
       </section>
     );
@@ -516,7 +516,7 @@ function SubscribeRoute() {
           >
             عرض باقات دربك+
           </button>
-          <Link to="/resume?source=subscription_page" style={{ color: "var(--app-brand)", alignSelf: "center" }} onClick={() => { setResumeDiscoveryAttribution({ source: "subscription_page", pageContext: "subscribe" }); trackResumeDiscovery("resume_example_clicked", { source: "subscription_page", pageContext: "subscribe", planId: "darbak_resume" }); }}>شاهد نموذج السيرة قبل الاشتراك</Link>
+          <Link to="/resume?source=subscription_page" style={{ color: "var(--app-brand)", alignSelf: "center" }} onClick={() => { if (!getResumeDiscoveryAttribution().source) setResumeDiscoveryAttribution({ source: "subscription_page", pageContext: "subscribe" }); trackResumeDiscovery("resume_example_clicked", { source: "subscription_page", pageContext: "subscribe", planId: "darbak_resume" }); }}>شاهد نموذج السيرة قبل الاشتراك</Link>
           <button
             type="button"
             onClick={() => navigate("/")}
