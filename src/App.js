@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import {
   BrowserRouter as Router,
+  Link,
   Routes,
   Route,
   Navigate,
@@ -51,6 +52,7 @@ const MyApplicationsPage = lazy(() => import("./pages/MyApplicationsPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
 const ClubDemoPage = lazy(() => import("./pages/ClubDemoPage"));
 const MyResumePage = lazy(() => import("./pages/MyResumePage"));
+const ResumeLandingPage = lazy(() => import("./pages/ResumeLandingPage"));
 const PremiumAccessGate = lazy(() => import("./components/PremiumAccessGate"));
 const AccountModal = lazy(() => import("./components/AccountModal"));
 const SavedItemsDrawer = lazy(() => import("./components/SavedItemsDrawer"));
@@ -428,6 +430,7 @@ function SubscribeRoute() {
               ? "افتح سيرتي بدربك"
               : "استكشف الفرص والجهات"}
           </button>
+          {subscribePlan === "darbak_resume" && <p><Link to="/resume" style={{ color: "var(--app-brand)" }}>تعرّف على سيرتي بدربك</Link></p>}
         </div>
       </section>
     );
@@ -512,6 +515,7 @@ function SubscribeRoute() {
           >
             عرض باقات دربك+
           </button>
+          <Link to="/resume" style={{ color: "var(--app-brand)", alignSelf: "center" }}>تعرّف على سيرتي بدربك</Link>
           <button
             type="button"
             onClick={() => navigate("/")}
@@ -1392,6 +1396,7 @@ function AppLayout({ theme, setTheme }) {
               <Route path="/companies/:companySlug" element={<CompanyProfilePage />} />
               <Route path="/where-to-train" element={<TrainingFinderPage />} />
               <Route path="/subscribe" element={<SubscribeRoute />} />
+              <Route path="/resume" element={<ResumeLandingPage />} />
               <Route path="/my-resume" element={<MyResumePage />} />
               <Route path="/my-resume/setup" element={<MyResumePage />} />
               <Route path="/my-resume/build" element={<MyResumePage />} />

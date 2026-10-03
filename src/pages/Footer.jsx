@@ -419,6 +419,7 @@ export default function Footer() {
           fontSize: "13px",
         }}
       >
+        <Link to="/resume" style={footerLinkStyle}>سيرتي بدربك</Link>
         <Link to="/legal#terms" style={footerLinkStyle}>
           سياسة الاستخدام والخصوصية
         </Link>

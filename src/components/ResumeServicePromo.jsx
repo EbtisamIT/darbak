@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiCheck, FiFileText, FiX } from "react-icons/fi";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
@@ -107,6 +107,7 @@ const ResumeServicePromo = ({
           <p>
             أنشئ سيرتك من ملفك المهني، وخصصها حسب متطلبات كل فرصة قبل التقديم.
           </p>
+          <Link to="/resume" style={{ color: "var(--app-brand)", fontWeight: 700 }}>تعرّف على سيرتي بدربك</Link>
         </div>
         <button type="button" onClick={goToResumeOrSubscribe}>
           جهّز سيرتك الآن

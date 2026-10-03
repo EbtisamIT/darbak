@@ -495,6 +495,7 @@ const HomePage = () => {
             <p>بدل ما تعيد تجهيز كل شيء لكل جهة، دربك يبرز الأنسب من بياناتك ويجهز لك ملف تقديم مرتبًا.</p>
             <ul><li><FiCheck /> سيرة مخصصة للجهة</li><li><FiCheck /> خطاب تقديم مختصر</li><li><FiCheck /> رسالة إيميل جاهزة</li></ul>
             <button className="home-button home-button-primary" type="button" onClick={showResumePlan}>شوف سيرتي ✨ <FiArrowLeft /></button>
+            <Link className="home-story-link" to="/resume">تعرّف على سيرتي بدربك <FiArrowLeft /></Link>
           </div>
           <div className="home-story-visual home-pack-visual" aria-label="ملف تقديم متكامل">
             <div className="home-visual-head"><strong>ملف تقديمك</strong><span>3 من 3 جاهزة ✓</span></div>
@@ -547,6 +548,7 @@ const HomePage = () => {
                 </div>
                 <p>{summary}</p>
                 {isCurrentPlan && isResumePlan ? <Link to="/my-resume">{cta}</Link> : <Link to={isCurrentPlan ? "#" : `/subscribe?plan=${plan.id}`} onClick={(event) => { if (isCurrentPlan) event.preventDefault(); }}>{cta}<FiArrowLeft aria-hidden="true" /></Link>}
+                {isResumePlan && <Link to="/resume">اكتشف سيرتي بدربك <FiArrowLeft aria-hidden="true" /></Link>}
               </article>
             );
           })}

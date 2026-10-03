@@ -1,0 +1,65 @@
+.resume-landing { --rl-ink: #f2f8f6; --rl-muted: #adc2bd; --rl-mint: #80dfcd; color: var(--rl-ink); padding: 24px 0 90px; font-family: 'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif; }
+.resume-landing * { box-sizing: border-box; }
+.resume-landing-hero { min-height: 570px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr); align-items: center; gap: 6%; padding: 70px 5%; border: 1px solid rgba(128,223,205,.18); border-radius: 32px; background: radial-gradient(circle at 82% 28%, rgba(64,161,141,.2), transparent 44%), linear-gradient(150deg, #101c1e, #101519 63%); overflow: hidden; }
+.resume-landing-eyebrow, .resume-landing-section-heading > span, .resume-landing-final > span { display: inline-block; color: var(--rl-mint); font-size: 14px; font-weight: 800; letter-spacing: .01em; }
+.resume-landing-hero h1 { font-size: clamp(38px, 5.6vw, 70px); line-height: 1.22; letter-spacing: -.03em; margin: 18px 0 22px; max-width: 680px; }
+.resume-landing-hero-copy > p { color: #d0dfdc; font-size: clamp(16px, 1.8vw, 19px); line-height: 1.9; max-width: 630px; margin: 0; }
+.resume-landing-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 29px 0 15px; }
+.resume-landing-button { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 12px 22px; border-radius: 13px; font: inherit; font-weight: 800; font-size: 15px; text-decoration: none; cursor: pointer; transition: transform .18s ease, background .18s ease; }
+.resume-landing-button:hover { transform: translateY(-2px); }
+.resume-landing-button-primary { background: var(--rl-mint); color: #09211d; border: 1px solid var(--rl-mint); }
+.resume-landing-button-secondary { background: transparent; color: var(--rl-ink); border: 1px solid rgba(201,230,224,.34); }
+.resume-landing-hero-copy > small { color: var(--rl-muted); line-height: 1.7; }
+.resume-landing-hero-art { position: relative; display: grid; place-items: center; min-height: 420px; }
+.resume-landing-art-sheet { width: min(320px, 78%); height: 405px; background: #f7faf9; border-radius: 5px; box-shadow: 22px 25px 0 rgba(128,223,205,.09), 0 36px 90px #0009; padding: 34px; transform: rotate(-4deg); display: flex; flex-direction: column; align-items: flex-start; gap: 11px; }
+.resume-landing-art-sheet i, .resume-landing-art-sheet b { display: block; height: 7px; width: 86%; border-radius: 10px; background: #b6c6c2; }
+.resume-landing-art-sheet i:nth-child(1) { height: 18px; width: 65%; background: #203b3a; margin-bottom: 4px; }
+.resume-landing-art-sheet i:nth-child(2) { width: 45%; background: #52756e; }
+.resume-landing-art-sheet i:nth-child(3) { width: 75%; height: 5px; margin-bottom: 20px; }
+.resume-landing-art-sheet b { height: 9px; width: 53%; margin: 10px 0 3px; background: #477f73; }
+.resume-landing-art-sheet i:nth-child(6), .resume-landing-art-sheet i:nth-child(10) { width: 70%; }
+.resume-landing-art-label { position: absolute; bottom: 9px; left: 0; background: #16332e; border: 1px solid #3f9a88; color: #d8f7ed; padding: 11px 15px; border-radius: 12px; font-size: 13px; font-weight: 700; }
+.resume-landing-section { padding: 83px 3% 0; }
+.resume-landing-section-heading { margin-bottom: 26px; max-width: 770px; }
+.resume-landing-section h2, .resume-landing-final h2 { font-size: clamp(28px, 3.7vw, 42px); letter-spacing: -.02em; line-height: 1.32; margin: 9px 0 12px; }
+.resume-landing-section-heading p { color: var(--rl-muted); line-height: 1.8; margin: 0; }
+.resume-landing-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.resume-landing-template { overflow: hidden; border-radius: 22px; border: 1px solid rgba(179,214,207,.18); background: #151d20; }
+.resume-landing-template-window { height: 260px; overflow: hidden; display: flex; justify-content: center; padding-top: 25px; background: radial-gradient(circle at top, #2d514a, #202a2b 62%); }
+.resume-landing-template-scaled { flex: 0 0 680px; width: 680px; transform: scale(.43); transform-origin: top center; pointer-events: none; }
+.resume-landing-template-info { padding: 23px; display: flex; justify-content: space-between; align-items: end; gap: 12px; }
+.resume-landing-template-info h3 { font-size: 19px; margin: 0 0 7px; }
+.resume-landing-template-info p { margin: 0; font-size: 13px; color: var(--rl-muted); line-height: 1.7; }
+.resume-landing-template-info button { flex: 0 0 auto; color: var(--rl-mint); background: transparent; border: 1px solid rgba(128,223,205,.45); border-radius: 11px; padding: 10px 14px; cursor: pointer; font: inherit; font-weight: 800; }
+.resume-landing-full-preview { scroll-margin-top: 86px; margin-top: 26px; border: 1px solid rgba(179,214,207,.18); border-radius: 22px; padding: 24px; background: #141c1e; }
+.resume-landing-preview-heading { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 20px; }
+.resume-landing-preview-heading span { color: var(--rl-muted); font-size: 13px; }
+.resume-landing-preview-heading h3 { margin: 4px 0 0; font-size: 21px; }
+.resume-landing-preview-paper { max-width: 800px; margin: auto; overflow-x: auto; }
+.resume-landing-preview-paper .resume-paper { margin: auto; }
+.resume-landing-ats-layout { display: grid; grid-template-columns: 1fr .85fr; gap: 25px; align-items: start; }
+.resume-landing-ats-layout ul, .resume-landing-included { list-style: none; padding: 0; margin: 0; }
+.resume-landing-ats-layout li, .resume-landing-included li { display: flex; gap: 13px; align-items: baseline; padding: 13px 0; border-bottom: 1px solid rgba(179,214,207,.12); line-height: 1.65; }
+.resume-landing-ats-layout li span, .resume-landing-included li span { color: var(--rl-mint); font-weight: 900; }
+.resume-landing-proof { background: #172724; border: 1px solid rgba(128,223,205,.28); border-radius: 20px; padding: 25px; }
+.resume-landing-proof > span { color: var(--rl-mint); font-size: 13px; font-weight: 800; }
+.resume-landing-proof h3 { margin: 7px 0; font-size: 21px; }
+.resume-landing-proof p { color: var(--rl-muted); font-size: 13px; }
+.resume-landing-proof > div { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid rgba(179,214,207,.13); font-size: 13px; }
+.resume-landing-proof strong { color: var(--rl-mint); }
+.resume-landing-disclaimer { padding: 18px 21px; margin: 24px 0 0; border-right: 3px solid var(--rl-mint); background: rgba(128,223,205,.06); color: #c8d9d4; line-height: 1.85; font-size: 14px; }
+.resume-landing-steps { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; padding: 0; margin: 0; }
+.resume-landing-steps li { min-height: 114px; padding: 19px; border-radius: 16px; background: #172023; border: 1px solid rgba(179,214,207,.13); }
+.resume-landing-steps li span { color: var(--rl-mint); font-size: 13px; font-weight: 900; }
+.resume-landing-steps li p { margin: 11px 0 0; font-weight: 700; line-height: 1.6; }
+.resume-landing-trust { display: flex; justify-content: space-between; align-items: center; gap: 25px; padding: 38px; margin: 85px 3% 0; border: 1px solid rgba(128,223,205,.25); border-radius: 23px; background: linear-gradient(120deg, #17312c, #121c20); }
+.resume-landing-trust p { color: #d2e2dd; line-height: 1.85; max-width: 690px; margin: 0; }
+.resume-landing-trust-mark { color: var(--rl-mint); font-size: 78px; opacity: .65; }
+.resume-landing-included { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 30px; }
+.resume-landing-faq details { border-bottom: 1px solid rgba(179,214,207,.18); padding: 18px 4px; }
+.resume-landing-faq summary { cursor: pointer; font-weight: 800; font-size: 17px; }
+.resume-landing-faq details p { margin: 15px 0 0; max-width: 800px; line-height: 1.8; color: var(--rl-muted); }
+.resume-landing-final { margin: 87px 3% 0; padding: 55px 22px; text-align: center; background: radial-gradient(circle at 50% 0%, #1e5649, #152521 62%); border: 1px solid rgba(128,223,205,.29); border-radius: 28px; }
+.resume-landing-final p { color: #d1e0db; line-height: 1.8; margin: 0 0 23px; }
+@media (max-width: 760px) { .resume-landing { padding-top: 4px; } .resume-landing-hero { grid-template-columns: 1fr; padding: 43px 22px; gap: 22px; min-height: 0; border-radius: 22px; } .resume-landing-hero-art { min-height: 220px; } .resume-landing-art-sheet { height: 210px; width: 170px; padding: 22px; gap: 6px; } .resume-landing-art-sheet i, .resume-landing-art-sheet b { height: 4px; } .resume-landing-art-label { left: 3px; bottom: -3px; font-size: 11px; } .resume-landing-section { padding: 65px 2% 0; } .resume-landing-template-grid, .resume-landing-ats-layout, .resume-landing-included { grid-template-columns: 1fr; } .resume-landing-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .resume-landing-full-preview { padding: 16px 8px; } .resume-landing-preview-paper .resume-paper { width: 100%; min-width: 0; } .resume-landing-preview-heading { padding: 0 8px; } .resume-landing-preview-heading > span { display: none; } .resume-landing-trust { margin: 65px 2% 0; padding: 28px; } .resume-landing-trust-mark { display: none; } .resume-landing-final { margin: 65px 2% 0; } }
+@media (max-width: 460px) { .resume-landing-actions { flex-direction: column; } .resume-landing-button { width: 100%; } .resume-landing-steps { grid-template-columns: 1fr; } .resume-landing-template-info { align-items: stretch; flex-direction: column; } .resume-landing-template-info button { align-self: flex-start; } }
