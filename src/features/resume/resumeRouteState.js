@@ -5,6 +5,9 @@ export const RESUME_ROUTES = Object.freeze({
   build: "/my-resume/build",
 });
 
+export const getResumeHydrationTarget = ({ routeView, routeVersionId = "" }) =>
+  routeView === "version" && routeVersionId ? "version" : "master";
+
 export const getResumeEntryRedirect = ({ routeView, masterResumeExists, buildStep = "" }) => {
   if (routeView === "dashboard" && !masterResumeExists) return RESUME_ROUTES.setup;
   if (routeView === "setup" && masterResumeExists) return RESUME_ROUTES.dashboard;

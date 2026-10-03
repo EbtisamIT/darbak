@@ -66,7 +66,7 @@ import {
   writeResumeJourneyProgress,
 } from "../features/resume/resumeJourneyPersistence";
 import { getResumeStorageScope } from "../features/resume/resumeStorageScope";
-import { getResumeEntryRedirect } from "../features/resume/resumeRouteState";
+import { getResumeEntryRedirect, getResumeHydrationTarget } from "../features/resume/resumeRouteState";
 import { RESUME_FEATURE_FLAGS, isResumeEnglishUpdateEnabled } from "../features/resume/resumeFeatureFlags";
 
 const LEGACY_LOCAL_DRAFT_KEY = "darbak_resume_draft_v2";
@@ -752,33 +752,6 @@ const MyResumePage = () => {
   }, [loadResume, loadTailoredVersions, routeView]);
 
   useEffect(() => {
-    const refreshAfterAccessChange = () => {
-      setAccessEpoch((epoch) => epoch + 1);
-      const nextScope = getResumeStorageScope(getStoredAccessIdentity());
-      setResumeStorageScope(nextScope);
-      setResume(normalizeResume(createEmptyResume()));
-      setLastServerResume(null);
-      setTailoredVersions([]);
-      setAgentConfig(null);
-      setApplicationPack(null);
-      setEditingTailoredVersion(false);
-      setEditingVersionId("");
-      setEditingVersionType("");
-      hasLoadedRef.current = false;
-      loadResume();
-      loadTailoredVersions();
-    };
-
-    window.addEventListener(PREMIUM_STATUS_EVENT, refreshAfterAccessChange);
-    window.addEventListener("storage", refreshAfterAccessChange);
-
-    return () => {
-      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshAfterAccessChange);
-      window.removeEventListener("storage", refreshAfterAccessChange);
-    };
-  }, [loadResume, loadTailoredVersions]);
-
-  useEffect(() => {
     if (!shouldAutosaveMasterResume({
       hasLoaded: hasLoadedRef.current,
       resumeMode,
@@ -1059,6 +1032,37 @@ const MyResumePage = () => {
       setLoading(false);
     }
   }, [resume.access]);
+
+  useEffect(() => {
+    const refreshAfterAccessChange = () => {
+      setAccessEpoch((epoch) => epoch + 1);
+      const nextScope = getResumeStorageScope(getStoredAccessIdentity());
+      setResumeStorageScope(nextScope);
+      setResume(normalizeResume(createEmptyResume()));
+      setLastServerResume(null);
+      setTailoredVersions([]);
+      setAgentConfig(null);
+      setApplicationPack(null);
+      setEditingTailoredVersion(false);
+      setEditingVersionId("");
+      setEditingVersionType("");
+      hasLoadedRef.current = false;
+      if (getResumeHydrationTarget({ routeView, routeVersionId }) === "version") {
+        loadTailoredVersion(routeVersionId);
+      } else {
+        loadResume();
+      }
+      loadTailoredVersions();
+    };
+
+    window.addEventListener(PREMIUM_STATUS_EVENT, refreshAfterAccessChange);
+    window.addEventListener("storage", refreshAfterAccessChange);
+
+    return () => {
+      window.removeEventListener(PREMIUM_STATUS_EVENT, refreshAfterAccessChange);
+      window.removeEventListener("storage", refreshAfterAccessChange);
+    };
+  }, [loadResume, loadTailoredVersion, loadTailoredVersions, routeVersionId, routeView]);
 
   const openTailoredVersion = (version) => {
     if (version?._id) navigate(`/my-resume/versions/${version._id}`);

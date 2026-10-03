@@ -1,4 +1,4 @@
-import { getResumeEntryRedirect, RESUME_ROUTES } from "./resumeRouteState";
+import { getResumeEntryRedirect, getResumeHydrationTarget, RESUME_ROUTES } from "./resumeRouteState";
 
 describe("resume route state separation", () => {
   it("sends a new user to setup and a returning user to the dashboard", () => {
@@ -12,5 +12,12 @@ describe("resume route state separation", () => {
     expect(getResumeEntryRedirect({ routeView: "review", masterResumeExists: false })).toBe(RESUME_ROUTES.setup);
     expect(getResumeEntryRedirect({ routeView: "build", masterResumeExists: true, buildStep: "draft" })).toBe("");
     expect(getResumeEntryRedirect({ routeView: "build", masterResumeExists: true })).toBe(RESUME_ROUTES.dashboard);
+  });
+
+  it("rehydrates an explicit English version after login instead of Arabic Master", () => {
+    expect(getResumeHydrationTarget({ routeView: "version", routeVersionId: "english-version-id" })).toBe("version");
+    expect(getResumeHydrationTarget({ routeView: "master" })).toBe("master");
+    expect(getResumeHydrationTarget({ routeView: "version" })).toBe("master");
+    expect(getResumeEntryRedirect({ routeView: "version", masterResumeExists: false })).toBe("");
   });
 });
