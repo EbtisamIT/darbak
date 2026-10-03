@@ -26,7 +26,7 @@ const reader = (body = html()) => ({ read: async (url) => ({ url, text: body, st
   assert.equal(preview.results[0].fetchMethod, "structured_data");
   assert.equal(preview.results[0].data.verification.appearsOpen, true);
   assert.equal((await testOpportunityUrl(source, direct, { reader: reader(html({ ...job, title: "Senior Marketing Manager" })), now })).results[0].code, "NOT_TRAINING");
-  assert.equal((await testOpportunityUrl(source, direct, { reader: reader(html({ ...job, datePosted: "2024-01-01" })), now })).results[0].code, "OLD_OPPORTUNITY");
+  assert.equal((await testOpportunityUrl(source, direct, { reader: reader(html({ ...job, datePosted: "2024-01-01" })), now })).results[0].data.verification.dateVerified, false);
   assert.equal((await testOpportunityUrl(source, direct, { reader: reader(html({ ...job, validThrough: "2026-09-01" })), now })).results[0].code, "CLOSED");
   assert.equal((await testOpportunityUrl(source, "https://evil.example/jobs/42", { reader: { read: () => assert.fail("unofficial network call") } })).code, "POLICY_DENIED");
   for (const error of ["ROBOTS_DISALLOWED", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "REQUEST_TIMEOUT"]) {
@@ -57,8 +57,34 @@ const reader = (body = html()) => ({ read: async (url) => ({ url, text: body, st
   assert.equal(run.summary.duplicates, 1); assert.equal(saved.length, 0, "opportunity emails stay with candidate");
   const leadRun = await runPipeline([source], { ingest: () => assert.fail("email is not a job"), readerFactory: () => reader("<main>Contact training@official.example</main>"), saveLead: async (lead) => { saved.push(lead); return true; } });
   assert.equal(leadRun.summary.emailLeads, 1); assert.equal(saved[0].city, undefined);
-  const closed = await runPipeline([source], { now: () => now, readerFactory: () => reader(html({ ...job, validThrough: "2026-09-01" })), ingest: () => assert.fail("closed must not create") });
+  const closed = await runPipeline([source], { now: () => now, readerFactory: () => reader(html({ ...job, validThrough: "2026-09-01" })), ingest: (data) => {
+    assert.equal(data.applicationState, "CLOSED");
+    return { status: "needs_verification" };
+  } });
   assert.equal(closed.summary.closedOpportunities, 1);
+  for (const unavailable of [false, true]) {
+    const preserved = [];
+    await runPipeline([source], {
+      searchResults: [{ accepted: true, sourceKey: source.key, url: direct, title: "Marketing Internship",
+        discoveredByQueries: ["internship Saudi Arabia"], provider: "test" }],
+      readerFactory: () => unavailable ? { read: async () => { throw new Error("ROBOTS_DISALLOWED"); } } : reader("<main>Content unavailable</main>"),
+      ingest: async (value) => {
+        const parsed = require("../services/opportunityCandidateData").inputSchema.parse(value);
+        preserved.push(parsed);
+        return { status: "needs_verification" };
+      },
+    });
+    assert.equal(preserved.length, 1, "uncertain Saudi training link is preserved for review");
+    assert.equal(preserved[0].sourceUrl, direct);
+    assert.equal(preserved[0].applicationUrl, "");
+    assert.equal(preserved[0].description, "");
+    assert.deepEqual(preserved[0].responsibilities, []);
+    assert.deepEqual(preserved[0].requirements, []);
+    assert.deepEqual(preserved[0].cities, []);
+    assert.deepEqual(preserved[0].majors, []);
+    assert.equal(preserved[0].deadline, null);
+    assert.notEqual(preserved[0].verification.officialSource, true);
+  }
   for (const s of SOURCES) assert.equal(validateSource(sourceExport(s)).active, false);
   const imported = validateSource({ ...sourceExport(SOURCES[0]), key: "new-source" });
   assert.equal(imported.reviewStatus, "pending");

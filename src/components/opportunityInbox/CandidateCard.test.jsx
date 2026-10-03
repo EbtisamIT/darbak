@@ -1,58 +1,51 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import CandidateCard, { CandidateContent } from "./CandidateCard";
+import CandidateCard from "./CandidateCard";
 import { candidateOrigin } from "./candidateOrigin";
-
-test("generic source content warning is explicit and absent for clean content", () => {
-  const view = render(<CandidateContent item={{ contentQualityWarning: true, responsibilities: [] }} />);
-  expect(screen.getByText("بعض محتوى الإعلان عام ويحتاج مراجعة")).toBeInTheDocument();
-  expect(screen.getByText("المهام غير مذكورة")).toBeInTheDocument();
-  view.rerender(<CandidateContent item={{ contentQualityWarning: false }} />);
-  expect(screen.queryByText("بعض محتوى الإعلان عام ويحتاج مراجعة")).not.toBeInTheDocument();
-});
 
 test.each([
   [{ importedVia: "agent", searchDiscovery: { provider: "brave" } }, "Agent"],
   [{ searchDiscovery: { provider: "brave" } }, "Brave"],
   [{ importedVia: "manual" }, "Manual"],
   [{ importedVia: "official_discovery" }, "Official Discovery"],
-  [{ sourceType: "company" }, "مصدر سابق غير محدد"],
-])("origin respects ingestion provenance, not the claimed sourceType", (item, expected) => {
-  expect(candidateOrigin(item)).toBe(expected);
-});
+])("internal provenance is preserved", (item, expected) => expect(candidateOrigin(item)).toBe(expected));
 
-test("enriched card shows scope, missing fields, evidence, completeness and retry", () => {
+test("compact card hides technical data and keeps source links and three actions", () => {
+  const item = { title: "Internship", company: "Test", status: "needs_verification", programType: "internship",
+    cities: ["الرياض"], majors: ["المحاسبة"], confidenceScore: 70, completenessScore: 85,
+    sourceUrl: "https://example.com/jobs/1", applicationUrl: "https://example.com/apply",
+    aiNotes: "SECRET DEBUG", extractionEvidence: { method: "ats_api" } };
   const onAction = jest.fn();
-  const item = { title: "COOP", sourceUrl: "https://example.com/jobs/1", status: "needs_review", reviewStatus: "NEEDS_DETAILS",
-    majorScope: "all", completenessScore: 75, confidenceScore: 60, missingFields: ["duration"],
-    extractionEvidence: { responsibilities: { sourceUrl: "https://example.com/jobs/1", method: "html_section", heading: "Your role", rawText: "Actual task" } } };
   render(<CandidateCard item={item} onAction={onAction} />);
-  expect(screen.getByText("جميع التخصصات")).toBeInTheDocument();
-  expect(screen.getByText("تحتاج تفاصيل")).toBeInTheDocument();
-  expect(screen.getByLabelText("اكتمال البيانات")).toHaveAttribute("value", "75");
-  expect(screen.getByText("Actual task")).toBeInTheDocument();
-  expect(screen.getByText(/الناقص: مدة التدريب/)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "إعادة الإثراء" }));
-  expect(onAction).toHaveBeenCalledWith("retry-enrichment", item);
+  expect(screen.getByText("تحتاج تحقق")).toBeVisible();
+  expect(screen.getByText("الرياض")).toBeVisible();
+  expect(screen.getByRole("link", { name: "فتح الإعلان الأصلي" })).toHaveAttribute("href", item.sourceUrl);
+  expect(screen.getByRole("link", { name: "فتح رابط التقديم" })).toHaveAttribute("href", item.applicationUrl);
+  expect(screen.queryByRole("meter")).not.toBeInTheDocument();
+  expect(screen.queryByText("SECRET DEBUG")).not.toBeInTheDocument();
+  expect(screen.queryByText("معاينة")).not.toBeInTheDocument();
+  expect(screen.queryByText("إعادة الإثراء")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "نشر" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Internship" }));
+  expect(onAction).toHaveBeenCalledWith("edit", item);
+});
+test("canonical draft overrides legacy values without inventing absent facts", () => {
+  render(<CandidateCard item={{ title: "Old", company: "Old company", status: "needs_review",
+    opportunityDraft: { title: "Actual title", organizationName: "Actual company", cities: [], specialties: [], sourceUrl: "" } }} onAction={jest.fn()} />);
+  expect(screen.getByText("Actual company")).toBeVisible();
+  expect(screen.getByText("المدينة غير مذكورة")).toBeVisible();
+  expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  expect(screen.getByText("تحتاج تحقق")).toBeVisible();
+});
+test.each(["duplicate", "published", "rejected"])("%s cannot publish", (status) => {
+  render(<CandidateCard item={{ title: "COOP", status }} onAction={jest.fn()} />);
   expect(screen.getByRole("button", { name: "نشر" })).toBeDisabled();
 });
-
-test("agent provenance and unverified notes are visible in candidate details", () => {
-  render(<CandidateContent item={{ importedVia: "agent", importSource: "darbak_coop_sweep",
-    importRunId: "sweep-001", importedAt: "2026-10-01", verificationNotes: "Awaiting review", duration: "8 weeks" }} />);
-  expect(screen.getByLabelText("مصدر الاكتشاف")).toHaveTextContent("Agent");
-  expect(screen.getByText("sweep-001")).toBeInTheDocument();
-  expect(screen.getByText(/Awaiting review/)).toBeInTheDocument();
-  expect(screen.getByText(/8 weeks/)).toBeInTheDocument();
-});
-
-test("actionable JS applications are ready for review with an explicit warning", () => {
-  render(<CandidateCard item={{ title: "Marketing Internship", company: "Chalhoub Group", status: "ready",
-    reviewStatus: "READY_FOR_REVIEW", applicationState: "UNKNOWN_BUT_ACTIONABLE", pageAvailability: "AVAILABLE",
-    verificationWarnings: ["حالة نموذج التقديم لم تُتحقق آليًا"], verification: { appearsOpen: null } }} onAction={jest.fn()} />);
-  expect(screen.getByText("جاهزة للمراجعة")).toBeInTheDocument();
-  expect(screen.getByText("الصفحة متاحة")).toBeInTheDocument();
-  expect(screen.getByText("زر التقديم متاح للمراجعة")).toBeInTheDocument();
-  expect(screen.getByText("حالة نموذج التقديم لم تُتحقق آليًا")).toBeInTheDocument();
+test("update has apply-update instead of publish", () => {
+  const onAction = jest.fn(), item = { title: "COOP", status: "update_existing" };
+  render(<CandidateCard item={item} onAction={onAction} />);
+  expect(screen.queryByRole("button", { name: "نشر" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "تطبيق التحديث" }));
+  expect(onAction).toHaveBeenCalledWith("compare", item);
 });

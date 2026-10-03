@@ -92,19 +92,19 @@ const publicationOptions = { sanitizeOpportunityPayload: (v) => v, containsBlock
 
 (async () => {
   await new Candidate(base).validate();
-  assert.equal((await classifyCandidate(base)).status, "ready");
+  assert.equal((await classifyCandidate(base)).status, "ready_for_review");
   opportunities = [existing];
   assert.equal((await classifyCandidate(base)).status, "duplicate");
   assert.equal((await classifyCandidate({ ...base, deadline: new Date("2099-01-01") })).status, "update_existing");
   opportunities = [existing, { ...existing, _id: id() }];
-  assert.equal((await classifyCandidate(base)).status, "needs_review", "ambiguous matches must be reviewed");
+  assert.equal((await classifyCandidate(base)).status, "needs_verification", "ambiguous matches must be reviewed");
   opportunities = [];
   const candidate = await createOpportunityCandidate(base);
   assert.equal((await createOpportunityCandidate(base)).status, "duplicate", "inbox duplicate detected");
   failure = true;
   await assert.rejects(() => publishCandidate(candidate._id, publicationOptions), /persistence failure/);
   assert.equal(opportunities.length, 0, "rollback orphan opportunity");
-  assert.equal(candidates[0].status, "ready", "failed publish keeps candidate unchanged");
+  assert.equal(candidates[0].status, "ready_for_review", "failed publish keeps candidate unchanged");
   failure = false;
   await publishCandidate(candidate._id, publicationOptions);
   assert.equal(opportunities.length, 1);
@@ -132,7 +132,7 @@ const publicationOptions = { sanitizeOpportunityPayload: (v) => v, containsBlock
   const demo = await seedOpportunityCandidates();
   assert.equal(demo.length, 5);
   assert.ok(demo.every((v) => v.isDemo));
-  assert.deepEqual(demo.map((v) => v.status), ["ready", "needs_review", "duplicate", "update_existing", "ready"]);
+  assert.deepEqual(demo.map((v) => v.status), ["ready_for_review", "needs_verification", "duplicate", "update_existing", "ready_for_review"]);
   assert.ok(demo[4].discoveredEmails[0].email.endsWith("@example.com"));
   await assert.rejects(() => publishCandidate(demo[0]._id, publicationOptions), /التجريبية/);
   assert.equal(opportunities.length, 0);

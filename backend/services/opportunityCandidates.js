@@ -5,11 +5,12 @@ const Opportunity = require("../models/Opportunity");
 const Company = require("../models/Company");
 const { assessEnrichment } = require("./opportunityEnrichmentAssessment");
 const { companyAliasesMatchName } = require("./companyDirectorySeeds");
-const { inputSchema, normalize, matchOpportunity, hasAdditionalData, getMissingFields, isPublishable,
+const { prepareCandidateInput, attachDraft, reviewState } = require("./opportunityInboxDraft");
+const { inputSchema, normalize, matchOpportunity, hasAdditionalData, getMissingFields,
   candidateToOpportunity, buildCandidateDiff } = require("./opportunityCandidateData");
 
 const fail = (status, message) => { const error = new Error(message); error.status = status; throw error; };
-const projection = "organizationName title companyId applicationUrl sourceUrl cities city deadline specialties logoUrl note trainingMode status sourceType isDarbakApplication updatedAt";
+const projection = `${require("./opportunityInboxDraft").fields.join(" ")} companyId updatedAt`;
 
 async function classifyCandidate(data, { id, session = null, isDemo = false, previews = [] } = {}) {
   const companies = await Company.find({}).select("name nameAr nameEn aliases contentAliases").session(session).lean();
@@ -28,7 +29,7 @@ async function classifyCandidate(data, { id, session = null, isDemo = false, pre
   if (best && !tied) return { ...base, existingOpportunityId: best._id,
     ...(data.enrichmentVersion ? { reviewStatus: hasAdditionalData(data, best) ? "UPDATE_EXISTING" : "DUPLICATE" } : {}),
     status: hasAdditionalData(data, best) ? "update_existing" : "duplicate" };
-  if (tied) return { ...base, status: "needs_review" };
+  if (tied) return { ...base, status: "needs_verification", reviewStatus: "NEEDS_VERIFICATION" };
   const inboxRows = Candidate.find({ companyNormalized: base.companyNormalized, isDemo,
     status: { $nin: ["rejected", "expired", "duplicate"] }, ...(id ? { _id: { $ne: id } } : {}) })
     .session(session).lean().cursor();
@@ -41,15 +42,14 @@ async function classifyCandidate(data, { id, session = null, isDemo = false, pre
     if (other.companyNormalized === base.companyNormalized && !["rejected", "expired", "duplicate"].includes(other.status) &&
       matchOpportunity(data, other)) return { ...base, status: "duplicate", duplicateOf: other._id };
   }
-  if (data.deadline && new Date(data.deadline).toISOString().slice(0, 10) < new Date().toISOString().slice(0, 10)) return { ...base, status: "expired" };
-  if (base.reviewStatus === "CLOSED") return { ...base, status: "expired" };
-  return { ...base, status: isPublishable(data) && (!data.enrichmentVersion || base.reviewStatus === "READY_FOR_REVIEW") ? "ready" : "needs_review" };
+  const status = reviewState(data);
+  return { ...base, status, reviewStatus: status === "ready_for_review" ? "READY_FOR_REVIEW" : "NEEDS_VERIFICATION" };
 }
 
 // Single ingestion boundary for the future Discovery Agent and the dev seed.
 // It normalizes/validates facts only; it does not fetch URLs or infer claims.
 async function createOpportunityCandidate(input, { isDemo = false, session = null, dryRun = false, previews = [], audit = {} } = {}) {
-  const data = inputSchema.parse(input);
+  const data = attachDraft(inputSchema.parse(prepareCandidateInput(input)));
   const classification = await classifyCandidate(data, { isDemo, session, previews });
   const payload = { ...data, ...classification, isDemo,
     importedVia: audit.importedVia || "manual", importSource: audit.importSource,
@@ -80,7 +80,14 @@ async function editCandidate(id, input) {
   const candidate = await Candidate.findById(id).select("+rawContent +extractionEvidence");
   if (!candidate) fail(404, "المرشح غير موجود.");
   if (["published", "rejected"].includes(candidate.status)) fail(409, "لا يمكن تعديل مرشح منشور أو مرفوض.");
-  const data = inputSchema.parse({ ...candidate.toObject(), ...input });
+  const merged = { ...candidate.toObject(), ...input,
+    evidenceLinks: [...new Set([...(candidate.evidenceLinks || []), ...(input.evidenceLinks || []), candidate.sourceUrl, candidate.applicationUrl].filter(Boolean))].slice(0, 30) };
+  // Existing callers can still edit the legacy extraction fields.
+  if (!input.opportunityDraft && !Object.hasOwn(input, "organizationName") &&
+      ["company", "title", "companyLogo", "cities", "majors", "remote", "description", "responsibilities", "requirements", "postedAt", "trainingStartDate", "duration", "deadline", "sourceUrl", "applicationUrl"].some((key) => Object.hasOwn(input, key))) {
+    merged.opportunityDraft = { ...merged.opportunityDraft, ...candidateToOpportunity({ ...merged, opportunityDraft: undefined }) };
+  }
+  const data = attachDraft(inputSchema.parse(prepareCandidateInput(merged)));
   const previous = inputSchema.parse(candidate.toObject());
   const changed = Object.keys(data).filter((key) => JSON.stringify(data[key]) !== JSON.stringify(previous[key]));
   candidate.manualFields = [...new Set([...(candidate.manualFields || []), ...changed])];
@@ -88,7 +95,7 @@ async function editCandidate(id, input) {
   return candidate.save();
 }
 
-async function publishCandidate(id, { mode = "publish", fields = [], expectedUpdatedAt, sanitizeOpportunityPayload, containsBlockedTerms }) {
+async function publishCandidate(id, { mode = "publish", fields = [], expectedUpdatedAt, sanitizeOpportunityPayload, containsBlockedTerms, hydrateDarbakOpportunityFromCampaign = async (value) => value }) {
   let result;
   // Both writes commit together. A failed publication leaves no orphan public
   // opportunity and does not mark an inbox row published. Requires replica set.
@@ -99,11 +106,12 @@ async function publishCandidate(id, { mode = "publish", fields = [], expectedUpd
     if (candidate.status === "published") { result = candidate; return; }
     if (["rejected", "duplicate", "expired"].includes(candidate.status)) fail(409, "راجعي حالة المرشح قبل النشر.");
     const data = inputSchema.parse(candidate.toObject());
-    if (!isPublishable(data)) fail(422, "راجعي البيانات الأساسية والمصدر وحالة التقديم قبل النشر.");
     const current = await classifyCandidate(data, { id, session });
-    if (mode === "publish" && current.status !== "ready") fail(409, "توجد مطابقة أو بيانات تحتاج مراجعة. افتحي التعديل لإعادة فحص المرشح.");
-    const payload = sanitizeOpportunityPayload(candidateToOpportunity(data));
-    if ([payload.title, payload.organizationName, payload.note, ...payload.cities, ...payload.specialties].some(containsBlockedTerms)) {
+    if (mode === "publish" && ["duplicate", "update_existing"].includes(current.status)) fail(409, "توجد فرصة مطابقة؛ راجعي التحديث بدل نشر فرصة أخرى.");
+    const payload = await hydrateDarbakOpportunityFromCampaign(sanitizeOpportunityPayload(candidateToOpportunity(data)));
+    if (!payload.title || !payload.organizationName) fail(422, "اسم الجهة وعنوان الفرصة مطلوبة.");
+    if (payload.isDarbakApplication && await Opportunity.exists({ isDarbakApplication: true, companyApplicationCampaignId: payload.companyApplicationCampaignId }).session(session)) fail(409, "هذا البرنامج مرتبط بفرصة بالفعل.");
+    if ([payload.title, payload.organizationName, payload.city, payload.note, payload.submitterContact, ...payload.cities, ...(payload.majorCategories || []), ...payload.specialties].some(containsBlockedTerms)) {
       fail(422, "النص يحتوي على عبارات غير مناسبة.");
     }
     if (mode === "update") {
@@ -122,9 +130,9 @@ async function publishCandidate(id, { mode = "publish", fields = [], expectedUpd
       await existing.save({ session });
       candidate.publishedOpportunityId = existing._id;
     } else {
-      const url = new URL(data.applicationUrl); url.searchParams.sort();
+      const url = data.applicationUrl ? new URL(data.applicationUrl) : null; url?.searchParams.sort();
       const automationKey = crypto.createHash("sha256").update(JSON.stringify([
-        normalize(data.company), normalize(data.title), url.toString(), data.cities.map(normalize).sort(),
+        normalize(data.company), normalize(data.title), url?.toString() || data.sourceUrl || "", data.cities.map(normalize).sort(),
         data.deadline ? new Date(data.deadline).toISOString().slice(0, 10) : "",
       ])).digest("hex");
       const [opportunity] = await Opportunity.create([{ ...payload, automationKey }], { session });

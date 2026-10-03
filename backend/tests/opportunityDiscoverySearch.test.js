@@ -84,11 +84,11 @@ const html = (job) => `<script type="application/ld+json">${JSON.stringify(job)}
   assert.equal(saved[0].postedAt.toISOString(), "2026-09-29T00:00:00.000Z");
   const closed = await runFromSearch([source], report, { ...options,
     readerFactory: () => ({ read: async (url) => ({ url, text: html({ ...posting, validThrough: "2026-09-01" }) }) }),
-    ingest: () => assert.fail("closed must never create") });
+    ingest: (data) => { assert.equal(data.applicationState, "CLOSED"); return { status: "needs_verification" }; } });
   assert.equal(closed.summary.closedOpportunities, 1);
   const revoked = await runFromSearch([{ ...source, active: false }], report, { ...options, readerFactory: () => assert.fail("revoked source fetch") });
   assert.equal(revoked.summary.candidatesCreated, 0);
-  for (const change of [{ jobLocation: undefined }, { title: "Senior Engineer" }, { datePosted: "2024-01-01" }]) {
+  for (const change of [{ jobLocation: undefined }, { title: "Senior Engineer" }]) {
     const rejected = await runFromSearch([source], report, { ...options,
       readerFactory: () => ({ read: async (url) => ({ url, text: html({ ...posting, ...change }) }) }), ingest: () => assert.fail("unqualified must not create") });
     assert.equal(rejected.summary.candidatesCreated, 0);

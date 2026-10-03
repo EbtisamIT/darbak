@@ -2,7 +2,8 @@ const { z } = require("zod");
 const { normalizeCompanyComparable: normalize } = require("./companyDirectorySeeds");
 const { PAGE_AVAILABILITY, APPLICATION_STATES, readyForReview } = require("./opportunityApplicationPolicy");
 
-const STATUSES = ["new", "ready", "needs_review", "duplicate", "update_existing", "rejected", "published", "expired"];
+// Legacy values remain readable; new ingestion uses the six review states.
+const STATUSES = ["ready_for_review", "needs_verification", "duplicate", "update_existing", "rejected", "published", "new", "ready", "needs_review", "expired"];
 const PROGRAM_TYPES = ["coop", "internship", "summer", "graduate", "student_program", "graduate_program", "unknown"];
 const SOURCE_TYPES = ["company", "ats", "linkedin", "university", "x", "telegram", "job_board", "other"];
 const EMAIL_TYPES = ["application", "coop", "training", "internship", "careers", "recruitment", "hr", "general"];
@@ -32,6 +33,8 @@ const url = text(3000).transform((v, ctx) => {
   try { return cleanOpportunityUrl(v); } catch { ctx.addIssue({ code: "custom", message: "رابط غير صالح" }); return z.NEVER; }
 });
 const inputSchema = z.object({
+  opportunityDraft: z.record(z.string(), z.unknown()).optional(),
+  evidenceLinks: z.array(url).max(30).optional(),
   title: text(300).default(""), company: text(240).default(""), companyLogo: url.default(""),
   programType: z.enum(PROGRAM_TYPES).default("unknown"), majors: list.default([]), cities: list.default([]),
   remote: z.boolean().default(false), description: text(15000).default(""),
@@ -88,6 +91,10 @@ function inferProgramType(row) {
 
 function matchOpportunity(candidate, existing, sameCompany = false) {
   const company = normalize(candidate.company);
+  if (!company && !normalize(existing.organizationName || existing.company)) {
+    const url = comparableUrl(candidate.sourceUrl);
+    return url && url === comparableUrl(existing.sourceUrl) && normalize(candidate.title) === normalize(existing.title) ? 85 : 0;
+  }
   if (!company || (!sameCompany && company !== normalize(existing.organizationName || existing.company))) return 0;
   const titleScore = similarity(candidate.title, existing.title);
   if (titleScore < 0.8) return 0;
@@ -109,21 +116,24 @@ function matchOpportunity(candidate, existing, sameCompany = false) {
 }
 
 function candidateToOpportunity(candidate) {
+  if (candidate.opportunityDraft) return { ...candidate.opportunityDraft };
   const note = [candidate.description,
     candidate.responsibilities.length ? `المهام:\n${candidate.responsibilities.map((v) => `- ${v}`).join("\n")}` : "",
     candidate.requirements.length ? `الشروط:\n${candidate.requirements.map((v) => `- ${v}`).join("\n")}` : "",
+    candidate.postedAt ? `تاريخ الإعلان: ${dateKey(candidate.postedAt)}` : "",
     candidate.trainingStartDate ? `بداية التدريب: ${dateKey(candidate.trainingStartDate)}` : "",
+    candidate.duration ? `مدة التدريب: ${candidate.duration}` : "",
   ].filter(Boolean).join("\n\n");
   return {
     organizationName: candidate.company, title: candidate.title, logoUrl: candidate.companyLogo,
     cities: candidate.cities, city: candidate.cities[0] || "", specialties: candidate.majors,
-    trainingMode: candidate.remote ? "remote" : "", applicationMethod: "website",
+    trainingMode: candidate.remote ? "remote" : "", applicationMethod: candidate.applicationUrl ? "website" : "",
     applicationUrl: candidate.applicationUrl, sourceUrl: candidate.sourceUrl, note,
     deadline: candidate.deadline, status: "active", sourceType: "admin",
   };
 }
 
-const updateFields = ["organizationName", "title", "logoUrl", "cities", "city", "specialties", "trainingMode", "applicationUrl", "sourceUrl", "note", "deadline"];
+const updateFields = ["organizationName", "title", "logoUrl", "cities", "city", "majorCategories", "specialties", "keywords", "trainingEnvironment", "targetAudience", "trainingMode", "hasReward", "applicationMethod", "applicationUrl", "sourceUrl", "note", "deadline", "submitterContact", "featured"];
 function buildCandidateDiff(candidate, existing) {
   const proposed = candidateToOpportunity(candidate);
   return updateFields.filter((field) => {

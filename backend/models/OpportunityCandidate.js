@@ -1,6 +1,10 @@
 const mongoose = require("mongoose");
 const { STATUSES, PROGRAM_TYPES, SOURCE_TYPES, EMAIL_TYPES } = require("../services/opportunityCandidateData");
 const candidateSchema = new mongoose.Schema({
+  opportunityDraft: { type: new mongoose.Schema(Object.fromEntries(
+    require("../services/opportunityInboxDraft").fields.map((field) => [field, { ...require("./Opportunity").schema.path(field).options, required: false }])
+  ), { _id: false }), default: undefined },
+  evidenceLinks: [String],
   title: { type: String, default: "", maxlength: 300 }, company: { type: String, default: "", maxlength: 240 },
   companyNormalized: { type: String, index: true }, companyLogo: { type: String, default: "" },
   programType: { type: String, enum: PROGRAM_TYPES, default: "unknown" }, majors: [String], cities: [String],

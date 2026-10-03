@@ -41,6 +41,20 @@ async function runPipeline(sources, { ingest, saveLead = async () => false, getL
         await discoverUrls(source, reader, { searchProvider, counts, details });
       log.warnings.push(...discovery.warnings);
       const logo = await getLogo(source), seen = new Set(); let created = 0;
+      async function preserveSearchLead(reference, code) {
+        if (reference.via !== "search" || !require("./searchDiscovery").TRAINING.test(reference.title || "") ||
+            /(?:internship|training|student) program manager|director|senior manager/i.test(reference.title || "") ||
+            !/Saudi|Riyadh|Jeddah|السعودية|الرياض|جدة/i.test(`${reference.title} ${(reference.discoveredByQueries || []).join(" ")}`)) return;
+        try {
+          const candidate = await ingest({ title: reference.title, company: source.company, sourceUrl: reference.url,
+            sourceType: source.sourceType, programType: trainingType(reference.title, "") || "unknown",
+            verificationNotes: code, extractionEvidence: { sourceUrl: { sourceUrl: reference.url, method: "search_lead", rawText: reference.title } } });
+          if (candidate.status === "duplicate") counts.duplicates++;
+          else if (candidate.status === "update_existing") counts.updates++;
+          else { counts.newCandidates++; counts.candidatesCreated++; counts.needsVerification++; }
+          details.push({ stage: "candidate", url: reference.url, code: candidate.status, candidateId: String(candidate._id || "") });
+        } catch { counts.errors++; details.push({ stage: "candidate", url: reference.url, code: "CANDIDATE_CREATION_FAILED" }); }
+      }
       for (const reference of discovery.urls.slice(0, source.metadata.maxPages || 8)) {
         if (Date.now() >= deadline) throw new Error("RUN_TIME_LIMIT");
         let stage = "extraction";
@@ -51,6 +65,7 @@ async function runPipeline(sources, { ingest, saveLead = async () => false, getL
           if (!extracted.jobs.length) {
             if (extracted.reason === "CLOSED") counts.closedOpportunities++;
             log.skipped++; details.push({ stage: "extraction", url: reference.url, code: extracted.reason, fetchMethod: extracted.fetchMethod });
+            await preserveSearchLead(reference, extracted.reason);
             await storeLeads(extracted.page); continue;
           }
           let eligible = false;
@@ -60,13 +75,14 @@ async function runPipeline(sources, { ingest, saveLead = async () => false, getL
             if (trainingType(job.title, job.description)) counts.trainingPagesDetected++;
             stage = enrichment ? "enrichment_verification" : "verification";
             const result = await verifyExtracted(job, source, reader, { now: now(), logo, enrichment, fetchMethod: extracted.fetchMethod });
-            if (result.skip || (result.code === "CLOSED" && !enrichment)) {
+            if (result.skip) {
               if (["CLOSED", "OLD_OPPORTUNITY", "NOT_TRAINING"].includes(result.code)) seen.add(identity);
               log.skipped++; if (result.code === "CLOSED") counts.closedOpportunities++;
               if (result.code === "OLD_OPPORTUNITY") counts.oldOpportunities++;
               details.push({ stage: "verification", url: job.sourceUrl, title: job.title, code: result.code, reason: result.skip, fetchMethod: extracted.fetchMethod }); continue;
             }
             seen.add(identity); eligible = true; log.found++; counts.opportunitiesFound++;
+            if (!enrichment && result.code === "CLOSED") counts.closedOpportunities++;
             if (enrichment) {
               counts.opportunitiesEnriched++; counts.completenessTotal += result.data.completenessScore;
               if (result.code === "CLOSED") counts.closedOpportunities++;
@@ -84,7 +100,7 @@ async function runPipeline(sources, { ingest, saveLead = async () => false, getL
             if (candidate.status === "duplicate") counts.duplicates++;
             else if (candidate.status === "update_existing") counts.updates++;
             else { counts.newCandidates++; counts.candidatesCreated++; }
-            if (candidate.status === "needs_review") counts.needsReview++;
+            if (["needs_review", "needs_verification"].includes(candidate.status)) counts.needsReview++;
             const reviewCounter = { READY_FOR_REVIEW: "readyForReview", NEEDS_DETAILS: "needsDetails", NEEDS_VERIFICATION: "needsVerification" }[candidate.reviewStatus];
             if (reviewCounter) counts[reviewCounter]++;
             details.push({ stage: "candidate", url: job.sourceUrl, code: candidate.reviewStatus || candidate.status,
@@ -94,6 +110,9 @@ async function runPipeline(sources, { ingest, saveLead = async () => false, getL
         } catch (e) {
           const code = stage === "candidate" ? "CANDIDATE_CREATION_FAILED" : failureCode(e);
           counts.errors++; log.warnings.push(code); details.push({ stage, url: reference.url, code });
+          // A fetch/verification failure is not a reason to lose a plausible
+          // training lead. Preserve the URL without inventing page facts.
+          if (stage !== "candidate") await preserveSearchLead(reference, code);
           if (code === "ROBOTS_DENIED" && reference.via === "search") {
             const lead = { ...reference, sourceKey: source.key, reason: code, accepted: false,
               reviewStatus: "NEEDS_VERIFICATION", pageAvailability: "BLOCKED", applicationState: "UNKNOWN" };

@@ -63,10 +63,16 @@ async function main() {
     const failure = await testOpportunityUrl(source, url, { reader: { read: async () => { throw new Error(error); } }, enrichment: true, now });
     assert.equal(failure.pageAvailability, state); assert.equal(failure.applicationState, "UNKNOWN"); assert.equal(failure.results.length, 0);
   }
-  for (const change of [{ datePosted: "2024-01-01" }, { title: "Marketing Director" }, { hiringOrganization: { name: "Other" } }]) {
+  for (const change of [{ title: "Marketing Director" }]) {
     const rejected = await testOpportunityUrl(source, url, { reader: reader(html({ ...posting, ...change })), enrichment: true, now });
     assert.equal(rejected.results[0].data, undefined);
   }
+  const stale = await testOpportunityUrl(source, url, { reader: reader(html({ ...posting, datePosted: "2024-01-01" })), enrichment: true, now });
+  assert.equal(stale.results[0].data.verification.dateVerified, false);
+  assert.equal(stale.results[0].data.applicationState, "UNKNOWN");
+  const mismatch = await testOpportunityUrl(source, url, { reader: reader(html({ ...posting, hiringOrganization: { name: "Other" } })), enrichment: true, now });
+  assert.equal(mismatch.results[0].data.company, "Other");
+  assert.equal(mismatch.results[0].data.verification.companyVerified, false);
   assert.equal(validateSource({ key: source.key, name: source.name, company: source.company, sourceUrl: url,
     officialDomains: source.officialDomains, atsProvider: "teamtailor", aliases: [], scopes: source.metadata.scopes,
     approvalEvidence: [url] }).atsProvider, "teamtailor");
@@ -100,11 +106,12 @@ async function main() {
       return { url: link.href, status: 200, headers: { "content-type": "text/html" }, text: html() };
     } }),
   });
-  assert.equal(candidates.length, 1); assert.equal(candidates[0].sourceUrl, url);
-  assert.equal(candidates[0].reviewStatus, "READY_FOR_REVIEW");
+  assert.equal(candidates.length, 2);
+  assert.equal(candidates.find((row) => row.sourceUrl === url).reviewStatus, "READY_FOR_REVIEW");
+  assert.equal(candidates.find((row) => row.sourceUrl === blockedUrl).verificationNotes, "ROBOTS_DENIED");
   assert.ok(leads.some((lead) => lead.url === blockedUrl && lead.reviewStatus === "NEEDS_VERIFICATION" && lead.pageAvailability === "BLOCKED"));
   assert.equal(requests.some((link) => link.includes("smartrecruiters.com") && !link.endsWith("robots.txt")), false);
-  assert.equal(run.summary.candidatesCreated, 1);
+  assert.equal(run.summary.candidatesCreated, 2);
   assert.equal(run.summary.officialSourcesResolved, 1);
   assert.ok(searches <= 4);
   assert.ok(run.summary.discoveryLeads >= 1);

@@ -2,19 +2,19 @@ import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { FiRefreshCw, FiPlus } from "react-icons/fi";
 import API_BASE_URL from "../../config/api";
-import CandidateCard, { CandidateContent } from "./CandidateCard";
+import CandidateCard, { simpleStatusLabels } from "./CandidateCard";
 import CandidateEditor from "./CandidateEditor";
 import CandidateComparison from "./CandidateComparison";
 import DiscoveryPanel from "./DiscoveryPanel";
-import { statusLabels, sourceLabels, programLabels, reviewLabels } from "./candidateLabels";
+import { programLabels } from "./candidateLabels";
 import "./OpportunityInbox.css";
 
 const endpoint = `${API_BASE_URL}/api/admin/opportunity-candidates`;
 const emptyForm = { title: "", company: "", programType: "unknown", sourceType: "other", confidenceScore: 0, verification: {}, responsibilities: [], requirements: [], cities: [], majors: [], discoveredEmails: [] };
 
-export default function OpportunityInbox({ password, refreshKey = 0 }) {
+export default function OpportunityInbox({ password, refreshKey = 0, formOptions }) {
   const [result, setResult] = useState({ data: [], summary: {}, total: 0, pages: 0 });
-  const [filters, setFilters] = useState({ status: "", sourceType: "", programType: "", company: "", city: "", minConfidence: "" });
+  const [filters, setFilters] = useState({ status: "", programType: "", company: "", city: "" });
   const [applied, setApplied] = useState(filters);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -25,8 +25,6 @@ export default function OpportunityInbox({ password, refreshKey = 0 }) {
   const [mode, setMode] = useState("");
   const [reload, setReload] = useState(0);
   const refreshCandidates = useCallback(() => setReload((v) => v + 1), []);
-  const [duplicateTarget, setDuplicateTarget] = useState("");
-  const [duplicateType, setDuplicateType] = useState("existingOpportunityId");
   const request = useCallback((method, path = "", data) => axios({ method, url: `${endpoint}${path}`, data, headers: { "x-admin-password": password } }), [password]);
   useEffect(() => {
     if (!password) return;
@@ -50,10 +48,6 @@ export default function OpportunityInbox({ password, refreshKey = 0 }) {
   };
   const action = async (nextMode, item) => {
     setError(""); setMessage("");
-    if (nextMode === "retry-enrichment") {
-      if (window.confirm("إعادة قراءة المصدر الرسمي؟ ستبقى التعديلات اليدوية محفوظة، ولن يتم النشر.")) await mutate("post", `/${item._id}/retry-enrichment`, {});
-      return;
-    }
     if (["publish", "reject"].includes(nextMode)) {
       if (window.confirm(nextMode === "publish" ? "نشر هذه الفرصة في دربك؟" : "رفض هذا المرشح؟")) await mutate("post", `/${item._id}/${nextMode}`, {});
       return;
@@ -61,7 +55,7 @@ export default function OpportunityInbox({ password, refreshKey = 0 }) {
     setBusy(true);
     try {
       const { data } = await request("get", `/${item._id}`);
-      setDetail(data); setMode(nextMode); setDuplicateTarget("");
+      setDetail(data); setMode(nextMode);
     } catch (err) { setError(err.response?.data?.error || "تعذر فتح المرشح."); }
     finally { setBusy(false); }
   };
@@ -73,21 +67,18 @@ export default function OpportunityInbox({ password, refreshKey = 0 }) {
       {process.env.NODE_ENV === "development" && <button onClick={() => mutate("post", "/seed", {})} disabled={busy}>إضافة 5 حالات تجريبية</button>}
     </div></header>
     <DiscoveryPanel password={password} onComplete={refreshCandidates} />
-    <div className="oi-summary">{[["discoveredToday", "اكتشفت اليوم (UTC)"], ["readyForReview", "جاهزة للمراجعة"], ["needsDetails", "تحتاج تفاصيل"], ["needsVerification", "تحتاج تحقق"], ["update_existing", "تحديثات"], ["duplicate", "مكررة"], ["closed", "مغلقة"], ["emailLeads", "Email Leads"]].map(([key, label]) => <div key={key}><strong>{result.summary[key] || 0}</strong><span>{label}</span></div>)}</div>
+    <div className="oi-summary">{[["discoveredToday", "اكتشفت اليوم (UTC)"], ["readyForReview", "جاهزة للمراجعة"], ["needsVerification", "تحتاج تحقق"], ["update_existing", "تحديثات"], ["duplicate", "مكررة"]].map(([key, label]) => <div key={key}><strong>{result.summary[key] || 0}</strong><span>{label}</span></div>)}</div>
     <form className="oi-filters" onSubmit={(e) => { e.preventDefault(); setPage(1); setApplied({ ...filters }); }}>
-      {[["status", "الحالة", statusLabels], ["reviewStatus", "حالة الإثراء", reviewLabels], ["sourceType", "المصدر", sourceLabels], ["programType", "البرنامج", programLabels]].map(([field, label, options]) => <label key={field}>{label}<select value={filters[field] || ""} onChange={(e) => setFilters({ ...filters, [field]: e.target.value })}><option value="">الكل</option>{Object.entries(options).map(([v, text]) => <option key={v} value={v}>{text}</option>)}</select></label>)}
-      {[ ["company", "الجهة"], ["city", "المدينة"], ["minConfidence", "أقل درجة ثقة"] ].map(([field, label]) => <label key={field}>{label}<input type={field === "minConfidence" ? "number" : "text"} min="0" max="100" value={filters[field]} onChange={(e) => setFilters({ ...filters, [field]: e.target.value })} /></label>)}
+      {[["status", "الحالة", simpleStatusLabels], ["programType", "البرنامج", programLabels]].map(([field, label, options]) => <label key={field}>{label}<select value={filters[field] || ""} onChange={(e) => setFilters({ ...filters, [field]: e.target.value })}><option value="">الكل</option>{Object.entries(options).map(([v, text]) => <option key={v} value={v}>{text}</option>)}</select></label>)}
+      {[ ["company", "الجهة"], ["city", "المدينة"] ].map(([field, label]) => <label key={field}>{label}<input value={filters[field]} onChange={(e) => setFilters({ ...filters, [field]: e.target.value })} /></label>)}
       <button disabled={loading}>تطبيق الفلاتر</button>
     </form>
     {error && <p className="oi-error" role="alert">{error}</p>}{message && <p role="status">{message}</p>}
     {detail && <section className="oi-detail" aria-label="تفاصيل المرشح"><div className="oi-heading"><h2>{detail.candidate.title || "مرشح جديد"}</h2><button disabled={busy} onClick={() => { setDetail(null); setMode(""); }}>إغلاق</button></div>
-      {["edit", "create"].includes(mode) ? <CandidateEditor key={`${detail.candidate._id || "new"}-${mode}`} candidate={detail.candidate} busy={busy} onCancel={() => setDetail(null)} onSave={(data) => mutate(mode === "create" ? "post" : "patch", mode === "create" ? "" : `/${data._id}`, data)} /> :
+      {["edit", "create"].includes(mode) ? <CandidateEditor key={`${detail.candidate._id || "new"}-${mode}`} candidate={detail.candidate} formOptions={formOptions} busy={busy} onCancel={() => setDetail(null)} onSave={(data) => mutate(mode === "create" ? "post" : "patch", mode === "create" ? "" : `/${data._id}`, data)} /> :
         mode === "compare" ? <CandidateComparison key={detail.candidate._id} detail={detail} busy={busy} onApply={(fields, expectedUpdatedAt) => {
           if (window.confirm("تطبيق الحقول المختارة فقط على الفرصة الحالية؟")) mutate("post", `/${detail.candidate._id}/apply-update`, { fields, expectedUpdatedAt });
-        }} /> : mode === "duplicate" ? <form className="oi-fields" onSubmit={(e) => { e.preventDefault(); mutate("post", `/${detail.candidate._id}/mark-duplicate`, { [duplicateType]: duplicateTarget.trim() }); }}>
-          <label>نوع السجل المطابق<select value={duplicateType} onChange={(e) => setDuplicateType(e.target.value)}><option value="existingOpportunityId">فرصة في دربك</option><option value="duplicateOf">مرشح في الصندوق</option></select></label>
-          <label>معرّف السجل المطابق<input required pattern="[a-fA-F0-9]{24}" value={duplicateTarget} onChange={(e) => setDuplicateTarget(e.target.value)} /></label><button disabled={busy}>تأكيد التكرار</button>
-        </form> : <><CandidateContent item={detail.candidate} /><details><summary>النص الأصلي</summary><p className="oi-description">{detail.candidate.rawContent || "غير متوفر"}</p></details></>}
+        }} /> : null}
     </section>}
     {loading ? <p role="status">جارٍ تحميل الفرص...</p> : <>
       <p>{result.total} مرشح</p>

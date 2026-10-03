@@ -31,13 +31,13 @@ const reader = { requests: 1, read: async (url) => ({ text: html(), url, status:
   assert.equal(trainingType("Senior Engineer", body), null);
   assert.equal(trainingType("Internship Program Manager", body), null);
   assert.equal(trainingType("Trainee", "Permanent role with five years of experience"), null);
-  assert.equal((await verifyJob({ ...jobs[0], actualPosting: false }, source, reader, { now })).skip, "NOT_A_TRAINING_POSTING");
-  assert.equal((await verifyJob({ ...jobs[0], companyName: "Other Company" }, source, reader, { now })).skip, "COMPANY_MISMATCH");
+  assert.equal((await verifyJob({ ...jobs[0], actualPosting: false }, source, reader, { now })).data.realJobPosting, false);
+  assert.equal((await verifyJob({ ...jobs[0], companyName: "Other Company" }, source, reader, { now })).data.verification.companyVerified, false);
   assert.equal((await verifyJob({ ...jobs[0], countries: ["US"] }, source, reader, { now })).skip, "OUTSIDE_SAUDI_ARABIA");
   const closed = await verifyJob({ ...jobs[0], closed: true }, source, reader, { now });
-  assert.equal(closed.skip, "CLOSED");
+  assert.equal(closed.data.applicationState, "CLOSED");
   const broken = await verifyJob(jobs[0], source, { read: async () => { const e = new Error("HTTP_404"); e.code = "HTTP_404"; throw e; } }, { now });
-  assert.equal(broken.skip, "OPEN_STATUS_UNCONFIRMED");
+  assert.equal(broken.data.verification.urlWorks, false);
   assert.equal(freshness({ ...jobs[0], postedAt: "2024-01-01" }, now).skip, true);
   assert.equal(freshness({ ...jobs[0], title: "Internship 2024", postedAt: null }, now).skip, true);
   assert.equal(freshness({ ...jobs[0], description: "Applications for the 2024 intake are welcome.", postedAt: null }, now).skip, true);

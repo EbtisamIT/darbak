@@ -18,9 +18,9 @@ beforeEach(() => {
 test("loads protected inbox, renders missing facts and existing email", async () => {
   render(<OpportunityInbox password="test" />);
   expect(await screen.findByText("فرصة اختبار")).toBeVisible();
-  expect(screen.getByText("المهام غير مذكورة")).toBeVisible();
-  expect(screen.getByText("الشروط غير مذكورة")).toBeVisible();
-  expect(screen.getByText(/موجود مسبقًا/)).toBeVisible();
+  expect(screen.getByText("المدينة غير مذكورة")).toBeVisible();
+  expect(screen.getByText("التخصصات غير مذكورة")).toBeVisible();
+  expect(screen.queryByRole("meter")).not.toBeInTheDocument();
   expect(axios.get).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headers: { "x-admin-password": "test" } }));
 });
 test("does not request protected data without password", () => {

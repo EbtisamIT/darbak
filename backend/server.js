@@ -19646,6 +19646,7 @@ app.use('/api/internal/opportunity-discovery/import', createOpportunityImportRou
 app.use('/api/admin/opportunity-candidates', createOpportunityCandidateRouter({
   requireAdmin,
   sanitizeOpportunityPayload,
+  hydrateDarbakOpportunityFromCampaign,
   containsBlockedTerms,
   onPublish: () => {
     for (const key of readCache.keys()) {

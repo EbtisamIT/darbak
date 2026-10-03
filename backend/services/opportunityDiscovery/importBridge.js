@@ -7,6 +7,7 @@ const EmailLead = require("../../models/OpportunityEmailLead");
 const { inputSchema, normalize } = require("../opportunityCandidateData");
 const { createOpportunityCandidate, fail } = require("../opportunityCandidates");
 const { saveEmailLead } = require("./management");
+const { prepareCandidateInput, fields: opportunityFields } = require("../opportunityInboxDraft");
 
 const batchSchema = z.object({
   source: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/),
@@ -17,11 +18,18 @@ const batchSchema = z.object({
 
 const fields = ["company", "title", "programType", "cities", "majors", "remote", "description",
   "responsibilities", "requirements", "postedAt", "deadline", "trainingStartDate", "duration",
-  "applicationUrl", "sourceUrl", "companyLogo", "sourceType", "discoveredEmails", "rawContent", "verificationNotes"];
-const opportunitySchema = inputSchema.pick(Object.fromEntries(fields.map((field) => [field, true])))
+  "applicationUrl", "sourceUrl", "companyLogo", "sourceType", "discoveredEmails", "rawContent", "verificationNotes", "opportunityDraft", "evidenceLinks"];
+const opportunitySchema = z.preprocess((input) => {
+  if (!input || typeof input !== "object") return input;
+  const draft = input.opportunityDraft || (Object.hasOwn(input, "organizationName") ? input : null);
+  if (!draft) return input;
+  // An external agent may supply facts, never internal campaign bindings.
+  const safeDraft = Object.fromEntries(opportunityFields.filter((field) => !["isDarbakApplication", "companyApplicationCampaignId", "featured", "status", "sourceType"].includes(field) && Object.hasOwn(draft, field)).map((field) => [field, draft[field]]));
+  return prepareCandidateInput({ ...input, opportunityDraft: safeDraft });
+}, inputSchema.pick(Object.fromEntries(fields.map((field) => [field, true])))
   .refine((data) => Boolean(data.company && normalize(data.company)), { path: ["company"], message: "Company required" })
   .refine((data) => Boolean(data.title), { path: ["title"], message: "Title required" })
-  .refine((data) => Boolean(data.applicationUrl || data.sourceUrl), { path: ["sourceUrl"], message: "Application or source URL required" });
+  .refine((data) => Boolean(data.applicationUrl || data.sourceUrl), { path: ["sourceUrl"], message: "Application or source URL required" }));
 const leadSchema = z.object({
   company: z.string().trim().min(1).max(240).refine((value) => Boolean(normalize(value))),
   email: inputSchema.shape.discoveredEmails.unwrap().element.shape.email,
@@ -43,7 +51,9 @@ function prepare(body) {
   const errors = [], opportunities = [], emailLeads = [];
   for (const [kind, schema, target] of [["opportunities", opportunitySchema, opportunities], ["emailLeads", leadSchema, emailLeads]]) {
     batch[kind].forEach((value, index) => {
-      const result = schema.safeParse(value);
+      let result;
+      try { result = schema.safeParse(value); }
+      catch { errors.push({ kind, index, code: "INVALID_ITEM", fields: ["opportunityDraft"] }); return; }
       if (result.success) target.push({ index, data: result.data });
       else errors.push({ kind, index, code: "INVALID_ITEM", fields: [...new Set(result.error.issues.map((issue) => issue.path.join(".") || "item"))] });
     });
@@ -84,7 +94,7 @@ async function importOpportunities(body, { dryRun = false } = {}) {
       summary.created++;
       if (candidate.status === "duplicate") summary.duplicates++;
       if (candidate.status === "update_existing") summary.updates++;
-      if (candidate.status === "needs_review") summary.needsReview++;
+      if (["needs_review", "needs_verification"].includes(candidate.status)) summary.needsReview++;
       summary.results.push({ kind: "opportunity", index, status: candidate.status,
         ...(!dryRun ? { candidateId: String(candidate._id) } : {}),
         existingOpportunityId: candidate.existingOpportunityId || null, missingFields: candidate.missingFields });

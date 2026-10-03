@@ -93,6 +93,22 @@ async function runOpportunityAutomation(sources, { provider, rotation = 0, setti
   for (const item of report.results.filter((row) => row.recoveryLeadUrl && !row.accepted && row.trainingHint)) await saveSearchLead(item);
   await onSearch(report);
   const result = await runFromSearch(sources, report, { ...pipelineOptions, saveSearchLead, enrichment: true });
+  // Secondary results stay unverified. Their snippets are evidence only, not
+  // duties, eligibility, dates, or inferred location/major fields.
+  for (const lead of report.results.filter((row) => !row.accepted && TRAINING.test(row.title || "") &&
+    /Saudi|Riyadh|Jeddah|السعودية|الرياض|جدة/i.test(`${row.title} ${row.description} ${(row.discoveredByQueries || []).join(" ")}`)).slice(0, 10)) {
+    const hint = ` ${normalize(lead.title)} `;
+    const identities = sources.filter((source) => [source.company, ...(source.metadata.aliases || [])]
+      .some((alias) => normalize(alias).length >= 4 && hint.includes(` ${normalize(alias)} `)));
+    try {
+      const candidate = await pipelineOptions.ingest({ title: lead.title, company: identities.length === 1 ? identities[0].company : "",
+        sourceUrl: lead.url, sourceType: "other", verificationNotes: lead.reason,
+        extractionEvidence: { sourceUrl: { sourceUrl: lead.url, method: "search_lead", rawText: `${lead.title}\n${lead.description}` } } });
+      if (candidate.status === "duplicate") result.summary.duplicates++;
+      else if (candidate.status === "update_existing") result.summary.updates++;
+      else { result.summary.newCandidates++; result.summary.candidatesCreated++; result.summary.needsVerification++; }
+    } catch { result.summary.errors++; report.recoveryDetails.push({ stage: "candidate", url: lead.url, code: "CANDIDATE_CREATION_FAILED" }); }
+  }
   const blocked = result.blockedSearchLeads || [];
   if (blocked.length) {
     for (const lead of blocked) Object.assign(report.results.find((row) => row.url === lead.url), lead);

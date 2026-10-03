@@ -69,3 +69,5 @@
 .oi-run-history { overflow-x: auto; }
 .oi-run-history table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .oi-run-history th, .oi-run-history td { padding: 8px; text-align: start; border-bottom: 1px solid var(--border-color, #34413e); white-space: nowrap; }
+.opportunity-inbox .oi-title { background: none; border: 0; color: inherit; padding: 0; text-align: start; font: inherit; cursor: pointer; }
+.opportunity-inbox .oi-title:hover { text-decoration: underline; }

@@ -6,9 +6,9 @@ function summarizeCandidates(groups, discoveredToday, emailLeads) {
     const { status, reviewStatus } = group._id;
     summary[status] = (summary[status] || 0) + group.count;
     if (["published", "rejected", "duplicate", "update_existing"].includes(status)) continue;
-    if (status === "expired" || reviewStatus === "CLOSED") { summary.closed += group.count; continue; }
-    const counter = REVIEW_COUNTERS[reviewStatus] || (status === "ready" ? "readyForReview" : status === "needs_review" ? "needsVerification" : null);
-    if (counter) summary[counter] += group.count;
+    if (status === "expired" || reviewStatus === "CLOSED") { summary.closed += group.count; summary.needsVerification += group.count; continue; }
+    const counter = status === "ready_for_review" ? "readyForReview" : status === "needs_verification" ? "needsVerification" : REVIEW_COUNTERS[reviewStatus] || (status === "ready" ? "readyForReview" : status === "needs_review" ? "needsVerification" : null);
+    if (counter) summary[counter === "needsDetails" ? "needsVerification" : counter] += group.count;
   }
   return summary;
 }

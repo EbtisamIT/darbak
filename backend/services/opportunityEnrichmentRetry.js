@@ -7,6 +7,7 @@ const { enrichOpportunityUrl } = require("./opportunityEnrichment");
 const { inputSchema, normalize } = require("./opportunityCandidateData");
 const { classifyCandidate, fail } = require("./opportunityCandidates");
 const { renderPage } = require("./opportunityDiscovery/browser");
+const { attachDraft, prepareCandidateInput } = require("./opportunityInboxDraft");
 
 async function retryEnrichment(id, { sources, enrich = enrichOpportunityUrl } = {}) {
   const candidate = await Candidate.findById(id).select("+rawContent +extractionEvidence");
@@ -29,7 +30,8 @@ async function retryEnrichment(id, { sources, enrich = enrichOpportunityUrl } = 
     next[field] = previous[field];
     next.extractionEvidence[field] = { sourceUrl: previous.sourceUrl, method: "admin_review", rawText: String(previous[field] || "").slice(0, 6000) };
   }
-  const data = inputSchema.parse(next);
+  if (!(candidate.manualFields || []).includes("opportunityDraft")) delete next.opportunityDraft;
+  const data = attachDraft(inputSchema.parse(prepareCandidateInput(next)));
   if (normalize(data.company) !== normalize(rows[0].data.company)) data.verification.companyVerified = null;
   Object.assign(candidate, data, await classifyCandidate(data, { id, isDemo: false }));
   // optimisticConcurrency prevents a slow retry overwriting a newer admin edit.

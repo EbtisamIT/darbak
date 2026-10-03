@@ -12,7 +12,7 @@ const { retryEnrichment } = require("./opportunityEnrichmentRetry");
 const { REVIEW_STATUSES } = require("./opportunityEnrichmentAssessment");
 const { summarizeCandidates } = require("./opportunityCandidateSummary");
 
-function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPayload, containsBlockedTerms, onPublish = () => {} }) {
+function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPayload, containsBlockedTerms, hydrateDarbakOpportunityFromCampaign, onPublish = () => {} }) {
   const router = express.Router();
   router.use(requireAdmin);
   router.use((req, res, next) => {
@@ -31,7 +31,7 @@ function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPay
   };
   const enrich = async (rows) => {
     const emails = await existingEmails(rows);
-    return rows.map((row) => ({ ...row, discoveredEmails: (row.discoveredEmails || []).map((item) => ({ ...item, existing: emails.has(item.email.toLowerCase()) })) }));
+    return rows.map((row) => ({ ...row, opportunityDraft: row.opportunityDraft || require("./opportunityCandidateData").candidateToOpportunity(row), discoveredEmails: (row.discoveredEmails || []).map((item) => ({ ...item, existing: emails.has(item.email.toLowerCase()) })) }));
   };
   router.get("/", handle(async (req, res) => {
     const filter = {};
@@ -42,6 +42,13 @@ function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPay
     for (const [key, options] of [["status", STATUSES], ["sourceType", SOURCE_TYPES], ["programType", PROGRAM_TYPES]]) {
       if (req.query[key] && !options.includes(req.query[key])) fail(400, "فلتر غير صالح.");
       if (req.query[key]) filter[key] = req.query[key];
+    }
+    if (filter.status === "ready_for_review") {
+      delete filter.status;
+      filter.$or = [{ status: "ready_for_review" }, { status: "ready" }, { status: { $in: ["new", "needs_review"] }, reviewStatus: "READY_FOR_REVIEW" }];
+    } else if (filter.status === "needs_verification") {
+      delete filter.status;
+      filter.$or = [{ status: "needs_verification" }, { status: "expired" }, { status: { $in: ["new", "needs_review"] }, reviewStatus: { $ne: "READY_FOR_REVIEW" } }];
     }
     const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     for (const key of ["company", "city"]) {
@@ -103,7 +110,7 @@ function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPay
     const row = await Candidate.findById(req.params.id).select("+rawContent +demoExistingSnapshot +extractionEvidence").lean();
     if (!row) fail(404, "المرشح غير موجود.");
     const existing = row.isDemo && row.demoExistingSnapshot ? row.demoExistingSnapshot : row.existingOpportunityId ?
-      await Opportunity.findById(row.existingOpportunityId).select("organizationName title logoUrl cities city specialties trainingMode applicationUrl sourceUrl note deadline status updatedAt").lean() : null;
+      await Opportunity.findById(row.existingOpportunityId).select(`${require("./opportunityInboxDraft").fields.join(" ")} updatedAt`).lean() : null;
     res.json({ candidate: (await enrich([row]))[0], existing, diff: existing ? buildCandidateDiff(row, existing) : [] });
   }));
   router.patch("/:id", handle(async (req, res) => res.json(await editCandidate(req.params.id, req.body))));
@@ -119,7 +126,7 @@ function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPay
   }));
   for (const action of ["publish", "apply-update"]) router.post(`/:id/${action}`, handle(async (req, res) => {
     const row = await publishCandidate(req.params.id, { mode: action === "publish" ? "publish" : "update",
-      fields: req.body.fields, expectedUpdatedAt: req.body.expectedUpdatedAt, sanitizeOpportunityPayload, containsBlockedTerms });
+      fields: req.body.fields, expectedUpdatedAt: req.body.expectedUpdatedAt, sanitizeOpportunityPayload, containsBlockedTerms, hydrateDarbakOpportunityFromCampaign });
     onPublish();
     res.json(row);
   }));

@@ -26,43 +26,45 @@ function confidence(data, recent) {
 }
 async function verifyJob(job, source, reader, { now = new Date(), logo = "", enrichment = false } = {}) {
   const type = trainingType(job.title, job.description || "");
-  if (!type || !job.actualPosting || POOL.test(job.title || "")) return { skip: "NOT_A_TRAINING_POSTING" };
-  if (!sameCompany(job.companyName, source)) return { skip: "COMPANY_MISMATCH" };
+  if (!type) return { skip: "NOT_A_TRAINING_POSTING" };
+  const companyVerified = sameCompany(job.companyName, source);
   if (job.countries?.length && !job.countries.some((v) => /^(SA|SAU|Saudi Arabia|Saudi|المملكة العربية السعودية|السعودية)$/i.test(v.trim()))) return { skip: "OUTSIDE_SAUDI_ARABIA" };
-  const fresh = freshness(job, now); if (fresh.skip) return { skip: fresh.reason };
+  const fresh = freshness(job, now);
   if (!allowedUrl(job.sourceUrl, source)) return { skip: "NO_APPROVED_APPLICATION_URL" };
   const approvedApplication = allowedUrl(job.applicationUrl, source);
-  if (!approvedApplication && !enrichment) return { skip: "NO_APPROVED_APPLICATION_URL" };
   const notes = []; let urlWorks = null, appClosed = false;
   try { if (approvedApplication) { const page = await reader.read(job.applicationUrl); urlWorks = true; appClosed = CLOSED.test(page.text); } }
   catch (e) { urlWorks = /^HTTP_(404|410)$/.test(e.code) ? false : null; notes.push(`application verification: ${e.code || "FETCH_FAILED"}`); }
   const closed = job.closed || CLOSED.test(job.description) || appClosed || (fresh.deadline && fresh.deadline.slice(0, 10) < now.toISOString().slice(0, 10));
-  if (closed && !enrichment) return { skip: "CLOSED" };
   const saudiEvidence = job.countries?.some((v) => /^(SA|SAU|Saudi Arabia|Saudi|المملكة العربية السعودية|السعودية)$/i.test(v.trim())) ||
     (job.cities || []).some((v) => /^(Riyadh|Jeddah|Dammam|Dhahran|Khobar|Jubail|Yanbu|Makkah|Mecca|Madinah|Medina|الرياض|جدة|جده|الدمام|الظهران|الخبر|الجبيل|ينبع|مكة|مكة المكرمة|المدينة المنورة)$/i.test(v.trim())) ||
     // A company boilerplate listing Saudi Arabia among many countries is not
     // evidence that this particular placement is in Saudi Arabia.
     /(?:Saudi (?:students|nationals|citizens)|students (?:from|in) Saudi|طلاب (?:السعودية|الجامعات السعودية)|(?:location|based in|training in)\s*:?\s*(?:Saudi Arabia|المملكة العربية السعودية))/i.test(`${job.title} ${job.description}`);
   if (!saudiEvidence) return { skip: "SAUDI_EVIDENCE_MISSING" };
-  if (POOL.test(job.description)) return { skip: "OPEN_STATUS_UNCONFIRMED" };
+  const uncertainProgram = POOL.test(job.description);
   const pageAvailability = job.pageAvailability || "AVAILABLE";
   const applicationState = closed ? "CLOSED" : pageAvailability !== "AVAILABLE" || urlWorks !== true ? "UNKNOWN" :
     job.applyVisible ? "OPEN" : job.applicationActionable ? "UNKNOWN_BUT_ACTIONABLE" : "UNKNOWN";
-  if (!["OPEN", "UNKNOWN_BUT_ACTIONABLE"].includes(applicationState) && !enrichment) return { skip: "OPEN_STATUS_UNCONFIRMED" };
   const data = {
-    title: job.title.slice(0, 300), company: source.company, programType: enrichment ? job.programType : type, sourceType: source.sourceType,
+    title: job.title.slice(0, 300), company: job.companyName || source.company, programType: enrichment ? job.programType : type, sourceType: source.sourceType,
     companyLogo: enrichment ? job.companyLogo : logo || (allowedUrl(job.companyLogo, source) ? cleanOpportunityUrl(job.companyLogo) : ""),
     description: String((enrichment && job.cardDescription) || job.description || "").slice(0, 15000), rawContent: String(job.rawContent || job.description || "").slice(0, 50000),
     responsibilities: (job.responsibilities || []).slice(0, 80), requirements: (job.requirements || []).slice(0, 80),
     majors: (job.majors || []).slice(0, 80), cities: (job.cities || []).slice(0, 80), remote: job.remote === true,
     applicationUrl: approvedApplication ? cleanOpportunityUrl(job.applicationUrl) : "", sourceUrl: cleanOpportunityUrl(job.sourceUrl),
-    postedAt: fresh.posted, deadline: fresh.deadline, trainingStartDate: isoDate(job.trainingStartDate),
-    verification: { urlWorks, officialSource: true, companyVerified: true, dateVerified: fresh.dateVerified || null,
+    postedAt: fresh.posted || isoDate(job.postedAt), deadline: fresh.deadline || isoDate(job.deadline), trainingStartDate: isoDate(job.trainingStartDate),
+    verification: { urlWorks, officialSource: true, companyVerified, dateVerified: fresh.skip ? false : fresh.dateVerified || null,
       appearsOpen: applicationState === "CLOSED" ? false : applicationState === "OPEN" ? true : null },
     pageAvailability, applicationState, realJobPosting: job.actualPosting === true,
     verificationWarnings: applicationState === "UNKNOWN_BUT_ACTIONABLE" ? [APPLICATION_WARNING] : [],
     discoveredEmails: emails(job.rawContent || job.description, cleanOpportunityUrl(job.sourceUrl)),
   };
+  if (fresh.skip || uncertainProgram || !companyVerified) {
+    data.verification.appearsOpen = null;
+    data.applicationState = closed ? "CLOSED" : "UNKNOWN";
+    notes.push(fresh.reason || (uncertainProgram ? "Program opening needs review" : "Company identity needs review"));
+  }
   if (enrichment) {
     for (const key of ["enrichmentVersion", "enrichedAt", "majorScope", "rawMajors", "rawCities", "extractionEvidence", "duration", "companyNormalized", "contentQualityWarning"]) data[key] = job[key];
     Object.assign(data, require("../opportunityEnrichmentAssessment").assessEnrichment(data, now));
