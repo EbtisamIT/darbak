@@ -24,11 +24,23 @@ export default function SavedItemsDrawer() {
   const [dashboardUpdates, setDashboardUpdates] = useState({});
 
   useEffect(() => {
-    setToolbarTarget(
-      location.pathname.startsWith("/where-to-train")
-        ? document.getElementById("where-to-train-tools")
-        : null
-    );
+    if (!location.pathname.startsWith("/where-to-train")) {
+      setToolbarTarget(null);
+      return undefined;
+    }
+
+    const findToolbar = () => {
+      const target = document.getElementById("where-to-train-tools");
+      if (target) setToolbarTarget(target);
+      return Boolean(target);
+    };
+    if (findToolbar()) return undefined;
+
+    const observer = new MutationObserver(() => {
+      if (findToolbar()) observer.disconnect();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, [location.pathname]);
 
   useEffect(() => {
