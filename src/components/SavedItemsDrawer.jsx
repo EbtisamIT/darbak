@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
 import {
@@ -16,9 +17,19 @@ const getTypeLabel = (type = "") => {
 };
 
 export default function SavedItemsDrawer() {
+  const location = useLocation();
+  const [toolbarTarget, setToolbarTarget] = useState(null);
   const [items, setItems] = useState(() => getSavedItems());
   const [isOpen, setIsOpen] = useState(false);
   const [dashboardUpdates, setDashboardUpdates] = useState({});
+
+  useEffect(() => {
+    setToolbarTarget(
+      location.pathname.startsWith("/where-to-train")
+        ? document.getElementById("where-to-train-tools")
+        : null
+    );
+  }, [location.pathname]);
 
   useEffect(() => {
     const updateItems = () => setItems(getSavedItems());
@@ -87,6 +98,20 @@ export default function SavedItemsDrawer() {
     (sum, update) => sum + (Array.isArray(update?.events) ? update.events.length : 0),
     0
   );
+  const trigger = (
+    <button
+      type="button"
+      className={`saved-items-trigger ${unreadUpdateCount > 0 ? "has-updates" : ""}`}
+      onClick={() => setIsOpen((current) => !current)}
+    >
+      <span>متابعاتي</span>
+      {unreadUpdateCount > 0 ? (
+        <strong className="saved-items-update-count">{unreadUpdateCount}</strong>
+      ) : (
+        <strong>{items.length}</strong>
+      )}
+    </button>
+  );
 
   const removeItem = (item) => {
     toggleSavedItem(item);
@@ -105,20 +130,7 @@ export default function SavedItemsDrawer() {
 
   return (
     <div className="saved-items-widget" dir="rtl">
-      <button
-        type="button"
-        className={`saved-items-trigger ${
-          unreadUpdateCount > 0 ? "has-updates" : ""
-        }`}
-        onClick={() => setIsOpen((current) => !current)}
-      >
-        <span>متابعاتي</span>
-        {unreadUpdateCount > 0 ? (
-          <strong className="saved-items-update-count">{unreadUpdateCount}</strong>
-        ) : (
-          <strong>{items.length}</strong>
-        )}
-      </button>
+      {toolbarTarget ? createPortal(trigger, toolbarTarget) : trigger}
 
       {isOpen && (
         <div className="saved-items-panel">

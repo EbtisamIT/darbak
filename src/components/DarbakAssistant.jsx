@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { FiMessageCircle, FiSend } from "react-icons/fi";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
@@ -94,6 +95,16 @@ const getLatestAssistantContext = (conversationMessages = []) => {
 };
 
 export default function DarbakAssistant() {
+  const location = useLocation();
+  const [toolbarTarget, setToolbarTarget] = useState(null);
+
+  useEffect(() => {
+    setToolbarTarget(
+      location.pathname.startsWith("/where-to-train")
+        ? document.getElementById("where-to-train-tools")
+        : null
+    );
+  }, [location.pathname]);
   const navigate = useNavigate();
   const initialMessagesRef = useRef(null);
   if (!initialMessagesRef.current) {
@@ -275,6 +286,23 @@ export default function DarbakAssistant() {
     );
   };
 
+  const trigger = (
+    <button
+      type="button"
+      className="darbak-assistant-trigger"
+      onClick={() => setIsOpen((current) => !current)}
+      aria-expanded={isOpen}
+    >
+      <span className="darbak-assistant-trigger-icon" aria-hidden="true">
+        <FiMessageCircle />
+      </span>
+      <span className="darbak-assistant-trigger-copy">
+        <strong>دليل دربك</strong>
+        <small>شات التجارب</small>
+      </span>
+    </button>
+  );
+
   return (
     <div className="darbak-assistant-widget" dir="rtl">
       {isOpen && (
@@ -388,20 +416,7 @@ export default function DarbakAssistant() {
         </section>
       )}
 
-      <button
-        type="button"
-        className="darbak-assistant-trigger"
-        onClick={() => setIsOpen((current) => !current)}
-        aria-expanded={isOpen}
-      >
-        <span className="darbak-assistant-trigger-icon" aria-hidden="true">
-          <FiMessageCircle />
-        </span>
-        <span className="darbak-assistant-trigger-copy">
-          <strong>دليل دربك</strong>
-          <small>شات التجارب</small>
-        </span>
-      </button>
+      {toolbarTarget ? createPortal(trigger, toolbarTarget) : trigger}
     </div>
   );
 }

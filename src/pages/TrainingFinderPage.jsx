@@ -44,7 +44,6 @@ import {
 } from "../utils/premiumAccess";
 import {
   getSavedItemIds,
-  getSavedItemUpdateState,
   markSavedItemSeen,
   toggleSavedItem,
 } from "../utils/savedItems";
@@ -81,6 +80,7 @@ import {
 const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_FINDER_FAQ = false;
 const TELEGRAM_CHANNEL_URL = "https://t.me/darbak_1";
+const OPPORTUNITY_PROMO_DISMISSED_KEY = "darbak_where_to_train_promo_dismissed";
 const LOCKED_OPPORTUNITY_PREVIEW =
   "هذه معاينة مختصرة للفرصة. فعّل دربك+ للوصول إلى تفاصيل الفرصة وروابط التقديم المباشرة.";
 const WHERE_TO_TRAIN_PREMIUM_TITLE = "باقي تفاصيل الفرص والجهات 👀";
@@ -88,7 +88,6 @@ const WHERE_TO_TRAIN_PREMIUM_DESCRIPTION =
   "افتح دربك+ لرؤية روابط التقديم المباشرة، إيميلات الجهات، وتفاصيل الفرص المناسبة لتخصصك ومدينتك.";
 const WHERE_TO_TRAIN_GATE_MESSAGE =
   "وقفت هنا... وباقي أهم تفاصيل الفرص والجهات. فعّل دربك+ للوصول لروابط التقديم ومعلومات التواصل المناسبة لك.";
-const APPLICATION_TRACKER_INTRO_KEY = "darbak:application-tracker:intro-seen:v1";
 
 const emptyOpportunityRequest = {
   organizationName: "",
@@ -1557,6 +1556,9 @@ export default function TrainingFinderPage() {
   const [specialtyInput, setSpecialtyInput] = useState(initialSpecialty);
   const [city, setCity] = useState(initialCity);
   const [organizationQuery, setOrganizationQuery] = useState(queryOrganization);
+  const [showOpportunityPromo, setShowOpportunityPromo] = useState(
+    () => window.sessionStorage.getItem(OPPORTUNITY_PROMO_DISMISSED_KEY) !== "1"
+  );
   const [showSpecialtySuggestions, setShowSpecialtySuggestions] =
     useState(false);
   const [targets, setTargets] = useState([]);
@@ -1605,6 +1607,7 @@ export default function TrainingFinderPage() {
   const [appliedOpportunityIds, setAppliedOpportunityIds] = useState(new Set());
   const [savingApplicationId, setSavingApplicationId] = useState("");
   const [showApplicationTrackerIntro, setShowApplicationTrackerIntro] = useState(false);
+  const [applicationTrackerAlreadyExists, setApplicationTrackerAlreadyExists] = useState(false);
   const [canViewGuideContacts, setCanViewGuideContacts] = useState(
     () => !isPremiumGateEnabled() || hasCoreAccess()
   );
@@ -1932,7 +1935,7 @@ export default function TrainingFinderPage() {
     selectedSpecialtyLabel,
     selectedCityScope,
   ]);
-  const personalizedOpportunityCount = useMemo(
+  const closestOpportunityCount = useMemo(
     () =>
       visibleOpportunities.filter(
         (opportunity) =>
@@ -1941,7 +1944,7 @@ export default function TrainingFinderPage() {
             specialty: selectedSpecialtyLabel,
             majorCategories: selectedMajorCategories,
             cityScope: selectedCityScope,
-          }) > 0
+          }) === 3
       ).length,
     [
       selectedMajorCategories,
@@ -1950,6 +1953,7 @@ export default function TrainingFinderPage() {
       visibleOpportunities,
     ]
   );
+  const hasPersonalizationContext = Boolean(selectedSpecialty || city);
   const hasActiveOpportunityFilters = Object.values(opportunityFilters).some(
     Boolean
   );
@@ -2866,22 +2870,21 @@ export default function TrainingFinderPage() {
     }
     const opportunityId = opportunity?._id || opportunity?.id;
     if (!opportunityId) return;
+    if (appliedOpportunityIds.has(opportunityId)) {
+      setApplicationTrackerAlreadyExists(true);
+      setShowApplicationTrackerIntro(true);
+      return;
+    }
     setSavingApplicationId(opportunityId);
     try {
-      await axios.post(
+      const { data } = await axios.post(
         `${API_BASE_URL}/api/application-tracker`,
         { opportunityId },
         { headers: getAccessHeaders() }
       );
       setAppliedOpportunityIds((current) => new Set([...current, opportunityId]));
-      try {
-        if (!window.localStorage.getItem(APPLICATION_TRACKER_INTRO_KEY)) {
-          window.localStorage.setItem(APPLICATION_TRACKER_INTRO_KEY, "true");
-          setShowApplicationTrackerIntro(true);
-        }
-      } catch {
-        setShowApplicationTrackerIntro(true);
-      }
+      setApplicationTrackerAlreadyExists(Boolean(data?.alreadyExists));
+      setShowApplicationTrackerIntro(true);
     } catch (err) {
       setError(err.response?.data?.error || "تعذر إضافة الفرصة إلى تقديماتك الآن.");
     } finally {
@@ -3364,12 +3367,8 @@ export default function TrainingFinderPage() {
   const renderTelegramChannelBanner = () => (
     <aside className="telegram-channel-banner" aria-label="قناة دربك في تيليجرام">
       <div className="telegram-channel-copy">
-        <span>تنبيهات الفرص</span>
-        <strong>وصلك جديد التدريب أول بأول</strong>
-        <p>
-          انضم لقناة دربك على تيليجرام لمتابعة فرص التدريب، الجهات الجديدة،
-          وتذكيرات التقديم بدون ما تضيع بين القروبات.
-        </p>
+        <span aria-hidden="true">🔔</span>
+        <span>توصلك الفرص الجديدة؟ تابع قناة دربك</span>
       </div>
       <a
         href={TELEGRAM_CHANNEL_URL}
@@ -3377,7 +3376,7 @@ export default function TrainingFinderPage() {
         rel="noopener noreferrer"
         onClick={() => trackTelegramChannelClick("where_to_train_banner")}
       >
-        انضم للقناة
+        انضم
       </a>
     </aside>
   );
@@ -3389,17 +3388,7 @@ export default function TrainingFinderPage() {
       style={{ gridColumn: "1 / -1" }}
     >
       <div className="opportunity-plus-inline-copy">
-        <span>دربك+</span>
-        <strong>باقي لك فرص وجهات مناسبة 👀</strong>
-        <p>
-          اختصر بحثك وافتح روابط التقديم ومعلومات الجهات المناسبة لتخصصك
-          ومدينتك في مكان واحد.
-        </p>
-      </div>
-      <div className="opportunity-plus-inline-points" aria-label="مزايا فرص دربك بلس">
-        <span>روابط تقديم مباشرة</span>
-        <span>جهات مناسبة لتخصصك</span>
-        <span>فرص محدثة حسب المدينة</span>
+        <span>تبغى وصول أسرع للفرص؟ استفد من دربك+</span>
       </div>
       <Link
         to={buildSubscribePath("where_to_train_opportunities_banner", {
@@ -3413,14 +3402,25 @@ export default function TrainingFinderPage() {
         }}
         aria-label="افتح باقات دربك بلس لعرض فرصك المناسبة"
       >
-        <span>افتح فرصك المناسبة</span>
-        <small>ينقلك لباقات دربك+</small>
+        اعرف أكثر
       </Link>
+      <button
+        type="button"
+        className="opportunity-promo-dismiss"
+        aria-label="إخفاء إعلان دربك+"
+        onClick={() => {
+          window.sessionStorage.setItem(OPPORTUNITY_PROMO_DISMISSED_KEY, "1");
+          setShowOpportunityPromo(false);
+        }}
+      >
+        ×
+      </button>
     </aside>
   );
 
   return (
     <main
+      className="where-to-train-page"
       style={{
         width: "100%",
         minHeight: "70vh",
@@ -3437,19 +3437,7 @@ export default function TrainingFinderPage() {
           gap: "18px",
         }}
       >
-        {!canViewGuideContacts && renderOpportunityPremiumBanner()}
-
         <header style={{ textAlign: "center" }}>
-          <p
-            style={{
-              margin: "0 0 8px",
-              color: "var(--app-brand)",
-              fontSize: "14px",
-              fontWeight: "800",
-            }}
-          >
-            بناءً على تجارب الطلاب السابقة
-          </p>
           <h1
             style={{
               margin: 0,
@@ -3475,18 +3463,15 @@ export default function TrainingFinderPage() {
           >
             {routeSpecialty || routeCity
               ? "شاهد الجهات والفرص والتجارب المقترحة بناءً على اختياراتك، ثم وسّع البحث أو غيّر المدينة والتخصص من الفلاتر."
-              : "اختَر التخصص أو المدينة، أو اجمع بينهم، وشاهد الجهات والفرص بطريقة مرتبة."}
+              : "اكتشف فرص التدريب المناسبة لك"}
           </p>
         </header>
-
-        {renderTelegramChannelBanner()}
 
         <form
           onSubmit={fetchTrainingTargets}
           style={{
             display: "grid",
-            gridTemplateColumns:
-              "minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr) auto auto",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr)) auto auto",
             gap: "10px",
             alignItems: "end",
             background: "var(--app-surface)",
@@ -3496,6 +3481,27 @@ export default function TrainingFinderPage() {
           }}
           className="training-finder-form"
         >
+          <label className="training-search-field training-query-field">
+            <input
+              aria-label="ابحث عن فرصة أو جهة"
+              value={organizationQuery}
+              onChange={(event) => {
+                setOrganizationQuery(event.target.value);
+                setShowSearchInsightModal(false);
+              }}
+              placeholder="ابحث عن فرصة أو جهة..."
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: "12px",
+                border: "1px solid var(--app-border)",
+                background: "var(--app-input-bg)",
+                color: "var(--app-text)",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            />
+          </label>
           <label
             className="training-search-field training-specialty-field"
             style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}
@@ -3574,7 +3580,7 @@ export default function TrainingFinderPage() {
             className="training-search-field"
             style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}
           >
-            المدينة أو المنطقة
+            المدينة
             <select
               value={city}
               onChange={(event) => {
@@ -3607,30 +3613,6 @@ export default function TrainingFinderPage() {
                 ))}
               </optgroup>
             </select>
-          </label>
-
-          <label
-            className="training-search-field"
-            style={{ display: "grid", gap: "7px", color: "var(--app-text-soft)", fontSize: "13px" }}
-          >
-            ابحث عن تخصص، مجال، شركة أو مدينة
-            <input
-              value={organizationQuery}
-              onChange={(event) => {
-                setOrganizationQuery(event.target.value);
-                setShowSearchInsightModal(false);
-              }}
-              placeholder="مثال: تدريب تسويق، محاسبة الرياض، STC"
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: "12px",
-                border: "1px solid var(--app-border)",
-                background: "var(--app-input-bg)",
-                color: "var(--app-text)",
-                fontFamily: "inherit",
-              }}
-            />
           </label>
 
           <button
@@ -3671,6 +3653,10 @@ export default function TrainingFinderPage() {
             </button>
           )}
         </form>
+
+        {!canViewGuideContacts && showOpportunityPromo && renderOpportunityPremiumBanner()}
+        {renderTelegramChannelBanner()}
+        <div id="where-to-train-tools" className="where-to-train-tools" aria-label="أدوات الصفحة" />
 
         <div className="opportunity-filter-bar" aria-label="فلاتر الفرص">
           <div className="opportunity-filter-groups">
@@ -3835,7 +3821,7 @@ export default function TrainingFinderPage() {
               <>
               {visibleOpportunities.length > 0 && (
               <>
-              {(selectedSpecialty || city) && (
+              {hasPersonalizationContext && (
                 <p
                   style={{
                     margin: 0,
@@ -3844,9 +3830,9 @@ export default function TrainingFinderPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  {personalizedOpportunityCount > 0
-                    ? `وجدنا ${personalizedOpportunityCount} فرصة أقرب لتخصصك أو منطقتك وتظهر أولًا، وتبقى جميع الفرص الأخرى متاحة لك.`
-                    : "لا توجد فرصة منشورة مطابقة لتخصصك أو منطقتك الآن؛ نعرض لك بقية الفرص حتى لا يفوتك شيء."}
+                  {closestOpportunityCount > 0
+                    ? "رتّبنا النتائج المطابقة لتخصصك ومدينتك أو منطقتك أولًا، ثم أبقينا لك كل الفرص الأخرى للاكتشاف."
+                    : "ما لقينا فرص مطابقة تمامًا لاختيارك حاليًا، لكن جمعنا لك فرصًا أخرى قد تناسب تخصصك."}
                 </p>
               )}
               <div
@@ -3858,6 +3844,13 @@ export default function TrainingFinderPage() {
                 }}
               >
                 {visibleOpportunities.map((opportunity, index) => {
+                  const startsClosestSection =
+                    hasPersonalizationContext &&
+                    closestOpportunityCount > 0 &&
+                    index === 0;
+                  const startsOtherSection =
+                    hasPersonalizationContext &&
+                    index === closestOpportunityCount;
                   const applicationState = getOpportunityApplicationState(
                     opportunity.deadline,
                     opportunity.status
@@ -3867,14 +3860,8 @@ export default function TrainingFinderPage() {
                     opportunity.sourceUrl ||
                     resolveOrganizationHomepageUrl(opportunity.organizationName);
                   const savedOpportunityId = `opportunity:${opportunity._id}`;
-                  const savedOpportunityUpdate = getSavedItemUpdateState(
-                    savedOpportunityId,
-                    getOpportunityUpdateTimestamp(opportunity)
-                  );
                   const opportunityFreshnessLabel =
                     getOpportunityFreshnessLabel(opportunity);
-                  const opportunityAudienceBadge =
-                    getOpportunityAudienceBadge(opportunity);
 
                   return (
                     <React.Fragment
@@ -3884,9 +3871,83 @@ export default function TrainingFinderPage() {
                         `${opportunity.organizationName}-${index}`
                       }
                     >
+                    {startsClosestSection && (
+                      <div
+                        style={{
+                          gridColumn: "1 / -1",
+                          display: "grid",
+                          gap: "3px",
+                          padding: "4px 2px 2px",
+                        }}
+                      >
+                        <h2
+                          style={{
+                            margin: 0,
+                            color: "var(--app-text)",
+                            fontSize: "18px",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          الأقرب لاختيارك
+                        </h2>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "var(--app-text-soft)",
+                            fontSize: "12.5px",
+                            lineHeight: 1.7,
+                          }}
+                        >
+                          نفس التخصص في {city || "مدينتك أو منطقتك"}.
+                        </p>
+                      </div>
+                    )}
+                    {startsOtherSection && (
+                      <div
+                        style={{
+                          gridColumn: "1 / -1",
+                          display: "grid",
+                          gap: "3px",
+                          padding: closestOpportunityCount > 0 ? "12px 2px 2px" : "4px 2px 2px",
+                          borderTop:
+                            closestOpportunityCount > 0
+                              ? "1px solid var(--app-border)"
+                              : "none",
+                        }}
+                      >
+                        <h2
+                          style={{
+                            margin: 0,
+                            color: "var(--app-text)",
+                            fontSize: "18px",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          فرص أخرى قد تناسبك
+                        </h2>
+                        <p
+                          style={{
+                            margin: 0,
+                            color: "var(--app-text-soft)",
+                            fontSize: "12.5px",
+                            lineHeight: 1.7,
+                          }}
+                        >
+                          فرص في مدن ومناطق أخرى ما زالت متاحة لك.
+                        </p>
+                      </div>
+                    )}
                     <article
                       className="finder-result-card suggested-target-card opportunity-card"
                       onClick={() => openOpportunityDetails(opportunity)}
+                      tabIndex={0}
+                      aria-label={`تفاصيل ${opportunity.title || "فرصة تدريب"}`}
+                      onKeyDown={(event) => {
+                        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+                          event.preventDefault();
+                          openOpportunityDetails(opportunity);
+                        }
+                      }}
                       style={{
                         background: "var(--app-surface)",
                         border: "1px solid var(--app-border)",
@@ -3933,8 +3994,8 @@ export default function TrainingFinderPage() {
                           }
                         >
                           {savedItemIds.has(savedOpportunityId)
-                            ? "♥ محفوظة"
-                            : "♡ حفظ"}
+                            ? "♥"
+                            : "♡"}
                         </button>
                         <ShareButton
                           compact
@@ -3953,21 +4014,6 @@ export default function TrainingFinderPage() {
                           }
                         />
                       </div>
-                      {(opportunityFreshnessLabel ||
-                        savedOpportunityUpdate.hasUpdate) && (
-                        <div className="card-timestamp-row">
-                          {opportunityFreshnessLabel && (
-                            <span className="card-time-label">
-                              {opportunityFreshnessLabel}
-                            </span>
-                          )}
-                          {savedOpportunityUpdate.hasUpdate && (
-                            <span className="saved-update-badge">
-                              تحديث محفوظ
-                            </span>
-                          )}
-                        </div>
-                      )}
                       <div
                         className="suggested-card-head opportunity-card-head"
                         style={{
@@ -3997,7 +4043,7 @@ export default function TrainingFinderPage() {
                             }}
                           >
                             <h3
-                              className="opportunity-organization-name"
+                              className="opportunity-card-title"
                               style={{
                                 margin: 0,
                                 color: "var(--app-brand)",
@@ -4006,35 +4052,28 @@ export default function TrainingFinderPage() {
                                 overflowWrap: "anywhere",
                               }}
                             >
-                              {opportunity.organizationName}
+                              {opportunity.title || "فرصة تدريب"}
                             </h3>
                             <div className="opportunity-card-badges">
-                              {opportunityAudienceBadge && (
-                                <span
-                                  className={`opportunity-audience-badge ${opportunityAudienceBadge.tone}`}
-                                >
-                                  {opportunityAudienceBadge.label}
+                              {opportunity.trainingMode === "remote" && (
+                                <span className="opportunity-audience-badge">
+                                  عن بعد
                                 </span>
                               )}
-                              <span
-                                className={`opportunity-status ${applicationState.tone}`}
-                              >
-                                {applicationState.label}
-                              </span>
                               {opportunity.featured && (
                                 <span className="opportunity-featured-badge">
                                   مميزة
                                 </span>
                               )}
-                              {opportunity.isDarbakApplication && (
-                                <span className="opportunity-featured-badge is-darbak-application">
-                                  قدّم عبر دربك
+                              {!opportunity.featured && applicationState.tone !== "closed" && (
+                                <span className={`opportunity-status ${applicationState.tone}`}>
+                                  {applicationState.label}
                                 </span>
                               )}
                             </div>
                           </div>
                           <p
-                            className="opportunity-card-title"
+                            className="opportunity-organization-name"
                             style={{
                               margin: 0,
                               color: "var(--app-text-soft)",
@@ -4043,73 +4082,49 @@ export default function TrainingFinderPage() {
                               overflowWrap: "anywhere",
                             }}
                           >
-                            {opportunity.title}
-                            {getOpportunityCityText(opportunity)
-                              ? ` - ${getOpportunityCityText(opportunity)}`
-                              : ""}
+                            {opportunity.organizationName}
                           </p>
                           {getOpportunityCityText(opportunity) && (
-                            <p className="opportunity-card-city">
-                              {getOpportunityCityText(opportunity)}
+                            <p
+                              className="opportunity-card-city"
+                              style={{
+                                display: "flex",
+                                gap: "5px",
+                                margin: "4px 0 0",
+                                color: "var(--app-muted)",
+                                fontSize: "12px",
+                                fontWeight: "700",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              <span>{getOpportunityCityText(opportunity)}</span>
                             </p>
-                          )}
-                          {getOpportunityCardStats(opportunity).length > 0 && (
-                            <div className="card-interaction-stats opportunity-interaction-count">
-                              {getOpportunityCardStats(opportunity).map((stat) => (
-                                <span className="card-interaction-stat" key={stat.key}>
-                                  <span aria-hidden="true">{stat.icon}</span>
-                                  <strong>{formatInteractionCount(stat.value)}</strong>
-                                  <span>{stat.label}</span>
-                                </span>
-                              ))}
-                            </div>
                           )}
                         </div>
                       </div>
 
-                      <div className="finder-card-info">
-                        <p
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: "10px",
-                            margin: 0,
-                            color: "var(--app-text-soft)",
-                            fontSize: "12px",
-                            lineHeight: 1.6,
-                          }}
-                        >
-                          <span style={{ color: "var(--app-muted)" }}>مناسب لـ</span>
-                          <strong
-                            style={{
-                              color: "var(--app-brand)",
-                              fontWeight: "800",
-                              textAlign: "left",
-                            }}
-                          >
-                            {(opportunity.specialties || []).slice(0, 2).join("، ") ||
-                              (opportunity.majorCategories || []).slice(0, 2).join("، ") ||
-                              "جميع التخصصات"}
-                          </strong>
+                      <p className="opportunity-card-majors">
+                        {(opportunity.specialties?.length ? opportunity.specialties : opportunity.majorCategories || [])
+                          .slice(0, 2).join(" • ") || "جميع التخصصات"}
+                        {(opportunity.specialties?.length || opportunity.majorCategories?.length || 0) > 2
+                          ? ` +${(opportunity.specialties?.length || opportunity.majorCategories?.length) - 2}`
+                          : ""}
+                      </p>
+                      {(getOpportunityCardStats(opportunity).length > 0 || opportunityFreshnessLabel) && (
+                        <p className="opportunity-card-meta">
+                          {[
+                            ...getOpportunityCardStats(opportunity).map(
+                              (stat) => `${formatInteractionCount(stat.value)} ${stat.label}`
+                            ),
+                            opportunityFreshnessLabel,
+                          ].filter(Boolean).join(" • ")}
                         </p>
-                        <p
-                          style={{
-                            margin: 0,
-                            color: "var(--app-text-soft)",
-                            fontSize: "12px",
-                            lineHeight: 1.75,
-                          }}
-                        >
-                          {opportunity.deadline
-                            ? `ينتهي: ${formatOpportunityDate(opportunity.deadline)}`
-                            : "تحقق من شروط الجهة قبل التقديم."}
-                        </p>
-                      </div>
+                      )}
 
                       <div
                         className="finder-card-actions opportunity-actions"
                         style={{
-                          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                         }}
                       >
                         <button
@@ -4121,28 +4136,6 @@ export default function TrainingFinderPage() {
                           className="opportunity-secondary-button"
                         >
                           التفاصيل
-                        </button>
-
-                        {renderResumeTailorCta({ opportunity })}
-
-                        <button
-                          type="button"
-                          className="opportunity-secondary-button"
-                          disabled={savingApplicationId === (opportunity._id || opportunity.id)}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            if (appliedOpportunityIds.has(opportunity._id || opportunity.id)) {
-                              navigate("/applications");
-                              return;
-                            }
-                            markOpportunityApplied(opportunity);
-                          }}
-                        >
-                          {appliedOpportunityIds.has(opportunity._id || opportunity.id)
-                            ? "مضاف لتقديماتي ✓"
-                            : savingApplicationId === (opportunity._id || opportunity.id)
-                            ? "جارٍ الحفظ..."
-                            : "تم التقديم"}
                         </button>
 
                         {(opportunity.applicationUrl ||
@@ -5229,6 +5222,7 @@ export default function TrainingFinderPage() {
               )}
 
             <div className="premium-preview-blur-wrap">
+              <h3 className="opportunity-detail-section-title">شروط التقديم ومعلومات الفرصة</h3>
               <p
                 className={`opportunity-detail-note${
                   isSelectedOpportunityLocked
@@ -5279,16 +5273,49 @@ export default function TrainingFinderPage() {
             )}
 
             <div className="opportunity-detail-actions">
+              <button
+                type="button"
+                className="opportunity-secondary-button"
+                onClick={(event) =>
+                  handleSaveTrainingItem(event, {
+                    id: `opportunity:${selectedOpportunity._id}`,
+                    type: "opportunity",
+                    title: selectedOpportunity.title || "فرصة تدريب",
+                    subtitle: selectedOpportunity.organizationName,
+                    organizationName: selectedOpportunity.organizationName,
+                    meta: getOpportunityCityText(selectedOpportunity) || city || "",
+                    updatedAt: getOpportunityUpdateTimestamp(selectedOpportunity),
+                    url: buildOpportunityDetailPath(selectedOpportunity),
+                    analyticsMetadata: {
+                      opportunityId: selectedOpportunity._id,
+                      opportunityTitle: selectedOpportunity.title || "",
+                      organizationName: selectedOpportunity.organizationName || "",
+                    },
+                  })
+                }
+              >
+                {savedItemIds.has(`opportunity:${selectedOpportunity._id}`) ? "إزالة من المحفوظات" : "حفظ"}
+              </button>
+              <ShareButton
+                compact
+                buttonLabel="مشاركة الفرصة"
+                title={selectedOpportunity.title || "فرصة تدريب من دربك"}
+                text={`شوف هذه الفرصة في دربك: ${selectedOpportunity.organizationName || selectedOpportunity.title || "فرصة تدريب"}`}
+                url={buildOpportunityDetailPath(selectedOpportunity)}
+                onShareAction={(action) =>
+                  trackTrainingShareAction(action, "opportunity", {
+                    opportunityId: selectedOpportunity._id || "",
+                    opportunityTitle: selectedOpportunity.title || "",
+                    organizationName: selectedOpportunity.organizationName || "",
+                  })
+                }
+              />
               {renderResumeTailorCta({ opportunity: selectedOpportunity, compact: true })}
               <button
                 type="button"
                 className="opportunity-secondary-button"
                 disabled={savingApplicationId === (selectedOpportunity._id || selectedOpportunity.id)}
                 onClick={() => {
-                  if (appliedOpportunityIds.has(selectedOpportunity._id || selectedOpportunity.id)) {
-                    navigate("/applications");
-                    return;
-                  }
                   markOpportunityApplied(selectedOpportunity);
                 }}
               >
@@ -5430,23 +5457,16 @@ export default function TrainingFinderPage() {
             className="application-tracker-intro"
             onClick={(event) => event.stopPropagation()}
           >
-            <span>✨ خطوة حلوة!</span>
-            <h2 id="application-tracker-intro-title">أضفناها إلى تقديماتك</h2>
+            <h2 id="application-tracker-intro-title">{applicationTrackerAlreadyExists ? "هذه الفرصة موجودة بالفعل في تقديماتك." : "تمت إضافة الفرصة إلى تقديماتك."}</h2>
             <p>
-              بعد ما تقدّم للجهة بنفسك، خلّ دربك يساعدك ما تضيع بين الروابط والإيميلات. من «تقديماتي» تقدر تشوف كل فرصك وتحدّث حالتك أولًا بأول.
+              {applicationTrackerAlreadyExists ? "يمكن الرجوع لها ومتابعة حالتها من تقديماتك." : "يمكن تحديث حالتها عند وصول رد من الجهة."}
             </p>
-            <div className="application-tracker-intro-steps" aria-label="كيف تعمل تقديماتي">
-              <span>1. قدّم بنفسك</span>
-              <span>2. حدّث حالتك</span>
-              <span>3. تابع رد الجهة</span>
-            </div>
-            <small>تنبيه بسيط: دربك لا يرسل الطلب نيابةً عنك، بل يرتّب لك متابعته.</small>
             <div>
               <button type="button" onClick={() => navigate("/applications")}>
-                استكشف تقديماتي ←
+                فتح تقديماتي
               </button>
               <button type="button" onClick={() => setShowApplicationTrackerIntro(false)}>
-                فهمت
+                إغلاق
               </button>
             </div>
           </section>
@@ -7502,10 +7522,299 @@ export default function TrainingFinderPage() {
           }
         }
 
-        @media (max-width: 340px) {
+        @media (max-width: 600px) {
+          .opportunities-grid,
           .training-targets-grid,
           .suggested-targets-grid {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 12px !important;
+          }
+
+          .finder-result-card,
+          .opportunity-card,
+          .training-target-card,
+          .suggested-target-card,
+          .opportunity-card.suggested-target-card {
+            padding: 16px !important;
+            gap: 12px !important;
+          }
+
+          .training-target-card,
+          .suggested-target-card {
+            min-height: 0 !important;
+          }
+
+          .opportunity-card .save-item-button,
+          .opportunity-card .share-card-button,
+          .opportunity-card .share-card-control {
+            width: 40px !important;
+            min-width: 40px !important;
+            max-width: 40px !important;
+            height: 40px !important;
+            min-height: 40px !important;
+          }
+
+          .opportunity-card .save-item-button::before {
+            font-size: 19px;
+          }
+
+          .opportunity-card .share-card-button svg {
+            width: 18px !important;
+            height: 18px !important;
+          }
+
+          .opportunity-organization-name {
+            font-size: 14px !important;
+          }
+
+          .opportunity-card-title {
+            font-size: 16px !important;
+            line-height: 1.5 !important;
+          }
+
+          .opportunity-status,
+          .opportunity-featured-badge,
+          .opportunity-audience-badge,
+          .opportunity-deadline {
+            font-size: 11px !important;
+          }
+
+          .opportunity-chip {
+            min-height: 30px !important;
+            padding: 5px 8px !important;
+            gap: 5px !important;
+            font-size: 12px !important;
+          }
+
+          .opportunity-chip span:last-child {
+            display: inline !important;
+          }
+
+          .opportunity-secondary-button,
+          .opportunity-apply-button,
+          .opportunity-actions a,
+          .opportunity-actions button,
+          .training-target-actions a,
+          .training-target-actions button {
+            min-height: 44px !important;
+            padding: 8px !important;
+            font-size: 13px !important;
+          }
+
+          .training-target-card p,
+          .suggested-target-card p {
+            font-size: 13px !important;
+          }
+        }
+
+        @media (max-width: 340px) {
+          .opportunity-actions {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+        }
+
+        .where-to-train-page .training-query-field {
+          grid-column: 1 / -1;
+          min-width: 0;
+        }
+
+        .where-to-train-page .training-finder-form > * {
+          min-width: 0;
+        }
+
+        .where-to-train-page .training-finder-form input,
+        .where-to-train-page .training-finder-form select {
+          box-sizing: border-box;
+          min-width: 0;
+        }
+
+        .where-to-train-page .opportunity-plus-inline-banner {
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          gap: 10px;
+          padding: 8px 12px;
+          border-radius: 12px;
+          background: var(--app-surface);
+          box-shadow: none;
+        }
+
+        .where-to-train-page .opportunity-plus-inline-copy span {
+          background: transparent;
+          color: var(--app-text-soft);
+          padding: 0;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .where-to-train-page .opportunity-plus-inline-cta {
+          grid-column: auto;
+          grid-row: auto;
+          min-height: 32px;
+          padding: 5px 10px;
+          border-radius: 9px;
+          background: transparent;
+          color: var(--app-brand);
+          box-shadow: none;
+          font-size: 12px;
+        }
+
+        .where-to-train-page .opportunity-promo-dismiss {
+          width: 32px;
+          height: 32px;
+          border: 0;
+          background: transparent;
+          color: var(--app-muted);
+          cursor: pointer;
+          font-size: 20px;
+        }
+
+        .where-to-train-page .telegram-channel-banner {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 4px 2px;
+          border: 0;
+          background: none;
+          box-shadow: none;
+        }
+
+        .where-to-train-page .telegram-channel-copy {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: var(--app-muted);
+          font-size: 12px;
+        }
+
+        .where-to-train-page .telegram-channel-copy span {
+          color: inherit;
+          font-size: inherit;
+          font-weight: 600;
+        }
+
+        .where-to-train-page .telegram-channel-banner a {
+          min-height: 32px;
+          padding: 4px 10px;
+          background: transparent;
+          color: var(--app-brand);
+          box-shadow: none;
+          font-size: 12px;
+        }
+
+        .where-to-train-tools {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          justify-content: flex-end;
+        }
+
+        .where-to-train-tools .saved-items-trigger,
+        .where-to-train-tools .darbak-assistant-trigger {
+          min-height: 36px;
+          padding: 5px 10px;
+          border-radius: 10px;
+          box-shadow: none;
+          font-size: 12px;
+        }
+
+        .where-to-train-tools .darbak-assistant-trigger-icon,
+        .where-to-train-tools .darbak-assistant-trigger-copy small {
+          display: none;
+        }
+
+        .where-to-train-page .opportunity-card-title {
+          color: var(--app-text) !important;
+          font-size: 17px !important;
+          font-weight: 900;
+          line-height: 1.45 !important;
+          overflow-wrap: anywhere;
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          overflow: hidden;
+        }
+
+        .where-to-train-page .opportunity-organization-name {
+          color: var(--app-text-soft) !important;
+          font-size: 13px !important;
+          font-weight: 700;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .where-to-train-page .opportunity-card-majors,
+        .where-to-train-page .opportunity-card-meta {
+          min-width: 0;
+          margin: 0;
+          color: var(--app-text-soft);
+          font-size: 12px;
+          line-height: 1.5;
+          overflow-wrap: anywhere;
+        }
+
+        .where-to-train-page .opportunity-card-meta {
+          color: var(--app-muted);
+          font-size: 11px;
+        }
+
+        .where-to-train-page .opportunity-card .card-quick-actions {
+          justify-content: flex-end;
+        }
+
+        .where-to-train-page .opportunity-card .save-item-button,
+        .where-to-train-page .opportunity-card .share-card-button {
+          width: 40px !important;
+          min-width: 40px !important;
+          height: 40px !important;
+          min-height: 40px !important;
+          font-size: 19px !important;
+          padding: 0 !important;
+        }
+
+        .where-to-train-page .opportunity-card .share-card-button span {
+          display: none !important;
+        }
+
+        .where-to-train-page .opportunity-card .save-item-button::before {
+          content: none !important;
+        }
+
+        .where-to-train-page .opportunity-card .opportunity-actions {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .where-to-train-page .opportunity-detail-section-title {
+          margin: 10px 0 0;
+          color: var(--app-text);
+          font-size: 14px;
+        }
+
+        @media (max-width: 760px) {
+          .where-to-train-page .training-finder-form {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+
+          .where-to-train-page .opportunities-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+
+          .where-to-train-page .opportunity-plus-inline-banner {
+            grid-template-columns: minmax(0, 1fr) auto auto !important;
+            gap: 6px !important;
+            padding: 7px 9px !important;
+          }
+
+          .where-to-train-page .opportunity-plus-inline-cta {
+            width: auto !important;
+          }
+
+          .where-to-train-page .telegram-channel-banner {
+            flex-direction: row;
+            padding: 4px 2px !important;
+          }
+
+          .where-to-train-page .telegram-channel-banner a {
+            width: auto !important;
           }
         }
       `}</style>
