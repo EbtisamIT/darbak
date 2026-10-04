@@ -4172,17 +4172,6 @@ export default function TrainingFinderPage() {
                           </button>
                         )}
                       </div>
-                      {!opportunity.isDarbakApplication && (opportunity.applicationUrl || opportunity.hasApplicationUrl) && !resumeDiscovery.hasAccess && (
-                        <p className="resume-external-apply-hint" onClick={(event) => event.stopPropagation()}>
-                          قبل ما تقدم، تأكد إن سيرتك جاهزة. <Link
-                            to={getResumeLandingPath({ source: "external_apply", opportunityId: opportunity._id || opportunity.id || "" })}
-                            onClick={() => {
-                              setResumeDiscoveryAttribution({ source: "external_apply", pageContext: "opportunity_card", opportunityId: opportunity._id || opportunity.id || "" });
-                              trackResumeDiscovery("resume_discovery_clicked", { source: "external_apply", pageContext: "opportunity_card", opportunityId: opportunity._id || opportunity.id || "", userState: "non_subscriber" });
-                            }}
-                          >شاهد سيرتي بدربك</Link>
-                        </p>
-                      )}
                     </article>
                     </React.Fragment>
                   );
@@ -5266,7 +5255,19 @@ export default function TrainingFinderPage() {
               )}
             </div>
 
-            {!resumeDiscovery.hasAccess && selectedOpportunity && (
+            {!selectedOpportunity.isDarbakApplication &&
+            (selectedOpportunity.applicationUrl || selectedOpportunity.hasApplicationUrl) &&
+            !resumeDiscovery.hasAccess ? (
+              <p className="resume-external-apply-hint">
+                قبل ما تقدم، تأكد إن سيرتك جاهزة. <Link
+                  to={getResumeLandingPath({ source: "external_apply", opportunityId: selectedOpportunity._id || selectedOpportunity.id || "" })}
+                  onClick={() => {
+                    setResumeDiscoveryAttribution({ source: "external_apply", pageContext: "opportunity_card", opportunityId: selectedOpportunity._id || selectedOpportunity.id || "" });
+                    trackResumeDiscovery("resume_discovery_clicked", { source: "external_apply", pageContext: "opportunity_card", opportunityId: selectedOpportunity._id || selectedOpportunity.id || "", userState: "non_subscriber" });
+                  }}
+                >شاهد سيرتي بدربك</Link>
+              </p>
+            ) : !resumeDiscovery.hasAccess && selectedOpportunity && (
               <p className="resume-external-apply-hint">
                 جهّز سيرتك لهذه الفرصة. شوف نموذج السيرة وكيف تقدر تخصصها قبل التقديم.
               </p>

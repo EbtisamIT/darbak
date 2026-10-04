@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import axios from "axios";
 import TrainingFinderPage from "./TrainingFinderPage";
+import useResumeDiscoveryAccess from "../utils/useResumeDiscoveryAccess";
 
 jest.mock("axios", () => ({
   __esModule: true,
@@ -9,6 +10,7 @@ jest.mock("axios", () => ({
 }));
 jest.mock("../components/ResumeServicePromo", () => () => null);
 jest.mock("../components/AnimatedCount", () => ({ value }) => <span>{value}</span>);
+jest.mock("../utils/useResumeDiscoveryAccess", () => jest.fn());
 jest.mock("../utils/analytics", () => ({
   trackEvent: jest.fn(),
   trackEventOncePerSession: jest.fn(),
@@ -54,6 +56,7 @@ const renderPage = () => render(<TrainingFinderPage />);
 
 beforeEach(() => {
   jest.clearAllMocks();
+  useResumeDiscoveryAccess.mockReturnValue({ hasAccess: false, hasMaster: false });
   window.localStorage.clear();
   window.sessionStorage.clear();
   axios.get.mockImplementation((url) => {
@@ -99,6 +102,7 @@ test("feed cards expose only details and apply text actions with icon save and s
   expect(within(card).getByRole("button", { name: "مشاركة صديق" })).toBeInTheDocument();
   expect(within(card).queryByText("تم التقديم")).not.toBeInTheDocument();
   expect(within(card).queryByText(/خلّ دربك يجهّز تقديمك/)).not.toBeInTheDocument();
+  expect(within(card).queryByRole("link", { name: "شاهد سيرتي بدربك" })).not.toBeInTheDocument();
   expect(card.querySelectorAll(".opportunity-card-badges > *").length).toBeLessThanOrEqual(2);
   fireEvent.click(within(card).getByRole("button", { name: "حفظ الفرصة" }));
   expect(within(card).getByRole("button", { name: "إزالة الفرصة من المحفوظات" })).toBeInTheDocument();
@@ -118,6 +122,7 @@ test("details retain resume, tracker, conditions, save, share and apply", async 
   expect(within(dialog).getByRole("button", { name: "حفظ" })).toBeInTheDocument();
   expect(within(dialog).getByRole("button", { name: "مشاركة الفرصة" })).toBeInTheDocument();
   expect(within(dialog).getByRole("button", { name: /جهّز سيرتك|خلّ دربك يجهّز تقديمك/ })).toBeInTheDocument();
+  expect(within(dialog).getByRole("link", { name: "شاهد سيرتي بدربك" })).toHaveAttribute("href", expect.stringContaining("/resume"));
   expect(within(dialog).getByRole("button", { name: /تقديم الآن/ })).toBeInTheDocument();
 });
 
