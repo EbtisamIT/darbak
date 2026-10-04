@@ -399,6 +399,12 @@ const HomePage = () => {
             <span className="home-eyebrow">منصة سعودية لرحلة التدريب التعاوني</span>
             <h1><span className="home-title-brand">دربك</span> معك من البحث عن جهة حتى <span className="home-title-brand">التقديم.</span></h1>
             <p>اكتشف الجهات والفرص، شوف تجارب ومقابلات الطلاب، وجهّز تقديمك لما تلقى الجهة المناسبة.</p>
+            <Link className="home-hero-resume-link" to={resumeDiscovery.hasAccess ? "/my-resume" : "/resume?source=homepage"} onClick={() => trackResumeDiscovery("resume_discovery_clicked", {
+              source: "homepage", pageContext: "hero", planId: "darbak_resume",
+              userState: getResumeDiscoveryUserState(resumeDiscovery),
+            })}>
+              <FiFileText aria-hidden="true" /> {resumeDiscovery.hasAccess ? "افتح سيرتي" : "شاهد كيف يبني دربك سيرتك"} <FiArrowLeft aria-hidden="true" />
+            </Link>
           </div>
           {(!hasSavedJourney || isChangingJourney) && <form className="home-start-card" onSubmit={(event) => { event.preventDefault(); beginJourney(); }}>
             <span className="home-start-kicker">ابدأ من هنا</span>
@@ -434,20 +440,11 @@ const HomePage = () => {
         </div>
       </section>
 
-      {journeyReady && <section className="home-journey-result" aria-live="polite">
-        <div className="home-journey-result-head"><div><span>رحلتك جاهزة</span><h2>ثلاث خطوات، ونبدأ بالأقرب لك</h2></div>{!getStoredAccessIdentity().contact && <button type="button" className="home-save-journey" onClick={openSaveJourney}><strong>احفظ رحلتك</strong><small>عشان نحفظ تخصصك ومدينتك ونطلع لك الجديد كل مرة.</small></button>}</div>
-        <div className="home-journey-result-grid">
-          <article><b>01</b><strong>اكتشف</strong><p>جهات وفرص تناسب تخصصك ومدينتك.</p><Link to={finderUrl()}>شوف الجهات والفرص <FiArrowLeft /></Link></article>
-          <article><b>02</b><strong>اعرف قبل ما تقدم</strong><p>تجارب ومقابلات من طلاب سبقوك.</p><Link to={experienceUrl()}>شوف التجارب <FiArrowLeft /></Link></article>
-          <article className="home-journey-resume"><b>03</b><span>ضمن باقة سيرتي ✨</span><strong>جهّز تقديمك</strong><p>سيرة مخصصة + خطاب تقديم + رسالة إيميل.</p>{activePlanLabel && <small>باقتك الحالية: {activePlanLabel}</small>}<Link to="/my-resume">{resumeJourneyCta} <FiArrowLeft /></Link></article>
-        </div>
-      </section>}
-
       <section className="home-resume-discovery" aria-label="سيرتي بدربك">
         <div>
           <span>سيرتي بدربك ✦</span>
-          <h2>سيرتك للتدريب، جاهزة من دربك</h2>
-          <p>ابنِ سيرة عربية وإنجليزية، وشوف كيف تقدر تخصصها للفرص اللي تقدم عليها.</p>
+          <h2>سيرة عربية وإنجليزية، تقدر تخصصها لكل فرصة</h2>
+          <p>شوف نموذجًا كاملًا وكيف يحوّل دربك معلوماتك الحقيقية إلى سيرة جاهزة للتقديم، قبل أن تختار الاشتراك.</p>
         </div>
         <div className="home-resume-discovery-actions">
           <Link
@@ -457,11 +454,20 @@ const HomePage = () => {
               userState: getResumeDiscoveryUserState(resumeDiscovery),
             })}
           >
-            {resumeDiscovery.hasAccess ? resumeDiscovery.hasMaster ? "افتح سيرتي" : "ابدأ بناء سيرتي" : "شاهد سيرتي بدربك"} <FiArrowLeft />
+            {resumeDiscovery.hasAccess ? resumeDiscovery.hasMaster ? "افتح سيرتي" : "ابدأ بناء سيرتي" : "اكتشف سيرتي بدربك"} <FiArrowLeft />
           </Link>
-          <Link to="/resume?source=homepage" onClick={() => trackResumeDiscovery("resume_example_clicked", { source: "homepage", pageContext: "homepage_card" })}>شاهد نموذج</Link>
+          <Link to="/resume?source=homepage#resume-demo" onClick={() => trackResumeDiscovery("resume_example_clicked", { source: "homepage", pageContext: "homepage_card" })}>شاهد النموذج</Link>
         </div>
       </section>
+
+      {journeyReady && <section className="home-journey-result" aria-live="polite">
+        <div className="home-journey-result-head"><div><span>رحلتك جاهزة</span><h2>ثلاث خطوات، ونبدأ بالأقرب لك</h2></div>{!getStoredAccessIdentity().contact && <button type="button" className="home-save-journey" onClick={openSaveJourney}><strong>احفظ رحلتك</strong><small>عشان نحفظ تخصصك ومدينتك ونطلع لك الجديد كل مرة.</small></button>}</div>
+        <div className="home-journey-result-grid">
+          <article><b>01</b><strong>اكتشف</strong><p>جهات وفرص تناسب تخصصك ومدينتك.</p><Link to={finderUrl()}>شوف الجهات والفرص <FiArrowLeft /></Link></article>
+          <article><b>02</b><strong>اعرف قبل ما تقدم</strong><p>تجارب ومقابلات من طلاب سبقوك.</p><Link to={experienceUrl()}>شوف التجارب <FiArrowLeft /></Link></article>
+          <article className="home-journey-resume"><b>03</b><span>ضمن باقة سيرتي ✨</span><strong>جهّز تقديمك</strong><p>سيرة مخصصة + خطاب تقديم + رسالة إيميل.</p>{activePlanLabel && <small>باقتك الحالية: {activePlanLabel}</small>}<Link to={resumeAccessActive ? "/my-resume" : "/resume?source=homepage"}>{resumeAccessActive ? resumeJourneyCta : "شاهد كيف تعمل سيرتي"} <FiArrowLeft /></Link></article>
+        </div>
+      </section>}
 
       {hasSavedJourney && todayItems.length > 0 && <section className="home-today-section" aria-label="لك اليوم">
         <div className="home-today-heading"><div><span>لك اليوم ✨</span><h2>أحدث ما يناسب رحلتك</h2></div><small>{journeyPreferences.preferredMajor} · {journeyPreferences.preferredCity}</small></div>
@@ -685,6 +691,10 @@ const HomePage = () => {
           .home-section { padding: 27px 0; }.home-section-heading { margin-bottom: 16px; }.home-section-heading h2 { font-size: 26px; }.home-heading-inline, .home-heading-row { align-items: flex-start; flex-direction: column; }.home-finder-section { padding: 22px 18px; }.home-finder-layout { grid-template-columns: 1fr; gap: 16px; }.home-finder-form { grid-template-columns: 1fr; }.home-finder-form .home-button { width: 100%; }.home-preview-grid { grid-template-columns: 1fr; gap: 10px; }.home-content-card { min-height: 132px; }.home-resume-section { grid-template-columns: 1fr; gap: 18px; padding: 23px 18px; }.home-pack-preview-compact { grid-template-columns: 1fr; }.home-pricing-heading { display: block; }.home-pricing-grid { grid-template-columns: 1fr; }.home-pricing-card { min-height: 0; }.home-stats-grid { grid-template-columns: repeat(2, 1fr); }.home-stats-grid a:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--app-border-soft); }.home-stats-grid a:nth-child(4) { border-top: 1px solid var(--app-border-soft); }.home-company-section { grid-template-columns: auto 1fr; padding: 20px; }.home-company-section .home-button { grid-column: 1 / -1; width: 100%; }
           .home-story-section { padding: 52px 0; }.home-story-grid { width: min(100% - 28px, 600px); grid-template-columns: 1fr; gap: 28px; }.home-story-reverse .home-story-visual, .home-story-reverse .home-story-copy { order: initial; }.home-story-copy h2 { font-size: 34px; }.home-story-visual { min-height: 0; padding: 15px; }.home-pack-cards { grid-template-columns: 1fr; }.home-pack-card { min-height: 0; }.home-pricing-heading { display: block; }
         }
+        .home-hero-resume-link { display: inline-flex; align-items: center; gap: 8px; width: fit-content; min-height: 44px; margin-top: 20px; padding: 9px 14px; box-sizing: border-box; border: 1px solid var(--app-brand-border); border-radius: 11px; background: var(--app-brand-soft); color: var(--app-brand); font-size: 14px; font-weight: 900; text-decoration: none; }
+        .home-hero-resume-link:hover, .home-hero-resume-link:focus-visible { background: var(--app-brand); color: #052c28; }
+        .home-journey-result { margin-top: 0; }
+        @media (max-width: 800px) { .home-hero-resume-link { max-width: 100%; } .home-resume-discovery { width: min(100% - 28px, 600px); padding: 18px; } .home-resume-discovery-actions { width: 100%; } .home-resume-discovery-actions a:first-child { flex: 1; } }
       `}</style>
     </main>
   );
