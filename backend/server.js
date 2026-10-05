@@ -15,6 +15,7 @@ const { listStudentFeedback, writtenFeedbackFilter } = require("./services/stude
 const ContactMessage = require('./models/ContactMessage');
 const CompanyApplication = require('./models/CompanyApplication');
 const ApplicationTracker = require("./models/ApplicationTracker");
+const { manualFields, statusUpdate, followUpUpdate, trackerOpportunityFields, serializeTracker: serializeApplicationTracker, ensureTrackerIndex, markApplied } = require("./services/applicationTracker");
 const CompanyApplicationCampaign = require('./models/CompanyApplicationCampaign');
 const Company = require('./models/Company');
 const Opportunity = require('./models/Opportunity');
@@ -592,9 +593,6 @@ const COMPANY_APPLICATION_STUDENT_REPORT_STATUSES = [
   "accepted",
   "rejected",
   "no_update",
-];
-const APPLICATION_TRACKER_STUDENT_STATUSES = [
-  "saved", "applied", "under_review", "contacted", "interview", "offer", "rejected", "withdrawn",
 ];
 
 const COMPANY_CAMPAIGN_OUTCOME_STATUSES = [
@@ -15893,37 +15891,41 @@ app.patch('/api/company-applications/me/:applicationId/student-report', async (r
   }
 });
 
-const serializeApplicationTracker = (item = {}) => ({
-  id: item._id?.toString?.() || item.id || "",
-  _id: item._id?.toString?.() || item.id || "",
-  recordType: "tracker",
-  opportunityId: item.opportunityId?.toString?.() || item.opportunityId || "",
-  organizationName: item.companyName || "",
-  opportunityTitle: item.roleTitle || "",
-  city: item.city || "",
-  sourceType: item.sourceType || "external_link",
-  studentStatus: item.studentStatus || "applied",
-  companyStatus: "",
-  appliedAt: item.appliedAt || item.createdAt,
-  submittedAt: item.appliedAt || item.createdAt,
-  lastUpdatedAt: item.lastUpdatedAt || item.updatedAt || item.createdAt,
-  updatedAt: item.updatedAt || item.lastUpdatedAt || item.createdAt,
-  createdAt: item.createdAt,
-});
-
 app.get('/api/application-tracker/me', async (req, res) => {
   try {
     const studentAccess = await getStudentCompanyApplicationAccess(req);
     if (!studentAccess) return res.status(401).json({ requiresLogin: true, error: "سجّل الدخول لعرض تقديماتك." });
     const [tracked, darbakApplications] = await Promise.all([
       ApplicationTracker.find({ studentId: studentAccess.accessUser._id }).sort({ appliedAt: -1 }).lean(),
-      CompanyApplication.find(studentAccess.filter).sort({ submittedAt: -1, createdAt: -1 }).limit(100).lean(),
+      CompanyApplication.find(studentAccess.filter).sort({ submittedAt: -1, createdAt: -1 }).lean(),
     ]);
+    const missingDetails = tracked.filter((item) => item.sourceType !== "darbak" && item.opportunityId &&
+      (!item.organizationLogoUrl || !item.contactEmail));
+    if (missingDetails.length) {
+      try {
+        const opportunities = await Opportunity.find({ _id: { $in: missingDetails.map((item) => item.opportunityId) } })
+          .select("_id logoUrl applicationUrl applicationMethod").lean();
+        const byId = new Map(opportunities.map((item) => [String(item._id), item]));
+        const updates = missingDetails.map((item) => ({ item,
+          fields: trackerOpportunityFields(item, byId.get(String(item.opportunityId))) }))
+          .filter(({ fields }) => Object.keys(fields).length);
+        if (updates.length) {
+          await ApplicationTracker.bulkWrite(updates.map(({ item, fields }) => ({ updateOne: {
+            filter: { _id: item._id, studentId: studentAccess.accessUser._id, sourceType: { $ne: "darbak" } },
+            update: { $set: fields },
+          } })));
+          updates.forEach(({ item, fields }) => Object.assign(item, fields));
+        }
+      } catch (enrichmentError) {
+        console.error("Application tracker detail enrichment error:", enrichmentError);
+      }
+    }
     res.json({
       success: true,
       data: [
         ...darbakApplications.map(serializeCompanyApplication),
-        ...tracked.map(serializeApplicationTracker),
+        ...tracked.filter((item) => item.sourceType !== "darbak" || !darbakApplications.some((application) =>
+          String(application.opportunityId || "") === String(item.opportunityId || ""))).map(serializeApplicationTracker),
       ].sort((first, second) => new Date(second.submittedAt || second.createdAt) - new Date(first.submittedAt || first.createdAt)),
     });
   } catch (err) {
@@ -15937,34 +15939,25 @@ app.post('/api/application-tracker', async (req, res) => {
     const studentAccess = await getStudentCompanyApplicationAccess(req);
     if (!studentAccess) return res.status(401).json({ requiresLogin: true, error: "سجّل الدخول لإضافة التقديم." });
     const opportunityId = req.body?.opportunityId || "";
+    if (!opportunityId) {
+      const fields = manualFields(req.body);
+      await ensureTrackerIndex();
+      const record = await ApplicationTracker.create({ ...fields,
+        studentId: studentAccess.accessUser._id, normalizedEmail: studentAccess.email });
+      return res.status(201).json({ success: true, data: serializeApplicationTracker(record.toObject()) });
+    }
     if (!mongoose.Types.ObjectId.isValid(opportunityId)) return res.status(400).json({ error: "الفرصة غير صالحة." });
     const opportunity = await Opportunity.findById(opportunityId).lean();
     if (!opportunity) return res.status(404).json({ error: "الفرصة لم تعد متاحة." });
-    const sourceType = opportunity.isDarbakApplication
-      ? "darbak"
-      : opportunity.applicationEmail ? "email" : "external_link";
-    const record = await ApplicationTracker.findOneAndUpdate(
-      { studentId: studentAccess.accessUser._id, opportunityId },
-      { $setOnInsert: {
-        studentId: studentAccess.accessUser._id,
-        normalizedEmail: studentAccess.email,
-        opportunityId,
-        companyName: opportunity.organizationName || "جهة تدريبية",
-        roleTitle: opportunity.title || "تدريب تعاوني",
-        city: Array.isArray(opportunity.cities) && opportunity.cities.length
-          ? opportunity.cities.slice(0, 2).join("، ")
-          : opportunity.city || "",
-        sourceType,
-        studentStatus: "applied",
-        appliedAt: new Date(),
-        lastUpdatedAt: new Date(),
-      } },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    ).lean();
-    res.status(201).json({ success: true, data: serializeApplicationTracker(record) });
+    if (opportunity.isDarbakApplication) {
+      return res.status(400).json({ error: "التقديم عبر نموذج الجهة يتيح متابعة حالة الطلب الرسمية في تقديماتك." });
+    }
+    await ensureTrackerIndex();
+    const { record, alreadyExists } = await markApplied(studentAccess, opportunity);
+    res.status(alreadyExists ? 200 : 201).json({ success: true, alreadyExists, data: serializeApplicationTracker(record) });
   } catch (err) {
     console.error("❌ Application tracker create error:", err);
-    res.status(500).json({ error: "تعذر إضافة الفرصة إلى تقديماتك." });
+    res.status(err.status || 500).json({ error: err.status ? err.message : "تعذر إضافة الفرصة إلى تقديماتك." });
   }
 });
 
@@ -15972,29 +15965,42 @@ app.patch('/api/application-tracker/me/:applicationId/status', async (req, res) 
   try {
     const studentAccess = await getStudentCompanyApplicationAccess(req);
     if (!studentAccess) return res.status(401).json({ requiresLogin: true, error: "سجّل الدخول لتحديث الحالة." });
-    const status = String(req.body?.studentStatus || "").trim();
     const recordType = String(req.body?.recordType || "tracker");
-    if (!APPLICATION_TRACKER_STUDENT_STATUSES.includes(status)) return res.status(400).json({ error: "الحالة غير صالحة." });
     if (!mongoose.Types.ObjectId.isValid(req.params.applicationId)) return res.status(400).json({ error: "معرّف التقديم غير صحيح." });
     if (recordType === "darbak") {
-      const application = await CompanyApplication.findOneAndUpdate(
-        { _id: req.params.applicationId, ...studentAccess.filter },
-        { $set: { studentStatus: status } },
-        { new: true, runValidators: true }
-      ).lean();
-      if (!application) return res.status(404).json({ error: "التقديم غير موجود." });
-      return res.json({ success: true, data: serializeCompanyApplication(application) });
+      return res.status(403).json({ error: "حالة هذا الطلب يتم تحديثها من الجهة فقط." });
     }
+    const fields = statusUpdate(req.body);
     const record = await ApplicationTracker.findOneAndUpdate(
-      { _id: req.params.applicationId, studentId: studentAccess.accessUser._id },
-      { $set: { studentStatus: status, lastUpdatedAt: new Date() } },
+      { _id: req.params.applicationId, studentId: studentAccess.accessUser._id, sourceType: { $ne: "darbak" } },
+      { $set: fields, $push: { statusHistory: { status: fields.studentStatus, changedAt: fields.lastUpdatedAt,
+        ...(fields.note !== undefined ? { note: fields.note } : {}), ...(fields.followUpAt !== undefined ? { followUpAt: fields.followUpAt } : {}) } } },
       { new: true, runValidators: true }
     ).lean();
     if (!record) return res.status(404).json({ error: "التقديم غير موجود." });
     res.json({ success: true, data: serializeApplicationTracker(record) });
   } catch (err) {
     console.error("❌ Application tracker status error:", err);
-    res.status(500).json({ error: "تعذر حفظ الحالة الآن." });
+    res.status(err.status || 500).json({ error: err.status ? err.message : "تعذر حفظ الحالة الآن." });
+  }
+});
+
+app.patch('/api/application-tracker/me/:applicationId/follow-up', async (req, res) => {
+  try {
+    const studentAccess = await getStudentCompanyApplicationAccess(req);
+    if (!studentAccess) return res.status(401).json({ requiresLogin: true, error: "سجّل الدخول لتحديث المتابعة." });
+    if (!mongoose.Types.ObjectId.isValid(req.params.applicationId)) return res.status(400).json({ error: "معرّف التقديم غير صحيح." });
+    const fields = followUpUpdate(req.body?.action);
+    const record = await ApplicationTracker.findOneAndUpdate(
+      { _id: req.params.applicationId, studentId: studentAccess.accessUser._id,
+        sourceType: { $ne: "darbak" }, contactEmail: { $exists: true, $ne: "" } },
+      { $set: fields }, { new: true, runValidators: true }
+    ).lean();
+    if (!record) return res.status(404).json({ error: "التقديم غير موجود أو لا يحتوي على بريد جهة تواصل." });
+    res.json({ success: true, data: serializeApplicationTracker(record) });
+  } catch (err) {
+    console.error("Application tracker follow-up error:", err);
+    res.status(err.status || 500).json({ error: err.status ? err.message : "تعذر حفظ المتابعة الآن." });
   }
 });
 
