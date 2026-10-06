@@ -111,19 +111,39 @@ test("feed cards expose only details and apply text actions with icon save and s
   expect(await screen.findByRole("menu", { name: "خيارات المشاركة" })).toBeInTheDocument();
 });
 
-test("details retain resume, tracker, conditions, save, share and apply", async () => {
+test("details show one resume helper, a single primary apply action, and quiet utilities", async () => {
   renderPage();
   const card = (await screen.findByText("متدرب تقنية المعلومات")).closest(".opportunity-card");
   fireEvent.click(within(card).getByRole("button", { name: "التفاصيل" }));
   const dialog = await screen.findByRole("dialog", { name: /تفاصيل شركة ألف/ });
   await within(dialog).findByText("شروط التقديم: طالب تدريب تعاوني");
   expect(within(dialog).getByText("شروط التقديم ومعلومات الفرصة")).toBeInTheDocument();
-  expect(within(dialog).getByRole("button", { name: "تم التقديم" })).toBeInTheDocument();
+  expect(within(dialog).getByText("قبل ما تقدم")).toBeInTheDocument();
+  expect(within(dialog).getByText("قدمت مسبقًا؟")).toBeInTheDocument();
+  expect(within(dialog).getByRole("button", { name: "تم التقديم ✓" })).toBeInTheDocument();
   expect(within(dialog).getByRole("button", { name: "حفظ" })).toBeInTheDocument();
   expect(within(dialog).getByRole("button", { name: "مشاركة الفرصة" })).toBeInTheDocument();
-  expect(within(dialog).getByRole("button", { name: /جهّز سيرتك|خلّ دربك يجهّز تقديمك/ })).toBeInTheDocument();
-  expect(within(dialog).getByRole("link", { name: "شاهد سيرتي بدربك" })).toHaveAttribute("href", expect.stringContaining("/resume"));
+  expect(within(dialog).getByRole("link", { name: /شاهد سيرتي بدربك/ })).toHaveAttribute("href", expect.stringContaining("/resume"));
+  expect(dialog.querySelectorAll(".opportunity-detail-resume-helper .opportunity-detail-resume-action")).toHaveLength(1);
+  expect(within(dialog).queryByRole("button", { name: "إغلاق" })).not.toBeInTheDocument();
   expect(within(dialog).getByRole("button", { name: /تقديم الآن/ })).toBeInTheDocument();
+  requestOpportunityAccess.mockImplementation(() => {});
+  fireEvent.click(within(dialog).getByRole("button", { name: /تقديم الآن/ }));
+  expect(requestOpportunityAccess).toHaveBeenCalledWith(
+    expect.objectContaining({ feature: "opportunity_apply", itemKey: "opportunity:opp-one" }),
+    expect.any(Function)
+  );
+});
+
+test("details show only the existing tailored resume path when a resume exists", async () => {
+  useResumeDiscoveryAccess.mockReturnValue({ hasAccess: true, hasMaster: true });
+  renderPage();
+  const card = (await screen.findByText("متدرب تقنية المعلومات")).closest(".opportunity-card");
+  fireEvent.click(within(card).getByRole("button", { name: "التفاصيل" }));
+  const dialog = await screen.findByRole("dialog", { name: /تفاصيل شركة ألف/ });
+  expect(within(dialog).getByRole("button", { name: "خصص سيرتك لهذه الفرصة" })).toBeInTheDocument();
+  expect(within(dialog).queryByText(/شاهد سيرتي بدربك/)).not.toBeInTheDocument();
+  expect(dialog.querySelectorAll(".opportunity-detail-resume-helper .opportunity-detail-resume-action")).toHaveLength(1);
 });
 
 test("search, specialty and city keep the existing request flow", async () => {

@@ -3026,14 +3026,14 @@ export default function TrainingFinderPage() {
     });
   };
 
-  const renderResumeTailorCta = ({ opportunity = null, organization = null, compact = false }) => {
+  const renderResumeTailorCta = ({ opportunity = null, organization = null, compact = false, detailAction = false }) => {
     if (opportunity && !resumeDiscovery.hasAccess) {
       const opportunityId = opportunity._id || opportunity.id || "";
       const source = compact ? "opportunity_page" : "opportunity_card";
       return (
         <button
           type="button"
-          className="opportunity-secondary-button resume-tailor-cta"
+          className={`opportunity-secondary-button resume-tailor-cta${detailAction ? " opportunity-detail-resume-action" : ""}`}
           onClick={(event) => {
             event.stopPropagation();
             setResumeDiscoveryAttribution({ source, pageContext: source, opportunityId });
@@ -3044,14 +3044,14 @@ export default function TrainingFinderPage() {
             navigate(getResumeLandingPath({ source, pageContext: source, opportunityId }));
           }}
         >
-          <span>جهّز سيرتك لهذه الفرصة</span>
+          <span>{detailAction ? "شاهد سيرتي بدربك" : "جهّز سيرتك لهذه الفرصة"}</span>
           {!compact && <small>شوف نموذج السيرة والتخصيص قبل التقديم.</small>}
         </button>
       );
     }
     if (opportunity && !resumeDiscovery.hasMaster) {
       return (
-        <button type="button" className="opportunity-secondary-button resume-tailor-cta" onClick={(event) => {
+        <button type="button" className={`opportunity-secondary-button resume-tailor-cta${detailAction ? " opportunity-detail-resume-action" : ""}`} onClick={(event) => {
           event.stopPropagation();
           trackResumeDiscovery("resume_discovery_clicked", {
             source: compact ? "opportunity_page" : "opportunity_card",
@@ -3059,7 +3059,7 @@ export default function TrainingFinderPage() {
             userState: "resume_not_built", planId: "darbak_resume",
           });
           navigate("/my-resume");
-        }}><span>ابدأ بناء سيرتي</span></button>
+        }}><span>{detailAction ? "شاهد سيرتي بدربك" : "ابدأ بناء سيرتي"}</span></button>
       );
     }
     const contact = getGuideOrganizationContactPreview(organization || {});
@@ -3070,7 +3070,7 @@ export default function TrainingFinderPage() {
     return (
       <button
         type="button"
-        className="opportunity-secondary-button resume-tailor-cta"
+        className={`opportunity-secondary-button resume-tailor-cta${detailAction ? " opportunity-detail-resume-action" : ""}`}
         onClick={(event) => {
           event?.stopPropagation();
           if (opportunity) trackResumeDiscovery("resume_discovery_clicked", {
@@ -5255,112 +5255,101 @@ export default function TrainingFinderPage() {
               )}
             </div>
 
-            {!selectedOpportunity.isDarbakApplication &&
-            (selectedOpportunity.applicationUrl || selectedOpportunity.hasApplicationUrl) &&
-            !resumeDiscovery.hasAccess ? (
-              <p className="resume-external-apply-hint">
-                قبل ما تقدم، تأكد إن سيرتك جاهزة. <Link
-                  to={getResumeLandingPath({ source: "external_apply", opportunityId: selectedOpportunity._id || selectedOpportunity.id || "" })}
-                  onClick={() => {
-                    setResumeDiscoveryAttribution({ source: "external_apply", pageContext: "opportunity_card", opportunityId: selectedOpportunity._id || selectedOpportunity.id || "" });
-                    trackResumeDiscovery("resume_discovery_clicked", { source: "external_apply", pageContext: "opportunity_card", opportunityId: selectedOpportunity._id || selectedOpportunity.id || "", userState: "non_subscriber" });
-                  }}
-                >شاهد سيرتي بدربك</Link>
-              </p>
-            ) : !resumeDiscovery.hasAccess && selectedOpportunity && (
-              <p className="resume-external-apply-hint">
-                جهّز سيرتك لهذه الفرصة. شوف نموذج السيرة وكيف تقدر تخصصها قبل التقديم.
-              </p>
-            )}
+            <div className="opportunity-detail-footer">
+              <section className="opportunity-detail-resume-helper" aria-label="قبل ما تقدم">
+                <strong>قبل ما تقدم</strong>
+                <p>تأكد أن سيرتك مناسبة لهذه الفرصة.</p>
+                {!selectedOpportunity.isDarbakApplication &&
+                (selectedOpportunity.applicationUrl || selectedOpportunity.hasApplicationUrl) &&
+                !resumeDiscovery.hasAccess ? (
+                  <Link
+                    className="opportunity-detail-resume-action"
+                    to={getResumeLandingPath({ source: "external_apply", opportunityId: selectedOpportunity._id || selectedOpportunity.id || "" })}
+                    onClick={() => {
+                      setResumeDiscoveryAttribution({ source: "external_apply", pageContext: "opportunity_card", opportunityId: selectedOpportunity._id || selectedOpportunity.id || "" });
+                      trackResumeDiscovery("resume_discovery_clicked", { source: "external_apply", pageContext: "opportunity_card", opportunityId: selectedOpportunity._id || selectedOpportunity.id || "", userState: "non_subscriber" });
+                    }}
+                  >شاهد سيرتي بدربك ←</Link>
+                ) : renderResumeTailorCta({ opportunity: selectedOpportunity, compact: true, detailAction: true })}
+              </section>
 
-            <div className="opportunity-detail-actions">
-              <button
-                type="button"
-                className="opportunity-secondary-button"
-                onClick={(event) =>
-                  handleSaveTrainingItem(event, {
-                    id: `opportunity:${selectedOpportunity._id}`,
-                    type: "opportunity",
-                    title: selectedOpportunity.title || "فرصة تدريب",
-                    subtitle: selectedOpportunity.organizationName,
-                    organizationName: selectedOpportunity.organizationName,
-                    meta: getOpportunityCityText(selectedOpportunity) || city || "",
-                    updatedAt: getOpportunityUpdateTimestamp(selectedOpportunity),
-                    url: buildOpportunityDetailPath(selectedOpportunity),
-                    analyticsMetadata: {
-                      opportunityId: selectedOpportunity._id,
+              <div className="opportunity-detail-apply">
+                {(selectedOpportunity.applicationUrl || selectedOpportunity.darbakApplyUrl) &&
+                selectedOpportunityStatus?.tone !== "closed" ? (
+                  <button
+                    type="button"
+                    className="opportunity-apply-button"
+                    onClick={() => openOpportunityApplication(selectedOpportunity)}
+                  >
+                    {selectedOpportunity.isDarbakApplication
+                      ? "قدّم مجانًا عبر دربك"
+                      : "تقديم الآن"}
+                  </button>
+                ) : selectedOpportunityStatus?.tone === "closed" ? (
+                  <button type="button" className="opportunity-apply-button is-disabled" disabled>مغلق</button>
+                ) : (
+                  <button type="button" className="opportunity-apply-button is-disabled" disabled>لا يوجد رابط تقديم</button>
+                )}
+              </div>
+
+              <div className="opportunity-detail-tracker">
+                <span>قدمت مسبقًا؟</span>
+                <button
+                  type="button"
+                  className="opportunity-secondary-button"
+                  disabled={savingApplicationId === (selectedOpportunity._id || selectedOpportunity.id)}
+                  onClick={() => {
+                    markOpportunityApplied(selectedOpportunity);
+                  }}
+                >
+                  {appliedOpportunityIds.has(selectedOpportunity._id || selectedOpportunity.id)
+                    ? "مضاف لتقديماتي ✓"
+                    : savingApplicationId === (selectedOpportunity._id || selectedOpportunity.id)
+                    ? "جارٍ الحفظ..."
+                    : "تم التقديم ✓"}
+                </button>
+              </div>
+
+              <div className="opportunity-detail-utility">
+                <button
+                  type="button"
+                  className="opportunity-secondary-button"
+                  onClick={(event) =>
+                    handleSaveTrainingItem(event, {
+                      id: `opportunity:${selectedOpportunity._id}`,
+                      type: "opportunity",
+                      title: selectedOpportunity.title || "فرصة تدريب",
+                      subtitle: selectedOpportunity.organizationName,
+                      organizationName: selectedOpportunity.organizationName,
+                      meta: getOpportunityCityText(selectedOpportunity) || city || "",
+                      updatedAt: getOpportunityUpdateTimestamp(selectedOpportunity),
+                      url: buildOpportunityDetailPath(selectedOpportunity),
+                      analyticsMetadata: {
+                        opportunityId: selectedOpportunity._id,
+                        opportunityTitle: selectedOpportunity.title || "",
+                        organizationName: selectedOpportunity.organizationName || "",
+                      },
+                    })
+                  }
+                >
+                  <span aria-hidden="true">{savedItemIds.has(`opportunity:${selectedOpportunity._id}`) ? "♥" : "♡"}</span>
+                  {savedItemIds.has(`opportunity:${selectedOpportunity._id}`) ? "إزالة من المحفوظات" : "حفظ"}
+                </button>
+                <ShareButton
+                  compact
+                  buttonLabel="مشاركة الفرصة"
+                  title={selectedOpportunity.title || "فرصة تدريب من دربك"}
+                  text={`شوف هذه الفرصة في دربك: ${selectedOpportunity.organizationName || selectedOpportunity.title || "فرصة تدريب"}`}
+                  url={buildOpportunityDetailPath(selectedOpportunity)}
+                  onShareAction={(action) =>
+                    trackTrainingShareAction(action, "opportunity", {
+                      opportunityId: selectedOpportunity._id || "",
                       opportunityTitle: selectedOpportunity.title || "",
                       organizationName: selectedOpportunity.organizationName || "",
-                    },
-                  })
-                }
-              >
-                {savedItemIds.has(`opportunity:${selectedOpportunity._id}`) ? "إزالة من المحفوظات" : "حفظ"}
-              </button>
-              <ShareButton
-                compact
-                buttonLabel="مشاركة الفرصة"
-                title={selectedOpportunity.title || "فرصة تدريب من دربك"}
-                text={`شوف هذه الفرصة في دربك: ${selectedOpportunity.organizationName || selectedOpportunity.title || "فرصة تدريب"}`}
-                url={buildOpportunityDetailPath(selectedOpportunity)}
-                onShareAction={(action) =>
-                  trackTrainingShareAction(action, "opportunity", {
-                    opportunityId: selectedOpportunity._id || "",
-                    opportunityTitle: selectedOpportunity.title || "",
-                    organizationName: selectedOpportunity.organizationName || "",
-                  })
-                }
-              />
-              {renderResumeTailorCta({ opportunity: selectedOpportunity, compact: true })}
-              <button
-                type="button"
-                className="opportunity-secondary-button"
-                disabled={savingApplicationId === (selectedOpportunity._id || selectedOpportunity.id)}
-                onClick={() => {
-                  markOpportunityApplied(selectedOpportunity);
-                }}
-              >
-                {appliedOpportunityIds.has(selectedOpportunity._id || selectedOpportunity.id)
-                  ? "مضاف لتقديماتي ✓"
-                  : savingApplicationId === (selectedOpportunity._id || selectedOpportunity.id)
-                  ? "جارٍ الحفظ..."
-                  : "تم التقديم"}
-              </button>
-              <button
-                type="button"
-                onClick={closeOpportunityDetails}
-                className="opportunity-secondary-button"
-              >
-                إغلاق
-              </button>
-              {(selectedOpportunity.applicationUrl || selectedOpportunity.darbakApplyUrl) &&
-              selectedOpportunityStatus?.tone !== "closed" ? (
-                <button
-                  type="button"
-                  className="opportunity-apply-button"
-                  onClick={() => openOpportunityApplication(selectedOpportunity)}
-                >
-                  {selectedOpportunity.isDarbakApplication
-                    ? "قدّم مجانًا عبر دربك"
-                    : "تقديم الآن"}
-                </button>
-              ) : selectedOpportunityStatus?.tone === "closed" ? (
-                <button
-                  type="button"
-                  className="opportunity-apply-button is-disabled"
-                  disabled
-                >
-                  مغلق
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="opportunity-apply-button is-disabled"
-                  disabled
-                >
-                  لا يوجد رابط تقديم
-                </button>
-              )}
+                    })
+                  }
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -7788,6 +7777,102 @@ export default function TrainingFinderPage() {
           margin: 10px 0 0;
           color: var(--app-text);
           font-size: 14px;
+        }
+
+        .where-to-train-page .opportunity-detail-footer {
+          display: grid;
+          gap: 12px;
+          min-width: 0;
+          padding-top: 16px;
+          border-top: 1px solid var(--app-border);
+        }
+
+        .where-to-train-page .opportunity-detail-resume-helper {
+          display: grid;
+          justify-items: start;
+          gap: 3px;
+          min-width: 0;
+        }
+
+        .where-to-train-page .opportunity-detail-resume-helper strong {
+          color: var(--app-text);
+          font-size: 13px;
+        }
+
+        .where-to-train-page .opportunity-detail-resume-helper p {
+          margin: 0;
+          color: var(--app-text-soft);
+          font-size: 12px;
+        }
+
+        .where-to-train-page .opportunity-detail-resume-action {
+          display: inline-flex !important;
+          align-items: center;
+          width: auto !important;
+          min-height: 40px !important;
+          padding: 5px 0 !important;
+          border: 0 !important;
+          background: transparent !important;
+          color: var(--app-brand) !important;
+          font-size: 13px !important;
+          text-align: start;
+          text-decoration: none;
+        }
+
+        .where-to-train-page .opportunity-detail-apply .opportunity-apply-button {
+          width: 100%;
+          min-height: 50px !important;
+          padding: 12px !important;
+          font-size: 15px !important;
+        }
+
+        .where-to-train-page .opportunity-detail-tracker {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-wrap: wrap;
+          gap: 6px;
+          color: var(--app-text-soft);
+          font-size: 12px;
+        }
+
+        .where-to-train-page .opportunity-detail-tracker .opportunity-secondary-button {
+          width: auto !important;
+          min-height: 40px !important;
+          padding: 5px 8px !important;
+          border: 0 !important;
+          background: transparent !important;
+          font-size: 12px !important;
+        }
+
+        .where-to-train-page .opportunity-detail-utility {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+        }
+
+        .where-to-train-page .opportunity-detail-utility .share-card-control {
+          width: auto;
+          min-width: 0;
+        }
+
+        .where-to-train-page .opportunity-detail-utility > button,
+        .where-to-train-page .opportunity-detail-utility .share-card-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          width: auto !important;
+          min-width: 0;
+          min-height: 40px !important;
+          padding: 6px 10px !important;
+          border: 1px solid var(--app-border) !important;
+          background: transparent !important;
+          color: var(--app-text-soft) !important;
+          font-size: 12px !important;
+          white-space: nowrap;
         }
 
         @media (max-width: 760px) {
