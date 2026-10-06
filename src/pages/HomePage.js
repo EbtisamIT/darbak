@@ -54,7 +54,7 @@ const homepagePlanFallbacks = [
     id: "darbak_plus",
     planKey: "darbak_plus",
     label: "دربك+",
-    priceSar: 5.99,
+    priceSar: null,
     durationDays: 30,
     aiResumeUsageLimit: 0,
   },
@@ -62,7 +62,7 @@ const homepagePlanFallbacks = [
     id: "one_time_90",
     planKey: "darbak_plus",
     label: "دربك+ 3 أشهر",
-    priceSar: 15,
+    priceSar: null,
     durationDays: 90,
     aiResumeUsageLimit: 0,
   },
@@ -118,6 +118,7 @@ const HomePage = () => {
   const [experiences, setExperiences] = useState([]);
   const [interviews, setInterviews] = useState([]);
   const [subscriptionPlans, setSubscriptionPlans] = useState(homepagePlanFallbacks);
+  const [plansLoading, setPlansLoading] = useState(true);
   const [major, setMajor] = useState(initialJourneyPreferences.preferredMajor);
   const [city, setCity] = useState(initialJourneyPreferences.preferredCity);
   const [journeyPreferences, setJourneyPreferences] = useState(initialJourneyPreferences);
@@ -163,6 +164,7 @@ const HomePage = () => {
       if (plansResult.status === "fulfilled") {
         setSubscriptionPlans(mergeHomepagePlans(readCollection(plansResult.value?.plans)));
       }
+      setPlansLoading(false);
     });
     return () => { alive = false; };
   }, []);
@@ -582,7 +584,7 @@ const HomePage = () => {
                 <div>
                   <span>{plan.label}</span>
                   {isResumePlan && <small className="home-plan-new-badge">الجديد للتقديم</small>}
-                  <strong>{formatPlanPrice(plan)} <em>{formatPlanPeriod(plan)}</em></strong>
+                  <strong>{plansLoading ? "جارِ تحميل السعر..." : formatPlanPrice(plan)} <em>{formatPlanPeriod(plan)}</em></strong>
                 </div>
                 <p>{summary}</p>
                 {isCurrentPlan && isResumePlan ? <Link to="/my-resume">{cta}</Link> : <Link to={isCurrentPlan ? "#" : `/subscribe?plan=${plan.id}`} onClick={(event) => {

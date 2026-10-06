@@ -11,6 +11,7 @@ import {
   getAccessHeaders,
   hasCoreAccess,
   requestPremiumAccess,
+  startSubscriptionFlow,
 } from "../utils/premiumAccess";
 import {
   getSavedItemIds,
@@ -1581,10 +1582,11 @@ const ExperiencesPage = () => {
       },
     });
 
-    requestPremiumAccess({
-      feature: "darbak_plus",
-      title: "دربك+",
+    startSubscriptionFlow({
+      planId: "darbak_plus",
       source: "experiences_plus_banner",
+      returnTo: `${location.pathname}${location.search}`,
+      navigate,
     });
   };
 
