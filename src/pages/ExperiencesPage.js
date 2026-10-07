@@ -607,8 +607,7 @@ const ExperiencesPage = () => {
   const [isPremiumActive, setIsPremiumActive] = useState(
     () => typeof window !== "undefined" && hasCoreAccess()
   );
-  const [lockedCheckoutStatus, setLockedCheckoutStatus] = useState("idle");
-  const lockedCheckoutPendingRef = useRef(false);
+  const [lockedSubscriptionState, setLockedSubscriptionState] = useState(null);
   const lockedCheckoutStartedAtRef = useRef(0);
   const lastTrackedExperienceSearchRef = useRef("");
   const handledRouteExperienceIdRef = useRef("");
@@ -637,6 +636,23 @@ const ExperiencesPage = () => {
       window.removeEventListener("focus", refreshPremiumStatus);
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedExperienceLocked) {
+      setLockedSubscriptionState(null);
+      return undefined;
+    }
+    let isCurrent = true;
+    setLockedSubscriptionState(null);
+    fetchSubscriptionState()
+      .then((state) => {
+        if (isCurrent) setLockedSubscriptionState(state.state);
+      })
+      .catch(() => {
+        if (isCurrent) setLockedSubscriptionState(null);
+      });
+    return () => { isCurrent = false; };
+  }, [selectedExperienceLocked, selectedExperienceId]);
 
   useEffect(() => {
     setPageSeo(
@@ -1565,45 +1581,18 @@ const ExperiencesPage = () => {
     ];
   };
 
-  const openPremiumFromLockedExperience = async (exp = {}) => {
-    if (lockedCheckoutPendingRef.current || Date.now() - lockedCheckoutStartedAtRef.current < 1000) return;
-    lockedCheckoutPendingRef.current = true;
-    setLockedCheckoutStatus("loading");
-    let subscriptionState;
-    try {
-      try {
-        subscriptionState = await fetchSubscriptionState();
-      } catch {
-        subscriptionState = await fetchSubscriptionState();
-      }
-    } catch {
-      lockedCheckoutPendingRef.current = false;
-      setLockedCheckoutStatus("error");
-      return;
-    }
-    if (subscriptionState.state === "ACTIVE") {
-      lockedCheckoutPendingRef.current = false;
-      setLockedCheckoutStatus("idle");
-      openExperienceDetails(exp);
-      return;
-    }
+  const openPremiumFromLockedExperience = () => {
+    if (Date.now() - lockedCheckoutStartedAtRef.current < 1000) return;
+    lockedCheckoutStartedAtRef.current = Date.now();
     try {
       startSubscriptionFlow({
-        planId: subscriptionState.state === "EXPIRED" && subscriptionState.planId
-          ? subscriptionState.planId
-          : "darbak_plus",
-        source: subscriptionState.state === "EXPIRED"
-          ? "experience_inline_renewal"
-          : "experience_inline_notice",
+        planId: "darbak_plus",
+        source: "experience_inline_notice",
         returnTo: `${location.pathname}${location.search}`,
         navigate,
       });
-      lockedCheckoutStartedAtRef.current = Date.now();
-      setLockedCheckoutStatus("idle");
     } catch {
-      setLockedCheckoutStatus("error");
-    } finally {
-      lockedCheckoutPendingRef.current = false;
+      lockedCheckoutStartedAtRef.current = 0;
     }
   };
 
@@ -1956,12 +1945,12 @@ const ExperiencesPage = () => {
         {isExperienceLocked && !exp.isPremiumUpsellHidden && (
           <PremiumInlineNotice
             lockedItems={getExperiencePremiumLockedItems(exp)}
-            actionLabel={lockedCheckoutStatus === "loading"
-              ? "جارِ فتح الاشتراك..."
-              : lockedCheckoutStatus === "error"
-                ? "تعذر الاتصال، حاول مرة أخرى"
-                : "كمل استكشافك"}
-            onUnlock={() => openPremiumFromLockedExperience(exp)}
+            actionLabel={lockedSubscriptionState === "EXPIRED"
+              ? "تجديد الاشتراك"
+              : lockedSubscriptionState === "FREE"
+                ? "اشترك"
+                : "فتح الاشتراك"}
+            onUnlock={openPremiumFromLockedExperience}
             onSkip={skipExperiencePremiumNotice}
           />
         )}
