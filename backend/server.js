@@ -95,6 +95,7 @@ const {
   isResumePlanLaunchEnabled,
   normalizePlanKey,
 } = require("./subscriptionPlans");
+const { classifySubscriptionState } = require("./services/subscriptionState");
 const {
   generateResumeDraft,
   mapDraftToResumePayload,
@@ -13432,6 +13433,33 @@ app.get("/api/subscriptions/checkout-canary", async (req, res) => {
     return res.json({ enabled: await isUnifiedCheckoutAllowed(req) });
   } catch (error) {
     return res.json({ enabled: false });
+  }
+});
+
+app.get("/api/subscriptions/state", async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+    const contact = normalizeSubscriberContact(req.get("x-darbak-contact") || "");
+    const accessCode = normalizeAccessCode(req.get("x-darbak-access-code") || "");
+    if (!isValidSubscriberContact(contact) || !isValidAccessCode(accessCode)) {
+      return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    }
+    const accessCodeHash = hashAccessCode(contact, accessCode);
+    if (!(await User.exists({ contact, accessCodeHash }))) {
+      return res.status(401).json({ error: "تعذر التحقق من الحساب." });
+    }
+    const subscriptions = await Subscription.find({
+      email: contact,
+      accessCodeHash,
+      status: { $in: ["active", "expired"] },
+    }).select("status planId planKey expiresAt").lean();
+    res.setHeader("Cache-Control", "no-store");
+    return res.json(classifySubscriptionState(subscriptions));
+  } catch (error) {
+    console.error("Subscription state lookup error:", error);
+    return res.status(500).json({ error: "تعذر تحميل حالة الاشتراك." });
   }
 });
 
