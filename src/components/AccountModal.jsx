@@ -5,6 +5,7 @@ import API_BASE_URL from "../config/api";
 import {
   ACCOUNT_MODAL_EVENT,
   clearAccessSession,
+  fetchSubscriptionState,
   getStoredAccessIdentity,
   startSubscriptionFlow,
   getStoredPremiumPass,
@@ -52,6 +53,8 @@ const isValidContact = (value = "") =>
 
 const getAccessTypeLabel = (accessType = "", status = "free") => {
   if (status === "admin" || accessType === "admin") return "إدارة";
+  if (status === "expired") return "دربك+ منتهي";
+  if (status === "loading" || status === "unknown") return "جارِ التحقق";
   if (accessType === "experience_reward") return "هدية مشاركة تجربة";
   if (accessType === "admin_grant") return "منحة إدارة";
   if (accessType === "paid_subscription" || accessType === "premium") return "دربك+";
@@ -62,6 +65,8 @@ export default function AccountModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [identity, setIdentity] = useState({});
   const [pass, setPass] = useState(null);
+  const [subscriptionState, setSubscriptionState] = useState(null);
+  const [statusLoading, setStatusLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
@@ -75,9 +80,25 @@ export default function AccountModal() {
 
   const status = useMemo(() => {
     if (pass?.isAdmin) return "admin";
+    if (subscriptionState?.state === "EXPIRED") return "expired";
+    if (subscriptionState?.state === "ACTIVE") return "active";
     if (pass?.expiresAt && new Date(pass.expiresAt) > new Date()) return "active";
+    if (statusLoading) return "loading";
+    if (subscriptionState === null && (identity.contact || identity.email)) return "unknown";
     return "free";
-  }, [pass]);
+  }, [identity.contact, identity.email, pass, statusLoading, subscriptionState]);
+
+  const loadSubscriptionState = useCallback(async () => {
+    setStatusLoading(true);
+    setSubscriptionState(null);
+    try {
+      setSubscriptionState(await fetchSubscriptionState());
+    } catch {
+      setMessage("تعذر تحديد حالة الاشتراك الآن. حاول تحديث حالة الحساب.");
+    } finally {
+      setStatusLoading(false);
+    }
+  }, []);
 
   const openModal = useCallback((event) => {
     const storedIdentity = getStoredAccessIdentity();
@@ -85,6 +106,11 @@ export default function AccountModal() {
     const context = event?.detail?.mode === "save_journey" ? event.detail : null;
     setIdentity(storedIdentity);
     setPass(getStoredPremiumPass());
+    if ((storedIdentity.contact || storedIdentity.email) && storedIdentity.accessCode) {
+      loadSubscriptionState();
+    } else {
+      setSubscriptionState({ state: "FREE", planId: "", expiresAt: null });
+    }
     setLoginForm({
       contact: isValidContact(storedContact) ? storedContact : "",
       accessCode: storedIdentity.accessCode || "",
@@ -100,7 +126,7 @@ export default function AccountModal() {
     setMessage("");
     setIsOpen(true);
     trackEvent("account_modal_opened");
-  }, []);
+  }, [loadSubscriptionState]);
 
   useEffect(() => {
     window.addEventListener(ACCOUNT_MODAL_EVENT, openModal);
@@ -156,7 +182,12 @@ export default function AccountModal() {
       return;
     }
     setIsOpen(false);
-    startSubscriptionFlow({ source: "account_renewal" });
+    startSubscriptionFlow({
+      ...(status === "expired" && subscriptionState?.planId
+        ? { planId: subscriptionState.planId }
+        : {}),
+      source: "account_renewal",
+    });
   };
 
   const refreshSubscription = async () => {
@@ -192,6 +223,7 @@ export default function AccountModal() {
       );
     } finally {
       setChecking(false);
+      loadSubscriptionState();
     }
   };
 
@@ -235,8 +267,9 @@ export default function AccountModal() {
         setMessage(data.message || "تم تسجيل الدخول.");
       } catch {
         setPass(null);
-        setMessage("تم تسجيل الدخول إلى حسابك المجاني.");
+        setMessage("تم تسجيل الدخول.");
       }
+      loadSubscriptionState();
       trackEvent("account_login_success");
     } catch (err) {
       setPass(null);
@@ -251,6 +284,7 @@ export default function AccountModal() {
     clearAccessSession();
     setIdentity({});
     setPass(null);
+    setSubscriptionState({ state: "FREE", planId: "", expiresAt: null });
     setLoginForm({ contact: "", accessCode: "" });
     setMessage("تم تسجيل الخروج من هذا الجهاز.");
     trackEvent("account_logout_clicked");
@@ -382,6 +416,10 @@ export default function AccountModal() {
               ? "حساب إدارة"
               : isExperienceReward
               ? "هدية مشاركة تجربة"
+              : status === "loading" || status === "unknown"
+              ? "جارِ التحقق من الاشتراك"
+              : status === "expired"
+              ? "اشتراكك منتهي"
               : isActive
               ? "دربك+ فعال"
               : "حساب مجاني"}
@@ -389,6 +427,10 @@ export default function AccountModal() {
           <strong>
             {isExperienceReward
               ? "وصول كامل لمدة 30 يومًا بعد اعتماد تجربتك"
+              : status === "loading" || status === "unknown"
+              ? "سنُظهر حالة اشتراكك بعد التحقق."
+              : status === "expired"
+              ? "يمكنك تجديد الاشتراك لمتابعة استخدام المزايا."
               : isActive
               ? "وصول كامل للمزايا المتقدمة"
               : "يمكنك الترقية متى احتجت"}
@@ -412,7 +454,7 @@ export default function AccountModal() {
           </div>
           <div>
             <dt>انتهاء الوصول</dt>
-            <dd>{status === "admin" ? "دائم" : formatDate(pass?.expiresAt)}</dd>
+            <dd>{status === "admin" ? "دائم" : formatDate(subscriptionState?.expiresAt || pass?.expiresAt)}</dd>
           </div>
           <div>
             <dt>نوع الوصول</dt>
@@ -420,7 +462,7 @@ export default function AccountModal() {
           </div>
         </dl>
 
-        {!isActive && (
+        {status === "free" && (
           <form className="account-login-form" onSubmit={loginToAccount}>
             <div>
               <span>تسجيل الدخول</span>
@@ -481,9 +523,9 @@ export default function AccountModal() {
         </div>
 
         <div className="account-modal-actions">
-          {premiumGateVisible && (
-            <button type="button" onClick={openPremiumGate}>
-              {isActive ? "تغيير الباقة" : "تجديد أو تفعيل دربك+"}
+          {(premiumGateVisible || status === "expired") && (
+            <button type="button" onClick={openPremiumGate} disabled={status === "loading" || status === "unknown"}>
+              {isActive ? "تغيير الباقة" : status === "expired" ? "تجديد الاشتراك" : "تجديد أو تفعيل دربك+"}
             </button>
           )}
           <button

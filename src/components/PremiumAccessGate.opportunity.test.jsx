@@ -50,8 +50,9 @@ test("server denied guest receives the existing limit notice even if frontend ga
   expect(document.querySelector(".subscription-limit-gate, .subscription-reminder, .premium-access-overlay, .subscription-reminder-overlay")).toBeTruthy();
 });
 
-test("authenticated subscription checkout does not ask for email or access code", async () => {
+test("expired authenticated QA checkout does not ask for email or access code", async () => {
   localStorage.setItem("darbak_access_identity_v1", JSON.stringify({ contact: "qa@example.com", accessCode: "Qa1234" }));
+  localStorage.setItem("darbak_premium_pass_v1", JSON.stringify({ planId: "darbak_plus", expiresAt: "2020-01-01T00:00:00Z" }));
   axios.get.mockImplementation((url) => Promise.resolve({ data: url.includes("checkout-canary") ? { enabled: true } : {} }));
   render(<MemoryRouter><PremiumAccessGate /></MemoryRouter>);
   await act(async () => {});

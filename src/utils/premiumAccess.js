@@ -83,6 +83,10 @@ export const getSubscriptionCapabilities = (pass = getStoredPremiumPass()) => {
   if (pass?.isAdmin || pass?.accessType === "admin") {
     return { hasCoreAccess: true, hasResumeAccess: true };
   }
+  if (pass?.status?.toLowerCase() === "expired" ||
+    (pass?.expiresAt && new Date(pass.expiresAt) <= new Date())) {
+    return { hasCoreAccess: false, hasResumeAccess: false };
+  }
 
   const planCapabilities = PLAN_CAPABILITIES[pass?.planId] || {};
   return {
@@ -269,6 +273,22 @@ export const getAccessHeaders = (detail = {}) => {
     if (value) headers[key] = value;
     return headers;
   }, {});
+};
+
+export const fetchSubscriptionState = async () => {
+  const identity = getStoredAccessIdentity();
+  if (!(identity.contact || identity.email) || !identity.accessCode) {
+    return { state: "FREE", planId: "", expiresAt: null };
+  }
+  const response = await fetch(`${API_BASE_URL}/api/subscriptions/state`, {
+    headers: getAccessHeaders(),
+  });
+  if (!response.ok) throw new Error("Subscription state unavailable");
+  const state = await response.json();
+  if (!["FREE", "ACTIVE", "EXPIRED"].includes(state?.state)) {
+    throw new Error("Invalid subscription state");
+  }
+  return state;
 };
 
 const openPremiumGate = (detail, onGranted, accessStatus = {}) => {

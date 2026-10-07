@@ -8,6 +8,7 @@ import PremiumInlineNotice from "../components/PremiumInlineNotice";
 import { trackEvent } from "../utils/analytics";
 import {
   PREMIUM_STATUS_EVENT,
+  fetchSubscriptionState,
   getAccessHeaders,
   hasCoreAccess,
   requestPremiumAccess,
@@ -1561,17 +1562,28 @@ const ExperiencesPage = () => {
     ];
   };
 
-  const openPremiumFromLockedExperience = (exp = {}) => {
-    const experienceId = exp._id || exp.id || "";
-    requestPremiumAccess(
-      {
-        feature: "experience_details",
-        title: exp.title || exp.organizationName || exp.companyName || "",
-        source: "experience_inline_notice",
-        itemKey: experienceId ? `experience:${experienceId}` : "",
-      },
-      () => openExperienceDetails(exp)
-    );
+  const openPremiumFromLockedExperience = async (exp = {}) => {
+    let subscriptionState;
+    try {
+      subscriptionState = await fetchSubscriptionState();
+    } catch {
+      setFetchError("تعذر تحديد حالة الاشتراك الآن. حاول مرة أخرى.");
+      return;
+    }
+    if (subscriptionState.state === "ACTIVE") {
+      openExperienceDetails(exp);
+      return;
+    }
+    startSubscriptionFlow({
+      planId: subscriptionState.state === "EXPIRED" && subscriptionState.planId
+        ? subscriptionState.planId
+        : "darbak_plus",
+      source: subscriptionState.state === "EXPIRED"
+        ? "experience_inline_renewal"
+        : "experience_inline_notice",
+      returnTo: `${location.pathname}${location.search}`,
+      navigate,
+    });
   };
 
   const openExperiencesPlusBanner = () => {

@@ -3,6 +3,7 @@ import {
   hasSubscriptionFeatureAccess,
   getSafeSubscriptionReturnTo,
   getSubscriptionFlowPath,
+  fetchSubscriptionState,
 } from "./premiumAccess";
 
 test.each([
@@ -25,6 +26,34 @@ test("no subscription has no protected capabilities", () => {
     hasCoreAccess: false,
     hasResumeAccess: false,
   });
+});
+
+test("an expired pass never grants paid access", () => {
+  expect(getSubscriptionCapabilities({
+    planId: "darbak_resume",
+    entitlements: ["darbak_plus", "resume_builder"],
+    expiresAt: "2020-01-01T00:00:00Z",
+  })).toEqual({ hasCoreAccess: false, hasResumeAccess: false });
+});
+
+test("an authenticated account reads its current subscription state without creating a session", async () => {
+  const originalFetch = global.fetch;
+  window.localStorage.setItem("darbak_access_identity_v1", JSON.stringify({
+    contact: "qa@example.com", accessCode: "Qa1234",
+  }));
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ state: "EXPIRED", planId: "darbak_plus" }),
+  });
+  try {
+    expect(await fetchSubscriptionState()).toMatchObject({ state: "EXPIRED", planId: "darbak_plus" });
+    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("/api/subscriptions/state"), {
+      headers: expect.objectContaining({ "x-darbak-contact": "qa@example.com" }),
+    });
+  } finally {
+    global.fetch = originalFetch;
+    window.localStorage.clear();
+  }
 });
 
 test.each([
