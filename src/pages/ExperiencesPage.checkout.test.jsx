@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import axios from "axios";
 import ExperiencesPage from "./ExperiencesPage";
 import { fetchSubscriptionState, requestPremiumAccess, startSubscriptionFlow } from "../utils/premiumAccess";
@@ -20,16 +20,15 @@ jest.mock("../utils/premiumAccess", () => ({
   startSubscriptionFlow: jest.fn(),
 }));
 jest.mock("../components/ShareButton", () => () => null);
-jest.mock("../components/PremiumInlineNotice", () => ({ onUnlock }) => (
-  <button type="button" onClick={onUnlock}>افتح التجربة المقفلة</button>
-));
-
+const originalFetch = global.fetch;
 beforeEach(() => {
   jest.clearAllMocks();
   window.localStorage.clear();
+  global.fetch = jest.fn().mockResolvedValue({ json: async () => ({}) });
   axios.get.mockResolvedValue({ data: { data: [], total: 0, hasMore: false } });
   fetchSubscriptionState.mockResolvedValue({ state: "FREE", planId: "" });
 });
+afterEach(() => { global.fetch = originalFetch; });
 
 const openLockedExperience = async () => {
   axios.get.mockResolvedValue({ data: {
@@ -38,45 +37,99 @@ const openLockedExperience = async () => {
     hasMore: false,
   } });
   requestPremiumAccess.mockImplementation((detail) => detail.onLimited?.({ reason: "daily_limit" }));
-  await act(async () => { render(<ExperiencesPage />); });
+  let view;
+  await act(async () => { view = render(<ExperiencesPage />); });
   fireEvent.click(await screen.findByRole("button", { name: "عرض التفاصيل" }));
-  await screen.findByRole("button", { name: "افتح التجربة المقفلة" });
-  fireEvent.click(screen.getByRole("button", { name: "افتح التجربة المقفلة" }));
+  const notice = await waitFor(() => document.querySelector(".premium-inline-notice"));
+  return { view, cta: () => within(notice).getByRole("button", { name: /كمل استكشافك|جارِ فتح الاشتراك|تعذر الاتصال/ }) };
 };
 
 test("expired locked experience enters renewal checkout on the first click", async () => {
   fetchSubscriptionState.mockResolvedValue({ state: "EXPIRED", planId: "darbak_resume" });
-  await openLockedExperience();
+  const { cta } = await openLockedExperience();
+  fireEvent.click(cta());
   await waitFor(() => expect(startSubscriptionFlow).toHaveBeenCalledWith({
     planId: "darbak_resume",
     source: "experience_inline_renewal",
     returnTo: "/experiences?city=riyadh",
     navigate: mockNavigate,
   }));
+  expect(startSubscriptionFlow).toHaveBeenCalledTimes(1);
 });
 
-test("free locked experience enters the existing plus checkout", async () => {
-  await openLockedExperience();
+test.each(["qa", "all"])("free locked experience enters plus checkout in %s mode", async (mode) => {
+  fetchSubscriptionState.mockResolvedValue({ state: "FREE", planId: "", checkoutMode: mode });
+  const { cta } = await openLockedExperience();
+  fireEvent.click(cta());
   await waitFor(() => expect(startSubscriptionFlow).toHaveBeenCalledWith({
     planId: "darbak_plus",
     source: "experience_inline_notice",
     returnTo: "/experiences?city=riyadh",
     navigate: mockNavigate,
   }));
+  expect(startSubscriptionFlow).toHaveBeenCalledTimes(1);
 });
 
 test("active locked experience retries access without opening checkout", async () => {
   fetchSubscriptionState.mockResolvedValue({ state: "ACTIVE", planId: "darbak_plus" });
-  await openLockedExperience();
+  const { cta } = await openLockedExperience();
+  fireEvent.click(cta());
   await waitFor(() => expect(requestPremiumAccess).toHaveBeenCalledTimes(2));
   expect(startSubscriptionFlow).not.toHaveBeenCalled();
 });
 
-test("locked experience does not guess a plan when state lookup fails", async () => {
+test("locked experience shows retry when both state lookups fail", async () => {
   fetchSubscriptionState.mockRejectedValue(new Error("State unavailable"));
-  await openLockedExperience();
-  await waitFor(() => expect(screen.getByText("تعذر تحديد حالة الاشتراك الآن. حاول مرة أخرى.")).toBeTruthy());
+  const { cta } = await openLockedExperience();
+  fireEvent.click(cta());
+  await waitFor(() => expect(cta().textContent).toBe("تعذر الاتصال، حاول مرة أخرى"));
   expect(startSubscriptionFlow).not.toHaveBeenCalled();
+});
+
+test("first click survives a transient state lookup failure", async () => {
+  fetchSubscriptionState
+    .mockRejectedValueOnce(new Error("temporary error"))
+    .mockResolvedValueOnce({ state: "FREE", planId: "" });
+  const { cta } = await openLockedExperience();
+  fireEvent.click(cta());
+  await waitFor(() => expect(startSubscriptionFlow).toHaveBeenCalledTimes(1));
+  expect(fetchSubscriptionState).toHaveBeenCalledTimes(2);
+});
+
+test("double click while lookup is pending starts one checkout", async () => {
+  let resolveState;
+  fetchSubscriptionState.mockReturnValue(new Promise((resolve) => { resolveState = resolve; }));
+  const { cta } = await openLockedExperience();
+  fireEvent.click(cta());
+  expect(cta().textContent).toBe("جارِ فتح الاشتراك...");
+  fireEvent.click(cta());
+  expect(fetchSubscriptionState).toHaveBeenCalledTimes(1);
+  await act(async () => resolveState({ state: "FREE", planId: "" }));
+  expect(startSubscriptionFlow).toHaveBeenCalledTimes(1);
+  fireEvent.click(cta());
+  expect(startSubscriptionFlow).toHaveBeenCalledTimes(1);
+});
+
+test("retry after a failed lookup opens checkout once", async () => {
+  fetchSubscriptionState
+    .mockRejectedValueOnce(new Error("temporary error"))
+    .mockRejectedValueOnce(new Error("temporary error"))
+    .mockResolvedValueOnce({ state: "EXPIRED", planId: "darbak_plus" });
+  const { cta } = await openLockedExperience();
+  fireEvent.click(cta());
+  await waitFor(() => expect(cta().textContent).toBe("تعذر الاتصال، حاول مرة أخرى"));
+  fireEvent.click(cta());
+  await waitFor(() => expect(startSubscriptionFlow).toHaveBeenCalledTimes(1));
+});
+
+test("checkout remains available after closing and returning to the locked experience", async () => {
+  const first = await openLockedExperience();
+  fireEvent.click(first.cta());
+  await waitFor(() => expect(startSubscriptionFlow).toHaveBeenCalledTimes(1));
+  first.view.unmount();
+  const second = await openLockedExperience();
+  fireEvent.click(second.cta());
+  await waitFor(() => expect(startSubscriptionFlow).toHaveBeenCalledTimes(2));
 });
 
 test("experiences banner enters unified checkout on its first click", async () => {
