@@ -69,6 +69,7 @@ import {
   saveTrainingFinderSessionFilters,
 } from "../utils/trainingFinderPreferences";
 import {
+  getOpportunityPersonalization,
   getOpportunityPersonalizationTier,
   rankOpportunitiesForPersonalization,
 } from "../utils/trainingFinderRanking";
@@ -81,6 +82,11 @@ const pageFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 const SHOW_TRAINING_FINDER_FAQ = false;
 const TELEGRAM_CHANNEL_URL = "https://t.me/darbak_1";
 const OPPORTUNITY_PROMO_DISMISSED_KEY = "darbak_where_to_train_promo_dismissed";
+const OPPORTUNITY_TIER_SECTIONS = {
+  1: ["الأقرب لك", "أقرب الفرص لتخصصك وموقعك"],
+  2: ["قد يناسبك", "فرص قريبة من اختيارك وتستحق الاطلاع"],
+  3: ["فرص أخرى", "استكشف باقي الفرص المتاحة"],
+};
 const LOCKED_OPPORTUNITY_PREVIEW =
   "هذه معاينة مختصرة للفرصة. فعّل دربك+ للوصول إلى تفاصيل الفرصة وروابط التقديم المباشرة.";
 const WHERE_TO_TRAIN_PREMIUM_TITLE = "باقي تفاصيل الفرص والجهات 👀";
@@ -1878,15 +1884,6 @@ export default function TrainingFinderPage() {
   ]);
   const visibleOpportunities = useMemo(() => {
     const filteredOpportunities = opportunities.filter((opportunity) => {
-      if (
-        !entityMatchesOrganizationQuery(
-          opportunity,
-          normalizedOrganizationQuery
-        )
-      ) {
-        return false;
-      }
-
       const applicationState = getOpportunityApplicationState(
         opportunity.deadline,
         opportunity.status
@@ -1914,7 +1911,8 @@ export default function TrainingFinderPage() {
       );
     });
 
-    const generallyRanked = opportunityFilters.freshness === "recent"
+    const hasTextSearch = normalizedOrganizationQuery.length > 0;
+    const generallyRanked = opportunityFilters.freshness === "recent" && !hasTextSearch
       ? [...filteredOpportunities].sort(
         (first, second) =>
           getOpportunityCreatedAtTimestamp(second) -
@@ -1922,38 +1920,42 @@ export default function TrainingFinderPage() {
       )
       : filteredOpportunities;
 
+    // The backend already matched note and ranked explicit text searches.
+    if (hasTextSearch) return generallyRanked;
     return rankOpportunitiesForPersonalization(generallyRanked, {
       specialty: selectedSpecialtyLabel,
       majorCategories: selectedMajorCategories,
-      cityScope: selectedCityScope,
+      city,
     });
   }, [
+    city,
     normalizedOrganizationQuery,
     opportunities,
     opportunityFilters,
     selectedMajorCategories,
     selectedSpecialtyLabel,
-    selectedCityScope,
   ]);
-  const closestOpportunityCount = useMemo(
-    () =>
-      visibleOpportunities.filter(
-        (opportunity) =>
-          getOpportunityPersonalizationTier({
-            opportunity,
-            specialty: selectedSpecialtyLabel,
-            majorCategories: selectedMajorCategories,
-            cityScope: selectedCityScope,
-          }) === 3
-      ).length,
+  const opportunityTierCounts = useMemo(
+    () => visibleOpportunities.reduce((counts, opportunity) => {
+      const tier = getOpportunityPersonalizationTier({
+        opportunity,
+        specialty: selectedSpecialtyLabel,
+        majorCategories: selectedMajorCategories,
+        city,
+      });
+      if (tier) counts[tier] += 1;
+      return counts;
+    }, { 1: 0, 2: 0, 3: 0 }),
     [
+      city,
       selectedMajorCategories,
       selectedSpecialtyLabel,
-      selectedCityScope,
       visibleOpportunities,
     ]
   );
   const hasPersonalizationContext = Boolean(selectedSpecialty || city);
+  const showOpportunitySections = hasPersonalizationContext &&
+    normalizedOrganizationQuery.length === 0;
   const hasActiveOpportunityFilters = Object.values(opportunityFilters).some(
     Boolean
   );
@@ -2330,11 +2332,9 @@ export default function TrainingFinderPage() {
       setOrganizationQuery(nextOrganization);
       setSearched(false);
       setTargets([]);
-      fetchOpportunities(
-        nextCity || nextOrganization
-          ? { city: nextCity, organization: nextOrganization }
-          : {}
-      );
+      fetchOpportunities(nextOrganization
+        ? { organization: nextOrganization, search: nextOrganization }
+        : {});
       return;
     }
 
@@ -3821,7 +3821,9 @@ export default function TrainingFinderPage() {
               <>
               {visibleOpportunities.length > 0 && (
               <>
-              {hasPersonalizationContext && (
+              {showOpportunitySections &&
+                opportunityTierCounts[1] === 0 &&
+                opportunityTierCounts[2] > 0 && (
                 <p
                   style={{
                     margin: 0,
@@ -3830,9 +3832,7 @@ export default function TrainingFinderPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  {closestOpportunityCount > 0
-                    ? "رتّبنا النتائج المطابقة لتخصصك ومدينتك أو منطقتك أولًا، ثم أبقينا لك كل الفرص الأخرى للاكتشاف."
-                    : "ما لقينا فرص مطابقة تمامًا لاختيارك حاليًا، لكن جمعنا لك فرصًا أخرى قد تناسب تخصصك."}
+                  ما لقينا فرصة مطابقة تمامًا الآن، لكن هذه أقرب الفرص لك.
                 </p>
               )}
               <div
@@ -3844,13 +3844,22 @@ export default function TrainingFinderPage() {
                 }}
               >
                 {visibleOpportunities.map((opportunity, index) => {
-                  const startsClosestSection =
-                    hasPersonalizationContext &&
-                    closestOpportunityCount > 0 &&
-                    index === 0;
-                  const startsOtherSection =
-                    hasPersonalizationContext &&
-                    index === closestOpportunityCount;
+                  const personalization = getOpportunityPersonalization({
+                    opportunity,
+                    specialty: selectedSpecialtyLabel,
+                    majorCategories: selectedMajorCategories,
+                    city,
+                  });
+                  const previousTier = index > 0
+                    ? getOpportunityPersonalizationTier({
+                      opportunity: visibleOpportunities[index - 1],
+                      specialty: selectedSpecialtyLabel,
+                      majorCategories: selectedMajorCategories,
+                      city,
+                    })
+                    : 0;
+                  const startsSection = showOpportunitySections &&
+                    personalization.tier !== previousTier;
                   const applicationState = getOpportunityApplicationState(
                     opportunity.deadline,
                     opportunity.status
@@ -3871,13 +3880,14 @@ export default function TrainingFinderPage() {
                         `${opportunity.organizationName}-${index}`
                       }
                     >
-                    {startsClosestSection && (
+                    {startsSection && (
                       <div
                         style={{
                           gridColumn: "1 / -1",
                           display: "grid",
                           gap: "3px",
-                          padding: "4px 2px 2px",
+                          padding: index > 0 ? "12px 2px 2px" : "4px 2px 2px",
+                          borderTop: index > 0 ? "1px solid var(--app-border)" : "none",
                         }}
                       >
                         <h2
@@ -3888,7 +3898,7 @@ export default function TrainingFinderPage() {
                             lineHeight: 1.5,
                           }}
                         >
-                          الأقرب لاختيارك
+                          {OPPORTUNITY_TIER_SECTIONS[personalization.tier][0]}
                         </h2>
                         <p
                           style={{
@@ -3898,42 +3908,7 @@ export default function TrainingFinderPage() {
                             lineHeight: 1.7,
                           }}
                         >
-                          نفس التخصص في {city || "مدينتك أو منطقتك"}.
-                        </p>
-                      </div>
-                    )}
-                    {startsOtherSection && (
-                      <div
-                        style={{
-                          gridColumn: "1 / -1",
-                          display: "grid",
-                          gap: "3px",
-                          padding: closestOpportunityCount > 0 ? "12px 2px 2px" : "4px 2px 2px",
-                          borderTop:
-                            closestOpportunityCount > 0
-                              ? "1px solid var(--app-border)"
-                              : "none",
-                        }}
-                      >
-                        <h2
-                          style={{
-                            margin: 0,
-                            color: "var(--app-text)",
-                            fontSize: "18px",
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          فرص أخرى قد تناسبك
-                        </h2>
-                        <p
-                          style={{
-                            margin: 0,
-                            color: "var(--app-text-soft)",
-                            fontSize: "12.5px",
-                            lineHeight: 1.7,
-                          }}
-                        >
-                          فرص في مدن ومناطق أخرى ما زالت متاحة لك.
+                          {OPPORTUNITY_TIER_SECTIONS[personalization.tier][1]}
                         </p>
                       </div>
                     )}
@@ -4055,7 +4030,7 @@ export default function TrainingFinderPage() {
                               {opportunity.title || "فرصة تدريب"}
                             </h3>
                             <div className="opportunity-card-badges">
-                              {opportunity.trainingMode === "remote" && (
+                              {opportunity.trainingMode === "remote" && !hasPersonalizationContext && (
                                 <span className="opportunity-audience-badge">
                                   عن بعد
                                 </span>
@@ -4105,11 +4080,16 @@ export default function TrainingFinderPage() {
 
                       <p className="opportunity-card-majors">
                         {(opportunity.specialties?.length ? opportunity.specialties : opportunity.majorCategories || [])
-                          .slice(0, 2).join(" • ") || "جميع التخصصات"}
+                          .slice(0, 2).join(" • ") || "التخصص غير محدد"}
                         {(opportunity.specialties?.length || opportunity.majorCategories?.length || 0) > 2
                           ? ` +${(opportunity.specialties?.length || opportunity.majorCategories?.length) - 2}`
                           : ""}
                       </p>
+                      {personalization.labels.length > 0 && (
+                        <p className="opportunity-card-meta" aria-label="سبب ظهور الفرصة">
+                          {personalization.labels.join(" • ")}
+                        </p>
+                      )}
                       {(getOpportunityCardStats(opportunity).length > 0 || opportunityFreshnessLabel) && (
                         <p className="opportunity-card-meta">
                           {[

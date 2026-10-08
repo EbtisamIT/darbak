@@ -205,3 +205,103 @@ test("mobile grid rule is one column through 760px and actions stay two columns 
   expect(css).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.where-to-train-page \.opportunities-grid\s*\{\s*grid-template-columns: minmax\(0, 1fr\) !important/);
   expect(css).toMatch(/\.where-to-train-page \.opportunity-card \.opportunity-actions\s*\{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important/);
 });
+
+test("city-only personalization fetches the full opportunity set without a city API filter", async () => {
+  window.sessionStorage.setItem(
+    "darbak:where-to-train:filters:v1",
+    JSON.stringify({ specialty: "", city: "الخبر" })
+  );
+  renderPage();
+  await screen.findByText("متدرب تقنية المعلومات");
+  const opportunityCalls = axios.get.mock.calls.filter(([url]) =>
+    url.endsWith("/api/opportunities")
+  );
+  expect(opportunityCalls.length).toBeGreaterThan(0);
+  opportunityCalls.forEach(([, options]) =>
+    expect(options?.params?.city).toBeUndefined()
+  );
+  expect(document.querySelectorAll(".opportunity-card")).toHaveLength(opportunities.length);
+});
+
+test("personalization shows three nonempty sections without changing card actions", async () => {
+  window.sessionStorage.setItem(
+    "darbak:where-to-train:filters:v1",
+    JSON.stringify({ specialty: "تقنية المعلومات", city: "الخبر" })
+  );
+  const rankedFixtures = [
+    { ...opportunities[0], _id: "exact", title: "فرصة الخبر", city: "الخبر", specialties: ["تقنية المعلومات"] },
+    { ...opportunities[0], _id: "related", title: "فرصة نظم المعلومات", city: "الخبر", specialties: ["نظم المعلومات"] },
+    { ...opportunities[1], _id: "other", title: "فرصة التسويق", city: "جدة" },
+  ];
+  axios.get.mockImplementation((url) => Promise.resolve({
+    data: { data: url.endsWith("/api/opportunities") ? rankedFixtures : [] },
+  }));
+  renderPage();
+  await screen.findByText("فرصة الخبر");
+  expect(screen.getByRole("heading", { name: "الأقرب لك" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "قد يناسبك" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "فرص أخرى" })).toBeInTheDocument();
+  expect(document.querySelectorAll(".opportunity-card")).toHaveLength(rankedFixtures.length);
+  const firstCard = screen.getByText("فرصة الخبر").closest(".opportunity-card");
+  expect(within(firstCard).getByText("مطابق لتخصصك • في مدينتك")).toBeInTheDocument();
+  expect(within(firstCard).getByRole("button", { name: "التفاصيل" })).toBeInTheDocument();
+});
+
+test("backend note-only search matches are not dropped or reordered by frontend", async () => {
+  window.sessionStorage.setItem(
+    "darbak:where-to-train:filters:v1",
+    JSON.stringify({ specialty: "تقنية المعلومات", city: "الخبر" })
+  );
+  const backendResults = [
+    { ...opportunities[0], _id: "note-only", title: "برنامج عام", organizationName: "جهة أولى", specialties: [] },
+    { ...opportunities[1], _id: "title-match", title: "Computer Science Internship" },
+  ];
+  axios.get.mockImplementation((url, options) => Promise.resolve({
+    data: {
+      data: url.endsWith("/api/opportunities") && options?.params?.search
+        ? backendResults
+        : url.endsWith("/api/opportunities") ? opportunities : [],
+    },
+  }));
+  renderPage();
+  await screen.findByText("متدرب تقنية المعلومات");
+  fireEvent.change(screen.getByPlaceholderText("ابحث عن فرصة أو جهة..."), {
+    target: { value: "Computer Science" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "ابحث" }));
+  await screen.findByText("برنامج عام");
+  expect(Array.from(document.querySelectorAll(".opportunity-card-title"))
+    .map((element) => element.textContent))
+    .toEqual(["برنامج عام", "Computer Science Internship"]);
+  expect(screen.queryByRole("heading", { name: "الأقرب لك" })).not.toBeInTheDocument();
+});
+
+test("without a selection the original feed has no personalization sections", async () => {
+  renderPage();
+  await screen.findByText("متدرب تقنية المعلومات");
+  expect(screen.queryByRole("heading", { name: "الأقرب لك" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "قد يناسبك" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "فرص أخرى" })).not.toBeInTheDocument();
+});
+
+test("no exact matches shows one short message and keeps tier two opportunities", async () => {
+  window.sessionStorage.setItem(
+    "darbak:where-to-train:filters:v1",
+    JSON.stringify({ specialty: "تقنية المعلومات", city: "الخبر" })
+  );
+  const relatedOpportunity = {
+    ...opportunities[0],
+    _id: "related-only",
+    title: "فرصة نظم المعلومات",
+    city: "الخبر",
+    specialties: ["نظم المعلومات"],
+  };
+  axios.get.mockImplementation((url) => Promise.resolve({
+    data: { data: url.endsWith("/api/opportunities") ? [relatedOpportunity] : [] },
+  }));
+  renderPage();
+  await screen.findByText("فرصة نظم المعلومات");
+  expect(screen.getAllByText("ما لقينا فرصة مطابقة تمامًا الآن، لكن هذه أقرب الفرص لك.")).toHaveLength(1);
+  expect(screen.queryByRole("heading", { name: "الأقرب لك" })).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "قد يناسبك" })).toBeInTheDocument();
+});
