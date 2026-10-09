@@ -54,6 +54,33 @@ const { requestOpportunityAccess } = require("../utils/opportunityAccess");
 
 const renderPage = () => render(<TrainingFinderPage />);
 
+const setPersonalization = () => window.sessionStorage.setItem(
+  "darbak:where-to-train:filters:v1",
+  JSON.stringify({ specialty: "تقنية المعلومات", city: "الخبر" })
+);
+
+const makeTieredOpportunities = (tierTwoCount, tierThreeCount = 1) => [
+  { ...opportunities[0], _id: "tier-one", title: "فرصة الأقرب", city: "الخبر", specialties: ["تقنية المعلومات"] },
+  ...Array.from({ length: tierTwoCount }, (_, index) => ({
+    ...opportunities[0],
+    _id: `tier-two-${index}`,
+    title: `فرصة مناسبة ${index + 1}`,
+    city: "الرياض",
+    specialties: ["تقنية المعلومات", "نظم المعلومات"],
+    createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, tierTwoCount - index)).toISOString(),
+  })),
+  ...Array.from({ length: tierThreeCount }, (_, index) => ({
+    ...opportunities[1], _id: `tier-three-${index}`, title: `فرصة أخرى ${index + 1}`,
+  })),
+];
+
+const mockOpportunityFeed = (items) => axios.get.mockImplementation((url) => Promise.resolve({
+  data: { data: url.endsWith("/api/opportunities") ? items : [] },
+}));
+
+const renderedTitles = () => Array.from(document.querySelectorAll(".opportunity-card-title"))
+  .map((element) => element.textContent);
+
 beforeEach(() => {
   jest.clearAllMocks();
   useResumeDiscoveryAccess.mockReturnValue({ hasAccess: false, hasMaster: false });
@@ -304,4 +331,79 @@ test("no exact matches shows one short message and keeps tier two opportunities"
   expect(screen.getAllByText("ما لقينا فرصة مطابقة تمامًا الآن، لكن هذه أقرب الفرص لك.")).toHaveLength(1);
   expect(screen.queryByRole("heading", { name: "الأقرب لك" })).not.toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "قد يناسبك" })).toBeInTheDocument();
+});
+
+test("six or fewer tier two opportunities need no disclosure control", async () => {
+  setPersonalization();
+  mockOpportunityFeed(makeTieredOpportunities(6));
+  renderPage();
+  await screen.findByText("فرصة مناسبة 1");
+  expect(screen.queryByRole("button", { name: /عرض المزيد من الفرص/ })).not.toBeInTheDocument();
+  expect(renderedTitles()).toHaveLength(8);
+});
+
+test("tier two reveals six at a time, retains ranking and all 400 opportunities without duplicates", async () => {
+  setPersonalization();
+  const items = makeTieredOpportunities(46, 353);
+  mockOpportunityFeed(items);
+  renderPage();
+  await screen.findByText("فرصة مناسبة 1");
+  expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة")))
+    .toEqual(Array.from({ length: 6 }, (_, index) => `فرصة مناسبة ${index + 1}`));
+  expect(renderedTitles()[0]).toBe("فرصة الأقرب");
+  expect(renderedTitles().filter((title) => title.startsWith("فرصة أخرى"))).toHaveLength(353);
+  expect(screen.getByRole("heading", { name: "فرص أخرى" })).toBeInTheDocument();
+  expect(items).toHaveLength(400);
+
+  fireEvent.click(screen.getByRole("button", { name: /عرض المزيد من الفرص/ }));
+  expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة")))
+    .toEqual(Array.from({ length: 12 }, (_, index) => `فرصة مناسبة ${index + 1}`));
+  while (screen.queryByRole("button", { name: /عرض المزيد من الفرص/ })) {
+    fireEvent.click(screen.getByRole("button", { name: /عرض المزيد من الفرص/ }));
+  }
+  expect(renderedTitles()).toHaveLength(400);
+  expect(new Set(renderedTitles()).size).toBe(400);
+  expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة")))
+    .toEqual(Array.from({ length: 46 }, (_, index) => `فرصة مناسبة ${index + 1}`));
+  fireEvent.click(screen.getByRole("button", { name: "عرض أقل" }));
+  expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة"))).toHaveLength(6);
+  expect(screen.getByRole("heading", { name: "فرص أخرى" })).toBeInTheDocument();
+});
+
+test("changing major or city resets tier two to six", async () => {
+  setPersonalization();
+  mockOpportunityFeed(makeTieredOpportunities(13));
+  renderPage();
+  await screen.findByText("فرصة مناسبة 1");
+  fireEvent.click(screen.getByRole("button", { name: /عرض المزيد من الفرص/ }));
+  expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة"))).toHaveLength(12);
+
+  fireEvent.change(screen.getByLabelText("المدينة"), { target: { value: "الدمام" } });
+  expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة"))).toHaveLength(6);
+  fireEvent.click(screen.getByRole("button", { name: /عرض المزيد من الفرص/ }));
+  expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة"))).toHaveLength(12);
+
+  fireEvent.change(screen.getByPlaceholderText("اكتب تخصصك أو اختره"), {
+    target: { value: "نظم المعلومات" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "ابحث" }));
+  await waitFor(() => expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة"))).toHaveLength(6));
+});
+
+test("explicit text search keeps backend order and does not disclose tier two progressively", async () => {
+  setPersonalization();
+  const items = makeTieredOpportunities(13);
+  axios.get.mockImplementation((url, options) => Promise.resolve({
+    data: { data: url.endsWith("/api/opportunities") && options?.params?.search
+      ? [...items].reverse()
+      : url.endsWith("/api/opportunities") ? items : [] },
+  }));
+  renderPage();
+  await screen.findByText("فرصة مناسبة 1");
+  fireEvent.change(screen.getByPlaceholderText("ابحث عن فرصة أو جهة..."), {
+    target: { value: "كلمة في الملاحظات" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "ابحث" }));
+  await waitFor(() => expect(renderedTitles()).toEqual([...items].reverse().map((item) => item.title)));
+  expect(screen.queryByRole("button", { name: /عرض المزيد من الفرص/ })).not.toBeInTheDocument();
 });

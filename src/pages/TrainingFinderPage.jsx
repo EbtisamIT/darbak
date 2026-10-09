@@ -87,6 +87,7 @@ const OPPORTUNITY_TIER_SECTIONS = {
   2: ["قد يناسبك", "فرص قريبة من اختيارك وتستحق الاطلاع"],
   3: ["فرص أخرى", "استكشف باقي الفرص المتاحة"],
 };
+const TIER_TWO_PAGE_SIZE = 6;
 const LOCKED_OPPORTUNITY_PREVIEW =
   "هذه معاينة مختصرة للفرصة. فعّل دربك+ للوصول إلى تفاصيل الفرصة وروابط التقديم المباشرة.";
 const WHERE_TO_TRAIN_PREMIUM_TITLE = "باقي تفاصيل الفرص والجهات 👀";
@@ -1569,6 +1570,7 @@ export default function TrainingFinderPage() {
     useState(false);
   const [targets, setTargets] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
+  const [tierTwoDisclosure, setTierTwoDisclosure] = useState({ key: "", count: TIER_TWO_PAGE_SIZE });
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
@@ -1956,6 +1958,23 @@ export default function TrainingFinderPage() {
   const hasPersonalizationContext = Boolean(selectedSpecialty || city);
   const showOpportunitySections = hasPersonalizationContext &&
     normalizedOrganizationQuery.length === 0;
+  const tierTwoSelectionKey = JSON.stringify([selectedSpecialtyLabel, city]);
+  const visibleTierTwoCount = tierTwoDisclosure.key === tierTwoSelectionKey
+    ? tierTwoDisclosure.count
+    : TIER_TWO_PAGE_SIZE;
+  let tierTwoSeen = 0;
+  const renderedOpportunities = showOpportunitySections && opportunityTierCounts[2] > TIER_TWO_PAGE_SIZE
+    ? visibleOpportunities.filter((opportunity) => {
+      if (getOpportunityPersonalizationTier({
+        opportunity,
+        specialty: selectedSpecialtyLabel,
+        majorCategories: selectedMajorCategories,
+        city,
+      }) !== 2) return true;
+      tierTwoSeen += 1;
+      return tierTwoSeen <= visibleTierTwoCount;
+    })
+    : visibleOpportunities;
   const hasActiveOpportunityFilters = Object.values(opportunityFilters).some(
     Boolean
   );
@@ -3843,7 +3862,7 @@ export default function TrainingFinderPage() {
                   gap: "10px",
                 }}
               >
-                {visibleOpportunities.map((opportunity, index) => {
+                {renderedOpportunities.map((opportunity, index) => {
                   const personalization = getOpportunityPersonalization({
                     opportunity,
                     specialty: selectedSpecialtyLabel,
@@ -3852,7 +3871,7 @@ export default function TrainingFinderPage() {
                   });
                   const previousTier = index > 0
                     ? getOpportunityPersonalizationTier({
-                      opportunity: visibleOpportunities[index - 1],
+                      opportunity: renderedOpportunities[index - 1],
                       specialty: selectedSpecialtyLabel,
                       majorCategories: selectedMajorCategories,
                       city,
@@ -4153,6 +4172,38 @@ export default function TrainingFinderPage() {
                         )}
                       </div>
                     </article>
+                    {showOpportunitySections && personalization.tier === 2 &&
+                      (index === renderedOpportunities.length - 1 ||
+                        getOpportunityPersonalizationTier({
+                          opportunity: renderedOpportunities[index + 1],
+                          specialty: selectedSpecialtyLabel,
+                          majorCategories: selectedMajorCategories,
+                          city,
+                        }) !== 2) && opportunityTierCounts[2] > TIER_TWO_PAGE_SIZE && (
+                      <div style={{ gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", gap: "8px", padding: "4px 2px" }}>
+                        {visibleTierTwoCount < opportunityTierCounts[2] && (
+                          <button
+                            type="button"
+                            onClick={() => setTierTwoDisclosure({
+                              key: tierTwoSelectionKey,
+                              count: Math.min(visibleTierTwoCount + TIER_TWO_PAGE_SIZE, opportunityTierCounts[2]),
+                            })}
+                            style={{ background: "var(--app-card)", color: "var(--app-text)", border: "1px solid var(--app-border)", borderRadius: "10px", padding: "8px 12px", font: "inherit", fontSize: "13px", cursor: "pointer" }}
+                          >
+                            عرض المزيد من الفرص ({opportunityTierCounts[2] - visibleTierTwoCount})
+                          </button>
+                        )}
+                        {visibleTierTwoCount > TIER_TWO_PAGE_SIZE && (
+                          <button
+                            type="button"
+                            onClick={() => setTierTwoDisclosure({ key: tierTwoSelectionKey, count: TIER_TWO_PAGE_SIZE })}
+                            style={{ background: "transparent", color: "var(--app-text-soft)", border: "1px solid var(--app-border)", borderRadius: "10px", padding: "8px 12px", font: "inherit", fontSize: "13px", cursor: "pointer" }}
+                          >
+                            عرض أقل
+                          </button>
+                        )}
+                      </div>
+                    )}
                     </React.Fragment>
                   );
                 })}
