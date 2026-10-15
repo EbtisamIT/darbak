@@ -13,6 +13,11 @@ import {
 
 const EXPERIENCE_DRAFT_KEY = "darbak_add_experience_draft_v1";
 
+export const getExperienceSaveError = (error) =>
+  error.response?.status === 400
+    ? error.response?.data?.error || "يرجى مراجعة البيانات والمحاولة مرة أخرى."
+    : "تعذر حفظ التجربة الآن. يُرجى المحاولة بعد قليل.";
+
 const getSavedDraft = () => {
   if (typeof window === "undefined") return null;
 
@@ -894,10 +899,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     } catch (err) {
       console.error("Error saving experience:", err);
       setLoading(false);
-      setError(
-        err.response?.data?.error ||
-          "تعذر حفظ التجربة الآن. يُرجى المحاولة بعد قليل."
-      );
+      setError(getExperienceSaveError(err));
     }
   };
 
