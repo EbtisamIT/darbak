@@ -978,7 +978,7 @@ const ExperiencesPage = () => {
         }
       } catch (err) {
         console.error(err);
-        setFetchError("تعذر تحميل التجارب حاليًا. تأكدي من اتصال خدمة API.");
+        setFetchError("تعذر عرض التجارب الآن. يُرجى المحاولة بعد قليل.");
       } finally {
         setLoading(false);
         setIsRefreshing(false);

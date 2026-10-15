@@ -896,7 +896,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       setLoading(false);
       setError(
         err.response?.data?.error ||
-          "حدث خطأ أثناء الحفظ. تأكدي من اتصال خدمة API ثم حاولي مرة أخرى."
+          "تعذر حفظ التجربة الآن. يُرجى المحاولة بعد قليل."
       );
     }
   };
