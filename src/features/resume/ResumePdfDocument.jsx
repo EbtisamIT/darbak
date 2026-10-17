@@ -105,7 +105,7 @@ const fontSizes = {
   },
 };
 
-const createStyles = (resume = {}) => {
+const createStyles = (resume = {}, rewardPresentation = false) => {
   const direction = getResumeDirection(resume);
   const isAtsClassic = isAtsClassicTemplate(resume);
   const atsDensity = isAtsClassic ? getAtsClassicDensityMode(resume) : "medium";
@@ -148,7 +148,8 @@ const createStyles = (resume = {}) => {
     name: {
       fontSize: sizes.name,
       fontWeight: 700,
-      marginBottom: isAtsClassic ? atsSpacing.nameAfter : 3,
+      marginBottom: rewardPresentation && !isArabic ? 0 : isAtsClassic ? atsSpacing.nameAfter : 3,
+      lineHeight: rewardPresentation ? 1.25 : undefined,
       color: ink,
       letterSpacing: isAtsClassic && !isArabic ? -0.15 : 0,
     },
@@ -156,19 +157,42 @@ const createStyles = (resume = {}) => {
       fontSize: sizes.title,
       color: isAtsClassic ? "#304353" : accent,
       fontWeight: isAtsClassic ? 400 : 700,
-      marginBottom: isAtsClassic ? atsSpacing.headlineAfter : 7,
+      marginBottom: rewardPresentation && !isArabic ? 8 : isAtsClassic ? atsSpacing.headlineAfter : 7,
+      lineHeight: rewardPresentation ? 1.35 : undefined,
     },
+    rewardEnglishNameGap: { height: 8 },
     contactLine: {
       color: muted,
       fontSize: isAtsClassic ? 9.2 : sizes.body - 1,
       lineHeight: isAtsClassic ? 1.35 : 1.45,
     },
+    rewardContactRow: {
+      flexDirection: isArabic ? "row-reverse" : "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+    },
+    rewardContactItem: {
+      color: muted,
+      fontSize: 9.2,
+      lineHeight: 1.35,
+    },
+    rewardContactSeparator: {
+      color: muted,
+      fontSize: 9.2,
+      marginHorizontal: 4,
+    },
+    rewardLtrText: { direction: "ltr" },
+    rewardRtlText: { direction: "rtl" },
     section: {
-      marginTop: isAtsClassic ? atsSpacing.sectionBefore : isCompact ? 8 : 12,
+      marginTop: rewardPresentation && isAtsClassic
+        ? Math.max(8, atsSpacing.sectionBefore - 4)
+        : isAtsClassic ? atsSpacing.sectionBefore : isCompact ? 8 : 12,
       breakInside: "avoid",
     },
     shortSmallSection: {
-      marginTop: atsDensityStyles.short.smallSectionBefore,
+      marginTop: rewardPresentation
+        ? atsDensityStyles.short.smallSectionBefore - 4
+        : atsDensityStyles.short.smallSectionBefore,
     },
     sectionTitle: {
       fontSize: sizes.section,
@@ -357,7 +381,12 @@ const ResumeSection = ({
   );
 };
 
-const EntryList = ({ entries = [], styles, language, sectionKey, personal, resume, atsClassic }) => {
+const rewardMixedText = (value, styles) => String(value || "").split(/(\+?\d[\d./-]*\d|\d)/g)
+  .filter(Boolean).map((part, index) => /^\+?\d/.test(part)
+    ? <Text key={index} style={styles.rewardLtrText}>{part}</Text>
+    : part);
+
+const EntryList = ({ entries = [], styles, language, sectionKey, personal, resume, atsClassic, rewardPresentation }) => {
   const visibleEntries = entries.filter(hasEntryContent);
   if (!visibleEntries.length) return null;
 
@@ -409,10 +438,12 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
               englishAts && isCertification ? styles.englishCertificationSub : null,
             ]}
           >
-            {displaySubtitle}
+            {rewardPresentation && arabicAts ? rewardMixedText(displaySubtitle, styles) : displaySubtitle}
           </Text>
         ) : null}
-        {atsClassic && displayDate && !education ? <Text style={styles.entryDate}>{displayDate}</Text> : null}
+        {atsClassic && displayDate && !education ? <Text style={styles.entryDate}>
+          {rewardPresentation && arabicAts ? rewardMixedText(displayDate, styles) : displayDate}
+        </Text> : null}
         {facts.length ? (
           <Text
             style={[
@@ -421,7 +452,9 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
               englishAts ? styles.englishEducationFacts : null,
             ]}
           >
-            {facts.join(arabicAts ? "   |   " : " | ")}
+            {rewardPresentation && arabicAts
+              ? rewardMixedText(facts.join("   |   "), styles)
+              : facts.join(arabicAts ? "   |   " : " | ")}
           </Text>
         ) : null}
         {atsClassic && tools.length ? <Text style={styles.toolsLine}>{tools.join(", ")}</Text> : null}
@@ -435,11 +468,11 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
   });
 };
 
-const ResumePdfDocument = ({ resume = {} }) => {
+const ResumePdfDocument = ({ resume = {}, rewardPresentation = false }) => {
   resume = getLocalizedResumeForDisplay(resume);
   const atsClassic = isAtsClassicTemplate(resume);
   const shortDensity = atsClassic && getAtsClassicDensityMode(resume) === "short";
-  const styles = createStyles(resume);
+  const styles = createStyles(resume, rewardPresentation);
   const language = resume.settings?.language === "en" ? "en" : "ar";
   const titles = (atsClassic ? atsClassicSectionTitles : sectionTitles)[language];
   const personal = resume.personalInfo || {};
@@ -453,6 +486,13 @@ const ResumePdfDocument = ({ resume = {} }) => {
     personal.phone,
     personal.city,
   ].filter(Boolean);
+  const rewardContactItems = (language === "ar" ? [
+    ["city", personal.city, false], ["email", personal.email, true],
+    ["phone", personal.phone, true], ["linkedin", personal.linkedinUrl, true],
+  ] : [
+    ["email", personal.email, true], ["phone", personal.phone, true],
+    ["city", personal.city, false], ["linkedin", personal.linkedinUrl, true],
+  ]).filter(([, value]) => value);
 
   const renderSection = (sectionKey) => {
     if (sectionKey === "summary" && resume.summary) {
@@ -468,7 +508,7 @@ const ResumePdfDocument = ({ resume = {} }) => {
       if (!entries?.some(hasEntryContent)) return null;
       return (
         <ResumeSection key={sectionKey} sectionKey={sectionKey} title={titles[sectionKey]} styles={styles} atsClassic={atsClassic} shortDensity={shortDensity}>
-          <EntryList entries={entries} styles={styles} language={language} sectionKey={sectionKey} personal={personal} resume={resume} atsClassic={atsClassic} />
+          <EntryList entries={entries} styles={styles} language={language} sectionKey={sectionKey} personal={personal} resume={resume} atsClassic={atsClassic} rewardPresentation={rewardPresentation} />
         </ResumeSection>
       );
     }
@@ -505,8 +545,14 @@ const ResumePdfDocument = ({ resume = {} }) => {
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.name}>{personal.fullName || (language === "en" ? "Student Name" : "اسم الطالب")}</Text>
+          {rewardPresentation && language === "en" && <View style={styles.rewardEnglishNameGap} />}
           <Text style={styles.headline}>{headline}</Text>
-          <Text style={styles.contactLine}>{contactItems.join(" | ")}</Text>
+          {rewardPresentation ? <View style={styles.rewardContactRow}>
+            {rewardContactItems.map(([key, value, ltr], index) => <React.Fragment key={key}>
+              {index > 0 && <Text style={styles.rewardContactSeparator}>|</Text>}
+              <Text style={[styles.rewardContactItem, ltr ? styles.rewardLtrText : styles.rewardRtlText]}>{value}</Text>
+            </React.Fragment>)}
+          </View> : <Text style={styles.contactLine}>{contactItems.join(" | ")}</Text>}
         </View>
 
         {order.map(renderSection)}

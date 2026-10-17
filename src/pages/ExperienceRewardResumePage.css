@@ -1,0 +1,31 @@
+.experience-reward-page { max-width: 840px; margin: 0 auto; padding: 28px 16px 64px; color: var(--app-text); }
+.experience-reward-page h1 { margin: 0 0 8px; }
+.experience-reward-page h2 { font-size: 1.1rem; margin: 0 0 14px; }
+.experience-reward-card { background: var(--app-card, #fff); border: 1px solid var(--app-border, #d9e5e2); border-radius: 14px; padding: 18px; margin: 18px 0; }
+.experience-reward-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.experience-reward-page label { display: grid; gap: 6px; min-width: 0; font-weight: 600; }
+.experience-reward-page input, .experience-reward-page textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--app-border, #b9ccc7); border-radius: 9px; padding: 10px; background: var(--app-bg, #fff); color: var(--app-text, #17201f); font: inherit; }
+.experience-reward-page button { border: 0; border-radius: 9px; padding: 11px 17px; background: #16887d; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+.experience-reward-page button.secondary { background: transparent; color: #16887d; border: 1px solid #16887d; }
+.experience-reward-page button:disabled { opacity: .55; cursor: wait; }
+.experience-reward-entry { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; border-top: 1px solid var(--app-border, #d9e5e2); padding: 14px 0; }
+.experience-reward-entry label:has(textarea) { grid-column: 1 / -1; }
+.experience-reward-bullets { grid-column: 1 / -1; min-width: 0; }
+.experience-reward-field-label { margin: 0 0 4px; font-weight: 600; }
+.experience-reward-hint { margin: 4px 0 10px; color: var(--app-muted, #64746f); font-size: .9rem; font-weight: 400; }
+.experience-reward-bullet-row { display: flex; gap: 8px; align-items: center; margin: 7px 0; }
+.experience-reward-bullet-row label { flex: 1; }
+.experience-reward-bullet-row button { flex: 0 0 auto; }
+.experience-reward-remove { justify-self: start; }
+.experience-reward-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.experience-reward-chips span { border: 1px solid var(--app-border, #d9e5e2); border-radius: 99px; padding: 3px 9px; font-size: .85rem; font-weight: 400; }
+.experience-reward-readiness ul { list-style: none; padding: 0; margin: 0; }
+.experience-reward-readiness li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--app-border, #d9e5e2); }
+.experience-reward-readiness li span:last-child { color: var(--app-muted, #64746f); white-space: nowrap; }
+.experience-reward-page .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.experience-reward-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+.experience-reward-preview { width: 100%; height: 680px; border: 1px solid #c8d8d5; border-radius: 10px; }
+.experience-reward-language { font-weight: 700; }
+.experience-reward-review { display: flex !important; flex: 1 1 100%; align-items: center; font-weight: 500 !important; }
+.experience-reward-review input { width: auto; }
+@media (max-width: 600px) { .experience-reward-grid, .experience-reward-entry { grid-template-columns: minmax(0, 1fr); } .experience-reward-entry label:has(textarea) { grid-column: auto; } .experience-reward-actions button { flex: 1 1 100%; } .experience-reward-bullet-row button { padding: 10px; } body:has(.experience-reward-page) .darbak-assistant-widget { display: none; } }

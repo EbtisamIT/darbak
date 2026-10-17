@@ -1,0 +1,155 @@
+import React from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import axios from "axios";
+import { pdf } from "@react-pdf/renderer";
+import ExperienceRewardResumePage from "./ExperienceRewardResumePage";
+import { toAtsClassicResume } from "../utils/experienceRewardResume";
+import { cleanRewardDraft, getRewardReadiness } from "../utils/experienceRewardResumeQuality";
+import { rewardResumeDemoArabic, rewardResumeDemoEnglish } from "../utils/experienceRewardResumeQuality.fixtures";
+
+jest.mock("axios", () => ({ get: jest.fn(), put: jest.fn(), post: jest.fn() }));
+jest.mock("@react-pdf/renderer", () => ({ pdf: jest.fn(() => ({ toBlob: async () => new Blob(["%PDF-1.4\n%%EOF"], { type: "application/pdf" }) })) }));
+jest.mock("../features/resume/ResumePdfDocument", () => () => null);
+jest.mock("../utils/premiumAccess", () => ({
+  getStoredAccessIdentity: () => ({ contact: "student@example.com", accessCode: "ABCD1234" }),
+}));
+
+const prefill = {
+  fullName: "طالب دربك", email: "student@example.com", city: "الرياض",
+  major: "تقنية المعلومات", university: "جامعة", graduationYear: "2026", gpa: "",
+  phone: "", linkedin: "", experience: [], projects: [], certifications: [],
+  skills: ["Excel", "SQL", "التواصل"], languages: [], trainingExperience: [{ title: "تدريب", organization: "DataVolt", location: "الرياض", period: "2025", description: "حللت بيانات التدريب" }],
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  pdf.mockImplementation(() => ({ toBlob: async () => new Blob(["%PDF-1.4\n%%EOF"], { type: "application/pdf" }) }));
+  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "available", language: null }, prefill } });
+  axios.put.mockImplementation(async (_, body) => ({ data: { language: body.language, draft: body.draft } }));
+  axios.post.mockResolvedValue({ data: { status: "redeemed" } });
+  URL.createObjectURL = jest.fn(() => "blob:preview");
+  URL.revokeObjectURL = jest.fn();
+  jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+});
+afterEach(() => jest.restoreAllMocks());
+
+test("reward route requires an owned reward and never opens the builder on 404", async () => {
+  axios.get.mockRejectedValueOnce({ response: { status: 404, data: { error: "لا توجد مكافأة" } } });
+  render(<ExperienceRewardResumePage />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("لا توجد مكافأة");
+  expect(screen.queryByText("اعتماد وإنشاء السيرة الذاتية")).not.toBeInTheDocument();
+});
+
+test("preview saves independent draft without finalizing; finalize once then download", async () => {
+  render(<ExperienceRewardResumePage />);
+  fireEvent.click(await screen.findByText("العربية"));
+  expect(screen.getByDisplayValue("DataVolt")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("معاينة السيرة"));
+  await waitFor(() => expect(pdf).toHaveBeenCalledTimes(1));
+  expect(pdf.mock.calls[0][0].props.rewardPresentation).toBe(true);
+  expect(await screen.findByTitle("معاينة السيرة الذاتية")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("اعتماد وإنشاء السيرة الذاتية")).not.toBeDisabled());
+  expect(axios.put).toHaveBeenCalledTimes(1);
+  expect(axios.post).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText("اعتماد وإنشاء السيرة الذاتية"));
+  await waitFor(() => expect(axios.put).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(pdf).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(axios.post).toHaveBeenCalledTimes(1));
+  expect(await screen.findByText("سيرتك جاهزة")).toBeInTheDocument();
+  expect(screen.queryByText("اعتماد وإنشاء السيرة الذاتية")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText("تنزيل PDF"));
+  await waitFor(() => expect(axios.get).toHaveBeenCalledWith(expect.stringContaining("/api/rewards/resume/pdf"), expect.objectContaining({ responseType: "blob" })));
+});
+
+test("ATS Classic adapter does not grant subscription or use ResumeProfile/Agent/translation", () => {
+  const resume = toAtsClassicResume(prefill, "en");
+  expect(resume.settings.template).toBe("ats-classic");
+  expect(resume.settings.language).toBe("en");
+  expect(resume.experience[0].organization).toBe("DataVolt");
+  expect(resume.access.aiResumeUsageLimit).toBe(0);
+  expect(resume.subscription).toBeUndefined();
+});
+
+test("English reward asks the student to review English text without calling translation", async () => {
+  render(<ExperienceRewardResumePage />);
+  fireEvent.click(await screen.findByText("English"));
+  fireEvent.click(screen.getByText("اعتماد وإنشاء السيرة الذاتية"));
+  expect(screen.getByText("راجع نص السيرة بالإنجليزية قبل الاعتماد.")).toBeInTheDocument();
+  expect(axios.post).not.toHaveBeenCalled();
+  expect(screen.getByText("لا توجد ترجمة تلقائية.", { exact: false })).toBeInTheDocument();
+});
+
+test("structured training bullets persist in existing description and preview does not finalize", async () => {
+  render(<ExperienceRewardResumePage />);
+  fireEvent.click(await screen.findByText("العربية"));
+  fireEvent.click(screen.getByText("+ أضف نقطة"));
+  fireEvent.change(screen.getByPlaceholderText("نقطة 2"), { target: { value: "استخدمت Excel لإعداد تقرير" } });
+  fireEvent.click(screen.getByText("معاينة السيرة"));
+  await waitFor(() => expect(axios.put).toHaveBeenCalled());
+  expect(axios.put.mock.calls[0][1].draft.trainingExperience[0].description)
+    .toBe("حللت بيانات التدريب\nاستخدمت Excel لإعداد تقرير");
+  expect(axios.post).not.toHaveBeenCalled();
+});
+
+test("finalization names missing required items and does not send PDF", async () => {
+  axios.get.mockResolvedValueOnce({ data: { reward: { status: "available", language: null },
+    prefill: { ...prefill, skills: ["Excel"], trainingExperience: [{ ...prefill.trainingExperience[0], description: "" }] } } });
+  render(<ExperienceRewardResumePage />);
+  fireEvent.click(await screen.findByText("العربية"));
+  fireEvent.click(screen.getByText("اعتماد وإنشاء السيرة الذاتية"));
+  expect(screen.getByRole("status")).toHaveTextContent("تجربة التدريب");
+  expect(screen.getByRole("status")).toHaveTextContent("ثلاث مهارات");
+  expect(axios.post).not.toHaveBeenCalled();
+});
+
+test("incomplete draft can still be previewed without consuming the reward", async () => {
+  axios.get.mockResolvedValueOnce({ data: { reward: { status: "available", language: null },
+    prefill: { ...prefill, fullName: "", email: "", skills: [] } } });
+  render(<ExperienceRewardResumePage />);
+  fireEvent.click(await screen.findByText("العربية"));
+  fireEvent.click(screen.getByText("معاينة السيرة"));
+  await waitFor(() => expect(pdf).toHaveBeenCalledTimes(1));
+  expect(axios.post).not.toHaveBeenCalled();
+});
+
+test("reward draft cleanup removes exact duplicates, normalizes dates and hides empty entries", () => {
+  const clean = cleanRewardDraft({ ...prefill, skills: [" Excel ", "Excel", " SQL "],
+    trainingExperience: [{ ...prefill.trainingExperience[0], period: "٢٠٢٥/٧", description: "• حللت البيانات\nحللت البيانات\n- أعددت تقريرًا\n" }],
+    projects: [{ title: "", organization: "", location: "", period: "", description: "" }],
+  });
+  expect(clean.skills).toEqual(["Excel", "SQL"]);
+  expect(clean.trainingExperience[0].period).toBe("2025-07");
+  expect(clean.trainingExperience[0].description).toBe("حللت البيانات\nأعددت تقريرًا");
+  expect(clean.projects).toEqual([]);
+  const resume = toAtsClassicResume(clean, "ar");
+  expect(resume.experience[0].achievements.map((item) => item.text)).toEqual(["حللت البيانات", "أعددت تقريرًا"]);
+  expect(resume.projects).toHaveLength(0);
+});
+
+test("readiness checks real required and optional content without a score", () => {
+  const readiness = getRewardReadiness(prefill, "ar");
+  expect(readiness.missing).toEqual([]);
+  expect(readiness.checks.find((check) => check.key === "projects")).toMatchObject({ required: false, ready: true });
+  expect(getRewardReadiness({ ...prefill, projects: [{ ...prefill.trainingExperience[0], organization: "" }] }, "ar")
+    .checks.find((check) => check.key === "projects").ready).toBe(false);
+  expect(getRewardReadiness({ ...prefill, major: "شهادة تحليل بيانات", university: "أكاديمية طويق" }, "ar").missing).toEqual([]);
+  expect(getRewardReadiness({ ...prefill, email: "", phone: "+966 50 000 0000", major: "", university: "",
+    certifications: [{ title: "شهادة تحليل بيانات", organization: "أكاديمية طويق" }] }, "ar").missing).toEqual([]);
+});
+
+test("realistic Arabic and user-entered English demos map to ATS Classic without empty sections", () => {
+  [
+    [rewardResumeDemoArabic, "ar"],
+    [rewardResumeDemoEnglish, "en"],
+  ].forEach(([draft, language]) => {
+    expect(getRewardReadiness(draft, language).missing).toEqual([]);
+    const resume = toAtsClassicResume(draft, language);
+    expect(resume.settings).toMatchObject({ template: "ats-classic", language });
+    expect(resume.experience).toHaveLength(1);
+    expect(resume.projects).toHaveLength(2);
+    expect(resume.certifications).toHaveLength(2);
+    expect(resume.certifications[0].organization).toContain(language === "ar" ? "أكتوبر 2024" : "Oct 2024");
+    expect(resume.skills).toHaveLength(8);
+    expect(resume.projects[0].achievements).toHaveLength(2);
+  });
+});
