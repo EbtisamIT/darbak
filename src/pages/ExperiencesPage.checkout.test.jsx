@@ -14,12 +14,14 @@ jest.mock("react-router-dom", () => ({
   useLocation: () => ({ pathname: "/experiences", search: "?city=riyadh" }),
   useNavigate: () => mockNavigate,
   useParams: () => ({}),
+  Link: ({ to, children, ...props }) => require("react").createElement("a", { href: to, ...props }, children),
 }));
 jest.mock("axios", () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn() } }));
 jest.mock("../utils/premiumAccess", () => ({
   PREMIUM_STATUS_EVENT: "darbak:premium-status",
   fetchSubscriptionState: jest.fn(),
   getAccessHeaders: () => ({}),
+  getStoredAccessIdentity: () => ({}),
   hasCoreAccess: jest.fn(),
   requestPremiumAccess: jest.fn(),
   startSubscriptionFlow: jest.fn(),

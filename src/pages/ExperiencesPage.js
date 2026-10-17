@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import majors from "../majors";
 import API_BASE_URL from "../config/api";
+import { canShowExperienceReward } from "../utils/experienceRewardRollout";
 import ShareButton from "../components/ShareButton";
 import PremiumInlineNotice from "../components/PremiumInlineNotice";
 import { trackEvent } from "../utils/analytics";
@@ -559,6 +560,12 @@ const getMajorSearchTerms = (value) => {
 };
 
 const ExperiencesPage = () => {
+  const [rewardRolloutEnabled, setRewardRolloutEnabled] = useState(false);
+  useEffect(() => {
+    let active = true;
+    canShowExperienceReward().then((enabled) => { if (active) setRewardRolloutEnabled(enabled); });
+    return () => { active = false; };
+  }, []);
   const location = useLocation();
   const navigate = useNavigate();
   const routeParams = useParams();
@@ -2069,6 +2076,11 @@ const ExperiencesPage = () => {
             </p>
           </section>
         )}
+
+        {rewardRolloutEnabled && <section style={{ maxWidth: 980, margin: "0 auto 16px", padding: "12px 16px", border: "1px solid var(--app-border)", borderRadius: 14, background: "var(--app-surface)", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div><strong>عندك تجربة تدريب؟ شاركها</strong><p style={{ margin: "3px 0 0", color: "var(--app-muted)", fontSize: 13 }}>وبعد اعتمادها تحصل على نسخة سيرة ذاتية مجانية بقالب ATS.</p></div>
+          <Link to="/share-experience" style={{ color: "var(--app-brand)", fontWeight: 800 }}>شارك تجربتي</Link>
+        </section>}
 
         {!isPremiumActive && (
           <section className="experiences-plus-banner" aria-label="إعلان دربك بلس">

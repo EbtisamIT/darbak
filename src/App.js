@@ -41,6 +41,7 @@ const ExperiencesPage = lazy(() => import("./pages/ExperiencesPage"));
 const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
 const TrainingFinderPage = lazy(() => import("./pages/TrainingFinderPage"));
 const AddExperienceModal = lazy(() => import("./pages/AddExperienceModal"));
+const ExperienceContributionEntry = lazy(() => import("./pages/ExperienceContributionEntry"));
 const LegalPage = lazy(() => import("./pages/LegalPage"));
 const AdminReviewPage = lazy(() => import("./pages/AdminReviewPage"));
 const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
@@ -1450,6 +1451,7 @@ function AppLayout({ theme, setTheme }) {
               <Route path="/terms" element={<LegalPage />} />
               <Route path="/privacy" element={<LegalPage />} />
               <Route path="/add-experience" element={<AddExperienceModal />} />
+              <Route path="/share-experience" element={<ExperienceContributionEntry />} />
               <Route path="/AddExperienceModal" element={<AddExperienceModal />} />
             </Routes>
           </Suspense>

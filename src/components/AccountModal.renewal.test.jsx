@@ -1,4 +1,5 @@
 import React from "react";
+import axios from "axios";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import AccountModal from "./AccountModal";
@@ -9,7 +10,7 @@ import {
   startSubscriptionFlow,
 } from "../utils/premiumAccess";
 
-jest.mock("axios", () => ({ __esModule: true, default: { post: jest.fn() } }));
+jest.mock("axios", () => ({ __esModule: true, default: { get: jest.fn().mockRejectedValue(new Error("No reward")), post: jest.fn() } }));
 jest.mock("../utils/analytics", () => ({ trackEvent: jest.fn() }));
 jest.mock("../utils/premiumAccess", () => ({
   ACCOUNT_MODAL_EVENT: "darbak:open-account",
@@ -25,6 +26,7 @@ jest.mock("../utils/premiumAccess", () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  axios.get.mockRejectedValue(new Error("No reward"));
   getStoredPremiumPass.mockReturnValue(null);
 });
 

@@ -9,6 +9,7 @@ import {
   FiStar,
 } from "react-icons/fi";
 import API_BASE_URL from "../config/api";
+import { canShowExperienceReward } from "../utils/experienceRewardRollout";
 import { getOrganizationLogoUrl } from "../data/organizationLogos";
 import { darbakGuideOrganizations } from "../data/darbakGuideSuggestions";
 import { darbakContactDirectoryOrganizations } from "../data/darbakContactDirectory";
@@ -196,6 +197,12 @@ function ApplicationSuggestionCard({ suggestion, company }) {
 }
 
 export default function CompanyProfilePage() {
+  const [rewardRolloutEnabled, setRewardRolloutEnabled] = useState(false);
+  useEffect(() => {
+    let active = true;
+    canShowExperienceReward().then((enabled) => { if (active) setRewardRolloutEnabled(enabled); });
+    return () => { active = false; };
+  }, []);
   const { companySlug } = useParams();
   const navigate = useNavigate();
   const [company, setCompany] = useState(null);
@@ -400,8 +407,8 @@ export default function CompanyProfilePage() {
 
       <section className="company-content-section">{renderTab()}</section>
 
-      <Link className="company-add-experience" to={`/add-experience?companyId=${encodeURIComponent(company.id || company._id || "")}&companyName=${encodeURIComponent(company.name)}`}>
-        أضف تجربتك مع {company.name}
+      <Link className="company-add-experience" to={`${rewardRolloutEnabled ? "/share-experience" : "/add-experience"}?companyId=${encodeURIComponent(company.id || company._id || "")}&companyName=${encodeURIComponent(company.name)}`}>
+        {rewardRolloutEnabled ? `سبق وتدربت في ${company.name}؟ شارك تجربتك` : `أضف تجربتك مع ${company.name}`}
       </Link>
 
       {selectedInterview && (

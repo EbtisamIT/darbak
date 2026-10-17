@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useLocation } from "react-router-dom";
 import API_BASE_URL from "../config/api";
 import { trackEvent } from "../utils/analytics";
 import majors from "../majors";
@@ -34,6 +35,7 @@ const uniqueSorted = (values = []) =>
   );
 
 export default function InterviewsPage() {
+  const location = useLocation();
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -45,6 +47,20 @@ export default function InterviewsPage() {
   const [questionForm, setQuestionForm] = useState(emptyQuestionForm);
   const [submittingQuestion, setSubmittingQuestion] = useState(false);
   const [questionMessage, setQuestionMessage] = useState("");
+  const fromExperience = Boolean(location.state?.openQuestionForm);
+
+  useEffect(() => {
+    if (!fromExperience) return;
+    const prefill = location.state?.prefill || {};
+    setQuestionForm({
+      ...emptyQuestionForm,
+      organizationName: prefill.organizationName || "",
+      majorCategory: prefill.majorCategory || "",
+      major: prefill.major || "",
+      city: prefill.city || "",
+    });
+    setShowQuestionModal(true);
+  }, [fromExperience, location.state]);
 
   useEffect(() => {
     const fetchInterviews = async () => {
@@ -113,12 +129,12 @@ export default function InterviewsPage() {
       (majorCategory) => majorCategory.name === questionForm.majorCategory
     );
 
-    return category?.subMajors || [];
-  }, [questionForm.majorCategory]);
+    return uniqueSorted([...(category?.subMajors || []), questionForm.major]);
+  }, [questionForm.majorCategory, questionForm.major]);
 
   const citySelectOptions = useMemo(
-    () => uniqueSorted([...trainingCityOptions, ...cityOptions]),
-    [cityOptions]
+    () => uniqueSorted([...trainingCityOptions, ...cityOptions, questionForm.city]),
+    [cityOptions, questionForm.city]
   );
 
   useEffect(() => {
@@ -411,8 +427,7 @@ export default function InterviewsPage() {
               <span>مشاركة معرفة</span>
               <h2>أضف أسئلة مقابلة تدريب</h2>
               <p>
-                اكتب الأسئلة كما تتذكرها، وبعد مراجعتها بتظهر للطلاب حسب
-                الجهة والتخصص.
+                {fromExperience ? "عبّينا البيانات اللي نعرفها من تجربتك. أكمل أسئلة المقابلة فقط." : "اكتب الأسئلة كما تتذكرها، وبعد مراجعتها بتظهر للطلاب حسب الجهة والتخصص."}
               </p>
             </div>
 
@@ -438,6 +453,9 @@ export default function InterviewsPage() {
                   }
                 >
                   <option value="">اختر التصنيف</option>
+                  {questionForm.majorCategory && !majors.some((item) => item.name === questionForm.majorCategory) && (
+                    <option value={questionForm.majorCategory}>{questionForm.majorCategory}</option>
+                  )}
                   {majors.map((majorCategory) => (
                     <option key={majorCategory.name} value={majorCategory.name}>
                       {majorCategory.name}

@@ -77,6 +77,7 @@ export default function AccountModal() {
   const [journeyForm, setJourneyForm] = useState({ firstName: "", contact: "", accessCode: "" });
   const [savingJourney, setSavingJourney] = useState(false);
   const [journeyLoginMode, setJourneyLoginMode] = useState(false);
+  const [resumeReward, setResumeReward] = useState(null);
 
   const status = useMemo(() => {
     if (pass?.isAdmin) return "admin";
@@ -103,8 +104,15 @@ export default function AccountModal() {
   const openModal = useCallback((event) => {
     const storedIdentity = getStoredAccessIdentity();
     const storedContact = storedIdentity.contact || storedIdentity.email || "";
-    const context = event?.detail?.mode === "save_journey" ? event.detail : null;
+    const context = ["save_journey", "contribution"].includes(event?.detail?.mode) ? event.detail : null;
     setIdentity(storedIdentity);
+    setResumeReward(null);
+    if (storedIdentity.contact && storedIdentity.accessCode) {
+      axios.get(`${API_BASE_URL}/api/rewards/resume/me`, { headers: {
+        "x-darbak-contact": storedIdentity.contact,
+        "x-darbak-access-code": storedIdentity.accessCode,
+      } }).then(({ data }) => setResumeReward(data.reward)).catch(() => {});
+    }
     setPass(getStoredPremiumPass());
     if ((storedIdentity.contact || storedIdentity.email) && storedIdentity.accessCode) {
       loadSubscriptionState();
@@ -166,6 +174,9 @@ export default function AccountModal() {
       });
       saveAccessIdentity({ contact, accessCode });
       setIdentity(getStoredAccessIdentity());
+      axios.get(`${API_BASE_URL}/api/rewards/resume/me`, { headers: {
+        "x-darbak-contact": contact, "x-darbak-access-code": accessCode,
+      } }).then(({ data }) => setResumeReward(data.reward)).catch(() => setResumeReward(null));
       window.dispatchEvent(new CustomEvent("darbak:free-account-saved", { detail: data.account || {} }));
       trackEvent("free_journey_saved");
       closeModal();
@@ -257,6 +268,9 @@ export default function AccountModal() {
       });
       saveAccessIdentity({ contact, accessCode });
       setIdentity(getStoredAccessIdentity());
+      axios.get(`${API_BASE_URL}/api/rewards/resume/me`, { headers: {
+        "x-darbak-contact": contact, "x-darbak-access-code": accessCode,
+      } }).then(({ data }) => setResumeReward(data.reward)).catch(() => setResumeReward(null));
       try {
         const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
           email: contact,
@@ -283,6 +297,7 @@ export default function AccountModal() {
   const logout = () => {
     clearAccessSession();
     setIdentity({});
+    setResumeReward(null);
     setPass(null);
     setSubscriptionState({ state: "FREE", planId: "", expiresAt: null });
     setLoginForm({ contact: "", accessCode: "" });
@@ -350,8 +365,8 @@ export default function AccountModal() {
           <form className="account-login-form" onSubmit={saveFreeJourneyAccount}>
             <div className="account-modal-header">
               <span className="account-modal-kicker">حساب مجاني</span>
-              <h2 id="account-modal-title">احفظ رحلتك</h2>
-              <p>عشان نحفظ تخصصك ومدينتك ونطلع لك الجديد كل مرة.</p>
+              <h2 id="account-modal-title">{journeyContext?.mode === "contribution" ? "احفظ تجربتك ومكافأتك" : "احفظ رحلتك"}</h2>
+              <p>{journeyContext?.mode === "contribution" ? "حساب مجاني لحفظ تجربتك ومتابعة اعتمادها. اسم حسابك لا يظهر في التجربة المنشورة." : "عشان نحفظ تخصصك ومدينتك ونطلع لك الجديد كل مرة."}</p>
             </div>
             {!journeyLoginMode && <label>
               <span>الاسم الأول</span>
@@ -366,7 +381,7 @@ export default function AccountModal() {
               <input value={journeyForm.accessCode} onChange={(event) => setJourneyForm((current) => ({ ...current, accessCode: event.target.value }))} placeholder="4 إلى 12 حرف أو رقم" autoComplete="new-password" maxLength={12} dir="ltr" />
             </label>
             <button type="submit" disabled={savingJourney}>
-              {savingJourney ? "جاري الحفظ..." : journeyLoginMode ? "دخول وحفظ الرحلة" : "أنشئ حسابًا مجانيًا"}
+              {savingJourney ? "جاري الحفظ..." : journeyLoginMode ? "تسجيل الدخول" : "أنشئ حسابًا مجانيًا"}
             </button>
             <button type="button" className="account-login-help" onClick={() => { setJourneyLoginMode((value) => !value); setMessage(""); }}>
               {journeyLoginMode ? "إنشاء حساب جديد" : "عندي حساب، دخول"}
@@ -444,6 +459,20 @@ export default function AccountModal() {
               شكرًا لأنك شاركت تجربتك وساعدت الطلاب اللي بعدك. وصولك الكامل
               مفعّل الآن حتى تاريخ الانتهاء الموضح هنا.
             </span>
+          </div>
+        )}
+
+        {resumeReward?.status === "available" && (
+          <div className="account-reward-note">
+            <strong>مكافأتك جاهزة</strong>
+            <span>تم اعتماد تجربتك. حصلت على نسخة سيرة ذاتية واحدة مجانًا بقالب ATS.</span>
+            <Link to="/rewards/resume" onClick={closeModal}>إنشاء سيرتي الذاتية</Link>
+          </div>
+        )}
+        {resumeReward?.status === "redeemed" && (
+          <div className="account-reward-note">
+            <strong>سيرتك النهائية جاهزة</strong>
+            <Link to="/rewards/resume" onClick={closeModal}>تنزيل PDF</Link>
           </div>
         )}
 

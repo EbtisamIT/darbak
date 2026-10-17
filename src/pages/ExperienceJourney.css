@@ -1,0 +1,58 @@
+.experience-journey-entry {
+  min-height: 65vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
+.experience-journey-card {
+  width: min(100%, 560px);
+  box-sizing: border-box;
+  padding: clamp(20px, 5vw, 32px);
+  border: 1px solid var(--app-border);
+  border-radius: 18px;
+  background: var(--app-surface);
+}
+
+.experience-journey-card h1 { margin: 0 0 12px; font-size: clamp(22px, 5vw, 30px); }
+.experience-journey-card p { line-height: 1.8; color: var(--app-text-soft); }
+.experience-journey-card ul { margin: 18px 0; padding-inline-start: 24px; line-height: 2; }
+.experience-journey-card .experience-journey-note { font-size: 13px; color: var(--app-muted); }
+.experience-journey-card button {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--app-brand);
+  color: #07100e;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.journey-goal-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 11000;
+  padding: 16px;
+  background: var(--app-surface);
+  border-top: 1px solid var(--app-border);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -14px 45px rgba(0, 0, 0, .24);
+}
+
+.journey-goal-inner { width: min(100%, 660px); margin: auto; }
+.journey-goal-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.journey-goal-head h2 { margin: 0 0 4px; font-size: 20px; }
+.journey-goal-head p { margin: 0 0 14px; color: var(--app-text-soft); }
+.journey-goal-head button, .journey-goal-skip { border: 0; background: none; color: var(--app-muted); font: inherit; cursor: pointer; }
+.journey-goal-head button { min-width: 44px; min-height: 44px; font-size: 24px; }
+.journey-goal-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.journey-goal-options button { min-width: 0; min-height: 84px; padding: 14px; border: 1px solid var(--app-border); border-radius: 12px; background: var(--app-bg); color: var(--app-text); text-align: start; font: inherit; cursor: pointer; }
+.journey-goal-options strong, .journey-goal-options small { display: block; }
+.journey-goal-options small { margin-top: 5px; color: var(--app-muted); line-height: 1.6; }
+.journey-goal-skip { display: block; margin: 10px auto 0; min-height: 40px; }
+@media (max-width: 520px) { .journey-goal-options { grid-template-columns: 1fr; } .journey-goal-options button { min-height: 68px; } }

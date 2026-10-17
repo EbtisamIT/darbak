@@ -28,6 +28,10 @@ import {
 } from "../utils/studentJourneyPreferences";
 import { getResumeDiscoveryUserState, trackResumeDiscovery } from "../utils/resumeDiscovery";
 import useResumeDiscoveryAccess from "../utils/useResumeDiscoveryAccess";
+import { dismissJourneyGoal, saveJourneyGoal, shouldShowJourneyGoal } from "../utils/experienceJourney";
+import JourneyGoalSheet from "./JourneyGoalSheet";
+import { canShowExperienceReward } from "../utils/experienceRewardRollout";
+import "./ExperienceJourney.css";
 
 const homeFont = "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif";
 
@@ -128,6 +132,14 @@ const HomePage = () => {
   const [isChangingJourney, setIsChangingJourney] = useState(false);
   const [highlightedPlanId, setHighlightedPlanId] = useState("");
   const [journeyReady, setJourneyReady] = useState(() => hasJourneyPreferences(initialJourneyPreferences));
+  const [showGoalSheet, setShowGoalSheet] = useState(shouldShowJourneyGoal);
+  const [rewardRolloutEnabled, setRewardRolloutEnabled] = useState(false);
+  const [trainingGoalStarted, setTrainingGoalStarted] = useState(false);
+  useEffect(() => {
+    let active = true;
+    canShowExperienceReward().then((enabled) => { if (active) setRewardRolloutEnabled(enabled); });
+    return () => { active = false; };
+  }, []);
   const [premiumPass, setPremiumPass] = useState(() => getStoredPremiumPass());
   const defaultPreviewsRef = useRef({ opportunities: [], experiences: [], interviews: [] });
   const pricingRef = useRef(null);
@@ -321,6 +333,18 @@ const HomePage = () => {
     setJourneyReady(true);
     setIsChangingJourney(false);
     saveJourneyPreferencesToBackend(preferences);
+    if (trainingGoalStarted) navigate(finderUrl());
+  };
+  const chooseGoal = (goal) => {
+    saveJourneyGoal(goal);
+    setShowGoalSheet(false);
+    if (goal === "contribution") navigate("/share-experience");
+    else if (hasSavedJourney) navigate(finderUrl());
+    else {
+      setTrainingGoalStarted(true);
+      setIsChangingJourney(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
   const openSaveJourney = () => {
     window.dispatchEvent(new CustomEvent("darbak:open-account", {
@@ -613,6 +637,8 @@ const HomePage = () => {
         <div><span>للشركات</span><h2>تبحث عن متدربين؟</h2><p>استقبل طلبات التدريب في صفحة مرتبة من دربك.</p></div>
         <Link className="home-button home-button-secondary" to="/partners">اطلب صفحة تقديم لشركتك</Link>
       </section>
+
+      {rewardRolloutEnabled && showGoalSheet && <JourneyGoalSheet onGoal={chooseGoal} onDismiss={() => { dismissJourneyGoal(); setShowGoalSheet(false); }} />}
 
       <style>{`
         .home-page { position: relative; min-height: 100vh; color: var(--app-text); background: var(--app-bg); font-family: ${homeFont}; overflow: hidden; padding-bottom: 42px; isolation: isolate; }
