@@ -8,6 +8,10 @@ const {
   buildLegacyEmailIdentityPattern,
 } = require("./services/emailIdentity");
 
+const { getExperienceRewardMode, isExperienceRewardEnabled } = require("./services/experienceRewardRollout");
+const ExperienceResumeReward = require("./models/ExperienceResumeReward");
+const ExperienceResumeSnapshot = require("./models/ExperienceResumeSnapshot");
+const { CAMPAIGN_ID: EXPERIENCE_REWARD_CAMPAIGN, trainingPrefill, findRewardAccount, findOwnedReward, grantApprovedExperienceReward, saveRewardDraft, finalizeReward } = require("./services/experienceResumeReward");
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
 const FeedbackResponse = require("./models/FeedbackResponse");
@@ -7663,6 +7667,99 @@ app.get('/api/account/free-session', async (req, res) => {
   } catch (err) {
     console.error("❌ Free account session lookup error:", err);
     res.status(500).json({ error: "تعذر تحميل الحساب حاليًا." });
+  }
+});
+
+// The experience reward is an independent, single-use entitlement. These
+// routes look up an existing account and never create a subscription or user.
+app.get("/api/rewards/resume/rollout", async (req, res) => {
+  try {
+    const user = await findRewardAccount({
+      rawContact: req.get("x-darbak-contact"), rawCode: req.get("x-darbak-access-code"),
+      User, normalizeContact: normalizeSubscriberContact, normalizeCode: normalizeAccessCode,
+      validContact: isValidSubscriberContact, validCode: isValidAccessCode, hashCode: hashAccessCode,
+    });
+    res.json({ enabled: isExperienceRewardEnabled(user?._id), mode: getExperienceRewardMode() });
+  } catch {
+    res.json({ enabled: false, mode: getExperienceRewardMode() });
+  }
+});
+
+const requireExperienceRewardUser = async (req, res, next) => {
+  try {
+    const user = await findRewardAccount({
+      rawContact: req.get("x-darbak-contact"), rawCode: req.get("x-darbak-access-code"),
+      User, normalizeContact: normalizeSubscriberContact, normalizeCode: normalizeAccessCode,
+      validContact: isValidSubscriberContact, validCode: isValidAccessCode,
+      hashCode: hashAccessCode,
+    });
+    if (!user) return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    if (!isExperienceRewardEnabled(user._id)) return res.status(404).json({ error: "المكافأة غير متاحة لهذا الحساب." });
+    req.experienceRewardUser = user;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+app.get("/api/rewards/resume/me", requireExperienceRewardUser, async (req, res) => {
+  try {
+    const reward = await findOwnedReward({ userId: req.experienceRewardUser._id, Reward: ExperienceResumeReward });
+    if (!reward) return res.status(404).json({ error: "لا توجد مكافأة سيرة ذاتية متاحة لهذا الحساب." });
+    const experience = await Experience.findById(reward.experienceId).lean();
+    res.json({ reward: {
+      id: reward._id, status: reward.status, language: reward.language,
+      grantedAt: reward.grantedAt, redeemedAt: reward.redeemedAt,
+    }, draft: reward.draft || null, prefill: trainingPrefill(experience, req.experienceRewardUser) });
+  } catch (error) {
+    console.error("❌ Experience reward lookup:", error);
+    res.status(500).json({ error: "تعذر تحميل المكافأة حاليًا." });
+  }
+});
+
+app.put("/api/rewards/resume/draft", requireExperienceRewardUser, async (req, res) => {
+  try {
+    const language = req.body?.language;
+    if (!["ar", "en"].includes(language)) return res.status(400).json({ error: "اختر لغة السيرة أولًا." });
+    const reward = await saveRewardDraft({ userId: req.experienceRewardUser._id,
+      language, draft: req.body?.draft, Reward: ExperienceResumeReward });
+    if (!reward) return res.status(409).json({ error: "المكافأة مستخدمة أو تم اختيار لغة أخرى لها." });
+    res.json({ draft: reward.draft, language: reward.language });
+  } catch (error) {
+    console.error("❌ Experience reward draft:", error);
+    res.status(500).json({ error: "تعذر حفظ المسودة حاليًا." });
+  }
+});
+
+app.post("/api/rewards/resume/finalize", requireExperienceRewardUser,
+  express.raw({ type: "application/pdf", limit: "2mb" }), async (req, res) => {
+  try {
+    const result = await finalizeReward({ userId: req.experienceRewardUser._id,
+      pdf: req.body, Reward: ExperienceResumeReward, Snapshot: ExperienceResumeSnapshot, Experience });
+    if (result.status === "unavailable") return res.status(409).json({ error: "المكافأة غير متاحة للاستخدام." });
+    if (result.status === "incomplete") return res.status(400).json({ error: "أكمل بيانات التواصل والتعليم أو المؤهل وتجربة التدريب وثلاث مهارات على الأقل قبل الاعتماد." });
+    if (result.status === "invalid_pdf") return res.status(400).json({ error: "ملف السيرة غير صالح." });
+    res.json({ status: "redeemed" });
+  } catch (error) {
+    console.error("❌ Experience reward finalize:", error);
+    res.status(500).json({ error: "تعذر اعتماد السيرة حاليًا." });
+  }
+});
+
+app.get("/api/rewards/resume/pdf", requireExperienceRewardUser, async (req, res) => {
+  try {
+    const reward = await ExperienceResumeReward.findOne({ userId: req.experienceRewardUser._id, campaignId: EXPERIENCE_REWARD_CAMPAIGN, status: "redeemed" }).lean();
+    if (!reward?.resumeSnapshotId) return res.status(404).json({ error: "لم تُنشأ سيرة نهائية بعد." });
+    const snapshot = await ExperienceResumeSnapshot.findOne({ _id: reward.resumeSnapshotId, rewardId: reward._id, userId: req.experienceRewardUser._id }).lean();
+    if (!snapshot?.pdf) return res.status(404).json({ error: "تعذر العثور على ملف السيرة." });
+    const pdfBytes = Buffer.isBuffer(snapshot.pdf)
+      ? snapshot.pdf
+      : Buffer.from(snapshot.pdf.buffer || snapshot.pdf);
+    res.set({ "Content-Type": "application/pdf", "Content-Disposition": "attachment; filename=darbak-ats-classic.pdf", "Cache-Control": "private, no-store" });
+    res.send(pdfBytes);
+  } catch (error) {
+    console.error("❌ Experience reward PDF:", error);
+    res.status(500).json({ error: "تعذر تنزيل السيرة حاليًا." });
   }
 });
 
@@ -17692,8 +17789,17 @@ app.get('/api/admin/experiences', requireAdmin, async (req, res) => {
     }
 
     const experiences = await experiencesQuery.lean();
-
-    res.json({ data: experiences });
+    const userIds = experiences.map((item) => item.submittedByUserId).filter(Boolean);
+    const rewards = userIds.length
+      ? await ExperienceResumeReward.find({ userId: { $in: userIds }, campaignId: EXPERIENCE_REWARD_CAMPAIGN }).select("userId experienceId status").lean()
+      : [];
+    const rewardByUser = new Map(rewards.map((item) => [String(item.userId), item]));
+    res.json({ data: experiences.map((item) => {
+      const reward = rewardByUser.get(String(item.submittedByUserId || ""));
+      return { ...item, resumeRewardState: reward
+        ? String(reward.experienceId) === String(item._id) ? "granted" : "already_granted"
+        : "not_granted" };
+    }) });
   } catch (err) {
     console.error("❌ Admin fetch error:", err);
     res.status(500).json({ error: err.message });
@@ -20113,6 +20219,15 @@ app.patch('/api/admin/experiences/:id/status', requireAdmin, async (req, res) =>
 
     if (!updated) {
       return res.status(404).json({ error: "Experience not found" });
+    }
+
+    if (status === "approved" && isExperienceRewardEnabled(updated.submittedByUserId)) {
+      const reward = await grantApprovedExperienceReward(updated, ExperienceResumeReward);
+      updated.resumeRewardState = reward
+        ? String(reward.experienceId) === String(updated._id) ? "granted" : "already_granted"
+        : "not_granted";
+    } else {
+      updated.resumeRewardState = "not_granted";
     }
 
     res.json(updated);

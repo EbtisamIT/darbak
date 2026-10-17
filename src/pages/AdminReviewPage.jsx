@@ -7526,6 +7526,13 @@ export default function AdminReviewPage() {
                   margin: "0 0 12px",
                 }}
               >
+                <span style={{ color: adminColors.textSoft, fontSize: "13px" }}>
+                  مكافأة السيرة: {exp.resumeRewardState === "granted"
+                    ? "تم منحها"
+                    : exp.resumeRewardState === "already_granted"
+                    ? "المستخدم حصل على مكافأة الحملة سابقًا"
+                    : "لم تُمنح"}
+                </span>
                 {[
                   ["hadReward", "مكافأة"],
                   ["wasHired", "عرض"],
