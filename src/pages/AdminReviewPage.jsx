@@ -1152,6 +1152,13 @@ export default function AdminReviewPage() {
   const [userStatus, setUserStatus] = useState("all");
   const [userSearch, setUserSearch] = useState("");
   const [experienceSearch, setExperienceSearch] = useState("");
+  const [qaMaintenanceIds, setQaMaintenanceIds] = useState(null);
+  const [qaMaintenanceResult, setQaMaintenanceResult] = useState(null);
+  const [qaMaintenanceConfirm, setQaMaintenanceConfirm] = useState("");
+  const [qaMaintenanceBusy, setQaMaintenanceBusy] = useState(false);
+  const [qaNewContact, setQaNewContact] = useState("");
+  const [qaNewUserId, setQaNewUserId] = useState("");
+  const [qaRebindConfirm, setQaRebindConfirm] = useState("");
   const [opportunitySearch, setOpportunitySearch] = useState("");
   const [opportunityCityFilter, setOpportunityCityFilter] = useState("");
   const [opportunitySourceFilter, setOpportunitySourceFilter] = useState("");
@@ -1279,6 +1286,79 @@ export default function AdminReviewPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Temporary Admin QA controls. Remove before the reward rollout is global.
+  const loadQaMaintenanceIds = async () => {
+    setQaMaintenanceBusy(true);
+    setQaMaintenanceResult(null);
+    try {
+      const [experienceResponse, interviewResponse] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/admin/experiences`, { params: { status: "approved" }, headers: authHeaders }),
+        axios.get(`${API_BASE_URL}/api/admin/interview-questions`, { params: { status: "pending" }, headers: authHeaders }),
+      ]);
+      const matches = (experienceResponse.data?.data || []).filter((item) =>
+        item.organizationName === "QA Test - جهة تدريب تجريبية" &&
+        item.description?.startsWith("QA Test فقط:") && item.qaRewardId);
+      const interviews = (interviewResponse.data?.data || []).filter((item) =>
+        item.organizationName === "QA Test - جهة تدريب تجريبية" &&
+        item.note === "QA Test - مقابلة تجريبية لا تمثل جهة حقيقية.");
+      if (matches.length !== 1 || interviews.length !== 1) throw new Error("QA records are not unique");
+      setQaMaintenanceIds({ userId: matches[0].submittedByUserId,
+        experienceId: matches[0]._id, interviewId: interviews[0]._id,
+        rewardId: matches[0].qaRewardId });
+    } catch {
+      setQaMaintenanceResult({ error: "تعذر تحديد سجلات QA الأربعة بشكل فريد. توقفت الأداة." });
+    } finally { setQaMaintenanceBusy(false); }
+  };
+
+  const runQaMaintenanceAction = async (action, stage) => {
+    if (!qaMaintenanceIds || (action === "cleanup" && qaMaintenanceConfirm !== "DELETE_EXACT_QA_RECORDS")) return;
+    setQaMaintenanceBusy(true);
+    try {
+      const { data } = await axios.post(`${API_BASE_URL}/api/admin/experience-reward-qa-maintenance`,
+        { ...qaMaintenanceIds, action, ...(stage ? { stage } : {}),
+          ...(action === "cleanup" ? { confirm: qaMaintenanceConfirm } : {}) },
+        { headers: authHeaders });
+      setQaMaintenanceResult(data);
+    } catch {
+      setQaMaintenanceResult({ error: "فشل تحقق الأمان أو تنفيذ العملية. لا تتابع قبل مراجعة السبب." });
+    } finally { setQaMaintenanceBusy(false); }
+  };
+
+  const resolveNewQaUser = async () => {
+    const contact = qaNewContact.trim().toLowerCase();
+    if (!contact || !password) return;
+    setQaMaintenanceBusy(true);
+    setQaNewUserId("");
+    try {
+      const { data } = await axios.get(`${API_BASE_URL}/api/admin/users`,
+        { params: { status: "all", search: contact }, headers: authHeaders });
+      const matches = (data.users || []).filter((user) => user.contact === contact && user.hasAccessCode);
+      if (matches.length !== 1) throw new Error("New QA account must be unique");
+      setQaNewUserId(matches[0].id);
+      setQaMaintenanceResult({ newQaUserId: matches[0].id, contact });
+    } catch {
+      setQaMaintenanceResult({ error: "تعذر تحديد حساب QA الجديد بشكل فريد. توقفت الأداة." });
+    } finally { setQaMaintenanceBusy(false); }
+  };
+
+  const runQaRebind = async (action) => {
+    if (!qaMaintenanceIds || !qaNewUserId ||
+        (action === "rebind-qa-owner" && qaRebindConfirm !== "REBIND_EXACT_QA_RECORDS")) return;
+    setQaMaintenanceBusy(true);
+    try {
+      const { data } = await axios.post(`${API_BASE_URL}/api/admin/experience-reward-qa-maintenance`,
+        { action, oldQaUserId: qaMaintenanceIds.userId, newQaUserId: qaNewUserId,
+          experienceId: qaMaintenanceIds.experienceId, interviewId: qaMaintenanceIds.interviewId,
+          rewardId: qaMaintenanceIds.rewardId,
+          ...(action === "rebind-qa-owner" ? { confirm: qaRebindConfirm } : {}) },
+        { headers: authHeaders });
+      setQaMaintenanceResult(data);
+      if (data.changed === true) setQaMaintenanceIds((current) => ({ ...current, userId: qaNewUserId }));
+    } catch {
+      setQaMaintenanceResult({ error: "فشل تحقق أمان إعادة الربط. لا تتابع قبل مراجعة السبب." });
+    } finally { setQaMaintenanceBusy(false); }
   };
 
   const fetchSuggestions = async () => {
@@ -5072,6 +5152,43 @@ export default function AdminReviewPage() {
         >
           {message}
         </p>
+      )}
+
+      {adminView === "experiences" && (
+        <section style={{ border: `1px solid ${adminColors.inputBorder}`, borderRadius: 10, padding: 12,
+          display: "grid", gap: 8, marginBottom: 16 }}>
+          <strong>أداة QA المؤقتة لمكافأة التجربة</strong>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" disabled={qaMaintenanceBusy || !password} onClick={loadQaMaintenanceIds}>تحديد سجلات QA</button>
+            <button type="button" disabled={qaMaintenanceBusy || !qaMaintenanceIds} onClick={() => runQaMaintenanceAction("verify", "pre_finalize")}>تحقق قبل الإنهاء</button>
+            <button type="button" disabled={qaMaintenanceBusy || !qaMaintenanceIds} onClick={() => runQaMaintenanceAction("verify", "post_finalize")}>تحقق بعد الإنهاء</button>
+            <button type="button" disabled={qaMaintenanceBusy || qaMaintenanceResult?.rewardStatus !== "redeemed" || qaMaintenanceResult?.counts?.snapshot !== 1} onClick={() => runQaMaintenanceAction("cleanup-preview")}>معاينة الحذف</button>
+          </div>
+          {qaMaintenanceIds && <small>المعرّفات المحددة: {qaMaintenanceIds.experienceId} · {qaMaintenanceIds.interviewId} · {qaMaintenanceIds.rewardId}</small>}
+          <input aria-label="بريد حساب QA الجديد" type="email" value={qaNewContact}
+            onChange={(event) => { setQaNewContact(event.target.value); setQaNewUserId(""); }}
+            placeholder="بريد حساب QA الجديد" dir="ltr" />
+          <button type="button" disabled={qaMaintenanceBusy || !qaNewContact || !password}
+            onClick={resolveNewQaUser}>تحديد حساب QA الجديد من سجلات الإدارة</button>
+          {qaNewUserId && <small>معرّف حساب QA الجديد: {qaNewUserId}</small>}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" disabled={qaMaintenanceBusy || !qaMaintenanceIds || !qaNewUserId}
+              onClick={() => runQaRebind("rebind-qa-owner-preview")}>معاينة نقل ملكية QA</button>
+            <input aria-label="تأكيد نقل ملكية QA" value={qaRebindConfirm}
+              onChange={(event) => setQaRebindConfirm(event.target.value)}
+              placeholder="REBIND_EXACT_QA_RECORDS" />
+            <button type="button" disabled={qaMaintenanceBusy || !qaMaintenanceResult?.proposedMutation ||
+              qaMaintenanceResult?.changed !== false || qaRebindConfirm !== "REBIND_EXACT_QA_RECORDS"}
+              onClick={() => runQaRebind("rebind-qa-owner")}>نقل ملكية السجلين المحددين</button>
+          </div>
+          {qaMaintenanceResult && <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", direction: "ltr" }}>{JSON.stringify(qaMaintenanceResult, null, 2)}</pre>}
+          <input aria-label="تأكيد حذف سجلات QA المحددة" value={qaMaintenanceConfirm}
+            onChange={(event) => setQaMaintenanceConfirm(event.target.value)}
+            placeholder="DELETE_EXACT_QA_RECORDS" />
+          <button type="button" disabled={qaMaintenanceBusy || !qaMaintenanceIds ||
+            qaMaintenanceConfirm !== "DELETE_EXACT_QA_RECORDS" || !qaMaintenanceResult?.wouldDelete}
+            onClick={() => runQaMaintenanceAction("cleanup")}>حذف سجلات QA المحددة بعد المعاينة</button>
+        </section>
       )}
 
       {adminView === "analytics" ? renderSubscriptionDashboard() : adminView === "legacyAnalytics" ? (
