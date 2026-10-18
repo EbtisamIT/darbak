@@ -1,6 +1,6 @@
 const { isCheckoutCanaryEnabled } = require("./checkoutCanary");
 
-const QA_USER_ID = process.env.EXPERIENCE_REWARD_QA_USER_ID || "6abd577bec30b3276baf2027";
+const QA_USER_ID = process.env.EXPERIENCE_REWARD_QA_USER_ID || "6ad4c81d101441eb032e467e";
 const getExperienceRewardMode = () => String(process.env.EXPERIENCE_REWARD_MODE || "qa").trim().toLowerCase();
 const isExperienceRewardEnabled = (userId = "") => isCheckoutCanaryEnabled({
   mode: getExperienceRewardMode(), userId, qaUserId: QA_USER_ID,

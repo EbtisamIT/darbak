@@ -1,11 +1,12 @@
 const assert = require("node:assert/strict");
 const { getExperienceRewardMode, isExperienceRewardEnabled } = require("../services/experienceRewardRollout");
-const qa = process.env.EXPERIENCE_REWARD_QA_USER_ID || "6abd577bec30b3276baf2027";
+const qa = process.env.EXPERIENCE_REWARD_QA_USER_ID || "6ad4c81d101441eb032e467e";
 const oldMode = process.env.EXPERIENCE_REWARD_MODE;
 try {
   delete process.env.EXPERIENCE_REWARD_MODE;
   assert.equal(getExperienceRewardMode(), "qa");
   assert.equal(isExperienceRewardEnabled(qa), true);
+  assert.equal(isExperienceRewardEnabled("6abd577bec30b3276baf2027"), false);
   assert.equal(isExperienceRewardEnabled("other-user"), false);
   assert.equal(isExperienceRewardEnabled(), false);
   process.env.EXPERIENCE_REWARD_MODE = "off";
