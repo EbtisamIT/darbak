@@ -92,7 +92,7 @@ export default function AccountModal() {
         "x-darbak-access-code": stored.accessCode,
       } });
       setResumeReward(data.reward);
-      if (data.reward?.status === "available" && !data.reward.announcementSeenAt &&
+      if (data.reward?.v11Enabled && data.reward?.status === "available" && !data.reward.announcementSeenAt &&
         !acknowledgedRewardIds.current.has(String(data.reward.id))) {
         setRewardAnnouncement(data.reward);
       } else setRewardAnnouncement(null);
@@ -532,18 +532,29 @@ export default function AccountModal() {
 
         {resumeReward?.status === "available" && (
           <div className="account-reward-note">
-            <strong>🎁 هديتك جاهزة</strong>
-            <span>تم اعتماد تجربتك، وتقدر الآن تجهز سيرتك الذاتية مجانًا.</span>
-            <Link to="/rewards/resume" onClick={closeModal}>{resumeReward.hasDraft ? "أكمل سيرتي" : "ابدأ الآن"}</Link>
+            {resumeReward.v11Enabled ? <>
+              <strong>🎁 هديتك جاهزة</strong>
+              <span>تم اعتماد تجربتك، وتقدر الآن تجهز سيرتك الذاتية مجانًا.</span>
+              <Link to="/rewards/resume" onClick={closeModal}>{resumeReward.hasDraft ? "أكمل سيرتي" : "ابدأ الآن"}</Link>
+            </> : <>
+              <strong>مكافأتك جاهزة</strong>
+              <span>تم اعتماد تجربتك. حصلت على نسخة سيرة ذاتية واحدة مجانًا بقالب ATS.</span>
+              <Link to="/rewards/resume" onClick={closeModal}>إنشاء سيرتي الذاتية</Link>
+            </>}
           </div>
         )}
         {resumeReward?.status === "redeemed" && (
           <div className="account-reward-note">
-            <strong>سيرتي المجانية</strong>
-            <span>Darbak ATS Classic · {resumeReward.language === "ar" ? "العربية" : "English"}</span>
-            <span>تم إنشاؤها {formatDate(resumeReward.redeemedAt)}</span>
-            <Link to="/rewards/resume" onClick={closeModal}>عرض السيرة</Link>
-            <button type="button" onClick={downloadRewardPdf}>تنزيل PDF</button>
+            {resumeReward.v11Enabled ? <>
+              <strong>سيرتي المجانية</strong>
+              <span>Darbak ATS Classic · {resumeReward.language === "ar" ? "العربية" : "English"}</span>
+              <span>تم إنشاؤها {formatDate(resumeReward.redeemedAt)}</span>
+              <Link to="/rewards/resume" onClick={closeModal}>عرض السيرة</Link>
+              <button type="button" onClick={downloadRewardPdf}>تنزيل PDF</button>
+            </> : <>
+              <strong>سيرتك النهائية جاهزة</strong>
+              <Link to="/rewards/resume" onClick={closeModal}>تنزيل PDF</Link>
+            </>}
           </div>
         )}
 

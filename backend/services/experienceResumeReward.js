@@ -37,7 +37,7 @@ const cleanResumeData = (raw = {}) => ({
   })),
 });
 
-const trainingPrefill = (experience = {}, user = {}) => ({
+const trainingPrefill = (experience = {}, user = {}, { includeNarrative = false } = {}) => ({
   fullName: cleanText(user.firstName, 160),
   city: cleanText(experience.city, 100),
   email: cleanText(user.contact, 200),
@@ -52,7 +52,7 @@ const trainingPrefill = (experience = {}, user = {}) => ({
     location: cleanText(experience.city, 100),
     period: cleanText(experience.trainingYear || experience.duration, 100),
     // The public experience is conversational. The student supplies CV facts separately.
-    description: "",
+    description: includeNarrative ? cleanText(experience.description, 2000) : "",
   }],
   projects: [], certifications: [], skills: [], languages: [],
 });
@@ -102,11 +102,13 @@ const hasUsableContact = (draft) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(draft?.email, 200)) ||
   /^\+?\d{8,15}$/.test(cleanText(draft?.phone, 30).replace(/[\s()-]/g, ""));
 
-const hasCompleteRewardDraft = (reward, experience, userId) => {
+const hasCompleteRewardDraft = (reward, experience, userId, { v11Enabled = true } = {}) => {
   const draft = reward?.draft;
   const training = draft?.trainingExperience?.[0];
   const education = Boolean(cleanText(draft?.major) && cleanText(draft?.university) &&
-    cleanText(draft?.graduationYear) && cleanText(draft?.educationCity));
+    (!v11Enabled || (cleanText(draft?.graduationYear) && cleanText(draft?.educationCity))));
+  const qualification = !v11Enabled && (draft?.certifications || []).some((entry) =>
+    cleanText(entry?.title) && cleanText(entry?.organization));
   const skills = new Set((draft?.skills || []).map((skill) => cleanText(skill, 80)).filter(Boolean));
   const sameAsPublicNarrative = (value) => String(value || "").replace(/\s+/g, " ").trim() ===
     String(experience?.description || "").replace(/\s+/g, " ").trim();
@@ -116,19 +118,19 @@ const hasCompleteRewardDraft = (reward, experience, userId) => {
     experience?.sourceType !== "public_summary" &&
     String(experience?.submittedByUserId || "") === String(userId) &&
     cleanText(draft?.fullName) && hasUsableContact(draft) &&
-    education &&
+    (education || qualification) &&
     cleanText(training?.title) && cleanText(training?.organization) &&
-    cleanText(training?.description) && !sameAsPublicNarrative(training?.description) &&
+    cleanText(training?.description) && (!v11Enabled || !sameAsPublicNarrative(training?.description)) &&
     skills.size >= 3 &&
     ["ar", "en"].includes(reward?.language)
   );
 };
 
-async function finalizeReward({ userId, pdf, Reward, Snapshot, Experience }) {
+async function finalizeReward({ userId, pdf, Reward, Snapshot, Experience, v11Enabled = true }) {
   const reward = await findOwnedReward({ userId, Reward });
   if (!reward || reward.status !== "available") return { status: "unavailable" };
   const experience = reward.experienceId ? await Experience.findById(reward.experienceId).lean() : null;
-  if (!hasCompleteRewardDraft(reward, experience, userId)) return { status: "incomplete" };
+  if (!hasCompleteRewardDraft(reward, experience, userId, { v11Enabled })) return { status: "incomplete" };
   if (!Buffer.isBuffer(pdf) || pdf.length < 100 || pdf.length > 2 * 1024 * 1024 ||
     pdf.subarray(0, 5).toString() !== "%PDF-" ||
     !pdf.subarray(-1024).toString().includes("%%EOF")) return { status: "invalid_pdf" };

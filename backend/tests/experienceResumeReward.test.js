@@ -77,6 +77,9 @@ async function run() {
     description: "مهام التدريب", duration: "ثلاثة أشهر" }, { firstName: "طالب", contact: "student@example.com" });
   assert.equal(prefill.trainingExperience[0].organization, "DataVolt");
   assert.equal(prefill.trainingExperience[0].description, "", "public narrative is not copied to the CV");
+  assert.equal(trainingPrefill({ ...approved, description: "وصف التجربة القديم" }, {},
+    { includeNarrative: true }).trainingExperience[0].description, "وصف التجربة القديم",
+  "non-QA V1 prefill is preserved");
   const draft = { ...prefill, fullName: "طالب دربك", university: "جامعة الملك سعود",
     educationCity: "الرياض", graduationYear: "2026",
     trainingExperience: [{ ...prefill.trainingExperience[0], description: "أعددت تقارير باستخدام Excel" }],
@@ -117,6 +120,10 @@ async function run() {
   assert.equal(hasCompleteRewardDraft({ ...reward, draft: {
     ...draft, email: "", phone: "+966 50 000 0000",
   } }, approved, "user-1"), true, "phone is a usable contact method");
+  assert.equal(hasCompleteRewardDraft({ ...reward, draft: {
+    ...draft, graduationYear: "", educationCity: "",
+  } }, approved, "user-1", { v11Enabled: false }), true,
+  "non-QA V1 completeness is preserved");
   assert.equal(hasCompleteRewardDraft({ ...reward, draft: {
     ...draft, trainingExperience: [{ ...draft.trainingExperience[0], description: "نص التجربة الحواري" }],
   } }, { ...approved, description: "نص التجربة الحواري" }, "user-1"), false,

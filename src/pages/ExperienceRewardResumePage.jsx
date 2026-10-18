@@ -7,6 +7,7 @@ import { deriveRewardProfessionalTitle, toAtsClassicResume } from "../utils/expe
 import { cleanRewardDraft, getRewardReadiness, splitRewardBulletRows } from "../utils/experienceRewardResumeQuality";
 import { resumeCityOptions, resumeMajorOptions, resumeUniversityOptions } from "../data/resumeCanonicalOptions";
 import { getStoredAccessIdentity } from "../utils/premiumAccess";
+import ExperienceRewardResumeLegacyPage from "./ExperienceRewardResumeLegacyPage";
 import "./ExperienceRewardResumePage.css";
 
 const sections = [["trainingExperience", "تجربة التدريب"], ["experience", "الخبرات"],
@@ -221,7 +222,7 @@ export default function ExperienceRewardResumePage() {
     } finally { setBusy(false); }
   };
   const makePdf = async (savedDraft) => pdf(
-    <ResumePdfDocument resume={toAtsClassicResume(savedDraft, language)} rewardPresentation />
+    <ResumePdfDocument resume={toAtsClassicResume(savedDraft, language)} rewardPresentation="v11" />
   ).toBlob();
   const preview = async () => {
     try {
@@ -282,6 +283,7 @@ export default function ExperienceRewardResumePage() {
 
   if (loading) return <main className="experience-reward-page" dir="rtl">جاري تحميل المكافأة...</main>;
   if (!reward) return <main className="experience-reward-page" dir="rtl"><h1>مكافأة السيرة الذاتية</h1><p role="alert">{message}</p></main>;
+  if (!reward.v11Enabled) return <ExperienceRewardResumeLegacyPage />;
   if (reward.status === "redeemed") return <main className="experience-reward-page" dir="rtl">
     <h1>سيرتك جاهزة ✅</h1><p>تم إنشاء سيرتك الذاتية وحفظها في حسابك.</p>
     <div className="experience-reward-actions">

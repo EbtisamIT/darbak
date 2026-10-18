@@ -23,7 +23,7 @@ jest.mock("../utils/premiumAccess", () => ({
 beforeEach(() => { jest.clearAllMocks(); axios.post.mockResolvedValue({ data: { acknowledged: true } }); });
 
 test("approved reward shows once, dismiss keeps the account card and CTA without subscription", async () => {
-  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "available", announcementSeenAt: null } } });
+  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "available", v11Enabled: true, announcementSeenAt: null } } });
   render(<AccountModal />);
   expect(await screen.findByText("🎉 مبروك! تم اعتماد تجربتك")).toBeInTheDocument();
   expect(screen.getByText("هديتك جاهزة: سيرة ذاتية احترافية مجانًا بقالب Darbak ATS.")).toBeInTheDocument();
@@ -39,7 +39,7 @@ test("approved reward shows once, dismiss keeps the account card and CTA without
 });
 
 test("already announced reward does not reopen automatically", async () => {
-  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "available", announcementSeenAt: "2026-10-18" } } });
+  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "available", v11Enabled: true, announcementSeenAt: "2026-10-18" } } });
   render(<AccountModal />);
   await waitFor(() => expect(axios.get).toHaveBeenCalled());
   expect(screen.queryByText("🎉 مبروك! تم اعتماد تجربتك")).not.toBeInTheDocument();
@@ -47,8 +47,18 @@ test("already announced reward does not reopen automatically", async () => {
   expect(await screen.findByText("🎁 هديتك جاهزة")).toBeInTheDocument();
 });
 
-test("saved available draft says continue instead of starting over", async () => {
+test("non-QA users retain the V1 account card and do not see the V1.1 popup", async () => {
   axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "available",
+    v11Enabled: false, announcementSeenAt: null } } });
+  render(<AccountModal />);
+  await waitFor(() => expect(axios.get).toHaveBeenCalled());
+  expect(screen.queryByText("🎉 مبروك! تم اعتماد تجربتك")).not.toBeInTheDocument();
+  await act(async () => window.dispatchEvent(new CustomEvent("darbak:open-account")));
+  expect(await screen.findByText("مكافأتك جاهزة")).toBeInTheDocument();
+});
+
+test("saved available draft says continue instead of starting over", async () => {
+  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "available", v11Enabled: true,
     hasDraft: true, announcementSeenAt: "2026-10-18" } } });
   render(<AccountModal />);
   await act(async () => window.dispatchEvent(new CustomEvent("darbak:open-account")));
@@ -56,7 +66,7 @@ test("saved available draft says continue instead of starting over", async () =>
 });
 
 test("redeemed reward keeps a permanent card with view and saved PDF download", async () => {
-  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "redeemed", language: "ar",
+  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "redeemed", v11Enabled: true, language: "ar",
     redeemedAt: "2026-10-18T12:00:00.000Z", announcementSeenAt: null } } });
   render(<AccountModal />);
   await act(async () => window.dispatchEvent(new CustomEvent("darbak:open-account")));
@@ -71,7 +81,7 @@ test("redeemed reward keeps a permanent card with view and saved PDF download", 
 test("account download reads the existing PDF endpoint without generating a resume", async () => {
   const finalPdf = new Blob(["saved-pdf"], { type: "application/pdf" });
   axios.get.mockImplementation(async (url) => url.endsWith("/pdf")
-    ? { data: finalPdf } : { data: { reward: { id: "reward-1", status: "redeemed", language: "ar" } } });
+    ? { data: finalPdf } : { data: { reward: { id: "reward-1", status: "redeemed", v11Enabled: true, language: "ar" } } });
   URL.createObjectURL = jest.fn(() => "blob:saved-pdf");
   URL.revokeObjectURL = jest.fn();
   jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});

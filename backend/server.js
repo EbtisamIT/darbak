@@ -8,7 +8,7 @@ const {
   buildLegacyEmailIdentityPattern,
 } = require("./services/emailIdentity");
 
-const { getExperienceRewardMode, isExperienceRewardEnabled } = require("./services/experienceRewardRollout");
+const { getExperienceRewardMode, isExperienceRewardEnabled, isExperienceRewardV11Enabled } = require("./services/experienceRewardRollout");
 const ExperienceResumeReward = require("./models/ExperienceResumeReward");
 const ExperienceResumeSnapshot = require("./models/ExperienceResumeSnapshot");
 const { CAMPAIGN_ID: EXPERIENCE_REWARD_CAMPAIGN, trainingPrefill, findRewardAccount, findOwnedReward, grantApprovedExperienceReward, saveRewardDraft, finalizeReward } = require("./services/experienceResumeReward");
@@ -7707,21 +7707,23 @@ app.get("/api/rewards/resume/me", requireExperienceRewardUser, async (req, res) 
   try {
     const reward = await findOwnedReward({ userId: req.experienceRewardUser._id, Reward: ExperienceResumeReward });
     if (!reward) return res.status(404).json({ error: "لا توجد مكافأة سيرة ذاتية متاحة لهذا الحساب." });
+    const v11Enabled = isExperienceRewardV11Enabled(req.experienceRewardUser._id);
     const experience = await Experience.findById(reward.experienceId).lean();
     const savedDraft = reward.draft ? { ...reward.draft } : null;
-    if (savedDraft?.trainingExperience?.[0]?.description &&
+    if (v11Enabled && savedDraft?.trainingExperience?.[0]?.description &&
       String(savedDraft.trainingExperience[0].description).replace(/\s+/g, " ").trim() ===
       String(experience?.description || "").replace(/\s+/g, " ").trim()) {
       savedDraft.trainingExperience = [{ ...savedDraft.trainingExperience[0], description: "" }];
     }
     res.json({ reward: {
-      id: reward._id, status: reward.status, language: reward.language,
+      id: reward._id, status: reward.status, language: reward.language, v11Enabled,
       hasDraft: Boolean(reward.draft),
       grantedAt: reward.grantedAt, redeemedAt: reward.redeemedAt,
       announcementSeenAt: reward.announcementSeenAt,
       aiGenerationAttemptedAt: reward.aiGenerationAttemptedAt,
       aiSuggestion: reward.aiSuggestion || null,
-    }, draft: savedDraft, prefill: trainingPrefill(experience, req.experienceRewardUser),
+    }, draft: savedDraft, prefill: trainingPrefill(experience, req.experienceRewardUser,
+      { includeNarrative: !v11Enabled }),
     sourceNarrative: experience?.description || "" });
   } catch (error) {
     console.error("❌ Experience reward lookup:", error);
@@ -7744,6 +7746,7 @@ app.post("/api/rewards/resume/announcement-seen", requireExperienceRewardUser, a
 
 app.post("/api/rewards/resume/suggest", requireExperienceRewardUser, async (req, res) => {
   try {
+    if (!isExperienceRewardV11Enabled(req.experienceRewardUser._id)) return res.status(404).json({ error: "غير متاح." });
     const result = await requestRewardAiSuggestion({
       userId: req.experienceRewardUser._id, Reward: ExperienceResumeReward,
     });
@@ -7779,10 +7782,14 @@ app.put("/api/rewards/resume/draft", requireExperienceRewardUser, async (req, re
 app.post("/api/rewards/resume/finalize", requireExperienceRewardUser,
   express.raw({ type: "application/pdf", limit: "2mb" }), async (req, res) => {
   try {
+    const v11Enabled = isExperienceRewardV11Enabled(req.experienceRewardUser._id);
     const result = await finalizeReward({ userId: req.experienceRewardUser._id,
-      pdf: req.body, Reward: ExperienceResumeReward, Snapshot: ExperienceResumeSnapshot, Experience });
+      pdf: req.body, Reward: ExperienceResumeReward, Snapshot: ExperienceResumeSnapshot, Experience,
+      v11Enabled });
     if (result.status === "unavailable") return res.status(409).json({ error: "المكافأة غير متاحة للاستخدام." });
-    if (result.status === "incomplete") return res.status(400).json({ error: "أكمل الاسم والتواصل والجامعة والتخصص وسنة التخرج ومدينة الجامعة وتجربة التدريب وثلاث مهارات على الأقل." });
+    if (result.status === "incomplete") return res.status(400).json({ error: v11Enabled
+      ? "أكمل الاسم والتواصل والجامعة والتخصص وسنة التخرج ومدينة الجامعة وتجربة التدريب وثلاث مهارات على الأقل."
+      : "أكمل بيانات التواصل والتعليم أو المؤهل وتجربة التدريب وثلاث مهارات على الأقل قبل الاعتماد." });
     if (result.status === "invalid_pdf") return res.status(400).json({ error: "ملف السيرة غير صالح." });
     res.json({ status: "redeemed" });
   } catch (error) {

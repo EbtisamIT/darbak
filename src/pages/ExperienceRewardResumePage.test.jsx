@@ -24,9 +24,9 @@ const prefill = {
 beforeEach(() => {
   jest.clearAllMocks();
   pdf.mockImplementation(() => ({ toBlob: async () => new Blob(["%PDF-1.4\n%%EOF"], { type: "application/pdf" }) }));
-  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "available", language: null }, prefill } });
+  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "available", v11Enabled: true, language: null }, prefill } });
   axios.put.mockImplementation(async (_, body) => ({ data: { language: body.language, draft: body.draft } }));
-  axios.post.mockResolvedValue({ data: { status: "redeemed" } });
+  axios.post.mockResolvedValue({ data: { status: "redeemed", v11Enabled: true } });
   URL.createObjectURL = jest.fn(() => "blob:preview");
   URL.revokeObjectURL = jest.fn();
   jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
@@ -40,13 +40,22 @@ test("reward route requires an owned reward and never opens the builder on 404",
   expect(screen.queryByText("اعتماد وإنشاء السيرة الذاتية")).not.toBeInTheDocument();
 });
 
+test("non-QA users retain the V1 reward builder while V1.1 is QA-only", async () => {
+  axios.get.mockResolvedValue({ data: { reward: { id: "reward-1", status: "available",
+    v11Enabled: false, language: null }, prefill } });
+  render(<ExperienceRewardResumePage />);
+  fireEvent.click(await screen.findByText("العربية"));
+  expect(await screen.findByText("التخصص أو المؤهل")).toBeInTheDocument();
+  expect(screen.queryByText("اقتراح صياغة مهنية")).not.toBeInTheDocument();
+});
+
 test("preview saves independent draft without finalizing; finalize once then download", async () => {
   render(<ExperienceRewardResumePage />);
   fireEvent.click(await screen.findByText("العربية"));
   expect(screen.getByDisplayValue("DataVolt")).toBeInTheDocument();
   fireEvent.click(screen.getByText("معاينة السيرة"));
   await waitFor(() => expect(pdf).toHaveBeenCalledTimes(1));
-  expect(pdf.mock.calls[0][0].props.rewardPresentation).toBe(true);
+  expect(pdf.mock.calls[0][0].props.rewardPresentation).toBe("v11");
   expect(await screen.findByTitle("معاينة السيرة الذاتية")).toBeInTheDocument();
   await waitFor(() => expect(screen.getByText("اعتماد وإنشاء السيرة الذاتية")).not.toBeDisabled());
   expect(axios.put).toHaveBeenCalledTimes(1);
@@ -70,7 +79,7 @@ test("autosaved draft restores every edited section after reopening and signing 
     return { data: { language: savedLanguage, draft: savedDraft } };
   });
   axios.get.mockImplementation(async () => ({ data: {
-    reward: { id: "reward-1", status: "available", language: savedLanguage,
+    reward: { id: "reward-1", status: "available", v11Enabled: true, language: savedLanguage,
       hasDraft: Boolean(savedDraft) },
     draft: savedDraft, prefill,
   } }));
@@ -119,7 +128,7 @@ test("leaving immediately sends the latest unsaved draft with a keepalive reques
 test("redeemed reward reopens read-only and views or downloads the saved PDF without rendering", async () => {
   const finalPdf = new Blob(["saved-pdf"], { type: "application/pdf" });
   axios.get.mockImplementation(async (url) => url.endsWith("/pdf")
-    ? { data: finalPdf } : { data: { reward: { id: "reward-1", status: "redeemed", language: "ar" }, draft: prefill } });
+    ? { data: finalPdf } : { data: { reward: { id: "reward-1", status: "redeemed", v11Enabled: true, language: "ar" }, draft: prefill } });
   const first = render(<ExperienceRewardResumePage />);
   expect(await screen.findByText("سيرتك جاهزة ✅")).toBeInTheDocument();
   expect(screen.queryByText("اعتماد وإنشاء السيرة الذاتية")).not.toBeInTheDocument();
@@ -167,7 +176,7 @@ test("structured training bullets persist in existing description and preview do
 });
 
 test("finalization names missing required items and does not send PDF", async () => {
-  axios.get.mockResolvedValueOnce({ data: { reward: { status: "available", language: null },
+  axios.get.mockResolvedValueOnce({ data: { reward: { status: "available", v11Enabled: true, language: null },
     prefill: { ...prefill, skills: ["Excel"], trainingExperience: [{ ...prefill.trainingExperience[0], description: "" }] } } });
   render(<ExperienceRewardResumePage />);
   fireEvent.click(await screen.findByText("العربية"));
@@ -178,7 +187,7 @@ test("finalization names missing required items and does not send PDF", async ()
 });
 
 test("incomplete draft can still be previewed without consuming the reward", async () => {
-  axios.get.mockResolvedValueOnce({ data: { reward: { status: "available", language: null },
+  axios.get.mockResolvedValueOnce({ data: { reward: { status: "available", v11Enabled: true, language: null },
     prefill: { ...prefill, fullName: "", email: "", skills: [] } } });
   render(<ExperienceRewardResumePage />);
   fireEvent.click(await screen.findByText("العربية"));
@@ -245,7 +254,7 @@ test.each([
   ["university", "الجامعة"], ["major", "التخصص"],
   ["graduationYear", "سنة التخرج"], ["educationCity", "مدينة الجامعة"],
 ])("%s is required before finalization", async (field, label) => {
-  axios.get.mockResolvedValueOnce({ data: { reward: { status: "available", language: null },
+  axios.get.mockResolvedValueOnce({ data: { reward: { status: "available", v11Enabled: true, language: null },
     prefill: { ...prefill, [field]: "" } } });
   render(<ExperienceRewardResumePage />);
   fireEvent.click(await screen.findByText("العربية"));
@@ -273,7 +282,7 @@ test("skill, language and project tool chips accept multiple values", async () =
 });
 
 test("conversational experience is reference only and never copied into PDF", async () => {
-  axios.get.mockResolvedValueOnce({ data: { reward: { status: "available", language: null },
+  axios.get.mockResolvedValueOnce({ data: { reward: { status: "available", v11Enabled: true, language: null },
     prefill: { ...prefill, trainingExperience: [{ ...prefill.trainingExperience[0], description: "" }] },
     sourceNarrative: "كانت تجربتي جميلة جدًا وساعدني الفريق كثيرًا" } });
   render(<ExperienceRewardResumePage />);
