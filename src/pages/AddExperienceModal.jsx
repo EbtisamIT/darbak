@@ -728,7 +728,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 lineHeight: 1.45,
               }}
             >
-              شارك تجربتك، ساعد طالب بعدك يقرر صح
+              {qaTestMode ? "اختبار مسار مشاركة التجربة" : "شارك تجربتك، ساعد طالب بعدك يقرر صح"}
             </h2>
 
             <p
@@ -739,8 +739,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 lineHeight: 1.8,
               }}
             >
-              التجربة الصادقة تختصر على غيرك حيرة البداية، وتخلي الطالب اللي
-              بعدك يعرف ماذا يتوقع قبل التقديم أو أول يوم تدريب.
+              {qaTestMode
+                ? "سجّل مساهمة اختبار واضحة لمراجعة رحلة المكافأة دون نشرها للطلاب."
+                : "التجربة الصادقة تختصر على غيرك حيرة البداية، وتخلي الطالب اللي بعدك يعرف ماذا يتوقع قبل التقديم أو أول يوم تدريب."}
             </p>
 
             <div style={{ fontSize: 28, margin: "8px 0" }}>🤍</div>
@@ -781,7 +782,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 boxShadow: "0 16px 34px rgba(125,219,205,0.2)",
               }}
             >
-              اكتب تجربتي لتفيد غيري
+              {qaTestMode ? "أبدأ مساهمة QA التجريبية" : "اكتب تجربتي لتفيد غيري"}
             </button>
 
             <div
@@ -797,8 +798,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 maxWidth: 500,
               }}
             >
-              لا نعرض أي بيانات شخصية. نراجع التجربة قبل نشرها للتأكد أنها
-              مفيدة وأصلية وتحترم خصوصيتك.
+              {qaTestMode
+                ? "هذه مساهمة اختبار QA، وستبقى خارج المحتوى والإحصاءات العامة."
+                : "لا نعرض أي بيانات شخصية. نراجع التجربة قبل نشرها للتأكد أنها مفيدة وأصلية وتحترم خصوصيتك."}
             </div>
           </div>
         </div>
@@ -888,7 +890,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
         >
           {isJourneyEntry && step < totalSteps && (
             <p style={{ margin: "0 0 16px", padding: "9px 12px", borderRadius: 10, background: "var(--app-brand-soft)", color: "var(--app-text-soft)", fontSize: 13 }}>
-              شارك تجربة تدريب حقيقية. بعد اعتمادها تحصل على نسخة سيرة ذاتية مجانية بقالب ATS.
+              {qaTestMode
+                ? "هذه مساهمة اختبار QA ولن تُنشر كمحتوى حقيقي."
+                : "شارك تجربة تدريب حقيقية. بعد اعتمادها تحصل على نسخة سيرة ذاتية مجانية بقالب ATS."}
             </p>
           )}
           {/* الخطوة 0 - بيانات الجهة */}
@@ -1530,7 +1534,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                     cursor: loading || qaTestState === "loading" ? "not-allowed" : "pointer",
                   }}
                 >
-                  {loading ? "جاري الإرسال..." : "أرسل تجربتي لتفيد غيري"}
+                  {loading ? "جاري الإرسال..." : qaTestMode ? "إرسال مساهمة QA للمراجعة" : "أرسل تجربتي لتفيد غيري"}
                 </button>
               </div>
             ) : (

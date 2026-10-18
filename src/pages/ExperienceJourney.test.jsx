@@ -132,7 +132,7 @@ test("QA contribution has a truthful notice, sends an exact marker, and skips re
   render(<AddExperienceModal />);
   expect(await screen.findByText("هذه مساهمة اختبار QA ولن تُنشر كمحتوى حقيقي.")).toBeInTheDocument();
   expect(screen.queryByText(/تجربة حقيقية تخصني/)).not.toBeInTheDocument();
-  fireEvent.click(screen.getByText("أرسل تجربتي لتفيد غيري"));
+  fireEvent.click(screen.getByText("إرسال مساهمة QA للمراجعة"));
   await waitFor(() => expect(axios.post).toHaveBeenCalledTimes(1));
   const payload = axios.post.mock.calls[0][1];
   expect(payload).toMatchObject({ qaTest: true, qaTestCampaign: "experience-reward-v1.1",
