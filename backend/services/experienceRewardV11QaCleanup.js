@@ -1,0 +1,103 @@
+// Temporary production QA cleanup. Remove this service and route before V1.1 global rollout.
+const assert = require("node:assert/strict");
+const mongoose = require("mongoose");
+const Experience = require("../models/Experience");
+const Reward = require("../models/ExperienceResumeReward");
+const Snapshot = require("../models/ExperienceResumeSnapshot");
+const User = require("../models/User");
+const ResumeProfile = require("../models/ResumeProfile");
+const Subscription = require("../models/Subscription");
+const ResumeAgentSession = require("../models/ResumeAgentSession");
+const { CAMPAIGN_ID } = require("./experienceResumeReward");
+const { QA_TEST_CAMPAIGN } = require("./experienceQaSubmission");
+const { isExperienceRewardQaTestEnabled } = require("./experienceRewardRollout");
+
+const exactId = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
+
+async function loadExactQaRecords({ userId, experienceId, rewardId }, session) {
+  assert([userId, experienceId, rewardId].every(exactId), "Exact ObjectIds required");
+  assert(isExperienceRewardQaTestEnabled(userId), "Not the designated QA user in QA mode");
+  const options = session ? { session } : {};
+  const user = await User.findById(userId, null, options).lean();
+  const experience = await Experience.findById(experienceId, null, options).lean();
+  const reward = await Reward.findById(rewardId, null, options).lean();
+  assert(user && user.accessCodeHash, "QA account is missing");
+  assert(experience && experience.qaTest === true &&
+    experience.qaTestCampaign === QA_TEST_CAMPAIGN &&
+    String(experience.submittedByUserId) === userId &&
+    experience.status === "approved", "Exact approved QA experience differs");
+  assert(reward && String(reward.userId) === userId &&
+    String(reward.experienceId) === experienceId &&
+    reward.campaignId === CAMPAIGN_ID && reward.type === "single_ats_resume" &&
+    reward.status === "redeemed" && reward.resumeSnapshotId,
+  "Exact redeemed QA reward differs");
+  const rewardCount = await Reward.countDocuments({ userId, campaignId: CAMPAIGN_ID }).session(session || null);
+  const snapshotCount = await Snapshot.countDocuments({ rewardId }).session(session || null);
+  const snapshot = await Snapshot.findById(reward.resumeSnapshotId, null, options).lean();
+  assert.equal(rewardCount, 1, "QA campaign reward count differs");
+  assert.equal(snapshotCount, 1, "QA snapshot count differs");
+  assert(snapshot && String(snapshot.rewardId) === rewardId &&
+    String(snapshot.userId) === userId &&
+    (Buffer.isBuffer(snapshot.pdf) ? snapshot.pdf.length > 0 :
+      Boolean(snapshot.pdf?.buffer?.length)), "Exact linked PDF snapshot differs");
+  return { user, experience, reward, snapshot };
+}
+
+async function isolationCounts({ user, experience }) {
+  const since = experience.createdAt;
+  const [profiles, subscriptions, agentSessions] = await Promise.all([
+    ResumeProfile.countDocuments({ $and: [
+      { $or: [{ userId: user._id }, { contact: user.contact }] },
+      { $or: [{ createdAt: { $gte: since } }, { updatedAt: { $gte: since } }] },
+    ] }),
+    Subscription.countDocuments({ email: user.contact, createdAt: { $gte: since } }),
+    ResumeAgentSession.countDocuments({ userId: user._id, createdAt: { $gte: since } }),
+  ]);
+  return { resumeProfilesCreatedOrChanged: profiles, resumeSubscriptionsCreated: subscriptions,
+    agentSessionsCreated: agentSessions,
+    resumeEntitlement: (user.entitlements || []).includes("resume_builder") };
+}
+
+async function runExperienceRewardV11QaCleanup(body = {}) {
+  assert(["preview", "cleanup"].includes(body.action), "Unsupported QA action");
+  const ids = { userId: body.userId, experienceId: body.experienceId, rewardId: body.rewardId };
+  const records = await loadExactQaRecords(ids);
+  const isolation = await isolationCounts(records);
+  assert.deepEqual(isolation, { resumeProfilesCreatedOrChanged: 0,
+    resumeSubscriptionsCreated: 0, agentSessionsCreated: 0, resumeEntitlement: false },
+  "Reward isolation differs");
+  const wouldDelete = { experienceId: ids.experienceId, rewardId: ids.rewardId,
+    snapshotId: String(records.snapshot._id), pdfReferenceCount: 1 };
+  if (body.action === "preview") return { wouldDelete, isolation, deleted: false };
+  assert.equal(body.confirm, "DELETE_EXACT_QA_RECORDS", "Exact cleanup confirmation required");
+  assert.equal(body.snapshotId, wouldDelete.snapshotId, "Previewed snapshot differs");
+
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      const current = await loadExactQaRecords(ids, session);
+      assert.equal(String(current.snapshot._id), body.snapshotId);
+      const snapshotDelete = await Snapshot.deleteOne({ _id: current.snapshot._id,
+        rewardId: ids.rewardId, userId: ids.userId }, { session });
+      const rewardDelete = await Reward.deleteOne({ _id: ids.rewardId, userId: ids.userId,
+        experienceId: ids.experienceId, campaignId: CAMPAIGN_ID }, { session });
+      const experienceDelete = await Experience.deleteOne({ _id: ids.experienceId,
+        submittedByUserId: ids.userId, qaTest: true,
+        qaTestCampaign: QA_TEST_CAMPAIGN }, { session });
+      assert.deepEqual([snapshotDelete.deletedCount, rewardDelete.deletedCount,
+        experienceDelete.deletedCount], [1, 1, 1], "Exact QA deletion differs");
+    });
+  } finally {
+    await session.endSession();
+  }
+  const remaining = await Promise.all([
+    Experience.countDocuments({ _id: ids.experienceId }),
+    Reward.countDocuments({ _id: ids.rewardId }),
+    Snapshot.countDocuments({ _id: body.snapshotId }),
+  ]);
+  assert.deepEqual(remaining, [0, 0, 0], "QA records remain after cleanup");
+  return { deleted: true, remaining: { experience: 0, reward: 0, snapshot: 0 },
+    qaAccountRetained: true, customerRecordsTouched: 0 };
+}
+
+module.exports = { loadExactQaRecords, runExperienceRewardV11QaCleanup };

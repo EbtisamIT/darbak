@@ -111,6 +111,15 @@ const experienceSchema = new mongoose.Schema(
       ref: "User",
       index: true,
     },
+    qaTest: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    qaTestCampaign: {
+      type: String,
+      default: "",
+    },
     submissionStatus: {
       type: String,
       enum: ["pending", "approved", "rejected"],

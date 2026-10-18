@@ -8,7 +8,10 @@ const {
   buildLegacyEmailIdentityPattern,
 } = require("./services/emailIdentity");
 
-const { getExperienceRewardMode, isExperienceRewardEnabled, isExperienceRewardV11Enabled } = require("./services/experienceRewardRollout");
+const { getExperienceRewardMode, getExperienceRewardV11Mode, isExperienceRewardEnabled, isExperienceRewardV11Enabled, isExperienceRewardQaTestEnabled } = require("./services/experienceRewardRollout");
+const { getPublicExperienceFilter } = require("./services/experienceVisibility");
+const { QA_TEST_CAMPAIGN, classifyExperienceSubmission } = require("./services/experienceQaSubmission");
+const { runExperienceRewardV11QaCleanup } = require("./services/experienceRewardV11QaCleanup");
 const ExperienceResumeReward = require("./models/ExperienceResumeReward");
 const ExperienceResumeSnapshot = require("./models/ExperienceResumeSnapshot");
 const { CAMPAIGN_ID: EXPERIENCE_REWARD_CAMPAIGN, trainingPrefill, findRewardAccount, findOwnedReward, grantApprovedExperienceReward, saveRewardDraft, finalizeReward } = require("./services/experienceResumeReward");
@@ -5494,9 +5497,7 @@ const SMART_ASSISTANT_SUGGESTED_QUESTIONS = [
   "وش أهم شيء أشيك عليه قبل أختار جهة؟",
 ];
 
-const getApprovedExperiencesFilter = () => ({
-  $or: [{ status: "approved" }, { status: { $exists: false } }],
-});
+const getApprovedExperiencesFilter = getPublicExperienceFilter;
 
 const getActiveFeaturedAmbassadorFilter = () => ({
   $and: [
@@ -7267,9 +7268,7 @@ app.get('/api/home-stats', async (req, res) => {
       return res.json(cachedStats);
     }
 
-    const approvedFilter = {
-      $or: [{ status: "approved" }, { status: { $exists: false } }],
-    };
+    const approvedFilter = getApprovedExperiencesFilter();
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const currentOpportunitiesFilter = {
@@ -7680,9 +7679,10 @@ app.get("/api/rewards/resume/rollout", async (req, res) => {
       User, normalizeContact: normalizeSubscriberContact, normalizeCode: normalizeAccessCode,
       validContact: isValidSubscriberContact, validCode: isValidAccessCode, hashCode: hashAccessCode,
     });
-    res.json({ enabled: isExperienceRewardEnabled(user?._id), mode: getExperienceRewardMode() });
+    res.json({ enabled: isExperienceRewardEnabled(user?._id), mode: getExperienceRewardMode(),
+      qaTestContributionEnabled: isExperienceRewardQaTestEnabled(user?._id) });
   } catch {
-    res.json({ enabled: false, mode: getExperienceRewardMode() });
+    res.json({ enabled: false, mode: getExperienceRewardMode(), qaTestContributionEnabled: false });
   }
 });
 
@@ -16608,9 +16608,7 @@ app.get('/api/training-targets', async (req, res) => {
       });
     }
 
-    const filter = {
-      $or: [{ status: "approved" }, { status: { $exists: false } }],
-    };
+    const filter = getApprovedExperiencesFilter();
 
     const majorFilters = [];
     if (major) majorFilters.push({ major });
@@ -17308,16 +17306,30 @@ app.post('/api/experiences', async (req, res) => {
       });
     }
 
+    const hasQaMarker = req.body.qaTest === true || Boolean(req.body.qaTestCampaign);
+    const qaTestUser = hasQaMarker ? await findRewardAccount({
+      rawContact: req.get("x-darbak-contact"), rawCode: req.get("x-darbak-access-code"),
+      User, normalizeContact: normalizeSubscriberContact, normalizeCode: normalizeAccessCode,
+      validContact: isValidSubscriberContact, validCode: isValidAccessCode, hashCode: hashAccessCode,
+    }) : null;
+    const submission = classifyExperienceSubmission({ body: req.body,
+      authenticatedUserId: qaTestUser?._id });
+    if (submission.status === 403) return res.status(403).json({ error: "غير متاح." });
+    if (submission.status === 400) {
+      return res.status(400).json({ error: "يلزم الإقرار بصحة التجربة والموافقة على نشرها." });
+    }
+    const qaTest = submission.qaTest;
+
     const rewardAmount =
       typeof req.body.rewardAmount === "string" ? req.body.rewardAmount.trim() : "";
     const accessIdentity = getAccessIdentityFromRequest(req);
-    let submittedByUser = null;
+    let submittedByUser = qaTestUser;
 
     if (
       isValidSubscriberContact(accessIdentity.contact) &&
       isValidAccessCode(accessIdentity.accessCode)
     ) {
-      submittedByUser = await ensureAccessUser(accessIdentity);
+      if (!submittedByUser) submittedByUser = await ensureAccessUser(accessIdentity);
     }
 
     const newExp = new Experience({
@@ -17328,11 +17340,13 @@ app.post('/api/experiences', async (req, res) => {
       ambassadorLinkedInUrl: "",
       ambassadorProfileImageUrl: "",
       submittedByUserId: submittedByUser?._id,
+      qaTest,
+      qaTestCampaign: qaTest ? QA_TEST_CAMPAIGN : "",
       submissionStatus: "pending",
       // New submissions are reviewed for quality only; publishing no longer grants access.
       rewardEligible: false,
       rewardStatus: "not_eligible",
-      publicationConsent: req.body.publicationConsent === true,
+      publicationConsent: !qaTest && req.body.publicationConsent === true,
       sourceType: "direct",
       status: "pending",
     });
@@ -17825,6 +17839,21 @@ app.get('/api/experiences/:id', async (req, res) => {
   }
 });
 
+// Temporary QA-only maintenance. Remove before V1.1 is enabled globally.
+app.post("/api/admin/experience-reward-v11-qa-cleanup", (req, res, next) => {
+  if (process.env.EXPERIENCE_REWARD_QA_MAINTENANCE_ENABLED !== "true" ||
+    getExperienceRewardV11Mode() !== "qa") return res.sendStatus(404);
+  return requireAdmin(req, res, next);
+}, async (req, res) => {
+  try {
+    const result = await runExperienceRewardV11QaCleanup(req.body);
+    res.set("Cache-Control", "no-store").json(result);
+  } catch (error) {
+    console.error("Experience reward V1.1 QA cleanup stopped:", error.message);
+    res.status(409).json({ error: "QA cleanup assertion failed. No deletion completed." });
+  }
+});
+
 app.get('/api/admin/experiences', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -17849,6 +17878,9 @@ app.get('/api/admin/experiences', requireAdmin, async (req, res) => {
     res.json({ data: experiences.map((item) => {
       const reward = rewardByUser.get(String(item.submittedByUserId || ""));
       return { ...item,
+        ...(item.qaTest === true && reward &&
+          String(reward.experienceId) === String(item._id)
+          ? { qaRewardId: String(reward._id) } : {}),
         resumeRewardState: reward
         ? String(reward.experienceId) === String(item._id) ? "granted" : "already_granted"
         : "not_granted" };

@@ -1091,6 +1091,9 @@ export default function AdminReviewPage() {
   const [status, setStatus] = useState("pending");
   const [opportunityStatus, setOpportunityStatus] = useState("active");
   const [experiences, setExperiences] = useState([]);
+  const [qaCleanupPreview, setQaCleanupPreview] = useState(null);
+  const [qaCleanupConfirmation, setQaCleanupConfirmation] = useState("");
+  const [qaCleanupBusy, setQaCleanupBusy] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [studentFeedback, setStudentFeedback] = useState({
     summary: { count: 0, averageSatisfaction: 0, ratings: {} },
@@ -1278,6 +1281,41 @@ export default function AdminReviewPage() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Temporary QA cleanup UI. Remove with the matching backend route before V1.1 global rollout.
+  const runQaCleanup = async (exp, action) => {
+    if (!exp.qaTest || !exp.qaRewardId || !exp.submittedByUserId) return;
+    const ids = { userId: String(exp.submittedByUserId), experienceId: String(exp._id),
+      rewardId: String(exp.qaRewardId) };
+    if (action === "cleanup" && (!qaCleanupPreview ||
+      qaCleanupPreview.wouldDelete.experienceId !== ids.experienceId ||
+      qaCleanupPreview.wouldDelete.rewardId !== ids.rewardId ||
+      qaCleanupConfirmation !== "DELETE_EXACT_QA_RECORDS")) return;
+    try {
+      setQaCleanupBusy(true);
+      const { data } = await axios.post(
+        `${API_BASE_URL}/api/admin/experience-reward-v11-qa-cleanup`,
+        { ...ids, action, ...(action === "cleanup" ? {
+          confirm: qaCleanupConfirmation,
+          snapshotId: qaCleanupPreview.wouldDelete.snapshotId,
+        } : {}) },
+        { headers: authHeaders }
+      );
+      if (action === "preview") {
+        setQaCleanupPreview(data);
+        setQaCleanupConfirmation("");
+      } else {
+        setQaCleanupPreview(null);
+        setQaCleanupConfirmation("");
+        setMessage("حُذفت سجلات QA المحددة فقط.");
+        await fetchExperiences();
+      }
+    } catch (error) {
+      setMessage(error.response?.data?.error || "توقف تنظيف QA بسبب عدم تطابق السجلات.");
+    } finally {
+      setQaCleanupBusy(false);
     }
   };
 
@@ -7533,6 +7571,9 @@ export default function AdminReviewPage() {
                     ? "المستخدم حصل على مكافأة الحملة سابقًا"
                     : "لم تُمنح"}
                 </span>
+                {exp.qaTest === true && (
+                  <span style={{ color: "#fbbf24", fontWeight: 800, fontSize: "13px" }}>QA TEST</span>
+                )}
                 {[
                   ["hadReward", "مكافأة"],
                   ["wasHired", "عرض"],
@@ -7564,6 +7605,32 @@ export default function AdminReviewPage() {
                   </span>
                 ))}
               </div>
+
+              {exp.qaTest === true && exp.qaRewardId && exp.status === "approved" && (
+                <div style={{ ...cardStyle, marginBottom: "12px" }}>
+                  <strong>تنظيف مساهمة QA المؤقتة</strong>
+                  <p style={{ color: adminColors.textSoft, margin: "8px 0" }}>
+                    المعاينة والتحقق يقتصران على التجربة والمكافأة والـPDF المرتبطين بهذا السجل.
+                  </p>
+                  <button type="button" disabled={qaCleanupBusy}
+                    onClick={() => runQaCleanup(exp, "preview")}>معاينة السجلات المحددة</button>
+                  {qaCleanupPreview?.wouldDelete?.experienceId === String(exp._id) && (
+                    <div style={{ marginTop: "12px", overflowWrap: "anywhere" }}>
+                      <div>Experience: {qaCleanupPreview.wouldDelete.experienceId}</div>
+                      <div>Reward: {qaCleanupPreview.wouldDelete.rewardId}</div>
+                      <div>Snapshot: {qaCleanupPreview.wouldDelete.snapshotId}</div>
+                      <div>PDF: {qaCleanupPreview.wouldDelete.pdfReferenceCount}</div>
+                      <input aria-label="تأكيد حذف سجلات QA المحددة" value={qaCleanupConfirmation}
+                        onChange={(event) => setQaCleanupConfirmation(event.target.value)}
+                        placeholder="DELETE_EXACT_QA_RECORDS"
+                        style={{ display: "block", width: "100%", margin: "10px 0" }} />
+                      <button type="button" disabled={qaCleanupBusy ||
+                        qaCleanupConfirmation !== "DELETE_EXACT_QA_RECORDS"}
+                        onClick={() => runQaCleanup(exp, "cleanup")}>حذف سجلات QA المحددة</button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {FEATURED_AMBASSADORS_ENABLED &&
                 exp.ambassadorConsent === "yes" &&

@@ -6,7 +6,7 @@ import API_BASE_URL from "../config/api";
 import { trackEvent } from "../utils/analytics";
 import { buildAddExperienceSeoMeta, setPageSeo } from "../utils/seoMetadata";
 import ExperienceSubmissionNextStep from "./ExperienceSubmissionNextStep";
-import { canShowExperienceReward } from "../utils/experienceRewardRollout";
+import { canShowExperienceReward, canSubmitQaTestExperience } from "../utils/experienceRewardRollout";
 import {
   getAccessHeaders,
   getStoredAccessIdentity,
@@ -73,6 +73,16 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     const identity = getStoredAccessIdentity();
     return Boolean(identity.contact && identity.accessCode);
   });
+  const [qaTestState, setQaTestState] = useState(hasAccount ? "loading" : "normal");
+  const qaTestMode = qaTestState === "qa";
+  useEffect(() => {
+    if (!hasAccount) return undefined;
+    let active = true;
+    canSubmitQaTestExperience().then((allowed) => {
+      if (active) setQaTestState(allowed ? "qa" : "normal");
+    });
+    return () => { active = false; };
+  }, [hasAccount]);
   const [submittedExperience, setSubmittedExperience] = useState(null);
   const [step, setStep] = useState(savedDraft?.step || 0);
   const totalSteps = 6; // خطوات الإدخال: 0..5 ، بعد الحفظ step === totalSteps => شاشة النجاح
@@ -124,13 +134,13 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     location.pathname === "/AddExperienceModal";
 
   useEffect(() => {
+    if (qaTestState === "loading" || qaTestMode) return;
     trackEvent("add_experience_started", {
       metadata: {
         resumedDraft: Boolean(savedDraft),
       },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [qaTestState, qaTestMode, savedDraft]);
 
   useEffect(() => {
     if (!isJourneyEntry || hasAccount) return;
@@ -502,7 +512,11 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       return;
     }
 
-    if (!publicationConsent) {
+    if (qaTestState === "loading") {
+      setError("جارِ التحقق من وضع الإرسال. حاول مرة أخرى بعد قليل.");
+      return;
+    }
+    if (!qaTestMode && !publicationConsent) {
       setError("قبل الإرسال، وافق/ي على نشر التجربة ضمن منصة دربك.");
       return;
     }
@@ -526,7 +540,8 @@ export default function AddExperienceModal({ onClose, onSaved }) {
       ambassadorConsent: "no",
       ambassadorLinkedInUrl: "",
       ambassadorProfileImageUrl: "",
-      publicationConsent,
+      publicationConsent: !qaTestMode && publicationConsent,
+      ...(qaTestMode ? { qaTest: true, qaTestCampaign: "experience-reward-v1.1" } : {}),
       ratings,        // ممكن تخلينه أو تحذفينه لاحقًا
       starRating,     // ⭐ الجديد
       description,
@@ -546,7 +561,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
       setLoading(false);
       if (onSaved) onSaved(res.data);
-      trackEvent("add_experience_submitted", {
+      if (!qaTestMode) trackEvent("add_experience_submitted", {
         major: finalMajor,
         majorCategory: finalMajorCategory,
         city: finalCity,
@@ -747,7 +762,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               type="button"
               onClick={() => {
                 setIntroAccepted(true);
-                trackEvent("add_experience_intro_continue", {
+                if (!qaTestMode && qaTestState !== "loading") trackEvent("add_experience_intro_continue", {
                   metadata: { resumedDraft: Boolean(savedDraft) },
                 });
               }}
@@ -1370,7 +1385,14 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                 ))}
               </div>
 
-              <label
+              {qaTestState === "loading" ? (
+                <p role="status">جارِ التحقق من وضع الإرسال...</p>
+              ) : qaTestMode ? (
+                <p role="note" style={{ marginTop: 14, padding: "12px 13px", borderRadius: 12,
+                  background: "var(--app-brand-soft)", color: "var(--app-text)" }}>
+                  هذه مساهمة اختبار QA ولن تُنشر كمحتوى حقيقي.
+                </p>
+              ) : <label
                 style={{
                   display: "flex",
                   alignItems: "flex-start",
@@ -1402,7 +1424,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                   أوافق على نشر تجربتي وتحريرها وعرضها ضمن منصة دربك، وأؤكد
                   أنها تجربة حقيقية تخصني.
                 </span>
-              </label>
+              </label>}
             </div>
           )}
 
@@ -1419,7 +1441,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
               />
             ) : <div style={{ textAlign: "center", padding: 20 }}>
               <h3 style={{ color: "var(--app-text)" }}>وصلتنا تجربتك</h3>
-              <p style={{ color: "var(--app-muted)" }}>سنراجع تجربتك قبل نشرها.</p>
+              <p style={{ color: "var(--app-muted)" }}>
+                {qaTestMode ? "سجل اختبار QA قيد المراجعة ولن يُنشر للطلاب." : "سنراجع تجربتك قبل نشرها."}
+              </p>
               <button type="button" onClick={handleClose}>العودة للتجارب</button>
             </div>
           )}
@@ -1494,7 +1518,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
 
                 <button
                   onClick={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || qaTestState === "loading"}
                   style={{
                     padding: "8px 14px",
                     borderRadius: 10,
@@ -1503,7 +1527,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
                       : "linear-gradient(90deg,var(--app-muted),var(--app-brand))",
                     color: "#07100e",
                     border: "none",
-                    cursor: loading ? "not-allowed" : "pointer",
+                    cursor: loading || qaTestState === "loading" ? "not-allowed" : "pointer",
                   }}
                 >
                   {loading ? "جاري الإرسال..." : "أرسل تجربتي لتفيد غيري"}
