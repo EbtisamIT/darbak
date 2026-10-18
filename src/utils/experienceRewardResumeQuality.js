@@ -4,6 +4,9 @@ export const splitRewardBullets = (value) => String(value || "")
   .split(/\r?\n/)
   .map((line) => line.trim().replace(/^[•*-]\s*/, ""));
 
+// Editing rows must preserve trailing and repeated spaces until blur/save.
+export const splitRewardBulletRows = (value) => String(value || "").split(/\r?\n/);
+
 const uniqueText = (values) => [...new Set(values.map(cleanText).filter(Boolean))];
 
 const cleanDate = (value) => cleanText(value)
@@ -17,7 +20,10 @@ const cleanEntry = (entry = {}) => ({
   location: cleanText(entry.location),
   period: cleanDate(entry.period),
   description: uniqueText(splitRewardBullets(entry.description)).join("\n"),
+  tools: uniqueText(entry.tools || []),
 });
+const hasCleanEntryContent = (entry) => Object.values(entry).some((value) =>
+  Array.isArray(value) ? value.length > 0 : Boolean(value));
 
 export const cleanRewardDraft = (draft = {}) => ({
   ...draft,
@@ -26,14 +32,18 @@ export const cleanRewardDraft = (draft = {}) => ({
   email: cleanText(draft.email),
   phone: cleanText(draft.phone),
   linkedin: cleanText(draft.linkedin),
+  professionalTitle: cleanText(draft.professionalTitle),
+  professionalSummary: cleanText(draft.professionalSummary),
   major: cleanText(draft.major),
   university: cleanText(draft.university),
+  educationCity: cleanText(draft.educationCity),
+  degree: cleanText(draft.degree),
   graduationYear: cleanDate(draft.graduationYear),
   gpa: cleanText(draft.gpa),
-  experience: (draft.experience || []).map(cleanEntry).filter((entry) => Object.values(entry).some(Boolean)),
+  experience: (draft.experience || []).map(cleanEntry).filter(hasCleanEntryContent),
   trainingExperience: (draft.trainingExperience || []).slice(0, 1).map(cleanEntry),
-  projects: (draft.projects || []).map(cleanEntry).filter((entry) => Object.values(entry).some(Boolean)),
-  certifications: (draft.certifications || []).map(cleanEntry).filter((entry) => Object.values(entry).some(Boolean)),
+  projects: (draft.projects || []).map(cleanEntry).filter(hasCleanEntryContent),
+  certifications: (draft.certifications || []).map(cleanEntry).filter(hasCleanEntryContent),
   skills: uniqueText(draft.skills || []),
   languages: (draft.languages || []).map((item) => ({ name: cleanText(item.name), level: cleanText(item.level) }))
     .filter((item) => item.name),
@@ -50,9 +60,10 @@ export const getRewardReadiness = (draft, language) => {
   const checks = [
     { key: "contact", label: "الاسم ووسيلة التواصل", required: true,
       ready: Boolean(clean.fullName && hasUsableRewardContact(clean)) },
-    { key: "education", label: "التعليم أو المؤهل مع جهته", required: true,
-      ready: Boolean((clean.major && clean.university) || clean.certifications.some((entry) =>
-        entry.title && entry.organization)) },
+    { key: "university", label: "الجامعة", required: true, ready: Boolean(clean.university) },
+    { key: "major", label: "التخصص", required: true, ready: Boolean(clean.major) },
+    { key: "graduationYear", label: "سنة التخرج", required: true, ready: Boolean(clean.graduationYear) },
+    { key: "educationCity", label: "مدينة الجامعة", required: true, ready: Boolean(clean.educationCity) },
     { key: "training", label: "تجربة التدريب ونقطة مساهمة واحدة على الأقل", required: true,
       ready: Boolean(training.organization && training.title && splitRewardBullets(training.description).filter(Boolean).length) },
     { key: "skills", label: "ثلاث مهارات على الأقل", required: true, ready: clean.skills.length >= 3 },

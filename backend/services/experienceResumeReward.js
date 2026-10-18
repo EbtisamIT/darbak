@@ -9,6 +9,8 @@ const cleanEntries = (value) => (Array.isArray(value) ? value : []).slice(0, 20)
   location: cleanText(item?.location, 100),
   period: cleanText(item?.period, 100),
   description: cleanText(item?.description, 2000),
+  tools: (Array.isArray(item?.tools) ? item.tools : []).slice(0, 20)
+    .map((tool) => cleanText(tool, 80)).filter(Boolean),
 }));
 
 const cleanResumeData = (raw = {}) => ({
@@ -17,8 +19,12 @@ const cleanResumeData = (raw = {}) => ({
   email: cleanText(raw.email, 200),
   phone: cleanText(raw.phone, 30),
   linkedin: cleanText(raw.linkedin, 300),
+  professionalTitle: cleanText(raw.professionalTitle, 160),
+  professionalSummary: cleanText(raw.professionalSummary, 900),
   major: cleanText(raw.major, 150),
   university: cleanText(raw.university, 180),
+  educationCity: cleanText(raw.educationCity, 100),
+  degree: cleanText(raw.degree, 120),
   graduationYear: cleanText(raw.graduationYear, 20),
   gpa: cleanText(raw.gpa, 30),
   experience: cleanEntries(raw.experience),
@@ -36,15 +42,17 @@ const trainingPrefill = (experience = {}, user = {}) => ({
   city: cleanText(experience.city, 100),
   email: cleanText(user.contact, 200),
   phone: "", linkedin: "",
+  professionalTitle: "", professionalSummary: "",
   major: cleanText(experience.major, 150),
-  university: "", graduationYear: "", gpa: "",
+  university: "", educationCity: "", degree: "", graduationYear: "", gpa: "",
   experience: [],
   trainingExperience: [{
     title: cleanText(experience.trainingTitle || experience.department || "تدريب تعاوني", 180),
     organization: cleanText(experience.organizationName, 180),
     location: cleanText(experience.city, 100),
     period: cleanText(experience.trainingYear || experience.duration, 100),
-    description: cleanText(experience.description, 2000),
+    // The public experience is conversational. The student supplies CV facts separately.
+    description: "",
   }],
   projects: [], certifications: [], skills: [], languages: [],
 });
@@ -97,19 +105,21 @@ const hasUsableContact = (draft) =>
 const hasCompleteRewardDraft = (reward, experience, userId) => {
   const draft = reward?.draft;
   const training = draft?.trainingExperience?.[0];
-  const education = Boolean(cleanText(draft?.major) && cleanText(draft?.university));
-  const qualification = (draft?.certifications || []).some((entry) =>
-    cleanText(entry?.title) && cleanText(entry?.organization));
+  const education = Boolean(cleanText(draft?.major) && cleanText(draft?.university) &&
+    cleanText(draft?.graduationYear) && cleanText(draft?.educationCity));
   const skills = new Set((draft?.skills || []).map((skill) => cleanText(skill, 80)).filter(Boolean));
+  const sameAsPublicNarrative = (value) => String(value || "").replace(/\s+/g, " ").trim() ===
+    String(experience?.description || "").replace(/\s+/g, " ").trim();
   return Boolean(
     String(experience?._id || "") === String(reward?.experienceId || "") &&
     experience?.status === "approved" &&
     experience?.sourceType !== "public_summary" &&
     String(experience?.submittedByUserId || "") === String(userId) &&
     cleanText(draft?.fullName) && hasUsableContact(draft) &&
-    (education || qualification) &&
+    education &&
     cleanText(training?.title) && cleanText(training?.organization) &&
-    cleanText(training?.description) && skills.size >= 3 &&
+    cleanText(training?.description) && !sameAsPublicNarrative(training?.description) &&
+    skills.size >= 3 &&
     ["ar", "en"].includes(reward?.language)
   );
 };

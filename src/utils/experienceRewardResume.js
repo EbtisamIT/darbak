@@ -20,6 +20,20 @@ const certificateDate = (period, language) => {
   return month ? `${month} ${match[1]}` : period;
 };
 
+export const deriveRewardProfessionalTitle = (major, language = "ar") => {
+  const value = String(major || "").trim();
+  if (!value) return "";
+  if (language === "en") return `${value} Graduate`;
+  const known = {
+    "التصميم": "مصمم/ة",
+    "تصميم الجرافيك": "مصمم/ة جرافيك",
+    "نظم المعلومات": "أخصائي/ة نظم معلومات",
+    "نظم المعلومات الإدارية": "أخصائي/ة نظم معلومات إدارية",
+    "علم البيانات": "محلل/ة بيانات",
+  };
+  return known[value] || `متخصص/ة في ${value}`;
+};
+
 // A display-only adapter for the existing ATS Classic renderer. Reward drafts
 // never write to ResumeProfile or the subscribed resume editor.
 export const toAtsClassicResume = (rawDraft, language) => {
@@ -34,21 +48,26 @@ export const toAtsClassicResume = (rawDraft, language) => {
     university: draft.university,
     graduationYear: draft.graduationYear,
     gpa: draft.gpa,
+    degree: draft.degree,
+    headline: draft.professionalTitle || deriveRewardProfessionalTitle(draft.major, language),
     linkedinUrl: draft.linkedin,
   },
-  education: draft.major && draft.university ? [{ title: draft.major, organization: draft.university,
-    period: draft.graduationYear, description: draft.gpa ? `GPA: ${draft.gpa}` : "" }] : [],
+  summary: draft.professionalSummary,
+  education: draft.major && draft.university ? [{ title: draft.degree || draft.major,
+    organization: draft.university, location: draft.educationCity,
+    period: draft.graduationYear, description: "" }] : [],
   experiences: [...draft.trainingExperience, ...draft.experience].filter((entry) =>
     entry.title || entry.organization).map(toBulletEntry),
   projects: draft.projects.filter((entry) => entry.title).map((entry) => ({
     ...toBulletEntry(entry),
     organization: "",
-    technologies: entry.organization.split(/[,،]/).map((tool) => tool.trim()).filter(Boolean),
+    technologies: entry.tools?.length ? entry.tools :
+      entry.organization.split(/[,،]/).map((tool) => tool.trim()).filter(Boolean),
   })),
   certifications: draft.certifications.filter((entry) => entry.title).map((entry) => ({
     ...entry,
-    organization: [entry.organization, certificateDate(entry.period, language)].filter(Boolean).join(" | "),
-    period: "",
+    organization: entry.organization,
+    period: certificateDate(entry.period, language),
     description: "",
   })),
   skills: draft.skills,

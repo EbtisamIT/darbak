@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
@@ -14,6 +14,7 @@ import {
   savePremiumPass,
 } from "../utils/premiumAccess";
 import { trackEvent } from "../utils/analytics";
+import "./AccountRewardAnnouncement.css";
 
 const formatDate = (value) => {
   if (!value) return "غير محدد";
@@ -78,6 +79,59 @@ export default function AccountModal() {
   const [savingJourney, setSavingJourney] = useState(false);
   const [journeyLoginMode, setJourneyLoginMode] = useState(false);
   const [resumeReward, setResumeReward] = useState(null);
+  const [rewardAnnouncement, setRewardAnnouncement] = useState(null);
+  const acknowledgedRewardIds = useRef(new Set());
+
+  const loadResumeReward = useCallback(async () => {
+    const stored = getStoredAccessIdentity();
+    const contact = stored.contact || stored.email;
+    if (!contact || !stored.accessCode) return;
+    try {
+      const { data } = await axios.get(`${API_BASE_URL}/api/rewards/resume/me`, { headers: {
+        "x-darbak-contact": contact,
+        "x-darbak-access-code": stored.accessCode,
+      } });
+      setResumeReward(data.reward);
+      if (data.reward?.status === "available" && !data.reward.announcementSeenAt &&
+        !acknowledgedRewardIds.current.has(String(data.reward.id))) {
+        setRewardAnnouncement(data.reward);
+      } else setRewardAnnouncement(null);
+    } catch {
+      setResumeReward(null);
+      setRewardAnnouncement(null);
+    }
+  }, []);
+
+  const downloadRewardPdf = async () => {
+    const stored = getStoredAccessIdentity();
+    try {
+      const { data } = await axios.get(`${API_BASE_URL}/api/rewards/resume/pdf`, {
+        headers: {
+          "x-darbak-contact": stored.contact || stored.email || "",
+          "x-darbak-access-code": stored.accessCode || "",
+        },
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(new Blob([data], { type: "application/pdf" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "darbak-ats-classic.pdf";
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch { setMessage("تعذر تنزيل السيرة حاليًا."); }
+  };
+
+  useEffect(() => {
+    loadResumeReward();
+    window.addEventListener("darbak:free-account-saved", loadResumeReward);
+    window.addEventListener("darbak:experience-reward-updated", loadResumeReward);
+    window.addEventListener("focus", loadResumeReward);
+    return () => {
+      window.removeEventListener("darbak:free-account-saved", loadResumeReward);
+      window.removeEventListener("darbak:experience-reward-updated", loadResumeReward);
+      window.removeEventListener("focus", loadResumeReward);
+    };
+  }, [loadResumeReward]);
 
   const status = useMemo(() => {
     if (pass?.isAdmin) return "admin";
@@ -106,13 +160,7 @@ export default function AccountModal() {
     const storedContact = storedIdentity.contact || storedIdentity.email || "";
     const context = ["save_journey", "contribution"].includes(event?.detail?.mode) ? event.detail : null;
     setIdentity(storedIdentity);
-    setResumeReward(null);
-    if (storedIdentity.contact && storedIdentity.accessCode) {
-      axios.get(`${API_BASE_URL}/api/rewards/resume/me`, { headers: {
-        "x-darbak-contact": storedIdentity.contact,
-        "x-darbak-access-code": storedIdentity.accessCode,
-      } }).then(({ data }) => setResumeReward(data.reward)).catch(() => {});
-    }
+    loadResumeReward();
     setPass(getStoredPremiumPass());
     if ((storedIdentity.contact || storedIdentity.email) && storedIdentity.accessCode) {
       loadSubscriptionState();
@@ -134,7 +182,7 @@ export default function AccountModal() {
     setMessage("");
     setIsOpen(true);
     trackEvent("account_modal_opened");
-  }, [loadSubscriptionState]);
+  }, [loadResumeReward, loadSubscriptionState]);
 
   useEffect(() => {
     window.addEventListener(ACCOUNT_MODAL_EVENT, openModal);
@@ -145,6 +193,16 @@ export default function AccountModal() {
     setIsOpen(false);
     setMessage("");
     setJourneyContext(null);
+  };
+
+  const dismissRewardAnnouncement = () => {
+    if (rewardAnnouncement?.id) acknowledgedRewardIds.current.add(String(rewardAnnouncement.id));
+    setRewardAnnouncement(null);
+    const stored = getStoredAccessIdentity();
+    axios.post(`${API_BASE_URL}/api/rewards/resume/announcement-seen`, {}, { headers: {
+      "x-darbak-contact": stored.contact || stored.email || "",
+      "x-darbak-access-code": stored.accessCode || "",
+    } }).catch(() => {});
   };
 
   const saveFreeJourneyAccount = async (event) => {
@@ -174,9 +232,7 @@ export default function AccountModal() {
       });
       saveAccessIdentity({ contact, accessCode });
       setIdentity(getStoredAccessIdentity());
-      axios.get(`${API_BASE_URL}/api/rewards/resume/me`, { headers: {
-        "x-darbak-contact": contact, "x-darbak-access-code": accessCode,
-      } }).then(({ data }) => setResumeReward(data.reward)).catch(() => setResumeReward(null));
+      loadResumeReward();
       window.dispatchEvent(new CustomEvent("darbak:free-account-saved", { detail: data.account || {} }));
       trackEvent("free_journey_saved");
       closeModal();
@@ -268,9 +324,7 @@ export default function AccountModal() {
       });
       saveAccessIdentity({ contact, accessCode });
       setIdentity(getStoredAccessIdentity());
-      axios.get(`${API_BASE_URL}/api/rewards/resume/me`, { headers: {
-        "x-darbak-contact": contact, "x-darbak-access-code": accessCode,
-      } }).then(({ data }) => setResumeReward(data.reward)).catch(() => setResumeReward(null));
+      loadResumeReward();
       try {
         const { data } = await axios.post(`${API_BASE_URL}/api/subscriptions/verify`, {
           email: contact,
@@ -298,6 +352,7 @@ export default function AccountModal() {
     clearAccessSession();
     setIdentity({});
     setResumeReward(null);
+    setRewardAnnouncement(null);
     setPass(null);
     setSubscriptionState({ state: "FREE", planId: "", expiresAt: null });
     setLoginForm({ contact: "", accessCode: "" });
@@ -348,7 +403,20 @@ export default function AccountModal() {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) return rewardAnnouncement ? <div className="account-modal-overlay" role="dialog"
+    aria-modal="true" aria-labelledby="reward-announcement-title" dir="rtl">
+    <section className="account-modal-card account-reward-congratulations">
+      <button type="button" className="account-modal-close" aria-label="إغلاق" onClick={dismissRewardAnnouncement}>×</button>
+      <h2 id="reward-announcement-title">🎉 مبروك! تم اعتماد تجربتك</h2>
+      <p>شكرًا لأنك شاركت تجربتك مع طلاب دربك.</p>
+      <strong>هديتك جاهزة: سيرة ذاتية احترافية مجانًا بقالب Darbak ATS.</strong>
+      <p>بنرتب خبرتك ومهاراتك ومشاريعك ونجهزها لك بشكل مناسب للتقديم.</p>
+      <div className="account-reward-congratulations-actions">
+        <Link to="/rewards/resume" onClick={dismissRewardAnnouncement}>جهّز سيرتي مجانًا</Link>
+        <button type="button" onClick={dismissRewardAnnouncement}>لاحقًا</button>
+      </div>
+    </section>
+  </div> : null;
 
   if (journeyContext) {
     return (
@@ -464,15 +532,18 @@ export default function AccountModal() {
 
         {resumeReward?.status === "available" && (
           <div className="account-reward-note">
-            <strong>مكافأتك جاهزة</strong>
-            <span>تم اعتماد تجربتك. حصلت على نسخة سيرة ذاتية واحدة مجانًا بقالب ATS.</span>
-            <Link to="/rewards/resume" onClick={closeModal}>إنشاء سيرتي الذاتية</Link>
+            <strong>🎁 هديتك جاهزة</strong>
+            <span>تم اعتماد تجربتك، وتقدر الآن تجهز سيرتك الذاتية مجانًا.</span>
+            <Link to="/rewards/resume" onClick={closeModal}>{resumeReward.hasDraft ? "أكمل سيرتي" : "ابدأ الآن"}</Link>
           </div>
         )}
         {resumeReward?.status === "redeemed" && (
           <div className="account-reward-note">
-            <strong>سيرتك النهائية جاهزة</strong>
-            <Link to="/rewards/resume" onClick={closeModal}>تنزيل PDF</Link>
+            <strong>سيرتي المجانية</strong>
+            <span>Darbak ATS Classic · {resumeReward.language === "ar" ? "العربية" : "English"}</span>
+            <span>تم إنشاؤها {formatDate(resumeReward.redeemedAt)}</span>
+            <Link to="/rewards/resume" onClick={closeModal}>عرض السيرة</Link>
+            <button type="button" onClick={downloadRewardPdf}>تنزيل PDF</button>
           </div>
         )}
 

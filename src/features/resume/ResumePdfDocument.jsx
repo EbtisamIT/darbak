@@ -129,9 +129,9 @@ const createStyles = (resume = {}, rewardPresentation = false) => {
 
   return StyleSheet.create({
     page: {
-      paddingTop: isAtsClassic ? atsSpacing.pageVerticalPadding : isCompact ? 28 : 34,
+      paddingTop: rewardPresentation && isAtsClassic ? 34 : isAtsClassic ? atsSpacing.pageVerticalPadding : isCompact ? 28 : 34,
       paddingHorizontal: isAtsClassic ? 48 : isCompact ? 34 : 40,
-      paddingBottom: isAtsClassic ? atsSpacing.pageVerticalPadding : isCompact ? 26 : 32,
+      paddingBottom: rewardPresentation && isAtsClassic ? 30 : isAtsClassic ? atsSpacing.pageVerticalPadding : isCompact ? 26 : 32,
       fontFamily: isAtsClassic && !isArabic ? "Helvetica" : "Tajawal",
       fontSize: sizes.body,
       color: ink,
@@ -143,7 +143,7 @@ const createStyles = (resume = {}, rewardPresentation = false) => {
       paddingBottom: isAtsClassic ? atsSpacing.headerPadding : 12,
       borderBottomWidth: isAtsClassic ? 1 : 2,
       borderBottomColor: accent,
-      marginBottom: isAtsClassic ? atsSpacing.headerAfter : isCompact ? 10 : 14,
+      marginBottom: rewardPresentation && isAtsClassic ? 8 : isAtsClassic ? atsSpacing.headerAfter : isCompact ? 10 : 14,
     },
     name: {
       fontSize: sizes.name,
@@ -185,20 +185,20 @@ const createStyles = (resume = {}, rewardPresentation = false) => {
     rewardRtlText: { direction: "rtl" },
     section: {
       marginTop: rewardPresentation && isAtsClassic
-        ? Math.max(8, atsSpacing.sectionBefore - 4)
+        ? 5
         : isAtsClassic ? atsSpacing.sectionBefore : isCompact ? 8 : 12,
       breakInside: "avoid",
     },
     shortSmallSection: {
       marginTop: rewardPresentation
-        ? atsDensityStyles.short.smallSectionBefore - 4
+        ? 5
         : atsDensityStyles.short.smallSectionBefore,
     },
     sectionTitle: {
       fontSize: sizes.section,
       fontWeight: 700,
       color: isAtsClassic ? ink : accent,
-      marginBottom: isAtsClassic ? atsSpacing.headingAfter + 1 : 5,
+      marginBottom: rewardPresentation && isAtsClassic ? 4 : isAtsClassic ? atsSpacing.headingAfter + 1 : 5,
       paddingBottom: isAtsClassic ? 4 : 3,
       borderBottomWidth: 1,
       borderBottomColor: line,
@@ -208,7 +208,7 @@ const createStyles = (resume = {}, rewardPresentation = false) => {
       marginBottom: isAtsClassic ? 2 : 3,
     },
     entry: {
-      marginBottom: isAtsClassic ? atsSpacing.itemGap : isCompact ? 6 : 8,
+      marginBottom: rewardPresentation && isAtsClassic ? 5 : isAtsClassic ? atsSpacing.itemGap : isCompact ? 6 : 8,
       breakInside: "avoid",
     },
     entryTitle: {
@@ -242,11 +242,31 @@ const createStyles = (resume = {}, rewardPresentation = false) => {
       textAlign: isAtsClassic && isArabic ? "right" : direction === "rtl" ? "right" : "left",
     },
     bulletLine: {
-      marginTop: isAtsClassic ? 2.5 : 2,
+      marginTop: rewardPresentation && isAtsClassic ? 1.5 : isAtsClassic ? 2.5 : 2,
       paddingLeft: isAtsClassic && !isArabic ? 13 : 0,
       paddingRight: isAtsClassic && isArabic ? 13 : 0,
       textIndent: isAtsClassic ? -9 : 0,
       color: ink,
+    },
+    rewardBulletRow: {
+      display: "flex",
+      flexDirection: isArabic ? "row-reverse" : "row",
+      marginTop: 2,
+      alignItems: "flex-start",
+    },
+    rewardBulletGlyph: {
+      width: 13,
+      fontFamily: "Helvetica",
+      fontSize: 12,
+      fontWeight: 700,
+      textAlign: "center",
+      color: ink,
+    },
+    rewardBulletText: {
+      flexGrow: 1,
+      flexBasis: 0,
+      color: ink,
+      textAlign: isArabic ? "right" : "left",
     },
     arabicProjectEntry: {
       marginBottom: atsSpacing.itemGap + 1.5,
@@ -295,6 +315,8 @@ const createStyles = (resume = {}, rewardPresentation = false) => {
       direction: isAtsClassic && isArabic ? "ltr" : direction,
       textAlign: isAtsClassic && isArabic ? "right" : direction === "rtl" ? "right" : "left",
     },
+    rewardSkillWrap: { display: "flex", flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap" },
+    rewardSkill: { width: "25%", fontSize: sizes.body, paddingHorizontal: 5, marginBottom: 4 },
     link: {
       color: "#167a73",
       textDecoration: "none",
@@ -381,8 +403,8 @@ const ResumeSection = ({
   );
 };
 
-const rewardMixedText = (value, styles) => String(value || "").split(/(\+?\d[\d./-]*\d|\d)/g)
-  .filter(Boolean).map((part, index) => /^\+?\d/.test(part)
+const rewardMixedText = (value, styles) => String(value || "").split(/([A-Za-z][A-Za-z0-9.+#/-]*(?:\s+[A-Za-z][A-Za-z0-9.+#/-]*)*|\+?\d[\d./-]*\d|\d)/g)
+  .filter(Boolean).map((part, index) => /^[A-Za-z+\d]/.test(part)
     ? <Text key={index} style={styles.rewardLtrText}>{part}</Text>
     : part);
 
@@ -402,9 +424,13 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
     const facts = education?.facts || [];
     const tools = sectionKey === "projects" ? getResumeEntryTools(entry) : [];
     const metadataSeparator = atsClassic ? " - " : " • ";
-    const displaySubtitle = education?.subtitle || (isCertification
-      ? getCertificationDetails(entry)
-      : [entry.organization || entry.subtitle, entry.location].filter(Boolean).join(metadataSeparator));
+    const displaySubtitle = rewardPresentation && education
+      ? [entry.organization || entry.subtitle, entry.location].filter(Boolean).join(metadataSeparator)
+      : education?.subtitle || (isCertification
+        ? rewardPresentation
+          ? [entry.organization, entry.period].filter(Boolean).join(" | ")
+          : getCertificationDetails(entry)
+        : [entry.organization || entry.subtitle, entry.location].filter(Boolean).join(metadataSeparator));
     const displayDate = atsClassic ? date.replace(/ – /g, " - ") : date;
 
     return (
@@ -458,11 +484,13 @@ const EntryList = ({ entries = [], styles, language, sectionKey, personal, resum
           </Text>
         ) : null}
         {atsClassic && tools.length ? <Text style={styles.toolsLine}>{tools.join(", ")}</Text> : null}
-        {!education && getAchievementLines(entry).map((line, index) => (
-          <Text key={`${entry.id || entry.title}-${index}`} style={styles.bulletLine}>
-            {`• ${line}`}
-          </Text>
-        ))}
+        {!education && getAchievementLines(entry).map((line, index) => rewardPresentation
+          ? <View key={`${entry.id || entry.title}-${index}`} style={styles.rewardBulletRow}>
+            <Text style={styles.rewardBulletGlyph}>•</Text>
+            <Text style={styles.rewardBulletText}>{arabicAts ? rewardMixedText(line, styles) : line}</Text>
+          </View>
+          : <Text key={`${entry.id || entry.title}-${index}`} style={styles.bulletLine}>{`• ${line}`}</Text>
+        )}
       </View>
     );
   });
@@ -498,7 +526,8 @@ const ResumePdfDocument = ({ resume = {}, rewardPresentation = false }) => {
     if (sectionKey === "summary" && resume.summary) {
       return (
         <ResumeSection key={sectionKey} sectionKey={sectionKey} title={titles.summary} styles={styles} atsClassic={atsClassic} shortDensity={shortDensity}>
-          <Text style={styles.paragraph}>{resume.summary}</Text>
+          <Text style={styles.paragraph}>{rewardPresentation && language === "ar"
+            ? rewardMixedText(resume.summary, styles) : resume.summary}</Text>
         </ResumeSection>
       );
     }
@@ -516,7 +545,9 @@ const ResumePdfDocument = ({ resume = {}, rewardPresentation = false }) => {
     if (sectionKey === "skills" && resume.skills?.length) {
       return (
         <ResumeSection key={sectionKey} sectionKey={sectionKey} title={titles.skills} styles={styles} atsClassic={atsClassic} shortDensity={shortDensity}>
-          <Text style={styles.skillsLine}>{resume.skills.join(" | ")}</Text>
+          {rewardPresentation ? <View style={styles.rewardSkillWrap}>{resume.skills.map((skill, index) =>
+            <Text key={`${skill}-${index}`} style={styles.rewardSkill}>{skill}</Text>)}</View>
+            : <Text style={styles.skillsLine}>{resume.skills.join(" | ")}</Text>}
         </ResumeSection>
       );
     }

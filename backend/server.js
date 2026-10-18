@@ -12,6 +12,7 @@ const { getExperienceRewardMode, isExperienceRewardEnabled } = require("./servic
 const ExperienceResumeReward = require("./models/ExperienceResumeReward");
 const ExperienceResumeSnapshot = require("./models/ExperienceResumeSnapshot");
 const { CAMPAIGN_ID: EXPERIENCE_REWARD_CAMPAIGN, trainingPrefill, findRewardAccount, findOwnedReward, grantApprovedExperienceReward, saveRewardDraft, finalizeReward } = require("./services/experienceResumeReward");
+const { requestRewardAiSuggestion } = require("./services/experienceRewardResumeAi");
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
 const FeedbackResponse = require("./models/FeedbackResponse");
@@ -7707,13 +7708,57 @@ app.get("/api/rewards/resume/me", requireExperienceRewardUser, async (req, res) 
     const reward = await findOwnedReward({ userId: req.experienceRewardUser._id, Reward: ExperienceResumeReward });
     if (!reward) return res.status(404).json({ error: "لا توجد مكافأة سيرة ذاتية متاحة لهذا الحساب." });
     const experience = await Experience.findById(reward.experienceId).lean();
+    const savedDraft = reward.draft ? { ...reward.draft } : null;
+    if (savedDraft?.trainingExperience?.[0]?.description &&
+      String(savedDraft.trainingExperience[0].description).replace(/\s+/g, " ").trim() ===
+      String(experience?.description || "").replace(/\s+/g, " ").trim()) {
+      savedDraft.trainingExperience = [{ ...savedDraft.trainingExperience[0], description: "" }];
+    }
     res.json({ reward: {
       id: reward._id, status: reward.status, language: reward.language,
+      hasDraft: Boolean(reward.draft),
       grantedAt: reward.grantedAt, redeemedAt: reward.redeemedAt,
-    }, draft: reward.draft || null, prefill: trainingPrefill(experience, req.experienceRewardUser) });
+      announcementSeenAt: reward.announcementSeenAt,
+      aiGenerationAttemptedAt: reward.aiGenerationAttemptedAt,
+      aiSuggestion: reward.aiSuggestion || null,
+    }, draft: savedDraft, prefill: trainingPrefill(experience, req.experienceRewardUser),
+    sourceNarrative: experience?.description || "" });
   } catch (error) {
     console.error("❌ Experience reward lookup:", error);
     res.status(500).json({ error: "تعذر تحميل المكافأة حاليًا." });
+  }
+});
+
+app.post("/api/rewards/resume/announcement-seen", requireExperienceRewardUser, async (req, res) => {
+  try {
+    const reward = await ExperienceResumeReward.findOneAndUpdate(
+      { userId: req.experienceRewardUser._id, campaignId: EXPERIENCE_REWARD_CAMPAIGN,
+        status: "available", announcementSeenAt: null },
+      { $set: { announcementSeenAt: new Date() } }, { new: true }
+    ).lean();
+    res.json({ acknowledged: Boolean(reward) });
+  } catch {
+    res.status(500).json({ error: "تعذر حفظ حالة التنبيه حاليًا." });
+  }
+});
+
+app.post("/api/rewards/resume/suggest", requireExperienceRewardUser, async (req, res) => {
+  try {
+    const result = await requestRewardAiSuggestion({
+      userId: req.experienceRewardUser._id, Reward: ExperienceResumeReward,
+    });
+    if (result.status === "unavailable") return res.status(404).json({ error: "المكافأة غير متاحة." });
+    if (result.status === "missing_facts") return res.status(400).json({ error: "أضف مهام التدريب الفعلية أولًا." });
+    if (result.status === "already_attempted") return res.status(409).json({
+      error: "اقتراح الصياغة استُخدم لهذه المكافأة. يمكنك تعديل النص يدويًا.",
+      suggestion: result.suggestion || null,
+    });
+    if (result.status === "failed") return res.status(503).json({
+      error: "تعذر اقتراح الصياغة الآن. يمكنك كتابة النبذة والنقاط بنفسك، ومكافأتك محفوظة.",
+    });
+    res.json({ suggestion: result.suggestion });
+  } catch {
+    res.status(503).json({ error: "تعذر اقتراح الصياغة الآن. يمكنك إكمال السيرة يدويًا." });
   }
 });
 
@@ -7737,7 +7782,7 @@ app.post("/api/rewards/resume/finalize", requireExperienceRewardUser,
     const result = await finalizeReward({ userId: req.experienceRewardUser._id,
       pdf: req.body, Reward: ExperienceResumeReward, Snapshot: ExperienceResumeSnapshot, Experience });
     if (result.status === "unavailable") return res.status(409).json({ error: "المكافأة غير متاحة للاستخدام." });
-    if (result.status === "incomplete") return res.status(400).json({ error: "أكمل بيانات التواصل والتعليم أو المؤهل وتجربة التدريب وثلاث مهارات على الأقل قبل الاعتماد." });
+    if (result.status === "incomplete") return res.status(400).json({ error: "أكمل الاسم والتواصل والجامعة والتخصص وسنة التخرج ومدينة الجامعة وتجربة التدريب وثلاث مهارات على الأقل." });
     if (result.status === "invalid_pdf") return res.status(400).json({ error: "ملف السيرة غير صالح." });
     res.json({ status: "redeemed" });
   } catch (error) {

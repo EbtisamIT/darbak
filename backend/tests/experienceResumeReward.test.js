@@ -76,8 +76,10 @@ async function run() {
   const prefill = trainingPrefill({ organizationName: "DataVolt", city: "الرياض", major: "تقنية المعلومات",
     description: "مهام التدريب", duration: "ثلاثة أشهر" }, { firstName: "طالب", contact: "student@example.com" });
   assert.equal(prefill.trainingExperience[0].organization, "DataVolt");
-  assert.equal(prefill.trainingExperience[0].description, "مهام التدريب");
+  assert.equal(prefill.trainingExperience[0].description, "", "public narrative is not copied to the CV");
   const draft = { ...prefill, fullName: "طالب دربك", university: "جامعة الملك سعود",
+    educationCity: "الرياض", graduationYear: "2026",
+    trainingExperience: [{ ...prefill.trainingExperience[0], description: "أعددت تقارير باستخدام Excel" }],
     skills: ["Excel", "SQL", "التواصل"] };
   const saved = await saveRewardDraft({ userId: "user-1", language: "ar", draft, Reward });
   assert.equal(saved.status, "available", "preview/draft does not consume reward");
@@ -89,7 +91,10 @@ async function run() {
   const incompleteCases = [
     ["missing name", { ...draft, fullName: "" }],
     ["no usable contact", { ...draft, email: "invalid", phone: "123" }],
-    ["no education or qualification", { ...draft, major: "", university: "", certifications: [] }],
+    ["missing university", { ...draft, university: "" }],
+    ["missing major", { ...draft, major: "" }],
+    ["missing graduation year", { ...draft, graduationYear: "" }],
+    ["missing education city", { ...draft, educationCity: "" }],
     ["missing training", { ...draft, trainingExperience: [] }],
     ["training without contribution", { ...draft, trainingExperience: [{ ...draft.trainingExperience[0], description: "" }] }],
     ["fewer than three distinct skills", { ...draft, skills: ["SQL", "SQL", "Excel"] }],
@@ -110,9 +115,12 @@ async function run() {
     "incomplete", "source must still be approved");
   sourceExperience = approved;
   assert.equal(hasCompleteRewardDraft({ ...reward, draft: {
-    ...draft, email: "", phone: "+966 50 000 0000", major: "", university: "",
-    certifications: [{ title: "شهادة تحليل بيانات", organization: "أكاديمية طويق" }],
-  } }, approved, "user-1"), true, "phone and a named qualification are usable");
+    ...draft, email: "", phone: "+966 50 000 0000",
+  } }, approved, "user-1"), true, "phone is a usable contact method");
+  assert.equal(hasCompleteRewardDraft({ ...reward, draft: {
+    ...draft, trainingExperience: [{ ...draft.trainingExperience[0], description: "نص التجربة الحواري" }],
+  } }, { ...approved, description: "نص التجربة الحواري" }, "user-1"), false,
+  "public conversational narrative cannot be finalized as a CV bullet");
   assert.equal((await finalizeReward({ userId: "user-1", pdf: Buffer.from("bad"), Reward, Snapshot, Experience })).status,
     "invalid_pdf", "invalid PDF does not consume reward");
   assert.equal(reward.status, "available");

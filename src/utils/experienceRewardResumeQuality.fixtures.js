@@ -2,7 +2,9 @@
 export const rewardResumeDemoArabic = {
   fullName: "سارة العتيبي", city: "الرياض", email: "sara.alotaibi@example.com",
   phone: "+966500000000", linkedin: "linkedin.com/in/sara-alotaibi",
-  major: "نظم المعلومات", university: "جامعة الملك سعود", graduationYear: "2025", gpa: "4.51/5",
+  major: "نظم المعلومات", university: "جامعة الملك سعود", educationCity: "الرياض",
+  graduationYear: "2025", gpa: "4.51/5", professionalTitle: "أخصائية نظم معلومات",
+  professionalSummary: "خريجة نظم معلومات عام 2025، لديها خبرة تدريبية في تنظيم بيانات المبيعات وإعداد لوحة لمتابعة مؤشرات الطلب.\nساهمت في مشروعين جامعيين. أدوات العمل: Excel، SQL، Power BI.",
   trainingExperience: [{
     title: "متدربة تحليل بيانات", organization: "شركة أفق التقنية", location: "الرياض",
     period: "2025/01 - 2025/06",
@@ -26,7 +28,9 @@ export const rewardResumeDemoArabic = {
 export const rewardResumeDemoEnglish = {
   fullName: "Sara Alotaibi", city: "Riyadh", email: "sara.alotaibi@example.com",
   phone: "+966500000000", linkedin: "linkedin.com/in/sara-alotaibi",
-  major: "Information Systems", university: "King Saud University", graduationYear: "2025", gpa: "4.51/5",
+  major: "Information Systems", university: "King Saud University", educationCity: "Riyadh",
+  graduationYear: "2025", gpa: "4.51/5", professionalTitle: "Information Systems Graduate",
+  professionalSummary: "Information Systems graduate with internship experience organizing sales data and building a Power BI dashboard, using Excel and SQL.",
   trainingExperience: [{
     title: "Data Analysis Intern", organization: "Ofuq Technology", location: "Riyadh",
     period: "2025/01 - 2025/06",
