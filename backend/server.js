@@ -20112,23 +20112,6 @@ app.post('/api/admin/opportunities', requireAdmin, async (req, res) => {
       }
     }
 
-    const fieldsToCheck = [
-      payload.organizationName,
-      payload.title,
-      payload.city,
-      payload.note,
-      payload.submitterContact,
-      ...payload.cities,
-      ...payload.majorCategories,
-      ...payload.specialties,
-    ];
-
-    if (fieldsToCheck.some(containsBlockedTerms)) {
-      return res.status(400).json({
-        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة.",
-      });
-    }
-
     if (!payload.deadline) delete payload.deadline;
 
     const opportunity = await Opportunity.create(payload);
@@ -20163,23 +20146,6 @@ app.patch('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
           error: "هذه الفرصة مرتبطة بالبرنامج المختار بالفعل. عدّلي الفرصة الحالية بدلًا من إضافتها مرة أخرى.",
         });
       }
-    }
-
-    const fieldsToCheck = [
-      payload.organizationName,
-      payload.title,
-      payload.city,
-      payload.note,
-      payload.submitterContact,
-      ...payload.cities,
-      ...payload.majorCategories,
-      ...payload.specialties,
-    ];
-
-    if (fieldsToCheck.some(containsBlockedTerms)) {
-      return res.status(400).json({
-        error: "النص يحتوي على عبارات غير مناسبة. الرجاء تعديل الصياغة.",
-      });
     }
 
     const hasDeadline = Boolean(payload.deadline);
