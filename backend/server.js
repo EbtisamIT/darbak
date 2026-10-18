@@ -9,7 +9,6 @@ const {
 } = require("./services/emailIdentity");
 
 const { getExperienceRewardMode, isExperienceRewardEnabled } = require("./services/experienceRewardRollout");
-const { runQaMaintenance } = require("./services/experienceRewardQaMaintenance");
 const ExperienceResumeReward = require("./models/ExperienceResumeReward");
 const ExperienceResumeSnapshot = require("./models/ExperienceResumeSnapshot");
 const { CAMPAIGN_ID: EXPERIENCE_REWARD_CAMPAIGN, trainingPrefill, findRewardAccount, findOwnedReward, grantApprovedExperienceReward, saveRewardDraft, finalizeReward } = require("./services/experienceResumeReward");
@@ -17774,25 +17773,6 @@ app.get('/api/experiences/:id', async (req, res) => {
   }
 });
 
-// Temporary QA maintenance: remove this route and its service before global rollout.
-app.post("/api/admin/experience-reward-qa-maintenance", (req, res, next) => {
-  if (process.env.EXPERIENCE_REWARD_QA_MAINTENANCE_ENABLED !== "true" || getExperienceRewardMode() !== "qa") {
-    return res.sendStatus(404);
-  }
-  if (!ADMIN_PASSWORD || req.headers["x-admin-password"] !== ADMIN_PASSWORD) {
-    return res.sendStatus(403);
-  }
-  return requireAdmin(req, res, next);
-}, async (req, res) => {
-  try {
-    const result = await runQaMaintenance(req.body);
-    res.set("Cache-Control", "no-store").json(result);
-  } catch (error) {
-    console.error("Experience reward QA maintenance stopped:", error.message);
-    res.status(409).json({ error: "QA maintenance assertion failed; no further action taken." });
-  }
-});
-
 app.get('/api/admin/experiences', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -17817,9 +17797,6 @@ app.get('/api/admin/experiences', requireAdmin, async (req, res) => {
     res.json({ data: experiences.map((item) => {
       const reward = rewardByUser.get(String(item.submittedByUserId || ""));
       return { ...item,
-        ...(process.env.EXPERIENCE_REWARD_QA_MAINTENANCE_ENABLED === "true" && getExperienceRewardMode() === "qa" &&
-          String(item.submittedByUserId || "") === String(process.env.EXPERIENCE_REWARD_QA_USER_ID || "6abd577bec30b3276baf2027")
-          ? { qaRewardId: reward?._id || null } : {}),
         resumeRewardState: reward
         ? String(reward.experienceId) === String(item._id) ? "granted" : "already_granted"
         : "not_granted" };
