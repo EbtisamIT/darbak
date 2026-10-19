@@ -62,4 +62,15 @@ describe("Admin Analytics V2", () => {
     expect(screen.getByText("2,695")).toBeInTheDocument();
     expect(screen.queryByText("0%")).not.toBeInTheDocument();
   });
+
+  it("marks a seven-day return cohort as incomplete instead of missing historical data", async () => {
+    axios.get.mockResolvedValueOnce({ data: { tab: "overview",
+      kpis: [{ key: "sevenDayReturnRate", label: "العودة بعد 7 أيام", value: null,
+        previous: null, trackedSince: true, trackingStartedAt: "2026-07-08T00:00:00Z" }],
+    } });
+    render(<AdminAnalyticsV2 authHeaders={{}} />);
+    await screen.findByText("العودة بعد 7 أيام");
+    expect(screen.getByText("لم تكتمل فترة القياس")).toBeInTheDocument();
+    expect(screen.queryByText("لا توجد بيانات تاريخية لهذا المؤشر")).not.toBeInTheDocument();
+  });
 });

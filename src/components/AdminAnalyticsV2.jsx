@@ -117,7 +117,9 @@ const AdminAnalyticsV2 = ({ authHeaders }) => {
     if (tab === "overview") return (
       <div className="analytics-v2-kpis">
         {(data.kpis || []).map((item) => metric(item.label, item.value,
-          [item.trackedSince ? trackingNote(item.trackingStartedAt) : "", item.previous === null ? "" : `الفترة السابقة: ${format(item.previous, item.unit || "")}`]
+          [item.key === "sevenDayReturnRate" && item.value === null ? "لم تكتمل فترة القياس" :
+            item.trackedSince ? trackingNote(item.trackingStartedAt) : "",
+          item.previous === null ? "" : `الفترة السابقة: ${format(item.previous, item.unit || "")}`]
             .filter(Boolean).join(" · "), item.unit || ""))}
       </div>
     );
