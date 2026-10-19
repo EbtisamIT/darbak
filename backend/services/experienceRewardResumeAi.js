@@ -14,8 +14,9 @@ const classifyRewardAiFailure = (error, stage = "unknown") => {
   if (error?.internalErrorCode) return error.internalErrorCode;
   if (stage === "structured_output") return "OPENAI_STRUCTURED_OUTPUT_FAILED";
   if (stage === "json_parse" || error instanceof SyntaxError) return "OPENAI_RESPONSE_NOT_JSON";
-  if (stage === "schema_validation" || ["INVALID_REWARD_AI_OUTPUT", "INVALID_REWARD_AI_BULLET"]
-    .includes(error?.message)) return "OPENAI_SCHEMA_INVALID";
+  if (stage === "schema_validation") return "OPENAI_SCHEMA_INVALID";
+  if (stage === "content_validation" || ["INVALID_REWARD_AI_OUTPUT", "INVALID_REWARD_AI_BULLET"]
+    .includes(error?.message)) return "OPENAI_CONTENT_INVALID";
   if (stage === "fact_validation" || error?.message === "UNSUPPORTED_REWARD_AI_FACT") {
     return "OPENAI_FACT_VALIDATION_FAILED";
   }
@@ -40,6 +41,8 @@ const tagRewardAiFailure = (error, stage, startedAt, trace = {}) => {
   tagged.providerRequestId = safeRequestId(error?.request_id || error?._request_id) ||
     trace.providerRequestId || null;
   tagged.durationMs = Math.max(0, Date.now() - startedAt);
+  if (stage === "content_validation") tagged.validationRule = error?.validationRule || null;
+  if (stage === "schema_validation") tagged.structuralSummary = error?.structuralSummary || null;
   return tagged;
 };
 
@@ -52,6 +55,8 @@ const safeRewardAiFailure = (error, trace = {}, startedAt = Date.now()) => ({
     trace.providerRequestId || null,
   model: safeModelName(),
   durationMs: Number.isFinite(error?.durationMs) ? error.durationMs : Math.max(0, Date.now() - startedAt),
+  ...(error?.stage === "content_validation" ? { validationRule: error.validationRule || null } : {}),
+  ...(error?.stage === "schema_validation" ? { structuralSummary: error.structuralSummary || null } : {}),
 });
 
 const logRewardAiFailure = ({ error, trace, startedAt, userId, rewardId }) => {
@@ -64,6 +69,37 @@ const rewardSuggestionSchema = z.object({
   professionalSummary: z.string(),
   trainingBullets: z.array(z.string()).min(2).max(4),
 }).strict();
+// The provider retains the 2–4 item contract. Classify count failures as content
+// validation if a parsed response nevertheless violates that contract.
+const parsedStructureSchema = z.object({
+  professionalSummary: z.string(),
+  trainingBullets: z.array(z.string()),
+}).strict();
+
+const safeStructuralSummary = (parsed) => {
+  const object = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  const keys = object ? Object.keys(object) : [];
+  const expected = ["professionalSummary", "trainingBullets"];
+  const safeType = (value) => value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+  const bullets = object?.trainingBullets;
+  return {
+    missingKeys: expected.filter((key) => !Object.prototype.hasOwnProperty.call(object || {}, key)),
+    // Unknown key names can contain personal text; record their count, not their values.
+    unexpectedKeys: keys.filter((key) => !expected.includes(key)).map(() => "<unexpected-key>"),
+    professionalSummaryType: object && Object.prototype.hasOwnProperty.call(object, "professionalSummary")
+      ? safeType(object.professionalSummary) : "undefined",
+    trainingBulletsType: object && Object.prototype.hasOwnProperty.call(object, "trainingBullets")
+      ? safeType(bullets) : "undefined",
+    trainingBulletsLength: Array.isArray(bullets) ? bullets.length : null,
+    trainingBulletItemTypes: Array.isArray(bullets) ? bullets.map(safeType) : null,
+  };
+};
+
+const contentFailure = (validationRule, message = "INVALID_REWARD_AI_OUTPUT") => {
+  const error = new Error(message);
+  error.validationRule = validationRule;
+  return error;
+};
 
 const words = (value) => String(value || "").match(/\d+(?:[.,]\d+)?/g) || [];
 const knownTools = ["python", "sql", "excel", "power bi", "react", "javascript",
@@ -97,12 +133,21 @@ const validateRewardAiOutput = (result, facts) => {
   const bullets = Array.isArray(result?.trainingBullets) ? result.trainingBullets
     .filter((item) => typeof item === "string").map((item) => item.trim()).filter(Boolean) : [];
   const summaryLines = summary.split(/\r?\n/).filter(Boolean);
-  if (!summary || summary.length > 450 || summaryLines.length > 3 || bullets.length < 2 || bullets.length > 4 ||
-    bullets.some((item) => item.length > 260)) throw new Error("INVALID_REWARD_AI_OUTPUT");
+  if (!summary) throw contentFailure("SUMMARY_EMPTY");
+  if (summary.length > 450) throw contentFailure("SUMMARY_TOO_LONG");
+  if (summaryLines.length > 3) throw contentFailure("SUMMARY_TOO_MANY_LINES");
+  if (bullets.length < 2 || bullets.length > 4) {
+    const hasEmptyBullet = Array.isArray(result?.trainingBullets) && result.trainingBullets.some((item) =>
+      typeof item === "string" && !item.trim());
+    throw contentFailure(hasEmptyBullet ? "BULLET_EMPTY" : "BULLET_COUNT_INVALID");
+  }
+  if (bullets.some((item) => item.length > 260)) throw contentFailure("BULLET_TOO_LONG");
   const startsWithAction = facts.language === "ar"
     ? /^(?:حللت|نظمت|نظفت|أعددت|وثقت|طورت|صممت|جمعت|راجعت|استخدمت|أنشأت|دعمت|نفذت|شاركت|ساهمت|تابعت|بنيت|اختبرت|نسقت|قدمت|حدّثت|حسّنت|استخرجت|رتبت|درست|أجريت)(?=\s|$|[،,.])/u
     : /^(?:Analyzed|Organized|Prepared|Documented|Developed|Designed|Collected|Reviewed|Used|Created|Supported|Implemented|Contributed|Monitored|Built|Tested|Coordinated|Updated|Improved|Extracted|Compiled|Cleaned|Wrote)\b/i;
-  if (bullets.some((item) => !startsWithAction.test(item))) throw new Error("INVALID_REWARD_AI_BULLET");
+  if (bullets.some((item) => !startsWithAction.test(item))) {
+    throw contentFailure("BULLET_VERB_INVALID", "INVALID_REWARD_AI_BULLET");
+  }
   const source = JSON.stringify(facts);
   if (unsupportedTokens(`${summary} ${bullets.join(" ")}`, source).length) {
     throw new Error("UNSUPPORTED_REWARD_AI_FACT");
@@ -168,10 +213,13 @@ Preserve technology names and numbers exactly.`,
   }
   trace.structuredOutput = "PASS";
   trace.jsonParse = "PASS";
-  if (!rewardSuggestionSchema.safeParse(parsed).success) {
+  if (!parsedStructureSchema.safeParse(parsed).success) {
     trace.schemaValidation = "FAIL";
-    throw tagRewardAiFailure(new Error("INVALID_REWARD_AI_OUTPUT"), "schema_validation", startedAt, trace);
+    const error = new Error("INVALID_REWARD_AI_OUTPUT");
+    error.structuralSummary = safeStructuralSummary(parsed);
+    throw tagRewardAiFailure(error, "schema_validation", startedAt, trace);
   }
+  trace.schemaValidation = "PASS";
   try {
     const suggestion = validateRewardAiOutput(parsed, facts);
     trace.schemaValidation = "PASS";
@@ -179,8 +227,7 @@ Preserve technology names and numbers exactly.`,
     return suggestion;
   } catch (error) {
     const stage = error?.message === "UNSUPPORTED_REWARD_AI_FACT"
-      ? "fact_validation" : "schema_validation";
-    trace.schemaValidation = stage === "schema_validation" ? "FAIL" : "PASS";
+      ? "fact_validation" : "content_validation";
     trace.factValidation = stage === "fact_validation" ? "FAIL" : "NOT_RUN";
     throw tagRewardAiFailure(error, stage, startedAt, trace);
   }

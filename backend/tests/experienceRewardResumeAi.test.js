@@ -86,7 +86,8 @@ async function run() {
   assert.equal(classifyRewardAiFailure(new SyntaxError("secret raw response"), "json_parse"), "OPENAI_RESPONSE_NOT_JSON");
   assert.equal(classifyRewardAiFailure(new SyntaxError("secret raw response"), "structured_output"),
     "OPENAI_STRUCTURED_OUTPUT_FAILED");
-  assert.equal(classifyRewardAiFailure(new Error("INVALID_REWARD_AI_BULLET"), "schema_validation"), "OPENAI_SCHEMA_INVALID");
+  assert.equal(classifyRewardAiFailure(new Error("INVALID_REWARD_AI_BULLET"), "content_validation"),
+    "OPENAI_CONTENT_INVALID");
   assert.equal(classifyRewardAiFailure(new Error("UNSUPPORTED_REWARD_AI_FACT"), "fact_validation"), "OPENAI_FACT_VALIDATION_FAILED");
 
   const structuredTrace = {};
@@ -102,16 +103,60 @@ async function run() {
   await assert.rejects(
     generateRewardResumeSuggestions(arabicFacts, { responses: {
       parse: async () => ({ status: "completed", output_parsed: {
-        professionalSummary: "test", trainingBullets: [] } }),
+        professionalSummary: 42, trainingBullets: [] } }),
     } }, schemaTrace),
     (error) => error.internalErrorCode === "OPENAI_SCHEMA_INVALID" &&
       error.stage === "schema_validation"
   );
   assert.equal(schemaTrace.schemaValidation, "FAIL");
+  const parsedClient = (output_parsed) => ({ responses: {
+    parse: async () => ({ status: "completed", output_parsed }),
+  } });
+  const expectStructuralFailure = async (output, expectedSummary) => {
+    await assert.rejects(generateRewardResumeSuggestions(arabicFacts, parsedClient(output)),
+      (error) => {
+        assert.equal(error.stage, "schema_validation");
+        assert.equal(error.internalErrorCode, "OPENAI_SCHEMA_INVALID");
+        for (const [key, value] of Object.entries(expectedSummary)) {
+          assert.deepEqual(error.structuralSummary[key], value);
+        }
+        return true;
+      });
+  };
+  await expectStructuralFailure({ professionalSummary: 42, trainingBullets: {} }, {
+    professionalSummaryType: "number", trainingBulletsType: "object", trainingBulletsLength: null,
+  });
+  await expectStructuralFailure({ trainingBullets: arabicSuggestion.trainingBullets }, {
+    missingKeys: ["professionalSummary"], professionalSummaryType: "undefined",
+  });
+  await expectStructuralFailure({ ...arabicSuggestion, secretCandidateText: "private content" }, {
+    unexpectedKeys: ["<unexpected-key>"],
+  });
+  const expectContentFailure = async (output, validationRule) => {
+    await assert.rejects(generateRewardResumeSuggestions(arabicFacts, parsedClient(output)),
+      (error) => error.stage === "content_validation" &&
+        error.internalErrorCode === "OPENAI_CONTENT_INVALID" &&
+        error.validationRule === validationRule && !error.structuralSummary);
+  };
+  await expectContentFailure({ ...arabicSuggestion, professionalSummary: "   " }, "SUMMARY_EMPTY");
+  await expectContentFailure({ ...arabicSuggestion, professionalSummary: "ن".repeat(451) }, "SUMMARY_TOO_LONG");
+  await expectContentFailure({ ...arabicSuggestion, professionalSummary: "ن\nن\nن\nن" }, "SUMMARY_TOO_MANY_LINES");
+  await expectContentFailure({ ...arabicSuggestion, trainingBullets: [arabicSuggestion.trainingBullets[0]] },
+    "BULLET_COUNT_INVALID");
+  await expectContentFailure({ ...arabicSuggestion, trainingBullets: Array(5).fill(arabicSuggestion.trainingBullets[0]) },
+    "BULLET_COUNT_INVALID");
+  await expectContentFailure({ ...arabicSuggestion, trainingBullets: ["", arabicSuggestion.trainingBullets[0]] },
+    "BULLET_EMPTY");
+  await expectContentFailure({ ...arabicSuggestion, trainingBullets: [
+    `نظفت ${"ن".repeat(261)}`, arabicSuggestion.trainingBullets[1],
+  ] }, "BULLET_TOO_LONG");
+  await expectContentFailure({ ...arabicSuggestion, trainingBullets: [
+    "بيانات المبيعات باستخدام Excel", arabicSuggestion.trainingBullets[1],
+  ] }, "BULLET_VERB_INVALID");
+  assert.equal(classifyRewardAiFailure(new Error("UNSUPPORTED_REWARD_AI_FACT"), "fact_validation"),
+    "OPENAI_FACT_VALIDATION_FAILED");
   for (const invalid of [
     { trainingBullets: arabicSuggestion.trainingBullets },
-    { ...arabicSuggestion, trainingBullets: [arabicSuggestion.trainingBullets[0]] },
-    { ...arabicSuggestion, trainingBullets: Array(5).fill(arabicSuggestion.trainingBullets[0]) },
     { ...arabicSuggestion, extra: "unexpected" },
   ]) {
     await assert.rejects(generateRewardResumeSuggestions(arabicFacts, { responses: {
@@ -135,6 +180,40 @@ async function run() {
       error.stage === "fact_validation"
   );
   assert.equal(factTrace.factValidation, "FAIL");
+
+  let structuralLog = "";
+  const previousWarn = console.warn;
+  console.warn = (line) => { structuralLog = line; };
+  try {
+    const failed = makeReward();
+    assert.equal((await requestRewardAiSuggestion({ userId: "user-1", Reward: failed,
+      generate: (input, _client, trace) => generateRewardResumeSuggestions(input,
+        parsedClient({ ...suggestion, secretCandidateText: "private content" }), trace),
+    })).status, "failed");
+    const logged = JSON.parse(structuralLog);
+    assert.equal(logged.internalErrorCode, "OPENAI_SCHEMA_INVALID");
+    assert.deepEqual(logged.structuralSummary.unexpectedKeys, ["<unexpected-key>"]);
+    assert.equal(structuralLog.includes("private content"), false);
+    assert.equal(structuralLog.includes("secretCandidateText"), false);
+  } finally {
+    console.warn = previousWarn;
+  }
+  let contentLog = "";
+  console.warn = (line) => { contentLog = line; };
+  try {
+    const failed = makeReward();
+    assert.equal((await requestRewardAiSuggestion({ userId: "user-1", Reward: failed,
+      generate: (input, _client, trace) => generateRewardResumeSuggestions(input,
+        parsedClient({ ...suggestion, professionalSummary: "private content ".repeat(40) }), trace),
+    })).status, "failed");
+    const logged = JSON.parse(contentLog);
+    assert.equal(logged.stage, "content_validation");
+    assert.equal(logged.internalErrorCode, "OPENAI_CONTENT_INVALID");
+    assert.equal(logged.validationRule, "SUMMARY_TOO_LONG");
+    assert.equal(contentLog.includes("private content"), false);
+  } finally {
+    console.warn = previousWarn;
+  }
 
   const diagnosticSuggestion = {
     professionalSummary: "خريج نظم معلومات عام 2025، لديه مهارات في تحليل البيانات باستخدام Excel وSQL.",
