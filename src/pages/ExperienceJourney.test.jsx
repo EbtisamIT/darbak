@@ -8,7 +8,7 @@ import ExperienceSubmissionNextStep from "./ExperienceSubmissionNextStep";
 import InterviewsPage from "./InterviewsPage";
 import AddExperienceModal from "./AddExperienceModal";
 import HomePage from "./HomePage";
-import { canShowExperienceReward, canSubmitQaTestExperience } from "../utils/experienceRewardRollout";
+import { canShowExperienceReward } from "../utils/experienceRewardRollout";
 import { cityOptions, specializationOptions } from "../data/trainingOptions";
 import {
   dismissJourneyGoal,
@@ -25,10 +25,7 @@ jest.mock("react-router-dom", () => ({
   Link: ({ to, children, ...props }) => require("react").createElement("a", { href: to, ...props }, children),
 }));
 jest.mock("../utils/analytics", () => ({ trackEvent: jest.fn(), trackEventOncePerSession: jest.fn() }));
-jest.mock("../utils/experienceRewardRollout", () => ({
-  canShowExperienceReward: jest.fn(async () => true),
-  canSubmitQaTestExperience: jest.fn(async () => false),
-}));
+jest.mock("../utils/experienceRewardRollout", () => ({ canShowExperienceReward: jest.fn(async () => true) }));
 jest.mock("../components/PublicTestimonials", () => () => null);
 jest.mock("../utils/premiumAccess", () => ({
   ACCOUNT_MODAL_EVENT: "darbak:open-account",
@@ -46,7 +43,6 @@ const navigate = jest.fn();
 beforeEach(() => {
   jest.clearAllMocks();
   canShowExperienceReward.mockResolvedValue(true);
-  canSubmitQaTestExperience.mockResolvedValue(false);
   localStorage.clear();
   sessionStorage.clear();
   getStoredAccessIdentity.mockReturnValue({});
@@ -119,29 +115,7 @@ test("company contribution reuses the existing form with company prefilled", asy
   expect(axios.post).not.toHaveBeenCalled();
 });
 
-test("QA contribution has a truthful notice, sends an exact marker, and skips real contribution analytics", async () => {
-  getStoredAccessIdentity.mockReturnValue({ contact: "qa@example.com", accessCode: "ABCD1234" });
-  canSubmitQaTestExperience.mockResolvedValue(true);
-  localStorage.setItem("darbak_add_experience_draft_v1", JSON.stringify({
-    step: 5, organizationName: "شركة اختبار دربك QA", city: "الرياض",
-    majorCategory: "الحاسب والتقنية", major: "نظم المعلومات",
-    howApplied: "بحث شخصي", duration: "3 أشهر", starRating: 3,
-    ratings: ["enriching"], description: "تجربة QA تجريبية لتغطية دورة المكافأة دون نشر محتوى حقيقي للطلاب.",
-  }));
-  axios.post.mockResolvedValue({ data: { _id: "qa-experience", qaTest: true } });
-  render(<AddExperienceModal />);
-  expect(await screen.findByText("هذه مساهمة اختبار QA ولن تُنشر كمحتوى حقيقي.")).toBeInTheDocument();
-  expect(screen.queryByText(/تجربة حقيقية تخصني/)).not.toBeInTheDocument();
-  fireEvent.click(screen.getByText("إرسال مساهمة QA للمراجعة"));
-  await waitFor(() => expect(axios.post).toHaveBeenCalledTimes(1));
-  const payload = axios.post.mock.calls[0][1];
-  expect(payload).toMatchObject({ qaTest: true, qaTestCampaign: "experience-reward-v1.1",
-    publicationConsent: false });
-  expect(require("../utils/analytics").trackEvent).not.toHaveBeenCalledWith(
-    "add_experience_submitted", expect.anything());
-});
-
-test("normal contribution retains its real-experience attestation", async () => {
+test("contribution keeps the real-experience attestation after QA path removal", async () => {
   getStoredAccessIdentity.mockReturnValue({ contact: "student@example.com", accessCode: "ABCD1234" });
   localStorage.setItem("darbak_add_experience_draft_v1", JSON.stringify({
     step: 5, organizationName: "جهة تدريب", city: "الرياض",

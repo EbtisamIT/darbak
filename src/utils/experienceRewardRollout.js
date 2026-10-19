@@ -21,18 +21,3 @@ export async function canShowExperienceReward() {
     return false;
   }
 }
-
-export async function canSubmitQaTestExperience() {
-  const identity = getStoredAccessIdentity();
-  if (!identity.contact || !identity.accessCode) return false;
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/rewards/resume/rollout`, {
-      headers: getAccessHeaders({}),
-    });
-    if (!response.ok) return false;
-    const data = await response.json();
-    return data.qaTestContributionEnabled === true;
-  } catch {
-    return false;
-  }
-}

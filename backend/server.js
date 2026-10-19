@@ -8,15 +8,12 @@ const {
   buildLegacyEmailIdentityPattern,
 } = require("./services/emailIdentity");
 
-const { getExperienceRewardMode, getExperienceRewardV11Mode, isExperienceRewardEnabled, isExperienceRewardV11Enabled, isExperienceRewardQaTestEnabled } = require("./services/experienceRewardRollout");
+const { getExperienceRewardMode, isExperienceRewardEnabled, isExperienceRewardV11Enabled } = require("./services/experienceRewardRollout");
 const { getPublicExperienceFilter } = require("./services/experienceVisibility");
-const { QA_TEST_CAMPAIGN, classifyExperienceSubmission } = require("./services/experienceQaSubmission");
-const { runExperienceRewardV11QaCleanup } = require("./services/experienceRewardV11QaCleanup");
 const ExperienceResumeReward = require("./models/ExperienceResumeReward");
 const ExperienceResumeSnapshot = require("./models/ExperienceResumeSnapshot");
 const { CAMPAIGN_ID: EXPERIENCE_REWARD_CAMPAIGN, trainingPrefill, findRewardAccount, findOwnedReward, grantApprovedExperienceReward, saveRewardDraft, finalizeReward } = require("./services/experienceResumeReward");
-const { requestRewardAiSuggestion, logRewardAiFailure,
-  runRewardAiQaDiagnostic } = require("./services/experienceRewardResumeAi");
+const { requestRewardAiSuggestion, logRewardAiFailure } = require("./services/experienceRewardResumeAi");
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
 const FeedbackResponse = require("./models/FeedbackResponse");
@@ -7680,10 +7677,9 @@ app.get("/api/rewards/resume/rollout", async (req, res) => {
       User, normalizeContact: normalizeSubscriberContact, normalizeCode: normalizeAccessCode,
       validContact: isValidSubscriberContact, validCode: isValidAccessCode, hashCode: hashAccessCode,
     });
-    res.json({ enabled: isExperienceRewardEnabled(user?._id), mode: getExperienceRewardMode(),
-      qaTestContributionEnabled: isExperienceRewardQaTestEnabled(user?._id) });
+    res.json({ enabled: isExperienceRewardEnabled(user?._id), mode: getExperienceRewardMode() });
   } catch {
-    res.json({ enabled: false, mode: getExperienceRewardMode(), qaTestContributionEnabled: false });
+    res.json({ enabled: false, mode: getExperienceRewardMode() });
   }
 });
 
@@ -17309,30 +17305,23 @@ app.post('/api/experiences', async (req, res) => {
       });
     }
 
-    const hasQaMarker = req.body.qaTest === true || Boolean(req.body.qaTestCampaign);
-    const qaTestUser = hasQaMarker ? await findRewardAccount({
-      rawContact: req.get("x-darbak-contact"), rawCode: req.get("x-darbak-access-code"),
-      User, normalizeContact: normalizeSubscriberContact, normalizeCode: normalizeAccessCode,
-      validContact: isValidSubscriberContact, validCode: isValidAccessCode, hashCode: hashAccessCode,
-    }) : null;
-    const submission = classifyExperienceSubmission({ body: req.body,
-      authenticatedUserId: qaTestUser?._id });
-    if (submission.status === 403) return res.status(403).json({ error: "غير متاح." });
-    if (submission.status === 400) {
+    if (req.body.qaTest === true || req.body.qaTestCampaign) {
+      return res.status(403).json({ error: "غير متاح." });
+    }
+    if (req.body.publicationConsent !== true) {
       return res.status(400).json({ error: "يلزم الإقرار بصحة التجربة والموافقة على نشرها." });
     }
-    const qaTest = submission.qaTest;
 
     const rewardAmount =
       typeof req.body.rewardAmount === "string" ? req.body.rewardAmount.trim() : "";
     const accessIdentity = getAccessIdentityFromRequest(req);
-    let submittedByUser = qaTestUser;
+    let submittedByUser = null;
 
     if (
       isValidSubscriberContact(accessIdentity.contact) &&
       isValidAccessCode(accessIdentity.accessCode)
     ) {
-      if (!submittedByUser) submittedByUser = await ensureAccessUser(accessIdentity);
+      submittedByUser = await ensureAccessUser(accessIdentity);
     }
 
     const newExp = new Experience({
@@ -17343,13 +17332,13 @@ app.post('/api/experiences', async (req, res) => {
       ambassadorLinkedInUrl: "",
       ambassadorProfileImageUrl: "",
       submittedByUserId: submittedByUser?._id,
-      qaTest,
-      qaTestCampaign: qaTest ? QA_TEST_CAMPAIGN : "",
+      qaTest: false,
+      qaTestCampaign: "",
       submissionStatus: "pending",
       // New submissions are reviewed for quality only; publishing no longer grants access.
       rewardEligible: false,
       rewardStatus: "not_eligible",
-      publicationConsent: !qaTest && req.body.publicationConsent === true,
+      publicationConsent: true,
       sourceType: "direct",
       status: "pending",
     });
@@ -17842,30 +17831,6 @@ app.get('/api/experiences/:id', async (req, res) => {
   }
 });
 
-// Temporary QA-only maintenance. Remove before V1.1 is enabled globally.
-app.post("/api/admin/experience-reward-v11-qa-cleanup", (req, res, next) => {
-  if (process.env.EXPERIENCE_REWARD_QA_MAINTENANCE_ENABLED !== "true" ||
-    getExperienceRewardV11Mode() !== "qa") return res.sendStatus(404);
-  return requireAdmin(req, res, next);
-}, async (req, res) => {
-  try {
-    const result = await runExperienceRewardV11QaCleanup(req.body);
-    res.set("Cache-Control", "no-store").json(result);
-  } catch (error) {
-    console.error("Experience reward V1.1 QA cleanup stopped:", error.message);
-    res.status(409).json({ error: "QA cleanup assertion failed. No deletion completed." });
-  }
-});
-
-// Fixed-input QA diagnostic: existing Admin auth, QA rollout only, no reward or user record access.
-app.post("/api/admin/experience-reward-ai-diagnostic", (req, res, next) => {
-  if (getExperienceRewardV11Mode() !== "qa") return res.sendStatus(404);
-  return requireAdmin(req, res, next);
-}, async (req, res) => {
-  const result = await runRewardAiQaDiagnostic();
-  res.set("Cache-Control", "no-store").json(result);
-});
-
 app.get('/api/admin/experiences', requireAdmin, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -17890,9 +17855,6 @@ app.get('/api/admin/experiences', requireAdmin, async (req, res) => {
     res.json({ data: experiences.map((item) => {
       const reward = rewardByUser.get(String(item.submittedByUserId || ""));
       return { ...item,
-        ...(item.qaTest === true && reward &&
-          String(reward.experienceId) === String(item._id)
-          ? { qaRewardId: String(reward._id) } : {}),
         resumeRewardState: reward
         ? String(reward.experienceId) === String(item._id) ? "granted" : "already_granted"
         : "not_granted" };

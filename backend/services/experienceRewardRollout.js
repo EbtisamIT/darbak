@@ -9,8 +9,6 @@ const isExperienceRewardEnabled = (userId = "") => isCheckoutCanaryEnabled({
 const isExperienceRewardV11Enabled = (userId = "") => isCheckoutCanaryEnabled({
   mode: getExperienceRewardV11Mode(), userId, qaUserId: QA_USER_ID,
 });
-const isExperienceRewardQaTestEnabled = (userId = "") =>
-  getExperienceRewardV11Mode() === "qa" && isExperienceRewardV11Enabled(userId);
 
 module.exports = { getExperienceRewardMode, isExperienceRewardEnabled,
-  getExperienceRewardV11Mode, isExperienceRewardV11Enabled, isExperienceRewardQaTestEnabled };
+  getExperienceRewardV11Mode, isExperienceRewardV11Enabled };
