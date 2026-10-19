@@ -2,6 +2,7 @@ import React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import axios from "axios";
 import ExperiencesPage from "./ExperiencesPage";
+import { canShowExperienceReward } from "../utils/experienceRewardRollout";
 import {
   fetchSubscriptionState,
   hasCoreAccess,
@@ -27,6 +28,7 @@ jest.mock("../utils/premiumAccess", () => ({
   startSubscriptionFlow: jest.fn(),
 }));
 jest.mock("../components/ShareButton", () => () => null);
+jest.mock("../utils/experienceRewardRollout", () => ({ canShowExperienceReward: jest.fn(async () => true) }));
 
 const originalFetch = global.fetch;
 beforeEach(() => {
@@ -37,8 +39,16 @@ beforeEach(() => {
   hasCoreAccess.mockReturnValue(false);
   fetchSubscriptionState.mockResolvedValue({ state: "FREE", planId: "" });
   requestPremiumAccess.mockImplementation((detail) => detail.onLimited?.({ reason: "daily_limit" }));
+  canShowExperienceReward.mockResolvedValue(true);
 });
 afterEach(() => { global.fetch = originalFetch; });
+
+test("experience banner uses the existing contribution route with source attribution", async () => {
+  await act(async () => { render(<ExperiencesPage />); });
+  const link = await screen.findByRole("link", { name: /شارك تجربتك|شارك الآن/ });
+  expect(link).toHaveAttribute("href", "/share-experience?contributionSource=experiences_page");
+  expect(screen.getByText("سبق وتدربت؟ تجربتك ممكن تختصر الطريق على طالب غيرك 🎓")).toBeInTheDocument();
+});
 
 const openExperience = async () => {
   axios.get.mockResolvedValue({ data: {

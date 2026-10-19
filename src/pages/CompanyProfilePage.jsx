@@ -407,9 +407,21 @@ export default function CompanyProfilePage() {
 
       <section className="company-content-section">{renderTab()}</section>
 
-      <Link className="company-add-experience" to={`${rewardRolloutEnabled ? "/share-experience" : "/add-experience"}?companyId=${encodeURIComponent(company.id || company._id || "")}&companyName=${encodeURIComponent(company.name)}`}>
-        {rewardRolloutEnabled ? `سبق وتدربت في ${company.name}؟ شارك تجربتك` : `أضف تجربتك مع ${company.name}`}
-      </Link>
+      {rewardRolloutEnabled ? (
+        <section className="company-contribution-banner">
+          <div>
+            <h2>سبق وتدربت في {company.name}؟</h2>
+            <p>ساعد الطلاب يعرفون التجربة من شخص عاشها فعلًا، وإذا تم اعتماد تجربتك تحصل على سيرة ذاتية احترافية مجانًا بقالب ATS 🎁</p>
+          </div>
+          <Link className="company-add-experience" to={`/share-experience?companyId=${encodeURIComponent(company.id || company._id || "")}&companyName=${encodeURIComponent(company.name)}&contributionSource=company_page`}>
+            شارك تجربتك في {company.name}
+          </Link>
+        </section>
+      ) : (
+        <Link className="company-add-experience" to={`/add-experience?companyId=${encodeURIComponent(company.id || company._id || "")}&companyName=${encodeURIComponent(company.name)}`}>
+          أضف تجربتك مع {company.name}
+        </Link>
+      )}
 
       {selectedInterview && (
         <div className="company-interview-overlay" onMouseDown={() => setSelectedInterview(null)}>

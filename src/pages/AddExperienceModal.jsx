@@ -56,6 +56,9 @@ export default function AddExperienceModal({ onClose, onSaved }) {
   const navigate = useNavigate();
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const isJourneyEntry = query.get("source") === "journey";
+  const contributionSource = ["experiences_page", "company_page"].includes(query.get("contributionSource"))
+    ? query.get("contributionSource")
+    : "";
   const [journeyAllowed, setJourneyAllowed] = useState(!isJourneyEntry);
   useEffect(() => {
     if (!isJourneyEntry) return undefined;
@@ -127,6 +130,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
     trackEvent("add_experience_started", {
       metadata: {
         resumedDraft: Boolean(savedDraft),
+        ...(contributionSource ? { source: contributionSource } : {}),
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -559,6 +563,7 @@ export default function AddExperienceModal({ onClose, onSaved }) {
           trainingMode,
           starRating,
           submissionMotivation: "student_impact",
+          ...(contributionSource ? { source: contributionSource } : {}),
         },
       });
       clearSavedDraft();

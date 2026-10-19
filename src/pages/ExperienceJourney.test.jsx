@@ -9,6 +9,7 @@ import InterviewsPage from "./InterviewsPage";
 import AddExperienceModal from "./AddExperienceModal";
 import HomePage from "./HomePage";
 import { canShowExperienceReward } from "../utils/experienceRewardRollout";
+import { trackEvent } from "../utils/analytics";
 import { cityOptions, specializationOptions } from "../data/trainingOptions";
 import {
   dismissJourneyGoal,
@@ -73,7 +74,7 @@ test("goal prompt dismisses for the session and goal choice persists without cha
 });
 
 test("contribution requires a free account and returns to the existing experience route after login", async () => {
-  useLocation.mockReturnValue({ pathname: "/share-experience", search: "?companyName=DataVolt" });
+  useLocation.mockReturnValue({ pathname: "/share-experience", search: "?companyName=DataVolt&contributionSource=company_page" });
   render(<ExperienceContributionEntry />);
   expect(await screen.findAllByText(/نسخة سيرة ذاتية واحدة مجانًا/)).toHaveLength(1);
   fireEvent.click(screen.getByText("شارك تجربتي"));
@@ -84,7 +85,15 @@ test("contribution requires a free account and returns to the existing experienc
   fireEvent.click(screen.getByText("تسجيل الدخول أو إنشاء حساب"));
   expect(accountEvents[0].mode).toBe("contribution");
   act(() => window.dispatchEvent(new CustomEvent("darbak:free-account-saved")));
-  expect(navigate).toHaveBeenCalledWith("/add-experience?companyName=DataVolt&source=journey", { replace: true });
+  expect(navigate).toHaveBeenCalledWith("/add-experience?companyName=DataVolt&contributionSource=company_page&source=journey", { replace: true });
+});
+
+test("experience page source survives the signed-in contribution entry", async () => {
+  getStoredAccessIdentity.mockReturnValue({ contact: "qa@example.com", accessCode: "ABCD1234" });
+  useLocation.mockReturnValue({ pathname: "/share-experience", search: "?contributionSource=experiences_page" });
+  render(<ExperienceContributionEntry />);
+  fireEvent.click(await screen.findByText("شارك تجربتي"));
+  expect(navigate).toHaveBeenCalledWith("/add-experience?contributionSource=experiences_page&source=journey");
 });
 
 test("signed-in contribution opens the existing experience route without subscription", async () => {
@@ -107,12 +116,31 @@ test("training goal uses the current major and city controls before Where To Tra
 
 test("company contribution reuses the existing form with company prefilled", async () => {
   getStoredAccessIdentity.mockReturnValue({ contact: "qa@example.com", accessCode: "ABCD1234" });
-  useLocation.mockReturnValue({ pathname: "/add-experience", search: "?companyName=DataVolt&source=journey" });
+  useLocation.mockReturnValue({ pathname: "/add-experience", search: "?companyName=DataVolt&contributionSource=company_page&source=journey" });
   render(<AddExperienceModal />);
   expect(await screen.findByText("بيانات الجهة")).toBeInTheDocument();
   expect(screen.getByDisplayValue("DataVolt")).toBeInTheDocument();
   expect(screen.getByText(/بعد اعتمادها تحصل على نسخة سيرة ذاتية مجانية بقالب ATS/)).toBeInTheDocument();
+  expect(trackEvent).toHaveBeenCalledWith("add_experience_started", expect.objectContaining({ metadata: expect.objectContaining({ source: "company_page" }) }));
   expect(axios.post).not.toHaveBeenCalled();
+});
+
+test("submission analytics keeps the contribution source without changing the experience payload", async () => {
+  getStoredAccessIdentity.mockReturnValue({ contact: "qa@example.com", accessCode: "ABCD1234" });
+  useLocation.mockReturnValue({ pathname: "/add-experience", search: "?contributionSource=experiences_page&source=journey" });
+  localStorage.setItem("darbak_add_experience_draft_v1", JSON.stringify({
+    step: 5, organizationName: "جهة تدريب", city: "الرياض",
+    majorCategory: "الحاسب والتقنية", major: "نظم المعلومات",
+    howApplied: "بحث شخصي", duration: "3 أشهر", starRating: 3,
+    ratings: ["enriching"], publicationConsent: true,
+    description: "وصف حقيقي طويل بما يكفي لإرسال تجربة تدريب تخص الطالب فعلًا وتفيد الطلاب الآخرين.",
+  }));
+  axios.post.mockResolvedValue({ data: { _id: "experience-1", organizationName: "جهة تدريب" } });
+  render(<AddExperienceModal />);
+  fireEvent.click(await screen.findByText("أرسل تجربتي لتفيد غيري"));
+  await waitFor(() => expect(axios.post).toHaveBeenCalled());
+  expect(axios.post.mock.calls[0][1]).not.toHaveProperty("contributionSource");
+  expect(trackEvent).toHaveBeenCalledWith("add_experience_submitted", expect.objectContaining({ metadata: expect.objectContaining({ source: "experiences_page" }) }));
 });
 
 test("contribution keeps the real-experience attestation after QA path removal", async () => {

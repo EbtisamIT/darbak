@@ -2077,9 +2077,17 @@ const ExperiencesPage = () => {
           </section>
         )}
 
-        {rewardRolloutEnabled && <section style={{ maxWidth: 980, margin: "0 auto 16px", padding: "12px 16px", border: "1px solid var(--app-border)", borderRadius: 14, background: "var(--app-surface)", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div><strong>عندك تجربة تدريب؟ شاركها</strong><p style={{ margin: "3px 0 0", color: "var(--app-muted)", fontSize: 13 }}>وبعد اعتمادها تحصل على نسخة سيرة ذاتية مجانية بقالب ATS.</p></div>
-          <Link to="/share-experience" style={{ color: "var(--app-brand)", fontWeight: 800 }}>شارك تجربتي</Link>
+        {rewardRolloutEnabled && <section className="experiences-contribution-banner" aria-label="شارك تجربة تدريبك">
+          <div>
+            <strong className="experiences-contribution-desktop">سبق وتدربت؟ تجربتك ممكن تختصر الطريق على طالب غيرك 🎓</strong>
+            <strong className="experiences-contribution-mobile">تدربت قبل؟ شارك تجربتك 🎁</strong>
+            <p className="experiences-contribution-desktop">شارك تجربتك في التدريب، وإذا تم اعتمادها تحصل على سيرة ذاتية احترافية مجانًا بقالب Darbak ATS.</p>
+            <p className="experiences-contribution-mobile">إذا اعتمدناها، سيرتك علينا.</p>
+          </div>
+          <Link to="/share-experience?contributionSource=experiences_page">
+            <span className="experiences-contribution-desktop">شارك تجربتك 🎁</span>
+            <span className="experiences-contribution-mobile">شارك الآن</span>
+          </Link>
         </section>}
 
         {!isPremiumActive && (
@@ -3208,6 +3216,34 @@ const ExperiencesPage = () => {
           min-width: 0;
         }
 
+        .experiences-contribution-banner {
+          max-width: 980px;
+          margin: 0 auto 16px;
+          padding: 16px 18px;
+          border: 1px solid var(--app-brand-border);
+          border-radius: 16px;
+          background: var(--app-brand-soft);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .experiences-contribution-banner > div { min-width: 0; }
+        .experiences-contribution-banner strong { display: block; color: var(--app-text); line-height: 1.6; }
+        .experiences-contribution-banner p { margin: 4px 0 0; color: var(--app-text-soft); font-size: 13px; line-height: 1.7; }
+        .experiences-contribution-banner a {
+          flex: none;
+          padding: 9px 16px;
+          border-radius: 10px;
+          background: var(--app-brand);
+          color: #071315;
+          font-weight: 800;
+          text-decoration: none;
+          text-align: center;
+        }
+        .experiences-contribution-mobile { display: none !important; }
+
         .experiences-plus-banner {
           max-width: 980px;
           margin: 0 auto 18px;
@@ -3410,6 +3446,10 @@ const ExperiencesPage = () => {
         }
 
         @media (max-width: 900px) {
+          .experiences-contribution-banner { margin-bottom: 10px; padding: 12px; display: grid; gap: 10px; }
+          .experiences-contribution-desktop { display: none !important; }
+          .experiences-contribution-mobile { display: block !important; }
+          .experiences-contribution-banner a { width: 100%; }
           .experiences-shell {
             margin-top: 18px !important;
             padding: 10px 10px 24px !important;

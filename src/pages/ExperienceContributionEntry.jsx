@@ -23,7 +23,9 @@ export default function ExperienceContributionEntry() {
     });
     return () => { active = false; };
   }, [navigate]);
-  const formPath = `/add-experience${location.search ? `${location.search}&` : "?"}source=journey`;
+  const formQuery = new URLSearchParams(location.search);
+  formQuery.set("source", "journey");
+  const formPath = `/add-experience?${formQuery.toString()}`;
 
   useEffect(() => {
     window.scrollTo(0, 0);

@@ -171,6 +171,7 @@
 
 .company-add-experience {
   display: flex;
+  align-items: center;
   justify-content: center;
   margin-top: 18px;
   padding: 13px 16px;
@@ -180,7 +181,26 @@
   color: var(--app-brand);
   font-weight: 900;
   text-decoration: none;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
+
+.company-contribution-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--app-brand-border);
+  border-radius: 14px;
+  background: var(--app-brand-soft);
+}
+
+.company-contribution-banner > div { min-width: 0; }
+.company-contribution-banner h2 { margin: 0; color: var(--app-text); font-size: 17px; line-height: 1.5; }
+.company-contribution-banner p { margin: 4px 0 0; color: var(--app-text-soft); font-size: 13px; line-height: 1.7; }
+.company-contribution-banner .company-add-experience { flex: none; margin-top: 0; background: var(--app-brand); color: #071315; }
 
 .company-profile-hero {
   display: flex;
@@ -579,6 +599,8 @@
 }
 
 @media (max-width: 560px) {
+  .company-contribution-banner { display: grid; padding: 14px; }
+  .company-contribution-banner .company-add-experience { width: 100%; }
   .companies-page,
   .company-profile-page { width: min(100% - 20px, 1120px); padding: 22px 0 38px; }
   .companies-intro { padding: 22px 18px; }
