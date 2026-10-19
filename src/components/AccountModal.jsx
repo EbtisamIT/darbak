@@ -79,6 +79,7 @@ export default function AccountModal() {
   const [savingJourney, setSavingJourney] = useState(false);
   const [journeyLoginMode, setJourneyLoginMode] = useState(false);
   const [resumeReward, setResumeReward] = useState(null);
+  const [showLifecycleQuestion, setShowLifecycleQuestion] = useState(false);
   const [rewardAnnouncement, setRewardAnnouncement] = useState(null);
   const acknowledgedRewardIds = useRef(new Set());
 
@@ -180,6 +181,7 @@ export default function AccountModal() {
       accessCode: storedIdentity.accessCode || "",
     });
     setMessage("");
+    setShowLifecycleQuestion(false);
     setIsOpen(true);
     trackEvent("account_modal_opened");
   }, [loadResumeReward, loadSubscriptionState]);
@@ -188,6 +190,35 @@ export default function AccountModal() {
     window.addEventListener(ACCOUNT_MODAL_EVENT, openModal);
     return () => window.removeEventListener(ACCOUNT_MODAL_EVENT, openModal);
   }, [openModal]);
+
+  useEffect(() => {
+    const contact = identity?.contact || identity?.email;
+    if (!isOpen || !contact || !identity?.accessCode) return undefined;
+    let active = true;
+    axios.get(`${API_BASE_URL}/api/account/free-session`, { headers: {
+      "x-darbak-contact": contact,
+      "x-darbak-access-code": identity.accessCode,
+    } }).then(({ data }) => {
+      if (active) setShowLifecycleQuestion(
+        (data.account?.lifecycleStage || "unknown") === "unknown" &&
+        !data.account?.lifecyclePromptDismissedAt
+      );
+    }).catch(() => { if (active) setShowLifecycleQuestion(false); });
+    return () => { active = false; };
+  }, [isOpen, identity]);
+
+  const saveLifecycleStage = async (lifecycleStage) => {
+    setShowLifecycleQuestion(false);
+    try {
+      await axios.post(`${API_BASE_URL}/api/account/lifecycle-stage`, { lifecycleStage }, { headers: {
+        "x-darbak-contact": identity.contact || identity.email || "",
+        "x-darbak-access-code": identity.accessCode,
+      } });
+    } catch {
+      setShowLifecycleQuestion(true);
+      setMessage("تعذر حفظ اختيارك الآن. حاول مرة أخرى.");
+    }
+  };
 
   const closeModal = () => {
     setIsOpen(false);
@@ -519,6 +550,17 @@ export default function AccountModal() {
               : "يمكنك الترقية متى احتجت"}
           </strong>
         </div>
+
+        {showLifecycleQuestion && !pass?.isAdmin && !rewardAnnouncement && (
+          <div className="account-reward-note" aria-label="مرحلتك الحالية">
+            <strong>أنت حاليًا؟</strong>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <button type="button" onClick={() => saveLifecycleStage("student")}>طالب جامعي</button>
+              <button type="button" onClick={() => saveLifecycleStage("graduate")}>خريج</button>
+              <button type="button" onClick={() => saveLifecycleStage("unknown")}>لاحقًا</button>
+            </div>
+          </div>
+        )}
 
         {isExperienceReward && (
           <div className="account-reward-note">

@@ -48,7 +48,18 @@ describe("Admin Analytics V2", () => {
     } });
     render(<AdminAnalyticsV2 authHeaders={{}} />);
     await screen.findByText("المستخدمون النشطون");
-    expect(screen.getByText("تاريخ بدء القياس غير موثّق")).toBeInTheDocument();
+    expect(screen.getByText("بيانات تاريخية جزئية")).toBeInTheDocument();
     expect(screen.queryByText("بدأ القياس حديثًا")).not.toBeInTheDocument();
+  });
+
+  it("shows the real unknown audience count without emphasizing absent groups", async () => {
+    axios.get.mockImplementation((url, options) => Promise.resolve({ data: options.params.tab === "audience" ? { tab: "audience",
+      audience: { stages: { student: 0, graduate: 0, unknown: 2695 }, majors: [], cities: [] },
+    } : { tab: "overview", kpis: [] } }));
+    render(<AdminAnalyticsV2 authHeaders={{}} />);
+    fireEvent.click(screen.getByRole("button", { name: "الجمهور" }));
+    expect(await screen.findByText("لم يحدد معظم المستخدمين مرحلتهم بعد")).toBeInTheDocument();
+    expect(screen.getByText("2,695")).toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
   });
 });

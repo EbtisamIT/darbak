@@ -47,6 +47,13 @@ const eventCounts = async (Event, match) => Event.aggregate([
   { $group: { _id: "$eventName", count: { $sum: 1 } } },
 ]).then((rows) => Object.fromEntries(rows.map((row) => [row._id, row.count])));
 
+// The first stored event is evidence of a real tracking start. Missing events
+// stay unknown; we do not assign a deployment date to historical behaviour.
+const firstRecordedAt = async (Event, eventName) => {
+  const first = await Event.findOne({ eventName }).sort({ createdAt: 1 }).select("createdAt").lean();
+  return first?.createdAt || null;
+};
+
 const uniqueActors = async (Event, match) => Event.aggregate([
   { $match: match },
   { $project: { identity } },
@@ -240,14 +247,19 @@ const buildAdminAnalyticsTab = async (models, tab, query = {}) => {
         match: ownerFilter ? { userId: ownerFilter } : {}, segmented }),
       getRetention(Event, range, actorFilter),
     ]);
+    const [pageViewStart, applyStart, subscriptionStart] = await Promise.all([
+      firstRecordedAt(Event, "page_view"),
+      firstRecordedAt(Event, "opportunity_apply_clicked"),
+      firstRecordedAt(Event, "subscription_completed"),
+    ]);
     payload.kpis = [
-      { key: "activeUsers", label: "المستخدمون النشطون", value: observedCount(activeUsers), previous: observedCount(previousActive), trackedSince: true },
+      { key: "activeUsers", label: "المستخدمون النشطون", value: observedCount(activeUsers), previous: observedCount(previousActive), trackedSince: true, trackingStartedAt: pageViewStart },
       { key: "newUsers", label: "مستخدمون جدد", value: newUsers, previous: previousNew },
-      { key: "returningUsers", label: "حسابات عادت للنشاط", value: observedCount(returningUsers), previous: null, trackedSince: true },
-      { key: "sevenDayReturnRate", label: "العودة بعد 7 أيام", value: retention.sevenDayReturnRate, unit: "%", previous: null, trackedSince: true },
-      { key: "applyClicks", label: "نقرات التقديم", value: observedCount(applyClicks), previous: null, trackedSince: true },
+      { key: "returningUsers", label: "حسابات عادت للنشاط", value: observedCount(returningUsers), previous: null, trackedSince: true, trackingStartedAt: pageViewStart },
+      { key: "sevenDayReturnRate", label: "العودة بعد 7 أيام", value: retention.sevenDayReturnRate, unit: "%", previous: null, trackedSince: true, trackingStartedAt: pageViewStart },
+      { key: "applyClicks", label: "نقرات التقديم", value: observedCount(applyClicks), previous: null, trackedSince: true, trackingStartedAt: applyStart },
       { key: "applicationsTracked", label: "تقديمات محفوظة", value: tracked, previous: null },
-      { key: "newSubscriptions", label: "اشتراكات جديدة مؤكدة", value: observedCount(subscriptions), previous: null, trackedSince: true },
+      { key: "newSubscriptions", label: "اشتراكات جديدة مؤكدة", value: observedCount(subscriptions), previous: null, trackedSince: true, trackingStartedAt: subscriptionStart },
       { key: "approvedExperiences", label: "تجارب معتمدة", value: approved, previous: null },
       { key: "rewardResumesFinalized", label: "سير مكافأة مكتملة", value: finalized, previous: null },
     ];
@@ -255,7 +267,27 @@ const buildAdminAnalyticsTab = async (models, tab, query = {}) => {
 
   if (tab === "audience") {
     const [stages, majors, cities, graduationYears, universities] = await Promise.all([
-      User.aggregate([{ $match: audienceUserFilter }, { $group: { _id: "$lifecycleStage", count: { $sum: 1 } } }]),
+      User.aggregate([
+        { $match: audienceUserFilter },
+        { $lookup: { from: Portfolio.collection.name,
+          let: { contact: "$contact", code: "$accessCodeHash" },
+          pipeline: [
+            { $match: { $expr: { $and: [
+              { $ne: ["$$code", ""] },
+              { $eq: ["$contact", "$$contact"] },
+              { $eq: ["$accessCodeHash", "$$code"] },
+            ] } } },
+            { $project: { studentStatus: 1 } }, { $limit: 1 },
+          ], as: "profile" } },
+        { $project: { stage: { $cond: [
+          { $in: ["$lifecycleStage", ["student", "graduate"]] }, "$lifecycleStage",
+          { $switch: { branches: [
+            { case: { $eq: [{ $first: "$profile.studentStatus" }, "graduate"] }, then: "graduate" },
+            { case: { $in: [{ $first: "$profile.studentStatus" }, ["student", "expected_graduate"]] }, then: "student" },
+          ], default: "unknown" } },
+        ] } } },
+        { $group: { _id: "$stage", count: { $sum: 1 } } },
+      ]),
       audienceTopField(User, Portfolio, audienceUserFilter, "major"),
       audienceTopField(User, Portfolio, audienceUserFilter, "city"),
       audienceTopField(User, Portfolio, audienceUserFilter, "graduationYear"),
@@ -490,4 +522,4 @@ const buildAdminAnalyticsTab = async (models, tab, query = {}) => {
   return payload;
 };
 
-module.exports = { parseRange, safeFilter, pct, authoritativeCount, buildIdentityFunnel, buildAdminAnalyticsTab, TABS };
+module.exports = { parseRange, safeFilter, pct, authoritativeCount, buildIdentityFunnel, buildAdminAnalyticsTab, firstRecordedAt, TABS };

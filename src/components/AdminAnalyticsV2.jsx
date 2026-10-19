@@ -111,25 +111,27 @@ const AdminAnalyticsV2 = ({ authHeaders }) => {
   const changeFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const section = () => {
     if (!data) return null;
-    const trackingNote = data.trackingStartedAt
-      ? `يُقاس هذا المؤشر منذ ${new Date(data.trackingStartedAt).toLocaleDateString("ar-SA")}`
-      : "تاريخ بدء القياس غير موثّق";
+    const trackingNote = (startedAt) => startedAt
+      ? `يُقاس هذا المؤشر منذ ${new Date(startedAt).toLocaleDateString("ar-SA")}`
+      : "بيانات تاريخية جزئية";
     if (tab === "overview") return (
       <div className="analytics-v2-kpis">
         {(data.kpis || []).map((item) => metric(item.label, item.value,
-          [item.trackedSince ? trackingNote : "", item.previous === null ? "" : `الفترة السابقة: ${format(item.previous, item.unit || "")}`]
+          [item.trackedSince ? trackingNote(item.trackingStartedAt) : "", item.previous === null ? "" : `الفترة السابقة: ${format(item.previous, item.unit || "")}`]
             .filter(Boolean).join(" · "), item.unit || ""))}
       </div>
     );
     if (tab === "audience") {
       const stages = data.audience?.stages || {};
       const total = Object.values(stages).reduce((sum, value) => sum + Number(value || 0), 0);
+      const mostlyUnknown = total > 0 && Number(stages.unknown || 0) > total / 2;
       return <>
         <section className="analytics-v2-panel">
           <h3>مرحلة المستخدمين</h3>
+          {mostlyUnknown && <p className="analytics-v2-muted">لم يحدد معظم المستخدمين مرحلتهم بعد</p>}
           <div className="analytics-v2-segments">
             {[["student", "طلاب جامعيون"], ["graduate", "خريجون"], ["unknown", "غير محدد"]].map(([key, label]) => (
-              <div key={key}><span>{label}</span><strong>{format(stages[key] || 0)}</strong><small>{total ? format(100 * (stages[key] || 0) / total, "%") : "—"}</small></div>
+              <div key={key}><span>{label}</span><strong>{format(stages[key] || 0)}</strong><small>{total && !(mostlyUnknown && !stages[key]) ? format(100 * (stages[key] || 0) / total, "%") : "—"}</small></div>
             ))}
           </div>
         </section>
@@ -151,7 +153,7 @@ const AdminAnalyticsV2 = ({ authHeaders }) => {
       </section>
       {list("الأفعال المهمة", Object.entries(data.events || {}).map(([key, count]) => ({
         label: eventLabels[key] || key, count,
-      })), data.behaviourHistoryAvailable ? "لا توجد أحداث في الفترة المحددة." : trackingNote)}
+      })), data.behaviourHistoryAvailable ? "لا توجد أحداث في الفترة المحددة." : trackingNote(data.trackingStartedAt))}
       {list("نشاط الصفحات اليومي منذ بدء التجميع", data.dailyActivity)}
       {list("العودة بعد 7 أيام حسب الفئة", (data.retentionSegments || []).map((item) => ({
         label: ({ student: "طلاب", graduate: "خريجون", free: "مجاني", paid: "مدفوع",
@@ -208,9 +210,7 @@ const AdminAnalyticsV2 = ({ authHeaders }) => {
           ["من البوابة إلى الدفع", data.subscriptions?.paywallToCheckout],
           ["من الدفع إلى الاشتراك", data.subscriptions?.checkoutToPaid],
         ].map(([label, value]) => metric(label, value,
-          label === "اشتراكات جديدة" || label === "تجديدات" ? (data.trackingStartedAt
-            ? `يُقاس هذا المؤشر منذ ${new Date(data.trackingStartedAt).toLocaleDateString("ar-SA")}`
-            : "تاريخ بدء القياس غير موثّق") : "", label.includes("من ") ? "%" : ""))}
+          label === "اشتراكات جديدة" || label === "تجديدات" ? trackingNote(data.trackingStartedAt) : "", label.includes("من ") ? "%" : ""))}
       </div>
       {list("الباقات", data.subscriptions?.plans)}
       {list("مصادر الاشتراك المسجلة", data.subscriptions?.sources)}

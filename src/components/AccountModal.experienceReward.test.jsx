@@ -92,3 +92,27 @@ test("account download reads the existing PDF endpoint without generating a resu
     expect.objectContaining({ responseType: "blob" })));
   expect(axios.post).not.toHaveBeenCalled();
 });
+
+test("lifecycle question saves a one-time choice without changing account access", async () => {
+  let dismissed = false;
+  axios.get.mockImplementation(async (url) => url.endsWith("/api/account/free-session")
+    ? { data: { account: { lifecycleStage: dismissed ? "student" : "unknown",
+      lifecyclePromptDismissedAt: dismissed ? "2026-10-19T00:00:00Z" : null } } }
+    : { data: { reward: null } });
+  axios.post.mockImplementation(async (url, body) => {
+    if (url.endsWith("/api/account/lifecycle-stage")) {
+      expect(body).toEqual({ lifecycleStage: "student" });
+      dismissed = true;
+    }
+    return { data: { ok: true } };
+  });
+  render(<AccountModal />);
+  await act(async () => window.dispatchEvent(new CustomEvent("darbak:open-account")));
+  fireEvent.click(await screen.findByRole("button", { name: "طالب جامعي" }));
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining("/api/account/lifecycle-stage"), { lifecycleStage: "student" }, expect.any(Object)));
+  await act(async () => window.dispatchEvent(new CustomEvent("darbak:open-account")));
+  await waitFor(() => expect(axios.get.mock.calls.filter(([url]) => url.endsWith("/api/account/free-session"))).toHaveLength(2));
+  expect(screen.queryByRole("button", { name: "طالب جامعي" })).not.toBeInTheDocument();
+  expect(screen.getByText("حساب مجاني")).toBeInTheDocument();
+});

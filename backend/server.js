@@ -40,7 +40,8 @@ const AnalyticsEvent = require('./models/AnalyticsEvent');
 const AnalyticsDaily = require("./models/AnalyticsDaily");
 const AnalyticsTrackingState = require("./models/AnalyticsTrackingState");
 const JourneyFeedback = require("./models/JourneyFeedback");
-const { buildAdminAnalyticsTab, TABS: ANALYTICS_V2_TABS } = require("./services/adminAnalyticsV2");
+const { buildAdminAnalyticsTab, parseRange: parseAdminAnalyticsRange,
+  authoritativeCount: countAdminAnalyticsRecords, TABS: ANALYTICS_V2_TABS } = require("./services/adminAnalyticsV2");
 const Subscription = require('./models/Subscription');
 const User = require('./models/User');
 const Portfolio = require('./models/Portfolio');
@@ -7661,14 +7662,60 @@ app.get('/api/account/free-session', async (req, res) => {
     }
     const user = await ensureAccessUser(getAccessIdentityFromRequest(req));
     if (!user) return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    const portfolio = user.lifecycleStage && user.lifecycleStage !== "unknown" ? null
+      : await Portfolio.findOne({ contact: user.contact, accessCodeHash: user.accessCodeHash })
+        .select("studentStatus").lean();
+    const lifecycleStage = user.lifecycleStage && user.lifecycleStage !== "unknown"
+      ? user.lifecycleStage
+      : portfolio?.studentStatus === "graduate" ? "graduate"
+      : ["student", "expected_graduate"].includes(portfolio?.studentStatus) ? "student" : "unknown";
     res.json({ account: {
       firstName: user.firstName || "",
       preferredMajor: user.preferredMajor || "",
       preferredCity: user.preferredCity || "",
+      lifecycleStage,
+      lifecyclePromptDismissedAt: user.lifecyclePromptDismissedAt || null,
     }});
   } catch (err) {
     console.error("❌ Free account session lookup error:", err);
     res.status(500).json({ error: "تعذر تحميل الحساب حاليًا." });
+  }
+});
+
+// This optional profile answer never changes permissions or entitlements.
+app.post("/api/account/lifecycle-stage", async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+    const { contact, accessCode } = getAccessIdentityFromRequest(req);
+    const normalizedContact = normalizeSubscriberContact(contact);
+    const normalizedCode = normalizeAccessCode(accessCode);
+    if (!isValidSubscriberContact(normalizedContact) || !isValidAccessCode(normalizedCode)) {
+      return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    }
+    const stage = String(req.body?.lifecycleStage || "");
+    if (!["student", "graduate", "unknown"].includes(stage)) {
+      return res.status(400).json({ error: "اختر طالبًا جامعيًا أو خريجًا." });
+    }
+    const user = await User.findOne({
+      contact: normalizedContact,
+      accessCodeHash: hashAccessCode(normalizedContact, normalizedCode),
+      isAdmin: { $ne: true },
+    }).select("_id lifecycleStage lifecyclePromptDismissedAt").lean();
+    if (!user) return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    if (user.lifecyclePromptDismissedAt) {
+      return res.json({ lifecycleStage: user.lifecycleStage || "unknown",
+        lifecyclePromptDismissedAt: user.lifecyclePromptDismissedAt });
+    }
+    const updated = await User.findOneAndUpdate({ _id: user._id, lifecyclePromptDismissedAt: null }, {
+      $set: { lifecycleStage: stage, lifecyclePromptDismissedAt: new Date() },
+    }, { new: true }).select("lifecycleStage lifecyclePromptDismissedAt").lean();
+    res.json({ lifecycleStage: updated?.lifecycleStage || user.lifecycleStage || "unknown",
+      lifecyclePromptDismissedAt: updated?.lifecyclePromptDismissedAt || user.lifecyclePromptDismissedAt || null });
+  } catch (error) {
+    console.error("Lifecycle stage update failed:", error);
+    res.status(500).json({ error: "تعذر حفظ الاختيار الآن." });
   }
 });
 
@@ -14832,11 +14879,25 @@ app.get('/api/admin/subscription-dashboard', requireAdmin, async (req, res) => {
 });
 
 const requireAdminAnalyticsV2Qa = (req, res, next) => {
-  if (process.env.ADMIN_ANALYTICS_V2_MODE !== "qa") return res.status(404).end();
+  if (!["qa", "all"].includes(process.env.ADMIN_ANALYTICS_V2_MODE)) return res.status(404).end();
   return next();
 };
 
-app.get("/api/admin/analytics-v2", requireAdmin, requireAdminAnalyticsV2Qa, async (req, res) => {
+const logAdminAnalyticsDuration = (req, res, next) => {
+  const startedAt = process.hrtime.bigint();
+  res.on("finish", () => {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    console.info("admin_analytics_v2_timing", {
+      section: req.params.id ? "user_detail" : String(req.query.tab || "overview"),
+      status: res.statusCode,
+      durationMs: Math.round(durationMs),
+    });
+  });
+  next();
+};
+let adminAnalyticsTotalsCompared = false;
+
+app.get("/api/admin/analytics-v2", requireAdmin, requireAdminAnalyticsV2Qa, logAdminAnalyticsDuration, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) return res.status(503).json({ error: "Database is not connected" });
     const tab = String(req.query.tab || "overview");
@@ -14850,6 +14911,26 @@ app.get("/api/admin/analytics-v2", requireAdmin, requireAdminAnalyticsV2Qa, asyn
       Subscription, Tracker: ApplicationTracker, Opportunity, Company, Portfolio,
       Feedback: JourneyFeedback, Tracking: AnalyticsTrackingState,
     }, tab, req.query);
+    if (tab === "overview" && !adminAnalyticsTotalsCompared && !req.query.lifecycleStage &&
+        !req.query.major && !req.query.city && !req.query.source) {
+      const range = parseAdminAnalyticsRange(req.query);
+      const [subscriptionAnalytics, subscriptionSource, experienceSource, applicationSource] = await Promise.all([
+        countAdminAnalyticsRecords({ Daily: AnalyticsDaily, Model: Subscription, metric: "record_subscription",
+          range, match: { status: { $ne: "pending" } } }),
+        Subscription.countDocuments({ status: { $ne: "pending" }, createdAt: { $gte: range.start, $lt: range.end } }),
+        Experience.countDocuments({ status: "approved", qaTest: { $ne: true },
+          reviewedAt: { $gte: range.start, $lt: range.end } }),
+        ApplicationTracker.countDocuments({ createdAt: { $gte: range.start, $lt: range.end } }),
+      ]);
+      const analyticsKpi = (key) => payload.kpis.find((item) => item.key === key)?.value;
+      console.info("admin_analytics_v2_reconciliation", {
+        rangeStart: range.start.toISOString(), rangeEnd: range.end.toISOString(),
+        subscriptions: { analytics: subscriptionAnalytics, source: subscriptionSource },
+        experiences: { analytics: analyticsKpi("approvedExperiences"), source: experienceSource },
+        applications: { analytics: analyticsKpi("applicationsTracked"), source: applicationSource },
+      });
+      adminAnalyticsTotalsCompared = true;
+    }
     payload.health.ingestionFailuresSinceRestart = null;
     payload.health.droppedFrontendBatches = null;
     res.json(setReadCache(cacheKey, payload, 5 * 60 * 1000));
@@ -14860,7 +14941,7 @@ app.get("/api/admin/analytics-v2", requireAdmin, requireAdminAnalyticsV2Qa, asyn
   }
 });
 
-app.get("/api/admin/users/:id/analytics-summary", requireAdmin, requireAdminAnalyticsV2Qa, async (req, res) => {
+app.get("/api/admin/users/:id/analytics-summary", requireAdmin, requireAdminAnalyticsV2Qa, logAdminAnalyticsDuration, async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "معرف غير صالح." });
     const user = await User.findById(req.params.id)

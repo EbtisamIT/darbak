@@ -4,7 +4,7 @@ const AnalyticsEvent = require("../models/AnalyticsEvent");
 const AnalyticsDaily = require("../models/AnalyticsDaily");
 const JourneyFeedback = require("../models/JourneyFeedback");
 const User = require("../models/User");
-const { parseRange, safeFilter, pct, authoritativeCount, buildIdentityFunnel } = require("../services/adminAnalyticsV2");
+const { parseRange, safeFilter, pct, authoritativeCount, buildIdentityFunnel, firstRecordedAt } = require("../services/adminAnalyticsV2");
 
 const now = new Date("2026-10-19T12:00:00.000Z");
 const today = parseRange({ range: "today" }, now);
@@ -26,6 +26,17 @@ assert.ok(JourneyFeedback.schema.indexes().some(([keys, options]) => keys.reward
 assert.ok(mongoose.Types.ObjectId.isValid(new mongoose.Types.ObjectId()));
 
 (async () => {
+  const firstDate = new Date("2026-10-01T10:00:00Z");
+  const observedQuery = {
+    sort: ({ createdAt }) => { assert.strictEqual(createdAt, 1); return observedQuery; },
+    select: (field) => { assert.strictEqual(field, "createdAt"); return observedQuery; },
+    lean: async () => ({ createdAt: firstDate }),
+  };
+  assert.strictEqual(await firstRecordedAt({ findOne: ({ eventName }) => {
+    assert.strictEqual(eventName, "page_view"); return observedQuery;
+  } }, "page_view"), firstDate);
+  const missingQuery = { sort: () => missingQuery, select: () => missingQuery, lean: async () => null };
+  assert.strictEqual(await firstRecordedAt({ findOne: () => missingQuery }, "missing"), null);
   const historical = { start: new Date("2025-01-01T21:00:00Z"), end: new Date("2025-01-03T21:00:00Z") };
   let directReads = 0;
   const Model = { countDocuments: async () => { directReads += 1; return 9; } };
