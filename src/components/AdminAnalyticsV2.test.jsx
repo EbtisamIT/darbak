@@ -39,4 +39,16 @@ describe("Admin Analytics V2", () => {
     await screen.findByText("العودة بعد 7 أيام");
     expect(screen.getByText("غير متاح")).toBeInTheDocument();
   });
+
+  it("does not claim a recent tracking start when its date is unknown", async () => {
+    axios.get.mockResolvedValueOnce({ data: {
+      tab: "overview", trackingStartedAt: null,
+      kpis: [{ key: "activeUsers", label: "المستخدمون النشطون", value: 12,
+        previous: null, trackedSince: true }],
+    } });
+    render(<AdminAnalyticsV2 authHeaders={{}} />);
+    await screen.findByText("المستخدمون النشطون");
+    expect(screen.getByText("تاريخ بدء القياس غير موثّق")).toBeInTheDocument();
+    expect(screen.queryByText("بدأ القياس حديثًا")).not.toBeInTheDocument();
+  });
 });

@@ -113,7 +113,7 @@ const AdminAnalyticsV2 = ({ authHeaders }) => {
     if (!data) return null;
     const trackingNote = data.trackingStartedAt
       ? `يُقاس هذا المؤشر منذ ${new Date(data.trackingStartedAt).toLocaleDateString("ar-SA")}`
-      : "بدأ القياس حديثًا";
+      : "تاريخ بدء القياس غير موثّق";
     if (tab === "overview") return (
       <div className="analytics-v2-kpis">
         {(data.kpis || []).map((item) => metric(item.label, item.value,
@@ -210,7 +210,7 @@ const AdminAnalyticsV2 = ({ authHeaders }) => {
         ].map(([label, value]) => metric(label, value,
           label === "اشتراكات جديدة" || label === "تجديدات" ? (data.trackingStartedAt
             ? `يُقاس هذا المؤشر منذ ${new Date(data.trackingStartedAt).toLocaleDateString("ar-SA")}`
-            : "بدأ القياس حديثًا") : "", label.includes("من ") ? "%" : ""))}
+            : "تاريخ بدء القياس غير موثّق") : "", label.includes("من ") ? "%" : ""))}
       </div>
       {list("الباقات", data.subscriptions?.plans)}
       {list("مصادر الاشتراك المسجلة", data.subscriptions?.sources)}

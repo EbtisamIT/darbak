@@ -59,6 +59,6 @@ export default function AdminUserAnalyticsSummary({ userId, authHeaders }) {
     {data.trackingStartedAt && <small style={{ color: "#a7b8b4" }}>
       يُقاس نشاط الصفحات منذ {dateLabel(data.trackingStartedAt)}.
     </small>}
-    {!data.trackingStartedAt && activity.length === 0 && <small style={{ color: "#a7b8b4" }}>بدأ قياس نشاط الصفحات حديثًا.</small>}
+    {!data.trackingStartedAt && activity.length === 0 && <small style={{ color: "#a7b8b4" }}>تاريخ بدء قياس نشاط الصفحات غير موثّق.</small>}
   </section>;
 }
