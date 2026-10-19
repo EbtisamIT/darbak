@@ -1092,6 +1092,7 @@ export default function AdminReviewPage() {
   const [opportunityStatus, setOpportunityStatus] = useState("active");
   const [experiences, setExperiences] = useState([]);
   const [qaCleanupPreview, setQaCleanupPreview] = useState(null);
+  const [qaAvailableVerify, setQaAvailableVerify] = useState(null);
   const [qaCleanupConfirmation, setQaCleanupConfirmation] = useState("");
   const [qaCleanupBusy, setQaCleanupBusy] = useState(false);
   const [qaAiDiagnostic, setQaAiDiagnostic] = useState(null);
@@ -1305,7 +1306,9 @@ export default function AdminReviewPage() {
         } : {}) },
         { headers: authHeaders }
       );
-      if (action === "preview") {
+      if (action === "verify-available-reward") {
+        setQaAvailableVerify(data);
+      } else if (action === "preview") {
         setQaCleanupPreview(data);
         setQaCleanupConfirmation("");
       } else {
@@ -7635,6 +7638,13 @@ export default function AdminReviewPage() {
                   <p style={{ color: adminColors.textSoft, margin: "8px 0" }}>
                     المعاينة والتحقق يقتصران على التجربة والمكافأة والـPDF المرتبطين بهذا السجل.
                   </p>
+                  <button type="button" disabled={qaCleanupBusy}
+                    onClick={() => runQaCleanup(exp, "verify-available-reward")}>تحقق من المكافأة المتاحة دون تعديل</button>
+                  {qaAvailableVerify?.reward?._id === String(exp.qaRewardId) && (
+                    <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                      {JSON.stringify(qaAvailableVerify, null, 2)}
+                    </pre>
+                  )}
                   <button type="button" disabled={qaCleanupBusy}
                     onClick={() => runQaCleanup(exp, "preview")}>معاينة السجلات المحددة</button>
                   {qaCleanupPreview?.wouldDelete?.experienceId === String(exp._id) && (

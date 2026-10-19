@@ -58,7 +58,50 @@ async function isolationCounts({ user, experience }) {
     resumeEntitlement: (user.entitlements || []).includes("resume_builder") };
 }
 
+// Temporary read-only check for the one available QA reward before an AI-attempt reset.
+async function verifyAvailableQaReward({ userId, experienceId, rewardId } = {}) {
+  assert([userId, experienceId, rewardId].every(exactId), "Exact ObjectIds required");
+  assert(isExperienceRewardQaTestEnabled(userId), "Not the designated QA user in QA mode");
+  const [experience, reward] = await Promise.all([
+    Experience.findById(experienceId).lean(),
+    Reward.findById(rewardId).lean(),
+  ]);
+  assert(experience && String(experience.submittedByUserId) === userId &&
+    experience.status === "approved" && experience.qaTest === true &&
+    experience.qaTestCampaign === QA_TEST_CAMPAIGN,
+  "Exact approved QA experience differs");
+  assert(reward && String(reward.userId) === userId &&
+    String(reward.experienceId) === experienceId &&
+    reward.campaignId === CAMPAIGN_ID && reward.status === "available" &&
+    reward.aiGenerationAttemptedAt && !reward.resumeSnapshotId && !reward.redeemedAt,
+  "Exact available QA reward differs");
+  // Snapshot.rewardId is the canonical reverse link; PDF bytes live in that snapshot.
+  const snapshotCount = await Snapshot.countDocuments({ rewardId: reward._id });
+  assert.equal(snapshotCount, 0, "QA reward already has a snapshot");
+  return {
+    reward: {
+      _id: String(reward._id), userId: String(reward.userId),
+      experienceId: String(reward.experienceId), campaignId: reward.campaignId,
+      status: reward.status, aiGenerationAttemptedAt: reward.aiGenerationAttemptedAt,
+      resumeSnapshotId: reward.resumeSnapshotId || null,
+      redeemedAt: reward.redeemedAt || null,
+    },
+    experience: {
+      _id: String(experience._id), userId: String(experience.submittedByUserId),
+      status: experience.status, qaTest: experience.qaTest,
+      qaTestCampaign: experience.qaTestCampaign,
+    },
+    artifacts: { snapshotCount, pdfReferenceCount: 0 },
+    mutationPreview: {
+      rewardId: String(reward._id),
+      aiGenerationAttemptedAt: { from: reward.aiGenerationAttemptedAt, to: null },
+      otherFieldsChanged: "NONE",
+    },
+  };
+}
+
 async function runExperienceRewardV11QaCleanup(body = {}) {
+  if (body.action === "verify-available-reward") return verifyAvailableQaReward(body);
   assert(["preview", "cleanup"].includes(body.action), "Unsupported QA action");
   const ids = { userId: body.userId, experienceId: body.experienceId, rewardId: body.rewardId };
   const records = await loadExactQaRecords(ids);
@@ -100,4 +143,4 @@ async function runExperienceRewardV11QaCleanup(body = {}) {
     qaAccountRetained: true, customerRecordsTouched: 0 };
 }
 
-module.exports = { loadExactQaRecords, runExperienceRewardV11QaCleanup };
+module.exports = { loadExactQaRecords, verifyAvailableQaReward, runExperienceRewardV11QaCleanup };
