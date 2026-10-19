@@ -15,7 +15,8 @@ const { runExperienceRewardV11QaCleanup } = require("./services/experienceReward
 const ExperienceResumeReward = require("./models/ExperienceResumeReward");
 const ExperienceResumeSnapshot = require("./models/ExperienceResumeSnapshot");
 const { CAMPAIGN_ID: EXPERIENCE_REWARD_CAMPAIGN, trainingPrefill, findRewardAccount, findOwnedReward, grantApprovedExperienceReward, saveRewardDraft, finalizeReward } = require("./services/experienceResumeReward");
-const { requestRewardAiSuggestion } = require("./services/experienceRewardResumeAi");
+const { requestRewardAiSuggestion, logRewardAiFailure,
+  runRewardAiQaDiagnostic } = require("./services/experienceRewardResumeAi");
 const Experience = require('./models/Experience');
 const Suggestion = require('./models/Suggestion');
 const FeedbackResponse = require("./models/FeedbackResponse");
@@ -7745,6 +7746,8 @@ app.post("/api/rewards/resume/announcement-seen", requireExperienceRewardUser, a
 });
 
 app.post("/api/rewards/resume/suggest", requireExperienceRewardUser, async (req, res) => {
+  const suggestionError = "تعذر إنشاء الاقتراح الآن، تقدر تكمل السيرة يدويًا.";
+  const startedAt = Date.now();
   try {
     if (!isExperienceRewardV11Enabled(req.experienceRewardUser._id)) return res.status(404).json({ error: "غير متاح." });
     const result = await requestRewardAiSuggestion({
@@ -7756,12 +7759,12 @@ app.post("/api/rewards/resume/suggest", requireExperienceRewardUser, async (req,
       error: "اقتراح الصياغة استُخدم لهذه المكافأة. يمكنك تعديل النص يدويًا.",
       suggestion: result.suggestion || null,
     });
-    if (result.status === "failed") return res.status(503).json({
-      error: "تعذر اقتراح الصياغة الآن. يمكنك كتابة النبذة والنقاط بنفسك، ومكافأتك محفوظة.",
-    });
+    if (result.status === "failed") return res.status(503).json({ error: suggestionError });
     res.json({ suggestion: result.suggestion });
   } catch {
-    res.status(503).json({ error: "تعذر اقتراح الصياغة الآن. يمكنك إكمال السيرة يدويًا." });
+    logRewardAiFailure({ error: { stage: "route" },
+      trace: {}, startedAt, userId: req.experienceRewardUser?._id, rewardId: null });
+    res.status(503).json({ error: suggestionError });
   }
 });
 
@@ -17852,6 +17855,15 @@ app.post("/api/admin/experience-reward-v11-qa-cleanup", (req, res, next) => {
     console.error("Experience reward V1.1 QA cleanup stopped:", error.message);
     res.status(409).json({ error: "QA cleanup assertion failed. No deletion completed." });
   }
+});
+
+// Fixed-input QA diagnostic: existing Admin auth, QA rollout only, no reward or user record access.
+app.post("/api/admin/experience-reward-ai-diagnostic", (req, res, next) => {
+  if (getExperienceRewardV11Mode() !== "qa") return res.sendStatus(404);
+  return requireAdmin(req, res, next);
+}, async (req, res) => {
+  const result = await runRewardAiQaDiagnostic();
+  res.set("Cache-Control", "no-store").json(result);
 });
 
 app.get('/api/admin/experiences', requireAdmin, async (req, res) => {

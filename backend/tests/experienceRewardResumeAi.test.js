@@ -1,7 +1,7 @@
 const assert = require("assert/strict");
 const {
   buildRewardAiFacts, validateRewardAiOutput, generateRewardResumeSuggestions,
-  requestRewardAiSuggestion,
+  requestRewardAiSuggestion, classifyRewardAiFailure, runRewardAiQaDiagnostic,
 } = require("../services/experienceRewardResumeAi");
 
 const draft = {
@@ -73,6 +73,85 @@ async function run() {
   assert.equal(Reward.row.status, "available", "AI does not redeem reward");
   assert.equal((await requestRewardAiSuggestion({ userId: "user-1", Reward, generate })).status, "already_attempted");
   assert.equal(calls, 1, "duplicate request never calls model again");
+
+  assert.equal(classifyRewardAiFailure({ status: 401 }, "provider_request"), "OPENAI_AUTH_ERROR");
+  assert.equal(classifyRewardAiFailure({ status: 429 }, "provider_request"), "OPENAI_RATE_LIMIT");
+  assert.equal(classifyRewardAiFailure({ status: 404 }, "provider_request"), "OPENAI_MODEL_NOT_FOUND");
+  assert.equal(classifyRewardAiFailure({ status: 400 }, "provider_request"), "OPENAI_BAD_REQUEST");
+  assert.equal(classifyRewardAiFailure({ name: "APIConnectionTimeoutError" }, "provider_request"), "OPENAI_TIMEOUT");
+  assert.equal(classifyRewardAiFailure(new SyntaxError("secret raw response"), "json_parse"), "OPENAI_RESPONSE_NOT_JSON");
+  assert.equal(classifyRewardAiFailure(new Error("INVALID_REWARD_AI_BULLET"), "schema_validation"), "OPENAI_SCHEMA_INVALID");
+  assert.equal(classifyRewardAiFailure(new Error("UNSUPPORTED_REWARD_AI_FACT"), "fact_validation"), "OPENAI_FACT_VALIDATION_FAILED");
+
+  const parseTrace = {};
+  await assert.rejects(
+    generateRewardResumeSuggestions(arabicFacts, { responses: {
+      create: async () => ({ output_text: "not JSON", _request_id: "req_parse_test" }),
+    } }, parseTrace),
+    (error) => error.internalErrorCode === "OPENAI_RESPONSE_NOT_JSON" &&
+      error.stage === "json_parse" && error.providerStatus === 200
+  );
+  assert.equal(parseTrace.jsonParse, "FAIL");
+  const schemaTrace = {};
+  await assert.rejects(
+    generateRewardResumeSuggestions(arabicFacts, { responses: {
+      create: async () => ({ output_text: JSON.stringify({ professionalSummary: "test", trainingBullets: [] }) }),
+    } }, schemaTrace),
+    (error) => error.internalErrorCode === "OPENAI_SCHEMA_INVALID" &&
+      error.stage === "schema_validation"
+  );
+  assert.equal(schemaTrace.schemaValidation, "FAIL");
+  const factTrace = {};
+  await assert.rejects(
+    generateRewardResumeSuggestions(arabicFacts, { responses: {
+      create: async () => ({ output_text: JSON.stringify({ ...arabicSuggestion,
+        trainingBullets: ["نظفت بيانات المبيعات باستخدام Python", arabicSuggestion.trainingBullets[1]] }) }),
+    } }, factTrace),
+    (error) => error.internalErrorCode === "OPENAI_FACT_VALIDATION_FAILED" &&
+      error.stage === "fact_validation"
+  );
+  assert.equal(factTrace.factValidation, "FAIL");
+
+  const diagnosticSuggestion = {
+    professionalSummary: "خريج نظم معلومات عام 2025، لديه مهارات في تحليل البيانات باستخدام Excel وSQL.",
+    trainingBullets: ["نظفت بيانات المبيعات باستخدام Excel", "أعددت استعلامات SQL للفريق"],
+  };
+  const diagnostic = await runRewardAiQaDiagnostic({ generate: async (fixedFacts, _client, trace) => {
+    assert.equal(fixedFacts.language, "ar");
+    assert.equal(fixedFacts.training[0].company, "جهة اختبار");
+    trace.providerReached = true;
+    trace.providerStatus = 200;
+    trace.jsonParse = "PASS";
+    trace.schemaValidation = "PASS";
+    trace.factValidation = "PASS";
+    return diagnosticSuggestion;
+  } });
+  assert.deepEqual(diagnostic.suggestion, diagnosticSuggestion);
+  assert.equal(diagnostic.modelAccessible, true);
+  assert.equal(diagnostic.internalErrorCode, null);
+
+  let safeLog = "";
+  const oldWarn = console.warn;
+  console.warn = (line) => { safeLog = line; };
+  try {
+    const failedDiagnostic = await runRewardAiQaDiagnostic({ generate: async (_facts, _client, trace) => {
+      trace.providerStatus = 404;
+      trace.providerReached = true;
+      const error = new Error("secret raw provider response and resume text");
+      error.status = 404;
+      error.request_id = "req_test123";
+      throw error;
+    } });
+    assert.equal(failedDiagnostic.internalErrorCode, "OPENAI_MODEL_NOT_FOUND");
+    assert.equal(failedDiagnostic.modelAccessible, false);
+    assert.equal(failedDiagnostic.providerStatus, 404);
+    assert.equal(JSON.parse(safeLog).event, "experience_reward_ai_failure");
+    assert.equal(JSON.parse(safeLog).providerRequestId, "req_test123");
+    assert.equal(safeLog.includes("secret raw"), false);
+    assert.equal(safeLog.includes("resume text"), false);
+  } finally {
+    console.warn = oldWarn;
+  }
 
   const failedReward = makeReward();
   assert.equal((await requestRewardAiSuggestion({ userId: "user-1", Reward: failedReward,

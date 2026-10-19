@@ -1094,6 +1094,8 @@ export default function AdminReviewPage() {
   const [qaCleanupPreview, setQaCleanupPreview] = useState(null);
   const [qaCleanupConfirmation, setQaCleanupConfirmation] = useState("");
   const [qaCleanupBusy, setQaCleanupBusy] = useState(false);
+  const [qaAiDiagnostic, setQaAiDiagnostic] = useState(null);
+  const [qaAiDiagnosticBusy, setQaAiDiagnosticBusy] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [studentFeedback, setStudentFeedback] = useState({
     summary: { count: 0, averageSatisfaction: 0, ratings: {} },
@@ -1316,6 +1318,22 @@ export default function AdminReviewPage() {
       setMessage(error.response?.data?.error || "توقف تنظيف QA بسبب عدم تطابق السجلات.");
     } finally {
       setQaCleanupBusy(false);
+    }
+  };
+
+  const runQaAiDiagnostic = async () => {
+    if (qaAiDiagnostic || qaAiDiagnosticBusy) return;
+    try {
+      setQaAiDiagnosticBusy(true);
+      const { data } = await axios.post(`${API_BASE_URL}/api/admin/experience-reward-ai-diagnostic`,
+        {}, { headers: authHeaders });
+      setQaAiDiagnostic(data);
+    } catch (error) {
+      setMessage(error.response?.status === 404
+        ? "فحص AI متاح في وضع QA فقط."
+        : "تعذر تشغيل فحص AI الآمن.");
+    } finally {
+      setQaAiDiagnosticBusy(false);
     }
   };
 
@@ -7608,6 +7626,11 @@ export default function AdminReviewPage() {
 
               {exp.qaTest === true && exp.qaRewardId && exp.status === "approved" && (
                 <div style={{ ...cardStyle, marginBottom: "12px" }}>
+                  <button type="button" disabled={qaAiDiagnosticBusy || Boolean(qaAiDiagnostic)}
+                    onClick={runQaAiDiagnostic}>فحص اقتراح AI ببيانات QA ثابتة مرة واحدة</button>
+                  {qaAiDiagnostic && <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                    {JSON.stringify(qaAiDiagnostic, null, 2)}
+                  </pre>}
                   <strong>تنظيف مساهمة QA المؤقتة</strong>
                   <p style={{ color: adminColors.textSoft, margin: "8px 0" }}>
                     المعاينة والتحقق يقتصران على التجربة والمكافأة والـPDF المرتبطين بهذا السجل.

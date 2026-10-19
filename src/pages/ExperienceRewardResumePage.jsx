@@ -218,7 +218,7 @@ export default function ExperienceRewardResumePage() {
       if (suggestionRequested && error.response?.status !== 400) {
         setReward((current) => ({ ...current, aiGenerationAttemptedAt: new Date().toISOString() }));
       }
-      setMessage(error.response?.data?.error || "تعذر اقتراح الصياغة الآن. اكتب النبذة والنقاط بنفسك؛ مكافأتك محفوظة.");
+      setMessage(error.response?.data?.error || "تعذر إنشاء الاقتراح الآن، تقدر تكمل السيرة يدويًا.");
     } finally { setBusy(false); }
   };
   const makePdf = async (savedDraft) => pdf(
