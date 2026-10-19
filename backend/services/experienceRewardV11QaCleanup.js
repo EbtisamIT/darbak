@@ -18,7 +18,7 @@ const AI_RESET_IDS = Object.freeze({
   experienceId: "6ad56958fe291efa165aac62",
   rewardId: "6ad5696c101441eb03307200",
 });
-const AI_RESET_ATTEMPTED_AT = "2026-10-19T01:42:12.381Z";
+const AI_RESET_ATTEMPTED_AT = "2026-10-19T02:08:55.893Z";
 
 async function loadExactQaRecords({ userId, experienceId, rewardId }, session) {
   assert([userId, experienceId, rewardId].every(exactId), "Exact ObjectIds required");
