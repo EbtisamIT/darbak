@@ -55,13 +55,17 @@ async function run() {
   }, facts), /UNSUPPORTED_REWARD_AI_FACT/, "unsupported metric or technology rejected");
 
   let requests = 0;
-  const client = { responses: { create: async (request) => {
+  const client = { responses: { parse: async (request) => {
     requests += 1;
     assert.equal(request.store, false);
     assert.equal(request.text.format.type, "json_schema");
+    assert.equal(request.text.format.strict, true);
     assert.match(request.instructions, /natural Arabic sentence order/);
     assert.deepEqual(request.text.format.schema.required, ["professionalSummary", "trainingBullets"]);
-    return { output_text: JSON.stringify(suggestion) };
+    assert.equal(request.text.format.schema.additionalProperties, false);
+    assert.equal(request.text.format.schema.properties.trainingBullets.minItems, 2);
+    assert.equal(request.text.format.schema.properties.trainingBullets.maxItems, 4);
+    return { status: "completed", output_parsed: suggestion, output_text: "not JSON" };
   } } };
   assert.deepEqual(await generateRewardResumeSuggestions(facts, client), suggestion);
   assert.equal(requests, 1, "summary and training rewrite use one request");
@@ -80,32 +84,52 @@ async function run() {
   assert.equal(classifyRewardAiFailure({ status: 400 }, "provider_request"), "OPENAI_BAD_REQUEST");
   assert.equal(classifyRewardAiFailure({ name: "APIConnectionTimeoutError" }, "provider_request"), "OPENAI_TIMEOUT");
   assert.equal(classifyRewardAiFailure(new SyntaxError("secret raw response"), "json_parse"), "OPENAI_RESPONSE_NOT_JSON");
+  assert.equal(classifyRewardAiFailure(new SyntaxError("secret raw response"), "structured_output"),
+    "OPENAI_STRUCTURED_OUTPUT_FAILED");
   assert.equal(classifyRewardAiFailure(new Error("INVALID_REWARD_AI_BULLET"), "schema_validation"), "OPENAI_SCHEMA_INVALID");
   assert.equal(classifyRewardAiFailure(new Error("UNSUPPORTED_REWARD_AI_FACT"), "fact_validation"), "OPENAI_FACT_VALIDATION_FAILED");
 
-  const parseTrace = {};
+  const structuredTrace = {};
   await assert.rejects(
     generateRewardResumeSuggestions(arabicFacts, { responses: {
-      create: async () => ({ output_text: "not JSON", _request_id: "req_parse_test" }),
-    } }, parseTrace),
-    (error) => error.internalErrorCode === "OPENAI_RESPONSE_NOT_JSON" &&
-      error.stage === "json_parse" && error.providerStatus === 200
+      parse: async () => { throw new SyntaxError("secret raw response"); },
+    } }, structuredTrace),
+    (error) => error.internalErrorCode === "OPENAI_STRUCTURED_OUTPUT_FAILED" &&
+      error.stage === "structured_output" && error.providerStatus === 200
   );
-  assert.equal(parseTrace.jsonParse, "FAIL");
+  assert.equal(structuredTrace.structuredOutput, "FAIL");
   const schemaTrace = {};
   await assert.rejects(
     generateRewardResumeSuggestions(arabicFacts, { responses: {
-      create: async () => ({ output_text: JSON.stringify({ professionalSummary: "test", trainingBullets: [] }) }),
+      parse: async () => ({ status: "completed", output_parsed: {
+        professionalSummary: "test", trainingBullets: [] } }),
     } }, schemaTrace),
     (error) => error.internalErrorCode === "OPENAI_SCHEMA_INVALID" &&
       error.stage === "schema_validation"
   );
   assert.equal(schemaTrace.schemaValidation, "FAIL");
+  for (const invalid of [
+    { trainingBullets: arabicSuggestion.trainingBullets },
+    { ...arabicSuggestion, trainingBullets: [arabicSuggestion.trainingBullets[0]] },
+    { ...arabicSuggestion, trainingBullets: Array(5).fill(arabicSuggestion.trainingBullets[0]) },
+    { ...arabicSuggestion, extra: "unexpected" },
+  ]) {
+    await assert.rejects(generateRewardResumeSuggestions(arabicFacts, { responses: {
+      parse: async () => ({ status: "completed", output_parsed: invalid }),
+    } }), (error) => error.internalErrorCode === "OPENAI_SCHEMA_INVALID");
+  }
+  await assert.rejects(generateRewardResumeSuggestions(arabicFacts, { responses: {
+    parse: async () => ({ status: "completed", output_parsed: null,
+      output: [{ content: [{ type: "refusal" }] }] }),
+  } }), (error) => error.internalErrorCode === "OPENAI_STRUCTURED_OUTPUT_FAILED");
+  await assert.rejects(generateRewardResumeSuggestions(arabicFacts, { responses: {
+    parse: async () => { const error = new Error("timeout"); error.name = "APIConnectionTimeoutError"; throw error; },
+  } }), (error) => error.internalErrorCode === "OPENAI_TIMEOUT");
   const factTrace = {};
   await assert.rejects(
     generateRewardResumeSuggestions(arabicFacts, { responses: {
-      create: async () => ({ output_text: JSON.stringify({ ...arabicSuggestion,
-        trainingBullets: ["نظفت بيانات المبيعات باستخدام Python", arabicSuggestion.trainingBullets[1]] }) }),
+      parse: async () => ({ status: "completed", output_parsed: { ...arabicSuggestion,
+        trainingBullets: ["نظفت بيانات المبيعات باستخدام Python", arabicSuggestion.trainingBullets[1]] } }),
     } }, factTrace),
     (error) => error.internalErrorCode === "OPENAI_FACT_VALIDATION_FAILED" &&
       error.stage === "fact_validation"

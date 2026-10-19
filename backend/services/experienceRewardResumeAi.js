@@ -1,4 +1,6 @@
 const OpenAI = require("openai");
+const { z } = require("zod");
+const { zodTextFormat } = require("openai/helpers/zod");
 
 const getRewardAiModel = () => process.env.OPENAI_EXPERIENCE_REWARD_MODEL || "gpt-5.6-luna";
 const safeModelName = () => String(getRewardAiModel()).replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 80);
@@ -10,6 +12,7 @@ const safeIdentifier = (value) => /^[a-f\d]{24}$/i.test(String(value || "")) ? S
 
 const classifyRewardAiFailure = (error, stage = "unknown") => {
   if (error?.internalErrorCode) return error.internalErrorCode;
+  if (stage === "structured_output") return "OPENAI_STRUCTURED_OUTPUT_FAILED";
   if (stage === "json_parse" || error instanceof SyntaxError) return "OPENAI_RESPONSE_NOT_JSON";
   if (stage === "schema_validation" || ["INVALID_REWARD_AI_OUTPUT", "INVALID_REWARD_AI_BULLET"]
     .includes(error?.message)) return "OPENAI_SCHEMA_INVALID";
@@ -57,15 +60,10 @@ const logRewardAiFailure = ({ error, trace, startedAt, userId, rewardId }) => {
     userId: safeIdentifier(userId), rewardId: safeIdentifier(rewardId) }));
 };
 
-const OUTPUT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["professionalSummary", "trainingBullets"],
-  properties: {
-    professionalSummary: { type: "string" },
-    trainingBullets: { type: "array", items: { type: "string" } },
-  },
-};
+const rewardSuggestionSchema = z.object({
+  professionalSummary: z.string(),
+  trainingBullets: z.array(z.string()).min(2).max(4),
+}).strict();
 
 const words = (value) => String(value || "").match(/\d+(?:[.,]\d+)?/g) || [];
 const knownTools = ["python", "sql", "excel", "power bi", "react", "javascript",
@@ -133,7 +131,7 @@ async function generateRewardResumeSuggestions(facts, clientOverride, trace = {}
   }
   let response;
   try {
-    response = await client.responses.create({
+    response = await client.responses.parse({
       model: getRewardAiModel(),
       store: false,
       max_output_tokens: 650,
@@ -149,25 +147,30 @@ experience narrative. Use ONLY supplied facts. Do not add metrics, technologies,
 seniority, achievements, or tasks absent from the input. If facts are sparse, stay brief.
 Preserve technology names and numbers exactly.`,
       input: JSON.stringify(facts),
-      text: { format: { type: "json_schema", name: "experience_reward_resume", strict: true, schema: OUTPUT_SCHEMA } },
+      text: { format: zodTextFormat(rewardSuggestionSchema, "experience_reward_resume") },
     });
   } catch (error) {
-    trace.providerStatus = safeProviderStatus(error?.status);
+    const stage = error instanceof SyntaxError || error?.name === "ZodError"
+      ? "structured_output" : "provider_request";
+    trace.providerStatus = stage === "structured_output" ? 200 : safeProviderStatus(error?.status);
     trace.providerReached = Boolean(trace.providerStatus);
-    throw tagRewardAiFailure(error, "provider_request", startedAt, trace);
+    if (stage === "structured_output") trace.structuredOutput = "FAIL";
+    throw tagRewardAiFailure(error, stage, startedAt, trace);
   }
   trace.providerReached = true;
   trace.providerStatus = 200;
   trace.providerRequestId = safeRequestId(response?._request_id);
-  const output = response.output_text || (response.output || [])
-    .flatMap((item) => item.content || []).map((item) => item.text || "").join("");
-  let parsed;
-  try {
-    parsed = JSON.parse(output);
-    trace.jsonParse = "PASS";
-  } catch (error) {
-    trace.jsonParse = "FAIL";
-    throw tagRewardAiFailure(error, "json_parse", startedAt, trace);
+  const parsed = response.output_parsed;
+  if (response.status !== "completed" || !parsed ||
+    (response.output || []).some((item) => (item.content || []).some((part) => part.type === "refusal"))) {
+    trace.structuredOutput = "FAIL";
+    throw tagRewardAiFailure(new Error("STRUCTURED_OUTPUT_UNAVAILABLE"), "structured_output", startedAt, trace);
+  }
+  trace.structuredOutput = "PASS";
+  trace.jsonParse = "PASS";
+  if (!rewardSuggestionSchema.safeParse(parsed).success) {
+    trace.schemaValidation = "FAIL";
+    throw tagRewardAiFailure(new Error("INVALID_REWARD_AI_OUTPUT"), "schema_validation", startedAt, trace);
   }
   try {
     const suggestion = validateRewardAiOutput(parsed, facts);
@@ -225,6 +228,7 @@ async function runRewardAiQaDiagnostic({ generate = generateRewardResumeSuggesti
     const suggestion = await generate(QA_DIAGNOSTIC_FACTS, undefined, trace);
     return { ...base, providerReachable: true, modelAccessible: true,
       providerStatus: trace.providerStatus || 200, internalErrorCode: null,
+      structuredOutput: trace.structuredOutput || "PASS",
       jsonParse: trace.jsonParse || "PASS", schemaValidation: trace.schemaValidation || "PASS",
       factValidation: trace.factValidation || "PASS", durationMs: Math.max(0, Date.now() - startedAt),
       suggestion };
@@ -235,6 +239,7 @@ async function runRewardAiQaDiagnostic({ generate = generateRewardResumeSuggesti
       modelAccessible: safe.internalErrorCode === "OPENAI_MODEL_NOT_FOUND" ? false
         : trace.providerReached && safe.stage !== "provider_request" ? true : null,
       providerStatus: safe.providerStatus, internalErrorCode: safe.internalErrorCode,
+      structuredOutput: trace.structuredOutput || "NOT_RUN",
       jsonParse: trace.jsonParse || "NOT_RUN", schemaValidation: trace.schemaValidation || "NOT_RUN",
       factValidation: trace.factValidation || "NOT_RUN", durationMs: safe.durationMs };
   }
