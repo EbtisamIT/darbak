@@ -1296,17 +1296,23 @@ export default function AdminReviewPage() {
       qaCleanupPreview.wouldDelete.experienceId !== ids.experienceId ||
       qaCleanupPreview.wouldDelete.rewardId !== ids.rewardId ||
       qaCleanupConfirmation !== "DELETE_EXACT_QA_RECORDS")) return;
+    if (action === "reset-qa-ai-attempt" &&
+      (ids.rewardId !== "6ad5696c101441eb03307200" ||
+        qaAvailableVerify?.reward?._id !== ids.rewardId ||
+        qaAvailableVerify.reward.aiGenerationAttemptedAt !== "2026-10-19T00:52:16.182Z")) return;
     try {
       setQaCleanupBusy(true);
       const { data } = await axios.post(
         `${API_BASE_URL}/api/admin/experience-reward-v11-qa-cleanup`,
-        { ...ids, action, ...(action === "cleanup" ? {
+        { ...ids, action, ...(action === "reset-qa-ai-attempt" ? {
+          confirm: "RESET_EXACT_QA_AI_ATTEMPT",
+        } : {}), ...(action === "cleanup" ? {
           confirm: qaCleanupConfirmation,
           snapshotId: qaCleanupPreview.wouldDelete.snapshotId,
         } : {}) },
         { headers: authHeaders }
       );
-      if (action === "verify-available-reward") {
+      if (action === "verify-available-reward" || action === "reset-qa-ai-attempt") {
         setQaAvailableVerify(data);
       } else if (action === "preview") {
         setQaCleanupPreview(data);
@@ -7644,6 +7650,14 @@ export default function AdminReviewPage() {
                     <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                       {JSON.stringify(qaAvailableVerify, null, 2)}
                     </pre>
+                  )}
+                  {qaAvailableVerify?.reward?._id === "6ad5696c101441eb03307200" &&
+                    qaAvailableVerify.reward.aiGenerationAttemptedAt ===
+                      "2026-10-19T00:52:16.182Z" && (
+                    <button type="button" disabled={qaCleanupBusy}
+                      onClick={() => runQaCleanup(exp, "reset-qa-ai-attempt")}>
+                      إعادة إتاحة محاولة AI لمكافأة QA المحددة فقط
+                    </button>
                   )}
                   <button type="button" disabled={qaCleanupBusy}
                     onClick={() => runQaCleanup(exp, "preview")}>معاينة السجلات المحددة</button>

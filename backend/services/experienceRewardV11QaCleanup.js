@@ -13,6 +13,12 @@ const { QA_TEST_CAMPAIGN } = require("./experienceQaSubmission");
 const { isExperienceRewardQaTestEnabled } = require("./experienceRewardRollout");
 
 const exactId = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
+const AI_RESET_IDS = Object.freeze({
+  userId: "6ad4c81d101441eb032e467e",
+  experienceId: "6ad56958fe291efa165aac62",
+  rewardId: "6ad5696c101441eb03307200",
+});
+const AI_RESET_ATTEMPTED_AT = "2026-10-19T00:52:16.182Z";
 
 async function loadExactQaRecords({ userId, experienceId, rewardId }, session) {
   assert([userId, experienceId, rewardId].every(exactId), "Exact ObjectIds required");
@@ -59,7 +65,7 @@ async function isolationCounts({ user, experience }) {
 }
 
 // Temporary read-only check for the one available QA reward before an AI-attempt reset.
-async function verifyAvailableQaReward({ userId, experienceId, rewardId } = {}) {
+async function verifyAvailableQaReward({ userId, experienceId, rewardId } = {}, expectAttempt = true) {
   assert([userId, experienceId, rewardId].every(exactId), "Exact ObjectIds required");
   assert(isExperienceRewardQaTestEnabled(userId), "Not the designated QA user in QA mode");
   const [experience, reward] = await Promise.all([
@@ -73,7 +79,8 @@ async function verifyAvailableQaReward({ userId, experienceId, rewardId } = {}) 
   assert(reward && String(reward.userId) === userId &&
     String(reward.experienceId) === experienceId &&
     reward.campaignId === CAMPAIGN_ID && reward.status === "available" &&
-    reward.aiGenerationAttemptedAt && !reward.resumeSnapshotId && !reward.redeemedAt,
+    (expectAttempt ? Boolean(reward.aiGenerationAttemptedAt) : !reward.aiGenerationAttemptedAt) &&
+    !reward.resumeSnapshotId && !reward.redeemedAt,
   "Exact available QA reward differs");
   // Snapshot.rewardId is the canonical reverse link; PDF bytes live in that snapshot.
   const snapshotCount = await Snapshot.countDocuments({ rewardId: reward._id });
@@ -100,8 +107,46 @@ async function verifyAvailableQaReward({ userId, experienceId, rewardId } = {}) 
   };
 }
 
+async function resetExactQaAiAttempt(body = {}) {
+  const ids = { userId: body.userId, experienceId: body.experienceId,
+    rewardId: body.rewardId };
+  assert.deepEqual(ids, AI_RESET_IDS, "Only the approved QA reward may be reset");
+  assert.equal(body.confirm, "RESET_EXACT_QA_AI_ATTEMPT", "Exact reset confirmation required");
+  const before = await verifyAvailableQaReward(ids);
+  assert.equal(new Date(before.reward.aiGenerationAttemptedAt).toISOString(),
+    AI_RESET_ATTEMPTED_AT, "AI attempt timestamp differs");
+  const beforeDocument = await Reward.findById(ids.rewardId).lean();
+  const result = await Reward.collection.updateOne({
+    _id: new mongoose.Types.ObjectId(ids.rewardId),
+    userId: new mongoose.Types.ObjectId(ids.userId),
+    experienceId: new mongoose.Types.ObjectId(ids.experienceId),
+    campaignId: CAMPAIGN_ID,
+    status: "available",
+    aiGenerationAttemptedAt: new Date(AI_RESET_ATTEMPTED_AT),
+    resumeSnapshotId: null,
+    redeemedAt: null,
+  }, { $set: { aiGenerationAttemptedAt: null } });
+  assert.equal(result.matchedCount, 1, "Exact QA reward changed before reset");
+  assert.equal(result.modifiedCount, 1, "Exact QA attempt was not reset once");
+  const afterDocument = await Reward.findById(ids.rewardId).lean();
+  const { aiGenerationAttemptedAt: oldAttempt, ...beforeUnchanged } = beforeDocument;
+  const { aiGenerationAttemptedAt: newAttempt, ...afterUnchanged } = afterDocument;
+  assert.equal(new Date(oldAttempt).toISOString(), AI_RESET_ATTEMPTED_AT);
+  assert.equal(newAttempt, null);
+  assert.deepEqual(afterUnchanged, beforeUnchanged, "Other reward fields changed");
+  const after = await verifyAvailableQaReward(ids, false);
+  for (const key of ["_id", "userId", "experienceId", "campaignId", "status",
+    "resumeSnapshotId", "redeemedAt"]) {
+    assert.deepEqual(after.reward[key], before.reward[key], `Reward ${key} changed`);
+  }
+  assert.deepEqual(after.experience, before.experience, "QA experience changed");
+  return { reset: true, reward: after.reward, experience: after.experience,
+    artifacts: after.artifacts, otherFieldsChanged: "NONE" };
+}
+
 async function runExperienceRewardV11QaCleanup(body = {}) {
   if (body.action === "verify-available-reward") return verifyAvailableQaReward(body);
+  if (body.action === "reset-qa-ai-attempt") return resetExactQaAiAttempt(body);
   assert(["preview", "cleanup"].includes(body.action), "Unsupported QA action");
   const ids = { userId: body.userId, experienceId: body.experienceId, rewardId: body.rewardId };
   const records = await loadExactQaRecords(ids);
@@ -143,4 +188,5 @@ async function runExperienceRewardV11QaCleanup(body = {}) {
     qaAccountRetained: true, customerRecordsTouched: 0 };
 }
 
-module.exports = { loadExactQaRecords, verifyAvailableQaReward, runExperienceRewardV11QaCleanup };
+module.exports = { loadExactQaRecords, verifyAvailableQaReward,
+  resetExactQaAiAttempt, runExperienceRewardV11QaCleanup };
