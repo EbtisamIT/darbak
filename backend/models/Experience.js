@@ -214,6 +214,7 @@ const experienceSchema = new mongoose.Schema(
 );
 
 experienceSchema.index({ status: 1, createdAt: -1 });
+experienceSchema.index({ createdAt: -1 });
 experienceSchema.index({ status: 1, reviewedAt: -1, createdAt: -1 });
 experienceSchema.index({ status: 1, city: 1, createdAt: -1 });
 experienceSchema.index({ status: 1, major: 1, createdAt: -1 });

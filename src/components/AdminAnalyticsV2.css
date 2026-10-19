@@ -1,0 +1,34 @@
+.analytics-v2 { color: #d8e5e2; display: grid; gap: 16px; min-width: 0; }
+.analytics-v2-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.analytics-v2-header h2 { margin: 0 0 4px; color: #8ee7dc; }
+.analytics-v2-header p, .analytics-v2-muted, .analytics-v2-health { margin: 0; color: #a7b8b4; font-size: 13px; }
+.analytics-v2 button, .analytics-v2 input, .analytics-v2 select { font: inherit; }
+.analytics-v2-header button { border: 1px solid #66d0c3; background: transparent; color: #8ee7dc; border-radius: 9px; padding: 8px 14px; cursor: pointer; }
+.analytics-v2-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; max-width: 100%; }
+.analytics-v2-tabs button { flex: none; border: 1px solid rgba(216,229,226,.14); background: transparent; color: #c4d2cf; border-radius: 9px; padding: 9px 13px; cursor: pointer; }
+.analytics-v2-tabs button[aria-current="page"] { background: rgba(102,208,195,.13); border-color: #66d0c3; color: #8ee7dc; }
+.analytics-v2-filters { display: flex; flex-wrap: wrap; gap: 9px; }
+.analytics-v2-filters label { display: grid; gap: 4px; min-width: 105px; color: #a7b8b4; font-size: 12px; }
+.analytics-v2-filters input, .analytics-v2-filters select { min-width: 0; max-width: 170px; box-sizing: border-box; color: #d8e5e2; background: #10151a; border: 1px solid rgba(102,208,195,.22); border-radius: 8px; padding: 8px; }
+.analytics-v2-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 9px; }
+.analytics-v2-metric, .analytics-v2-panel { min-width: 0; border: 1px solid rgba(216,229,226,.1); background: rgba(255,255,255,.025); border-radius: 12px; padding: 14px; }
+.analytics-v2-metric { display: grid; gap: 4px; }
+.analytics-v2-metric span, .analytics-v2-metric small, .analytics-v2-funnel small { color: #a7b8b4; font-size: 12px; }
+.analytics-v2-metric strong { font-size: 25px; color: #8ee7dc; }
+.analytics-v2-panel h3 { margin: 0 0 12px; color: #d8e5e2; font-size: 17px; }
+.analytics-v2-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 12px; }
+.analytics-v2-list { margin: 0; padding: 0 20px 0 0; }
+.analytics-v2-list li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(216,229,226,.08); padding: 8px 0; overflow-wrap: anywhere; }
+.analytics-v2-funnel { display: grid; gap: 7px; }
+.analytics-v2-funnel > div, .analytics-v2-segments > div { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; padding: 8px 0; border-bottom: 1px solid rgba(216,229,226,.08); }
+.analytics-v2-funnel strong, .analytics-v2-segments strong { margin-inline-start: auto; color: #8ee7dc; }
+.analytics-v2-segments { display: flex; flex-wrap: wrap; gap: 16px; }
+.analytics-v2-segments > div { flex: 1 1 150px; }
+@media (max-width: 430px) {
+  .analytics-v2 { width: 100%; }
+  .analytics-v2-header { align-items: flex-start; }
+  .analytics-v2-filters label { flex: 1 1 42%; }
+  .analytics-v2-filters input, .analytics-v2-filters select { width: 100%; max-width: none; }
+  .analytics-v2-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-v2-metric strong { font-size: 20px; }
+}

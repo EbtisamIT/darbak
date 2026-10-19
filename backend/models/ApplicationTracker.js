@@ -52,5 +52,7 @@ applicationTrackerSchema.index({ opportunityId: 1, studentId: 1 }, {
   partialFilterExpression: { opportunityId: { $type: "objectId" } },
 });
 
+applicationTrackerSchema.index({ createdAt: -1 });
+
 module.exports = mongoose.model("application_trackers", applicationTrackerSchema);
 module.exports.studentStatusValues = studentStatusValues;

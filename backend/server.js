@@ -37,6 +37,10 @@ const {
 } = require("./services/subscriptionUsage");
 const InterviewQuestion = require('./models/InterviewQuestion');
 const AnalyticsEvent = require('./models/AnalyticsEvent');
+const AnalyticsDaily = require("./models/AnalyticsDaily");
+const AnalyticsTrackingState = require("./models/AnalyticsTrackingState");
+const JourneyFeedback = require("./models/JourneyFeedback");
+const { buildAdminAnalyticsTab, TABS: ANALYTICS_V2_TABS } = require("./services/adminAnalyticsV2");
 const Subscription = require('./models/Subscription');
 const User = require('./models/User');
 const Portfolio = require('./models/Portfolio');
@@ -14824,6 +14828,96 @@ app.get('/api/admin/subscription-dashboard', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("❌ Subscription dashboard error:", err);
     res.status(500).json({ error: "تعذر تحميل لوحة الاشتراكات الآن." });
+  }
+});
+
+const requireAdminAnalyticsV2Qa = (req, res, next) => {
+  if (process.env.ADMIN_ANALYTICS_V2_MODE !== "qa") return res.status(404).end();
+  return next();
+};
+
+app.get("/api/admin/analytics-v2", requireAdmin, requireAdminAnalyticsV2Qa, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.status(503).json({ error: "Database is not connected" });
+    const tab = String(req.query.tab || "overview");
+    if (!ANALYTICS_V2_TABS.includes(tab)) return res.status(400).json({ error: "تبويب غير معروف." });
+    const cacheKey = getRequestCacheKey("admin-analytics-v2:v1", req.query);
+    const cached = getReadCache(cacheKey);
+    if (cached) return res.json(cached);
+    const payload = await buildAdminAnalyticsTab({
+      Event: AnalyticsEvent, Daily: AnalyticsDaily, User, Experience,
+      Reward: ExperienceResumeReward, Snapshot: ExperienceResumeSnapshot,
+      Subscription, Tracker: ApplicationTracker, Opportunity, Company, Portfolio,
+      Feedback: JourneyFeedback, Tracking: AnalyticsTrackingState,
+    }, tab, req.query);
+    payload.health.ingestionFailuresSinceRestart = analyticsIngestionFailures;
+    payload.health.droppedFrontendBatches = null;
+    res.json(setReadCache(cacheKey, payload, 5 * 60 * 1000));
+  } catch (error) {
+    if (error.message === "INVALID_DATE_RANGE") return res.status(400).json({ error: "اختر فترة مخصصة لا تتجاوز 90 يومًا." });
+    console.error("Admin analytics v2 failed:", error);
+    res.status(500).json({ error: "تعذر تحميل التحليلات حاليًا." });
+  }
+});
+
+app.get("/api/admin/users/:id/analytics-summary", requireAdmin, requireAdminAnalyticsV2Qa, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "معرف غير صالح." });
+    const user = await User.findById(req.params.id)
+      .select("_id contact accessCodeHash lifecycleStage preferredMajor preferredCity createdAt")
+      .lean();
+    if (!user) return res.status(404).json({ error: "الحساب غير موجود." });
+    const actorId = String(user._id);
+    const since = new Date(Date.now() - 30 * 86400000);
+    const [portfolio, subscription, reward, events, activeDays, lastEvent, applications, contributed, tracking] = await Promise.all([
+      Portfolio.findOne({ contact: user.contact, accessCodeHash: user.accessCodeHash })
+        .select("major university city graduationYear").lean(),
+      Subscription.findOne({ email: user.contact, accessCodeHash: user.accessCodeHash })
+        .sort({ createdAt: -1 }).select("status planId expiresAt").lean(),
+      ExperienceResumeReward.findOne({ userId: user._id }).select("status resumeSnapshotId").lean(),
+      AnalyticsEvent.aggregate([
+        { $match: { actorId, createdAt: { $gte: since } } },
+        { $group: { _id: "$eventName", count: { $sum: 1 } } },
+      ]),
+      AnalyticsEvent.aggregate([
+        { $match: { actorId, eventName: "page_view", createdAt: { $gte: since } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } } } },
+        { $count: "count" },
+      ]),
+      AnalyticsEvent.findOne({ actorId }).sort({ createdAt: -1 }).select("createdAt").lean(),
+      ApplicationTracker.countDocuments({ studentId: user._id }),
+      Experience.countDocuments({ submittedByUserId: user._id, qaTest: { $ne: true } }),
+      AnalyticsTrackingState.findById("analytics-v2").select("startedAt").lean(),
+    ]);
+    const counts = Object.fromEntries(events.map((item) => [item._id, item.count]));
+    res.json({
+      trackingStartedAt: tracking?.startedAt || null,
+      profile: {
+        lifecycleStage: user.lifecycleStage || "unknown",
+        major: portfolio?.major || user.preferredMajor || "",
+        city: portfolio?.city || user.preferredCity || "",
+        graduationYear: portfolio?.graduationYear || "",
+        university: portfolio?.university || "",
+        signupDate: user.createdAt,
+        lastActiveAt: lastEvent?.createdAt || null,
+        activeDays30: activeDays[0]?.count || 0,
+        subscriptionStatus: subscription?.status === "active" && subscription.expiresAt && new Date(subscription.expiresAt) <= new Date()
+          ? "expired" : subscription?.status || "free",
+      },
+      behaviour: {
+        opportunitiesOpened: counts.opportunity_detail_viewed || 0,
+        applyClicks: counts.opportunity_apply_clicked || 0,
+        applicationsTracked: applications,
+        experiencesRead: counts.experience_card_opened || 0,
+        interviewsRead: counts.interview_details_opened || 0,
+        experiencesContributed: contributed,
+        rewardStatus: reward?.status || "none",
+        rewardResumeCreated: Boolean(reward?.resumeSnapshotId),
+      },
+    });
+  } catch (error) {
+    console.error("Admin user analytics summary failed:", error);
+    res.status(500).json({ error: "تعذر تحميل ملخص المستخدم." });
   }
 });
 

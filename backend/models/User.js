@@ -36,6 +36,13 @@ const userSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    lifecycleStage: {
+      type: String,
+      enum: ["student", "graduate", "unknown"],
+      default: "unknown",
+      index: true,
+    },
+    lifecyclePromptDismissedAt: { type: Date, default: null },
     isPremium: {
       type: Boolean,
       default: false,
@@ -129,5 +136,6 @@ userSchema.index(
     partialFilterExpression: { visitorId: { $type: "string", $gt: "" } },
   }
 );
+userSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("users", userSchema);

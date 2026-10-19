@@ -61,5 +61,6 @@ const interviewQuestionSchema = new mongoose.Schema(
 );
 
 interviewQuestionSchema.index({ status: 1, companyId: 1, createdAt: -1 });
+interviewQuestionSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("interview_questions", interviewQuestionSchema);

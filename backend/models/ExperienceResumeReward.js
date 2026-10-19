@@ -19,5 +19,7 @@ const schema = new mongoose.Schema({
 
 schema.index({ userId: 1, campaignId: 1 }, { unique: true });
 schema.index({ experienceId: 1, campaignId: 1 }, { unique: true });
+schema.index({ grantedAt: -1 });
+schema.index({ redeemedAt: -1 });
 
 module.exports = mongoose.model("ExperienceResumeReward", schema);

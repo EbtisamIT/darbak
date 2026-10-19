@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const AnalyticsEventSchema = new mongoose.Schema(
   {
     eventName: { type: String, required: true, index: true, trim: true },
+    eventKey: { type: String, default: undefined },
     visitorId: { type: String, index: true, trim: true },
     // Internal user identifier only. It is never returned to the client and
     // lets admin analytics distinguish subscriber usage from anonymous visits.
@@ -33,5 +34,6 @@ AnalyticsEventSchema.index({ eventName: 1, "metadata.experienceId": 1 });
 AnalyticsEventSchema.index({ eventName: 1, "metadata.opportunityId": 1 });
 AnalyticsEventSchema.index({ eventName: 1, "metadata.organizationName": 1 });
 AnalyticsEventSchema.index({ eventName: 1, "metadata.companySlug": 1, createdAt: -1 });
+AnalyticsEventSchema.index({ eventKey: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("AnalyticsEvent", AnalyticsEventSchema);

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import API_BASE_URL from "../config/api";
 import majors from "../majors";
-import SubscriptionDashboard from "../components/SubscriptionDashboard";
+import AdminAnalyticsV2 from "../components/AdminAnalyticsV2";
+import AdminUserAnalyticsSummary from "../components/AdminUserAnalyticsSummary";
 import AdminSubscriptionManagement from "../components/AdminSubscriptionManagement";
 import OpportunityInbox from "../components/opportunityInbox/OpportunityInbox";
 import OpportunityFormFields from "../components/opportunityInbox/OpportunityFormFields";
@@ -562,15 +563,6 @@ const subscriptionStatusLabels = {
   expired: "منتهي",
   cancelled: "ملغي",
 };
-
-const analyticsRangeOptions = [
-  ["7", "آخر أسبوع"],
-  ["30", "آخر شهر"],
-  ["90", "آخر 3 شهور"],
-  ["180", "آخر 6 شهور"],
-  ["365", "آخر سنة"],
-  ["all", "كل الفترة"],
-];
 
 const opportunityStatusOptions = [
   ["active", "نشطة"],
@@ -1133,7 +1125,8 @@ export default function AdminReviewPage() {
   const [opportunities, setOpportunities] = useState([]);
   const [interviewQuestions, setInterviewQuestions] = useState([]);
   const [analytics] = useState(emptyAnalytics);
-  const [subscriptionDashboard, setSubscriptionDashboard] = useState(null);
+  const [analyticsRevision, setAnalyticsRevision] = useState(0);
+  const [expandedAnalyticsUserId, setExpandedAnalyticsUserId] = useState("");
   const [telegramContent, setTelegramContent] = useState(emptyTelegramContent);
   const [copiedTelegramCardId, setCopiedTelegramCardId] = useState("");
   const [telegramDraftType, setTelegramDraftType] = useState("opportunity");
@@ -1146,8 +1139,6 @@ export default function AdminReviewPage() {
   const [editingTelegramContentItemId, setEditingTelegramContentItemId] =
     useState("");
   const [savingTelegram, setSavingTelegram] = useState(false);
-  const [analyticsDays, setAnalyticsDays] = useState("30");
-  const [resumeSource, setResumeSource] = useState("all");
   const [userManagement, setUserManagement] = useState(emptyUserManagement);
   const [userStatus, setUserStatus] = useState("all");
   const [userSearch, setUserSearch] = useState("");
@@ -1217,7 +1208,7 @@ export default function AdminReviewPage() {
       : adminView === "telegramContent"
       ? (telegramContent.posts || []).length
       : adminView === "analytics"
-      ? subscriptionDashboard?.subscriptions?.active || 0
+      ? "—"
       : adminView === "users"
       ? isUserManagementFiltered
         ? userManagementSummary.filteredUsers ||
@@ -1608,34 +1599,6 @@ export default function AdminReviewPage() {
     }
   };
 
-  const fetchAnalytics = async () => {
-    if (!password) {
-      setMessage("اكتب كلمة المرور لعرض المحتوى.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setMessage("");
-      sessionStorage.setItem("darbak_admin_password", password);
-
-      const { data } = await axios.get(`${API_BASE_URL}/api/admin/subscription-dashboard`, {
-        params: { days: analyticsDays, resumeSource },
-        headers: authHeaders,
-      });
-      setSubscriptionDashboard(data || null);
-    } catch (err) {
-      console.error(err);
-      setMessage(
-        err.response?.status === 401
-          ? "كلمة المرور غير صحيحة."
-          : "تعذر تحميل التحليلات."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const fetchUserManagement = async () => {
     if (!password) {
       setMessage("اكتب كلمة المرور لعرض المحتوى.");
@@ -1749,7 +1712,7 @@ export default function AdminReviewPage() {
     } else if (adminView === "opportunities") {
       fetchOpportunities();
     } else if (adminView === "analytics") {
-      fetchAnalytics();
+      // Analytics V2 loads only the selected tab.
     } else if (adminView === "users") {
       fetchUserManagement();
     } else if (adminView === "telegramContent") {
@@ -1769,8 +1732,6 @@ export default function AdminReviewPage() {
     companyApplicationStatus,
     companyCampaignStatus,
     companyCampaignFollowUp,
-    analyticsDays,
-    resumeSource,
     userStatus,
     adminView,
     studentFeedbackTab,
@@ -1816,7 +1777,7 @@ export default function AdminReviewPage() {
     }
 
     if (adminView === "analytics") {
-      fetchAnalytics();
+      setAnalyticsRevision((value) => value + 1);
       return;
     }
 
@@ -4654,6 +4615,12 @@ export default function AdminReviewPage() {
                         {formatAdminCurrency(user.subscription.priceSar)}
                       </small>
                     ) : null}
+                    <button type="button" onClick={() => setExpandedAnalyticsUserId((id) => id === user.id ? "" : user.id)}
+                      style={{ justifySelf: "start", border: `1px solid ${adminColors.inputBorder}`, borderRadius: 8,
+                        background: "transparent", color: adminColors.brand, padding: "7px 10px", cursor: "pointer" }}>
+                      {expandedAnalyticsUserId === user.id ? "إخفاء الملخص" : "ملخص المستخدم"}
+                    </button>
+                    {expandedAnalyticsUserId === user.id && <AdminUserAnalyticsSummary userId={user.id} authHeaders={authHeaders} />}
                   </article>
                 );
               })
@@ -4664,16 +4631,7 @@ export default function AdminReviewPage() {
     );
   };
 
-  const renderSubscriptionDashboard = () => (
-    <SubscriptionDashboard
-      data={subscriptionDashboard}
-      loading={loading}
-      onRefresh={fetchAnalytics}
-      onOpenUsers={() => setAdminView("users")}
-      resumeSource={resumeSource}
-      onResumeSourceChange={setResumeSource}
-    />
-  );
+  const renderSubscriptionDashboard = () => <AdminAnalyticsV2 key={analyticsRevision} authHeaders={authHeaders} />;
 
   return (
     <main
@@ -4731,7 +4689,7 @@ export default function AdminReviewPage() {
         />
       </section>
 
-      <section
+      {adminView !== "analytics" && <section
         style={{
           ...cardStyle,
           display: "flex",
@@ -4767,7 +4725,7 @@ export default function AdminReviewPage() {
         >
           {adminView === "opportunityInbox" ? "صندوق مراجعة الفرص المكتشفة" : `${currentItemsLabel} في العرض الحالي`}
         </p>
-      </section>
+      </section>}
 
       <section
         style={{
@@ -4808,26 +4766,7 @@ export default function AdminReviewPage() {
           <option value="analytics">التحليلات</option>
         </select>
 
-        {adminView === "opportunityInbox" ? null : adminView === "analytics" ? (
-          <select
-            value={analyticsDays}
-            onChange={(e) => setAnalyticsDays(e.target.value)}
-            style={{
-              background: adminColors.inputBg,
-              border: `1px solid ${adminColors.inputBorder}`,
-              borderRadius: "10px",
-              color: adminColors.text,
-              padding: "11px 12px",
-              fontFamily: "inherit",
-            }}
-          >
-            {analyticsRangeOptions.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        ) : adminView === "users" ? (
+        {adminView === "opportunityInbox" || adminView === "analytics" ? null : adminView === "users" ? (
           <>
             <select
               value={userStatus}

@@ -153,4 +153,6 @@ const subscriptionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+subscriptionSchema.index({ createdAt: -1 });
+
 module.exports = mongoose.model("subscriptions", subscriptionSchema);

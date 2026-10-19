@@ -9,4 +9,6 @@ const schema = new mongoose.Schema({
   finalizedAt: { type: Date, required: true, default: Date.now },
 }, { versionKey: false });
 
+schema.index({ finalizedAt: -1 });
+
 module.exports = mongoose.model("ExperienceResumeSnapshot", schema);
