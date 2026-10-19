@@ -1299,7 +1299,7 @@ export default function AdminReviewPage() {
     if (action === "reset-qa-ai-attempt" &&
       (ids.rewardId !== "6ad5696c101441eb03307200" ||
         qaAvailableVerify?.reward?._id !== ids.rewardId ||
-        qaAvailableVerify.reward.aiGenerationAttemptedAt !== "2026-10-19T00:52:16.182Z")) return;
+        qaAvailableVerify.reward.aiGenerationAttemptedAt !== "2026-10-19T01:42:12.381Z")) return;
     try {
       setQaCleanupBusy(true);
       const { data } = await axios.post(
@@ -7653,7 +7653,7 @@ export default function AdminReviewPage() {
                   )}
                   {qaAvailableVerify?.reward?._id === "6ad5696c101441eb03307200" &&
                     qaAvailableVerify.reward.aiGenerationAttemptedAt ===
-                      "2026-10-19T00:52:16.182Z" && (
+                      "2026-10-19T01:42:12.381Z" && (
                     <button type="button" disabled={qaCleanupBusy}
                       onClick={() => runQaCleanup(exp, "reset-qa-ai-attempt")}>
                       إعادة إتاحة محاولة AI لمكافأة QA المحددة فقط
