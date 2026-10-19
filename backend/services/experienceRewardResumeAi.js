@@ -15,8 +15,9 @@ const classifyRewardAiFailure = (error, stage = "unknown") => {
   if (stage === "structured_output") return "OPENAI_STRUCTURED_OUTPUT_FAILED";
   if (stage === "json_parse" || error instanceof SyntaxError) return "OPENAI_RESPONSE_NOT_JSON";
   if (stage === "schema_validation") return "OPENAI_SCHEMA_INVALID";
-  if (stage === "content_validation" || ["INVALID_REWARD_AI_OUTPUT", "INVALID_REWARD_AI_BULLET"]
-    .includes(error?.message)) return "OPENAI_CONTENT_INVALID";
+  if (stage === "content_validation" || error?.message === "INVALID_REWARD_AI_OUTPUT") {
+    return "OPENAI_CONTENT_INVALID";
+  }
   if (stage === "fact_validation" || error?.message === "UNSUPPORTED_REWARD_AI_FACT") {
     return "OPENAI_FACT_VALIDATION_FAILED";
   }
@@ -101,6 +102,22 @@ const contentFailure = (validationRule, message = "INVALID_REWARD_AI_OUTPUT") =>
   return error;
 };
 
+const isClearlyBulletFragment = (bullet) => {
+  const terms = bullet.match(/[\p{L}\p{N}]+/gu) || [];
+  if (terms.length > 3) return false;
+  // Short action sentences are valid; reject only short labels without an
+  // apparent finite action. This is a shape check, not a list of approved verbs.
+  const first = terms[0] || "";
+  const arabicPastAction = /^[\p{Script=Arabic}]{3,}(?:ت|نا|وا)$/u.test(first);
+  const englishPastAction = /^[a-z]{3,}ed$/i.test(first);
+  return !arabicPastAction && !englishPastAction;
+};
+
+const sameAsRawNarrative = (bullet, narrative) => {
+  const normalize = (value) => String(value || "").trim().replace(/\s+/gu, " ");
+  return normalize(bullet) === normalize(narrative);
+};
+
 const words = (value) => String(value || "").match(/\d+(?:[.,]\d+)?/g) || [];
 const knownTools = ["python", "sql", "excel", "power bi", "react", "javascript",
   "figma", "tableau", "aws", "github", "html", "css", "powerpoint"];
@@ -142,11 +159,9 @@ const validateRewardAiOutput = (result, facts) => {
     throw contentFailure(hasEmptyBullet ? "BULLET_EMPTY" : "BULLET_COUNT_INVALID");
   }
   if (bullets.some((item) => item.length > 260)) throw contentFailure("BULLET_TOO_LONG");
-  const startsWithAction = facts.language === "ar"
-    ? /^(?:حللت|نظمت|نظفت|أعددت|وثقت|طورت|صممت|جمعت|راجعت|استخدمت|أنشأت|دعمت|نفذت|شاركت|ساهمت|تابعت|بنيت|اختبرت|نسقت|قدمت|حدّثت|حسّنت|استخرجت|رتبت|درست|أجريت)(?=\s|$|[،,.])/u
-    : /^(?:Analyzed|Organized|Prepared|Documented|Developed|Designed|Collected|Reviewed|Used|Created|Supported|Implemented|Contributed|Monitored|Built|Tested|Coordinated|Updated|Improved|Extracted|Compiled|Cleaned|Wrote)\b/i;
-  if (bullets.some((item) => !startsWithAction.test(item))) {
-    throw contentFailure("BULLET_VERB_INVALID", "INVALID_REWARD_AI_BULLET");
+  if (bullets.some(isClearlyBulletFragment)) throw contentFailure("BULLET_FRAGMENT_INVALID");
+  if (bullets.some((item) => sameAsRawNarrative(item, facts.training[0]?.responsibilities))) {
+    throw contentFailure("BULLET_NARRATIVE_COPY");
   }
   const source = JSON.stringify(facts);
   if (unsupportedTokens(`${summary} ${bullets.join(" ")}`, source).length) {
@@ -186,8 +201,8 @@ Write a natural, specific professional summary in 2–3 short lines in the reque
 For Arabic: lead with the actual major and qualification; use natural Arabic sentence order.
 Place English tool names in a short final clause or separate final line, never between an Arabic
 verb and its object. Avoid generic openings such as "passionate" or "ambitious".
-Write 2–4 concise training bullets. Start every bullet with a professional action verb in the
-requested language. Rewrite only the supplied responsibilities; do not copy a conversational
+Write 2–4 concise training bullets. Start each with a concise professional action phrase when
+natural in the requested language. Rewrite only the supplied responsibilities; do not copy a conversational
 experience narrative. Use ONLY supplied facts. Do not add metrics, technologies, goals,
 seniority, achievements, or tasks absent from the input. If facts are sparse, stay brief.
 Preserve technology names and numbers exactly.`,

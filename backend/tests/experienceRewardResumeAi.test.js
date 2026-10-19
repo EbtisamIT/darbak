@@ -47,9 +47,25 @@ async function run() {
     trainingBullets: ["نظفت بيانات المبيعات باستخدام Excel", "أعددت استعلامات SQL للفريق"],
   };
   assert.deepEqual(validateRewardAiOutput(arabicSuggestion, arabicFacts), arabicSuggestion);
+  for (const valid of [
+    "حللت بيانات المبيعات باستخدام Excel.",
+    "ساهمت في إعداد التقارير الأسبوعية.",
+    "شاركت في تنظيم البيانات وتوثيقها.",
+    "عملت على إعداد استعلامات SQL للفريق.",
+    "دعمت الفريق في تحديث لوحة البيانات.",
+  ]) {
+    assert.equal(validateRewardAiOutput({ ...arabicSuggestion,
+      trainingBullets: [valid, arabicSuggestion.trainingBullets[1]],
+    }, arabicFacts).trainingBullets[0], valid);
+  }
+  for (const fragment of ["تحليل البيانات", "Excel وSQL", "التدريب في الشركة"]) {
+    assert.throws(() => validateRewardAiOutput({ ...arabicSuggestion,
+      trainingBullets: [fragment, arabicSuggestion.trainingBullets[1]],
+    }, arabicFacts), (error) => error.validationRule === "BULLET_FRAGMENT_INVALID");
+  }
   assert.throws(() => validateRewardAiOutput({ ...arabicSuggestion,
-    trainingBullets: ["بيانات المبيعات باستخدام Excel", arabicSuggestion.trainingBullets[1]],
-  }, arabicFacts), /INVALID_REWARD_AI_BULLET/);
+    trainingBullets: [arabicFacts.training[0].responsibilities, arabicSuggestion.trainingBullets[1]],
+  }, arabicFacts), (error) => error.validationRule === "BULLET_NARRATIVE_COPY");
   assert.throws(() => validateRewardAiOutput({ ...suggestion,
     trainingBullets: ["Improved sales by 60% using Python", suggestion.trainingBullets[1]],
   }, facts), /UNSUPPORTED_REWARD_AI_FACT/, "unsupported metric or technology rejected");
@@ -86,7 +102,7 @@ async function run() {
   assert.equal(classifyRewardAiFailure(new SyntaxError("secret raw response"), "json_parse"), "OPENAI_RESPONSE_NOT_JSON");
   assert.equal(classifyRewardAiFailure(new SyntaxError("secret raw response"), "structured_output"),
     "OPENAI_STRUCTURED_OUTPUT_FAILED");
-  assert.equal(classifyRewardAiFailure(new Error("INVALID_REWARD_AI_BULLET"), "content_validation"),
+  assert.equal(classifyRewardAiFailure(new Error("INVALID_REWARD_AI_OUTPUT"), "content_validation"),
     "OPENAI_CONTENT_INVALID");
   assert.equal(classifyRewardAiFailure(new Error("UNSUPPORTED_REWARD_AI_FACT"), "fact_validation"), "OPENAI_FACT_VALIDATION_FAILED");
 
@@ -151,8 +167,11 @@ async function run() {
     `نظفت ${"ن".repeat(261)}`, arabicSuggestion.trainingBullets[1],
   ] }, "BULLET_TOO_LONG");
   await expectContentFailure({ ...arabicSuggestion, trainingBullets: [
-    "بيانات المبيعات باستخدام Excel", arabicSuggestion.trainingBullets[1],
-  ] }, "BULLET_VERB_INVALID");
+    "تحليل البيانات", arabicSuggestion.trainingBullets[1],
+  ] }, "BULLET_FRAGMENT_INVALID");
+  await expectContentFailure({ ...arabicSuggestion, trainingBullets: [
+    arabicFacts.training[0].responsibilities, arabicSuggestion.trainingBullets[1],
+  ] }, "BULLET_NARRATIVE_COPY");
   assert.equal(classifyRewardAiFailure(new Error("UNSUPPORTED_REWARD_AI_FACT"), "fact_validation"),
     "OPENAI_FACT_VALIDATION_FAILED");
   for (const invalid of [
