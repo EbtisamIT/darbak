@@ -14850,7 +14850,7 @@ app.get("/api/admin/analytics-v2", requireAdmin, requireAdminAnalyticsV2Qa, asyn
       Subscription, Tracker: ApplicationTracker, Opportunity, Company, Portfolio,
       Feedback: JourneyFeedback, Tracking: AnalyticsTrackingState,
     }, tab, req.query);
-    payload.health.ingestionFailuresSinceRestart = analyticsIngestionFailures;
+    payload.health.ingestionFailuresSinceRestart = null;
     payload.health.droppedFrontendBatches = null;
     res.json(setReadCache(cacheKey, payload, 5 * 60 * 1000));
   } catch (error) {
