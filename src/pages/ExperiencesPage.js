@@ -2725,7 +2725,8 @@ const ExperiencesPage = () => {
               className="experience-cards-grid"
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(165px, 1fr))",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                alignItems: "stretch",
                 gap: "14px",
               }}
             >
@@ -2743,6 +2744,9 @@ const ExperiencesPage = () => {
                     cursor: "pointer",
                     textAlign: "center",
                     minHeight: "178px",
+                    height: "100%",
+                    minWidth: 0,
+                    boxSizing: "border-box",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
@@ -2896,7 +2900,7 @@ const ExperiencesPage = () => {
 
                   </div>
 
-                  <div style={{ marginTop: "10px" }}>
+                  <div className="experience-card-footer" style={{ marginTop: "auto" }}>
                     {getExperienceCardStats(exp).length > 0 && (
                       <div className="card-interaction-stats experience-interaction-count">
                         {getExperienceCardStats(exp).map((stat) => (
@@ -3224,6 +3228,26 @@ const ExperiencesPage = () => {
           text-overflow: ellipsis;
           white-space: nowrap;
           min-width: 0;
+        }
+
+        .experience-card-footer {
+          padding-top: 10px;
+        }
+
+        .experience-title-box h3 {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 3;
+          overflow: hidden;
+          overflow-wrap: anywhere;
+        }
+
+        .experience-info-box p:last-child {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          overflow: hidden;
+          overflow-wrap: anywhere;
         }
 
         .experiences-page-intro {
@@ -3685,14 +3709,14 @@ const ExperiencesPage = () => {
           }
 
           .experience-cards-grid {
-            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 8px !important;
           }
 
           .experience-card {
-            min-height: 128px !important;
+            min-height: 178px !important;
             border-radius: 12px !important;
-            padding: 7px !important;
+            padding: 12px !important;
             box-shadow: 0 6px 14px rgba(0,0,0,0.2) !important;
           }
 
@@ -3703,7 +3727,7 @@ const ExperiencesPage = () => {
           }
 
           .experience-title-box h3 {
-            font-size: 11px !important;
+            font-size: 14px !important;
             line-height: 1.4 !important;
           }
 
@@ -3717,19 +3741,19 @@ const ExperiencesPage = () => {
           }
 
           .experience-info-box p:first-child {
-            font-size: 8px !important;
+            font-size: 10px !important;
             margin-bottom: 2px !important;
           }
 
           .experience-info-box p:last-child {
-            font-size: 8px !important;
+            font-size: 11px !important;
             line-height: 1.35 !important;
             overflow-wrap: anywhere;
           }
 
           .experience-card button {
-            padding: 4px !important;
-            font-size: 8px !important;
+            padding: 6px !important;
+            font-size: 11px !important;
             border-radius: 7px !important;
             margin-top: 2px !important;
           }
@@ -3739,7 +3763,7 @@ const ExperiencesPage = () => {
           }
 
           .experience-source-label {
-            font-size: 6px !important;
+            font-size: 8px !important;
             line-height: 1.2 !important;
             margin-bottom: 2px !important;
             white-space: nowrap;
@@ -3755,7 +3779,7 @@ const ExperiencesPage = () => {
 
           .experience-outcome-badge {
             padding: 2px 4px !important;
-            font-size: 6px !important;
+            font-size: 8px !important;
             max-width: 100%;
             border-radius: 999px !important;
             line-height: 1.1 !important;
@@ -3776,12 +3800,29 @@ const ExperiencesPage = () => {
 
         @media (max-width: 430px) {
           .experience-cards-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 7px !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 12px !important;
           }
 
           .experience-card {
-            min-height: 122px !important;
+            min-height: 178px !important;
+            padding: 14px !important;
+          }
+
+          .experience-title-box h3 {
+            font-size: 16px !important;
+          }
+
+          .experience-info-box p:first-child {
+            font-size: 11px !important;
+          }
+
+          .experience-info-box p:last-child {
+            font-size: 12px !important;
+          }
+
+          .experience-card button {
+            font-size: 12px !important;
           }
         }
       `}</style>
