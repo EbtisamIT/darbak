@@ -233,35 +233,6 @@ const PageLoadingFallback = () => (
   </div>
 );
 
-function PageBanner() {
-  const location = useLocation();
-  const isExperiencesPage = location.pathname.startsWith("/experiences");
-
-  if (!isExperiencesPage) return null;
-
-  return (
-    <div
-      style={{
-        width: "min(920px, calc(100% - 28px))",
-        margin: "8px auto -18px",
-        color: "var(--app-text-soft)",
-        textAlign: "center",
-        padding: "6px 14px",
-        fontSize: "15px",
-        fontWeight: "400",
-        letterSpacing: 0,
-        lineHeight: 1.75,
-        fontFamily: "'IBM Plex Sans Arabic', 'Aniq', 'Cairo', sans-serif",
-      }}
-    >
-      <span style={{ color: "var(--app-brand)", fontWeight: "600" }}>
-        تنويه:
-      </span>{" "}
-      خذ من تجارب غيرك ما يفيدك، لكن تذكّر أن لكل طالب رحلته وتجربته الخاصة. 🤍
-    </div>
-  );
-}
-
 function SubscribeRoute() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -1373,7 +1344,6 @@ function AppLayout({ theme, setTheme }) {
       {!isCompanyApplicationsSharePage && !isCompanyPortalPage && <Navbar theme={theme} setTheme={setTheme} />}
       <NationalDayOffer />
 
-      <PageBanner />
       {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && !isCompanyPortalPage && <PlatformUpdateNotice />}
       {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && !isCompanyPortalPage && <PremiumAccessGate />}
       {!isPublicPortfolioPage && !isCompanyApplicationsSharePage && !isCompanyPortalPage && (

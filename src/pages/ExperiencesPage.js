@@ -2022,6 +2022,24 @@ const ExperiencesPage = () => {
     );
   };
 
+  const experiencesPlusBanner = !isPremiumActive && (
+    <section className="experiences-plus-banner" aria-label="إعلان دربك بلس">
+      <div className="experiences-plus-banner-copy">
+        <span>دربك+</span>
+        <strong>باقي لك مئات التجارب المهمة 👀</strong>
+        <p>
+          اختصر على نفسك وقت البحث عن التدريب
+          {experiencesPlusCountLabel
+            ? ` - ${experiencesPlusCountLabel} تجربة حقيقية من طلاب`
+            : ""}
+        </p>
+      </div>
+      <button type="button" onClick={openExperiencesPlusBanner}>
+        كمل استكشافك
+      </button>
+    </section>
+  );
+
   return (
     <div
       style={{
@@ -2077,35 +2095,11 @@ const ExperiencesPage = () => {
           </section>
         )}
 
-        {rewardRolloutEnabled && <section className="experiences-contribution-banner" aria-label="شارك تجربة تدريبك">
-          <div>
-            <strong className="experiences-contribution-desktop">سبق وتدربت؟ تجربتك ممكن تختصر الطريق على طالب غيرك 🎓</strong>
-            <strong className="experiences-contribution-mobile">تدربت قبل؟ شارك تجربتك 🎁</strong>
-            <p className="experiences-contribution-desktop">شارك تجربتك في التدريب، وإذا تم اعتمادها تحصل على سيرة ذاتية احترافية مجانًا بقالب Darbak ATS.</p>
-            <p className="experiences-contribution-mobile">إذا اعتمدناها، سيرتك علينا.</p>
-          </div>
-          <Link to="/share-experience?contributionSource=experiences_page">
-            <span className="experiences-contribution-desktop">شارك تجربتك 🎁</span>
-            <span className="experiences-contribution-mobile">شارك الآن</span>
-          </Link>
-        </section>}
-
-        {!isPremiumActive && (
-          <section className="experiences-plus-banner" aria-label="إعلان دربك بلس">
-            <div className="experiences-plus-banner-copy">
-              <span>دربك+</span>
-              <strong>باقي لك مئات التجارب المهمة 👀</strong>
-              <p>
-                اختصر على نفسك وقت البحث عن التدريب
-                {experiencesPlusCountLabel
-                  ? ` - ${experiencesPlusCountLabel} تجربة حقيقية من طلاب`
-                  : ""}
-              </p>
-            </div>
-            <button type="button" onClick={openExperiencesPlusBanner}>
-              كمل استكشافك
-            </button>
-          </section>
+        {!seoCity && !seoSpecialty && (
+          <header className="experiences-page-intro">
+            <h1>تجارب الطلاب</h1>
+            <p>استكشف تجارب التدريب من طلاب سبقوك.</p>
+          </header>
         )}
 
         <div
@@ -2658,6 +2652,17 @@ const ExperiencesPage = () => {
           )}
         </div>
 
+        {rewardRolloutEnabled && (
+          <section className="experiences-contribution-banner" aria-label="شارك تجربة تدريبك">
+            <div>
+              <strong className="experiences-contribution-desktop">🎁 تدربت قبل؟ شارك تجربتك وخذ سيرة ذاتية مجانية بقالب ATS</strong>
+              <strong className="experiences-contribution-mobile">🎁 تدربت قبل؟</strong>
+              <p className="experiences-contribution-mobile">شارك تجربتك وخذ سيرة مجانية</p>
+            </div>
+            <Link to="/share-experience?contributionSource=experiences_page">شارك تجربتك</Link>
+          </section>
+        )}
+
         {/* ================= Cards ================= */}
         {fetchError && (
           <div
@@ -2703,14 +2708,17 @@ const ExperiencesPage = () => {
             ))}
           </div>
         ) : filteredExperiences.length === 0 ? (
-          <div style={{ textAlign: "center", marginTop: "80px" }}>
-            <p style={{ fontSize: "40px" }}>📭</p>
-            <p>
-              {companySearch
-                ? "لا توجد تجارب مطابقة للبحث"
-                : "لا توجد تجارب لهذا التخصص"}
-            </p>
-          </div>
+          <>
+            <div style={{ textAlign: "center", marginTop: "80px" }}>
+              <p style={{ fontSize: "40px" }}>📭</p>
+              <p>
+                {companySearch
+                  ? "لا توجد تجارب مطابقة للبحث"
+                  : "لا توجد تجارب لهذا التخصص"}
+              </p>
+            </div>
+            {experiencesPlusBanner}
+          </>
         ) : (
           <>
             <div
@@ -2721,10 +2729,10 @@ const ExperiencesPage = () => {
                 gap: "14px",
               }}
             >
-              {visibleExperiences.map((exp) => (
+              {visibleExperiences.map((exp, index) => (
+                <React.Fragment key={exp._id}>
                 <div
                   className="experience-card"
-                  key={exp._id}
                   onClick={() => openExperienceDetails(exp)}
                   style={{
                     background:
@@ -2940,6 +2948,8 @@ const ExperiencesPage = () => {
                     </button>
                   </div>
                 </div>
+                {index === Math.min(4, visibleExperiences.length - 1) && experiencesPlusBanner}
+                </React.Fragment>
               ))}
             </div>
 
@@ -3216,25 +3226,44 @@ const ExperiencesPage = () => {
           min-width: 0;
         }
 
+        .experiences-page-intro {
+          max-width: 980px;
+          margin: 0 auto 12px;
+          text-align: right;
+        }
+
+        .experiences-page-intro h1 {
+          margin: 0;
+          color: var(--app-text);
+          font-size: clamp(22px, 3vw, 28px);
+          line-height: 1.4;
+        }
+
+        .experiences-page-intro p {
+          margin: 2px 0 0;
+          color: var(--app-text-soft);
+          font-size: 13px;
+        }
+
         .experiences-contribution-banner {
           max-width: 980px;
-          margin: 0 auto 16px;
-          padding: 16px 18px;
+          margin: 0 auto 12px;
+          padding: 10px 14px;
           border: 1px solid var(--app-brand-border);
           border-radius: 16px;
           background: var(--app-brand-soft);
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 16px;
+          gap: 12px;
         }
 
         .experiences-contribution-banner > div { min-width: 0; }
-        .experiences-contribution-banner strong { display: block; color: var(--app-text); line-height: 1.6; }
-        .experiences-contribution-banner p { margin: 4px 0 0; color: var(--app-text-soft); font-size: 13px; line-height: 1.7; }
+        .experiences-contribution-banner strong { display: block; color: var(--app-text); line-height: 1.4; font-size: 14px; }
+        .experiences-contribution-banner p { margin: 2px 0 0; color: var(--app-text-soft); font-size: 12px; line-height: 1.4; }
         .experiences-contribution-banner a {
           flex: none;
-          padding: 9px 16px;
+          padding: 7px 14px;
           border-radius: 10px;
           background: var(--app-brand);
           color: #071315;
@@ -3245,8 +3274,11 @@ const ExperiencesPage = () => {
         .experiences-contribution-mobile { display: none !important; }
 
         .experiences-plus-banner {
+          grid-column: 1 / -1;
+          width: 100%;
+          box-sizing: border-box;
           max-width: 980px;
-          margin: 0 auto 18px;
+          margin: 4px auto;
           padding: 14px 16px;
           border-radius: 20px;
           border: 1px solid var(--app-brand-border);
@@ -3446,10 +3478,13 @@ const ExperiencesPage = () => {
         }
 
         @media (max-width: 900px) {
-          .experiences-contribution-banner { margin-bottom: 10px; padding: 12px; display: grid; gap: 10px; }
+          .experiences-contribution-banner { margin-bottom: 10px; padding: 9px 12px; display: flex; gap: 8px; }
           .experiences-contribution-desktop { display: none !important; }
           .experiences-contribution-mobile { display: block !important; }
-          .experiences-contribution-banner a { width: 100%; }
+          .experiences-contribution-banner a { white-space: nowrap; }
+          .experiences-page-intro { margin-bottom: 8px; }
+          .experiences-page-intro h1 { font-size: 22px; }
+          .experiences-page-intro p { font-size: 12px; }
           .experiences-shell {
             margin-top: 18px !important;
             padding: 10px 10px 24px !important;

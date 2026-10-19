@@ -45,9 +45,34 @@ afterEach(() => { global.fetch = originalFetch; });
 
 test("experience banner uses the existing contribution route with source attribution", async () => {
   await act(async () => { render(<ExperiencesPage />); });
-  const link = await screen.findByRole("link", { name: /شارك تجربتك|شارك الآن/ });
+  const link = await screen.findByRole("link", { name: "شارك تجربتك" });
   expect(link).toHaveAttribute("href", "/share-experience?contributionSource=experiences_page");
-  expect(screen.getByText("سبق وتدربت؟ تجربتك ممكن تختصر الطريق على طالب غيرك 🎓")).toBeInTheDocument();
+  expect(screen.getByText("🎁 تدربت قبل؟ شارك تجربتك وخذ سيرة ذاتية مجانية بقالب ATS")).toBeInTheDocument();
+  const banner = document.querySelector(".experiences-contribution-banner");
+  const search = screen.getByPlaceholderText("ابحث باسم الشركة، الجهة، أو التخصص");
+  expect(search.compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test("Darbak+ appears once after the first five experiences", async () => {
+  axios.get.mockResolvedValue({ data: {
+    data: Array.from({ length: 6 }, (_, index) => ({
+      _id: `exp-${index + 1}`,
+      title: `تجربة ${index + 1}`,
+      organizationName: "جهة اختبار",
+      city: "riyadh",
+      major: "تقنية المعلومات",
+    })),
+    total: 6,
+    hasMore: false,
+  } });
+  await act(async () => { render(<ExperiencesPage />); });
+  await screen.findAllByRole("button", { name: "عرض التفاصيل" });
+  const feedItems = [...document.querySelector(".experience-cards-grid").children];
+  expect(feedItems).toHaveLength(7);
+  expect(feedItems.slice(0, 5).every((item) => item.classList.contains("experience-card"))).toBe(true);
+  expect(feedItems[5]).toHaveAttribute("aria-label", "إعلان دربك بلس");
+  expect(feedItems[6]).toHaveClass("experience-card");
+  expect(screen.getAllByRole("button", { name: "كمل استكشافك" })).toHaveLength(1);
 });
 
 const openExperience = async () => {
