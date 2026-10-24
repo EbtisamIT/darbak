@@ -53,7 +53,11 @@ export default function AutoApplyEmailReview({ password }) {
     <button onClick={() => setOpen((value) => !value)} aria-expanded={open}>مراجعة قنوات بريد التدريب</button>
     {open && <div className="oi-email-network">
       <p>قائمة للمراجعة فقط. وجود البريد أو موقع مقر الجهة لا يثبت قبول طلبات التدريب، ولا يبدأ أي إرسال.</p>
-      {data && <p>{data.summary.candidateCompanies} جهة مرشحة · {data.summary.candidateEmails} بريد فريد · {data.summary.verifiedActive} جهة نشطة موثقة · {data.summary.verifiedEvergreen} جهة دائمة موثقة</p>}
+      {data && <div>
+        <p>{data.summary.candidateCompanies} جهة مرشحة · {data.summary.candidateEmails} بريد فريد · {data.summary.candidatePairs} جهة/بريد</p>
+        <p>{data.summary.verifiedActive} جهة نشطة موثقة · {data.summary.verifiedEvergreen} جهة دائمة موثقة · {data.summary.verifiedUniqueCompanies} جهة موثقة فريدة</p>
+        <p>{data.summary.likely} مرجح · {data.summary.unverified} غير موثق · {data.summary.rejected} مرفوض · {data.summary.evidenceOlderThan12Months} دليل مراجع أقدم من سنة</p>
+      </div>}
       <label>حالة المراجعة <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">الكل</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       {loading && <p role="status">جارٍ تحميل المرشحين...</p>}
       {error && <p className="oi-error" role="alert">{error}</p>}
