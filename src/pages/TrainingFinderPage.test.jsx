@@ -265,9 +265,12 @@ test("personalization shows three nonempty sections without changing card action
   }));
   renderPage();
   await screen.findByText("فرصة الخبر");
-  expect(screen.getByRole("heading", { name: "الأقرب لك" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "قد يناسبك" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "فرص أخرى" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "فرص تناسبك في الخبر" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "فرص قريبة من تخصصك" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "فرص في مدن أخرى" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "عرض 1 فرصة في مدن أخرى" })).toBeInTheDocument();
+  expect(document.querySelectorAll(".opportunity-card")).toHaveLength(2);
+  fireEvent.click(screen.getByRole("button", { name: "عرض 1 فرصة في مدن أخرى" }));
   expect(document.querySelectorAll(".opportunity-card")).toHaveLength(rankedFixtures.length);
   const firstCard = screen.getByText("فرصة الخبر").closest(".opportunity-card");
   expect(within(firstCard).getByText("مطابق لتخصصك • في مدينتك")).toBeInTheDocument();
@@ -307,11 +310,11 @@ test("without a selection the original feed has no personalization sections", as
   renderPage();
   await screen.findByText("متدرب تقنية المعلومات");
   expect(screen.queryByRole("heading", { name: "الأقرب لك" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("heading", { name: "قد يناسبك" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "فرص قريبة من تخصصك" })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "فرص أخرى" })).not.toBeInTheDocument();
 });
 
-test("no exact matches shows one short message and keeps tier two opportunities", async () => {
+test("related-major opportunity in the selected city stays visible in tier two", async () => {
   window.sessionStorage.setItem(
     "darbak:where-to-train:filters:v1",
     JSON.stringify({ specialty: "تقنية المعلومات", city: "الخبر" })
@@ -328,15 +331,135 @@ test("no exact matches shows one short message and keeps tier two opportunities"
   }));
   renderPage();
   await screen.findByText("فرصة نظم المعلومات");
-  expect(screen.getAllByText("ما لقينا فرصة مطابقة تمامًا الآن، لكن هذه أقرب الفرص لك.")).toHaveLength(1);
+  expect(screen.queryByText("ما لقينا فرصة مطابقة في الخبر حاليًا")).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "الأقرب لك" })).not.toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "قد يناسبك" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "فرص قريبة من تخصصك" })).toBeInTheDocument();
+});
+
+test("city summary, remote label and other-city disclosure preserve every opportunity", async () => {
+  window.sessionStorage.setItem(
+    "darbak:where-to-train:filters:v1",
+    JSON.stringify({ specialty: "تقنية المعلومات", city: "جدة" })
+  );
+  const fixtures = [
+    { ...opportunities[0], _id: "jeddah", title: "فرصة جدة", city: "جدة", specialties: ["تقنية المعلومات"] },
+    { ...opportunities[0], _id: "remote", title: "فرصة عن بعد", city: "الرياض", trainingMode: "remote", specialties: ["تقنية المعلومات"] },
+    { ...opportunities[0], _id: "riyadh", title: "فرصة الرياض", city: "الرياض", specialties: ["تقنية المعلومات"] },
+    { ...opportunities[1], _id: "unknown-major", title: "فرصة محلية أخرى", city: "جدة", specialties: [] },
+  ];
+  axios.get.mockImplementation((url) => Promise.resolve({
+    data: { data: url.endsWith("/api/opportunities") ? fixtures : [] },
+  }));
+  renderPage();
+  await screen.findByText("فرصة جدة");
+  expect(screen.getByLabelText("اختياراتك الحالية")).toHaveTextContent("تقنية المعلومات · جدة");
+  expect(screen.getByRole("heading", { name: "فرص تناسبك في جدة" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "فرص أخرى" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "فرص في مدن أخرى" })).toBeInTheDocument();
+  expect(screen.queryByText("فرصة الرياض")).not.toBeInTheDocument();
+  expect(within(screen.getByText("فرصة عن بعد").closest(".opportunity-card"))
+    .getByText("عن بُعد")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "عرض 1 فرصة في مدن أخرى" }));
+  const otherCard = screen.getByText("فرصة الرياض").closest(".opportunity-card");
+  expect(within(otherCard).getByText("الرياض · مدينة أخرى")).toBeInTheDocument();
+  expect(document.querySelectorAll(".opportunity-card")).toHaveLength(fixtures.length);
+  expect(new Set(Array.from(document.querySelectorAll(".opportunity-card-title"))
+    .map((node) => node.textContent)).size).toBe(fixtures.length);
+  fireEvent.click(screen.getByRole("button", { name: "إخفاء فرص المدن الأخرى" }));
+  expect(screen.queryByText("فرصة الرياض")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("المدينة"), { target: { value: "الرياض" } });
+  expect(screen.getByRole("heading", { name: "فرص تناسبك في الرياض" })).toBeInTheDocument();
+  expect(screen.queryByText("فرصة جدة")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "عرض 2 فرصة في مدن أخرى" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "تغيير" }));
+  expect(screen.getByPlaceholderText("ابحث عن فرصة أو جهة...")).toHaveFocus();
+});
+
+test("city-only and no exact-city result expose an initial six other-city cards", async () => {
+  window.sessionStorage.setItem(
+    "darbak:where-to-train:filters:v1",
+    JSON.stringify({ specialty: "", city: "جدة" })
+  );
+  const fixtures = Array.from({ length: 8 }, (_, index) => ({
+    ...opportunities[0], _id: `other-${index}`, title: `فرصة بعيدة ${index}`, city: "الرياض",
+  }));
+  axios.get.mockImplementation((url) => Promise.resolve({
+    data: { data: url.endsWith("/api/opportunities") ? fixtures : [] },
+  }));
+  renderPage();
+  await screen.findByText("فرصة بعيدة 0");
+  expect(screen.getByText("ما لقينا فرصة مطابقة في جدة حاليًا")).toBeInTheDocument();
+  expect(screen.getByText("لكن عندنا فرصًا في مدن أخرى.")).toBeInTheDocument();
+  expect(document.querySelectorAll(".opportunity-card")).toHaveLength(6);
+  fireEvent.click(screen.getByRole("button", { name: "عرض 2 فرصة في مدن أخرى" }));
+  expect(document.querySelectorAll(".opportunity-card")).toHaveLength(8);
+});
+
+test("IT in Khobar keeps Dammam and remote local while Riyadh is explicitly optional", async () => {
+  window.sessionStorage.setItem(
+    "darbak:where-to-train:filters:v1",
+    JSON.stringify({ specialty: "تقنية المعلومات", city: "الخبر" })
+  );
+  const fixtures = [
+    { ...opportunities[0], _id: "khobar", title: "فرصة الخبر", city: "الخبر", specialties: ["تقنية المعلومات"] },
+    { ...opportunities[0], _id: "dammam", title: "فرصة الدمام", city: "الدمام", specialties: ["تقنية المعلومات"] },
+    { ...opportunities[0], _id: "remote-khobar", title: "فرصة عن بعد", city: "الرياض", trainingMode: "remote", specialties: ["تقنية المعلومات"] },
+    { ...opportunities[0], _id: "riyadh-khobar", title: "فرصة الرياض", city: "الرياض", specialties: ["تقنية المعلومات"] },
+  ];
+  mockOpportunityFeed(fixtures);
+  renderPage();
+  await screen.findByText("فرصة الخبر");
+  expect(within(screen.getByText("فرصة الدمام").closest(".opportunity-card"))
+    .getByText("مطابق لتخصصك • في منطقتك")).toBeInTheDocument();
+  expect(within(screen.getByText("فرصة عن بعد").closest(".opportunity-card"))
+    .getByText("عن بُعد")).toBeInTheDocument();
+  expect(screen.queryByText("فرصة الرياض")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "عرض 1 فرصة في مدن أخرى" }));
+  expect(within(screen.getByText("فرصة الرياض").closest(".opportunity-card"))
+    .getByText("الرياض · مدينة أخرى")).toBeInTheDocument();
+  expect(new Set(renderedTitles()).size).toBe(fixtures.length);
+});
+
+test("IT in Riyadh shows city matches first and preserves the other-city option", async () => {
+  window.sessionStorage.setItem(
+    "darbak:where-to-train:filters:v1",
+    JSON.stringify({ specialty: "تقنية المعلومات", city: "الرياض" })
+  );
+  mockOpportunityFeed([
+    { ...opportunities[0], _id: "riyadh", title: "فرصة الرياض", city: "الرياض", specialties: ["تقنية المعلومات"] },
+    { ...opportunities[0], _id: "jeddah", title: "فرصة جدة", city: "جدة", specialties: ["تقنية المعلومات"] },
+  ]);
+  renderPage();
+  await screen.findByText("فرصة الرياض");
+  expect(screen.getByRole("heading", { name: "فرص تناسبك في الرياض" })).toBeInTheDocument();
+  expect(screen.queryByText("فرصة جدة")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "عرض 1 فرصة في مدن أخرى" }));
+  expect(renderedTitles()).toEqual(["فرصة الرياض", "فرصة جدة"]);
+});
+
+test("major-only selection keeps the ranked sections without city disclosure", async () => {
+  window.sessionStorage.setItem(
+    "darbak:where-to-train:filters:v1",
+    JSON.stringify({ specialty: "تقنية المعلومات", city: "" })
+  );
+  axios.get.mockImplementation((url) => Promise.resolve({
+    data: { data: url.endsWith("/api/opportunities")
+      ? [{ ...opportunities[0], specialties: ["تقنية المعلومات"] }, opportunities[1]]
+      : [] },
+  }));
+  renderPage();
+  await screen.findByText("متدرب تقنية المعلومات");
+  expect(screen.getByRole("heading", { name: "الأقرب لك" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "فرص في مدن أخرى" })).not.toBeInTheDocument();
+  expect(document.querySelectorAll(".opportunity-card")).toHaveLength(opportunities.length);
 });
 
 test("six or fewer tier two opportunities need no disclosure control", async () => {
   setPersonalization();
   mockOpportunityFeed(makeTieredOpportunities(6));
   renderPage();
+  await screen.findByText("فرصة الأقرب");
+  fireEvent.click(screen.getByRole("button", { name: "عرض 7 فرصة في مدن أخرى" }));
   await screen.findByText("فرصة مناسبة 1");
   expect(screen.queryByRole("button", { name: /عرض المزيد من الفرص/ })).not.toBeInTheDocument();
   expect(renderedTitles()).toHaveLength(8);
@@ -347,12 +470,14 @@ test("tier two reveals six at a time, retains ranking and all 400 opportunities 
   const items = makeTieredOpportunities(46, 353);
   mockOpportunityFeed(items);
   renderPage();
+  await screen.findByText("فرصة الأقرب");
+  fireEvent.click(screen.getByRole("button", { name: "عرض 359 فرصة في مدن أخرى" }));
   await screen.findByText("فرصة مناسبة 1");
   expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة")))
     .toEqual(Array.from({ length: 6 }, (_, index) => `فرصة مناسبة ${index + 1}`));
   expect(renderedTitles()[0]).toBe("فرصة الأقرب");
   expect(renderedTitles().filter((title) => title.startsWith("فرصة أخرى"))).toHaveLength(353);
-  expect(screen.getByRole("heading", { name: "فرص أخرى" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "فرص في مدن أخرى" })).toBeInTheDocument();
   expect(items).toHaveLength(400);
 
   fireEvent.click(screen.getByRole("button", { name: /عرض المزيد من الفرص/ }));
@@ -367,19 +492,22 @@ test("tier two reveals six at a time, retains ranking and all 400 opportunities 
     .toEqual(Array.from({ length: 46 }, (_, index) => `فرصة مناسبة ${index + 1}`));
   fireEvent.click(screen.getByRole("button", { name: "عرض أقل" }));
   expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة"))).toHaveLength(6);
-  expect(screen.getByRole("heading", { name: "فرص أخرى" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "فرص في مدن أخرى" })).toBeInTheDocument();
 });
 
 test("changing major or city resets tier two to six", async () => {
   setPersonalization();
   mockOpportunityFeed(makeTieredOpportunities(13));
   renderPage();
+  await screen.findByText("فرصة الأقرب");
+  fireEvent.click(screen.getByRole("button", { name: "عرض 7 فرصة في مدن أخرى" }));
   await screen.findByText("فرصة مناسبة 1");
   fireEvent.click(screen.getByRole("button", { name: /عرض المزيد من الفرص/ }));
   expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة"))).toHaveLength(12);
 
   fireEvent.change(screen.getByLabelText("المدينة"), { target: { value: "الدمام" } });
   expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة"))).toHaveLength(6);
+  fireEvent.click(screen.getByRole("button", { name: "عرض 1 فرصة في مدن أخرى" }));
   fireEvent.click(screen.getByRole("button", { name: /عرض المزيد من الفرص/ }));
   expect(renderedTitles().filter((title) => title.startsWith("فرصة مناسبة"))).toHaveLength(12);
 
@@ -399,7 +527,7 @@ test("explicit text search keeps backend order and does not disclose tier two pr
       : url.endsWith("/api/opportunities") ? items : [] },
   }));
   renderPage();
-  await screen.findByText("فرصة مناسبة 1");
+  await screen.findByText("فرصة الأقرب");
   fireEvent.change(screen.getByPlaceholderText("ابحث عن فرصة أو جهة..."), {
     target: { value: "كلمة في الملاحظات" },
   });

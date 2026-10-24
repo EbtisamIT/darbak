@@ -84,7 +84,7 @@ const TELEGRAM_CHANNEL_URL = "https://t.me/darbak_1";
 const OPPORTUNITY_PROMO_DISMISSED_KEY = "darbak_where_to_train_promo_dismissed";
 const OPPORTUNITY_TIER_SECTIONS = {
   1: ["الأقرب لك", "أقرب الفرص لتخصصك وموقعك"],
-  2: ["قد يناسبك", "فرص قريبة من اختيارك وتستحق الاطلاع"],
+  2: ["فرص قريبة من تخصصك", "فرص قريبة من اختيارك وتستحق الاطلاع"],
   3: ["فرص أخرى", "استكشف باقي الفرص المتاحة"],
 };
 const TIER_TWO_PAGE_SIZE = 6;
@@ -1562,6 +1562,7 @@ export default function TrainingFinderPage() {
   );
   const [specialtyInput, setSpecialtyInput] = useState(initialSpecialty);
   const [city, setCity] = useState(initialCity);
+  const [showOtherCityOpportunities, setShowOtherCityOpportunities] = useState(false);
   const [organizationQuery, setOrganizationQuery] = useState(queryOrganization);
   const [showOpportunityPromo, setShowOpportunityPromo] = useState(
     () => window.sessionStorage.getItem(OPPORTUNITY_PROMO_DISMISSED_KEY) !== "1"
@@ -1663,6 +1664,10 @@ export default function TrainingFinderPage() {
     if (routeOpportunityId) return;
     saveTrainingFinderSessionFilters({ specialty: selectedSpecialty, city });
   }, [city, routeOpportunityId, selectedSpecialty]);
+
+  useEffect(() => {
+    setShowOtherCityOpportunities(false);
+  }, [city, selectedSpecialty]);
 
   useEffect(() => {
     if (!selectedOpportunity && !selectedGuideOrganization) return undefined;
@@ -1975,6 +1980,66 @@ export default function TrainingFinderPage() {
       return tierTwoSeen <= visibleTierTwoCount;
     })
     : visibleOpportunities;
+  const showCityClarity = Boolean(city) && showOpportunitySections;
+  const opportunityPersonalizations = showCityClarity
+    ? visibleOpportunities.map((opportunity) => getOpportunityPersonalization({
+      opportunity,
+      specialty: selectedSpecialtyLabel,
+      majorCategories: selectedMajorCategories,
+      city,
+    }))
+    : [];
+  const exactCityCount = opportunityPersonalizations.filter(
+    (match) => match.locationMatch === "EXACT_CITY" && match.tier <= 2
+  ).length;
+  const hasSelectedCityOrRemote = opportunityPersonalizations.some(
+    (match) => match.tier <= 2 &&
+      (match.locationMatch === "EXACT_CITY" || match.locationMatch === "REMOTE")
+  );
+  const localOpportunities = showCityClarity
+    ? renderedOpportunities.filter((opportunity) => getOpportunityPersonalization({
+      opportunity,
+      specialty: selectedSpecialtyLabel,
+      majorCategories: selectedMajorCategories,
+      city,
+    }).locationMatch !== "OTHER_CITY")
+    : renderedOpportunities;
+  const otherCityOpportunities = showCityClarity
+    ? renderedOpportunities.filter((opportunity) => getOpportunityPersonalization({
+      opportunity,
+      specialty: selectedSpecialtyLabel,
+      majorCategories: selectedMajorCategories,
+      city,
+    }).locationMatch === "OTHER_CITY")
+    : [];
+  const initialOtherCityCount = hasSelectedCityOrRemote ? 0 : 6;
+  const shownOtherCityOpportunities = showOtherCityOpportunities
+    ? otherCityOpportunities
+    : otherCityOpportunities.slice(0, initialOtherCityCount);
+  const localDisplayItems = [...localOpportunities];
+  if (showCityClarity && opportunityTierCounts[2] > TIER_TWO_PAGE_SIZE) {
+    const firstTierThreeIndex = localDisplayItems.findIndex((opportunity) =>
+      getOpportunityPersonalizationTier({
+        opportunity,
+        specialty: selectedSpecialtyLabel,
+        majorCategories: selectedMajorCategories,
+        city,
+      }) === 3
+    );
+    localDisplayItems.splice(
+      firstTierThreeIndex === -1 ? localDisplayItems.length : firstTierThreeIndex,
+      0,
+      { _tierTwoDisclosure: true }
+    );
+  }
+  const opportunityDisplayItems = showCityClarity
+    ? [
+      ...localDisplayItems,
+      ...(otherCityOpportunities.length
+        ? [{ _cityClarityHeader: true }, ...shownOtherCityOpportunities]
+        : []),
+    ]
+    : renderedOpportunities;
   const hasActiveOpportunityFilters = Object.values(opportunityFilters).some(
     Boolean
   );
@@ -3487,6 +3552,7 @@ export default function TrainingFinderPage() {
         </header>
 
         <form
+          id="training-finder-form"
           onSubmit={fetchTrainingTargets}
           style={{
             display: "grid",
@@ -3816,6 +3882,23 @@ export default function TrainingFinderPage() {
               textAlign: "right",
             }}
           >
+            {hasPersonalizationContext && (
+              <div className="training-selected-filters" aria-label="اختياراتك الحالية">
+                <span>
+                  اختياراتك: {[selectedSpecialtyLabel, city].filter(Boolean).join(" · ")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const form = document.getElementById("training-finder-form");
+                    form?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+                    form?.querySelector("input[aria-label='ابحث عن فرصة أو جهة']")?.focus();
+                  }}
+                >
+                  تغيير
+                </button>
+              </div>
+            )}
             {visibleOpportunities.length === 0 &&
             !showSuggestionsWithOpportunities &&
             !opportunitiesLoading ? (
@@ -3841,6 +3924,7 @@ export default function TrainingFinderPage() {
               {visibleOpportunities.length > 0 && (
               <>
               {showOpportunitySections &&
+                !showCityClarity &&
                 opportunityTierCounts[1] === 0 &&
                 opportunityTierCounts[2] > 0 && (
                 <p
@@ -3854,6 +3938,18 @@ export default function TrainingFinderPage() {
                   ما لقينا فرصة مطابقة تمامًا الآن، لكن هذه أقرب الفرص لك.
                 </p>
               )}
+              {showCityClarity && exactCityCount === 0 && (
+                <p className="training-city-explanation">
+                  <strong>ما لقينا فرصة مطابقة في {city} حاليًا</strong>
+                  <span>
+                    {otherCityOpportunities.length
+                      ? selectedSpecialty
+                        ? "لكن عندنا فرص قريبة من تخصصك في مدن أخرى."
+                        : "لكن عندنا فرصًا في مدن أخرى."
+                      : "لكن عندنا فرصًا أخرى قد تناسب اختيارك."}
+                  </span>
+                </p>
+              )}
               <div
                 className="finder-card-grid opportunities-grid"
                 style={{
@@ -3862,22 +3958,75 @@ export default function TrainingFinderPage() {
                   gap: "10px",
                 }}
               >
-                {renderedOpportunities.map((opportunity, index) => {
+                {opportunityDisplayItems.map((opportunity, index) => {
+                  if (opportunity._tierTwoDisclosure) {
+                    return (
+                      <div key="tier-two-city-disclosure" style={{ gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", gap: "8px", padding: "4px 2px" }}>
+                        {visibleTierTwoCount < opportunityTierCounts[2] && (
+                          <button
+                            type="button"
+                            onClick={() => setTierTwoDisclosure({
+                              key: tierTwoSelectionKey,
+                              count: Math.min(visibleTierTwoCount + TIER_TWO_PAGE_SIZE, opportunityTierCounts[2]),
+                            })}
+                            style={{ background: "var(--app-card)", color: "var(--app-text)", border: "1px solid var(--app-border)", borderRadius: "10px", padding: "8px 12px", font: "inherit", fontSize: "13px", cursor: "pointer" }}
+                          >
+                            عرض المزيد من الفرص ({opportunityTierCounts[2] - visibleTierTwoCount})
+                          </button>
+                        )}
+                        {visibleTierTwoCount > TIER_TWO_PAGE_SIZE && (
+                          <button
+                            type="button"
+                            onClick={() => setTierTwoDisclosure({ key: tierTwoSelectionKey, count: TIER_TWO_PAGE_SIZE })}
+                            style={{ background: "transparent", color: "var(--app-text-soft)", border: "1px solid var(--app-border)", borderRadius: "10px", padding: "8px 12px", font: "inherit", fontSize: "13px", cursor: "pointer" }}
+                          >
+                            عرض أقل
+                          </button>
+                        )}
+                      </div>
+                    );
+                  }
+                  if (opportunity._cityClarityHeader) {
+                    return (
+                      <div key="other-city-opportunities" className="training-other-cities-heading">
+                        <div>
+                          <h2>فرص في مدن أخرى</h2>
+                          <p>خيارات إضافية خارج مدينتك، وقد تناسب تخصصك.</p>
+                        </div>
+                        {(showOtherCityOpportunities || otherCityOpportunities.length > initialOtherCityCount) && (
+                          <button
+                            type="button"
+                            aria-expanded={showOtherCityOpportunities}
+                            onClick={() => setShowOtherCityOpportunities((shown) => !shown)}
+                          >
+                            {showOtherCityOpportunities
+                              ? "إخفاء فرص المدن الأخرى"
+                              : `عرض ${otherCityOpportunities.length - initialOtherCityCount} فرصة في مدن أخرى`}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  }
                   const personalization = getOpportunityPersonalization({
                     opportunity,
                     specialty: selectedSpecialtyLabel,
                     majorCategories: selectedMajorCategories,
                     city,
                   });
-                  const previousTier = index > 0
+                  const localIndex = showCityClarity ? localOpportunities.indexOf(opportunity) : -1;
+                  const previousOpportunity = showCityClarity
+                    ? (localIndex > 0 ? localOpportunities[localIndex - 1] : null)
+                    : (index > 0 ? renderedOpportunities[index - 1] : null);
+                  const previousTier = previousOpportunity
                     ? getOpportunityPersonalizationTier({
-                      opportunity: renderedOpportunities[index - 1],
+                      opportunity: previousOpportunity,
                       specialty: selectedSpecialtyLabel,
                       majorCategories: selectedMajorCategories,
                       city,
                     })
                     : 0;
                   const startsSection = showOpportunitySections &&
+                    (!showCityClarity || localIndex >= 0) &&
                     personalization.tier !== previousTier;
                   const applicationState = getOpportunityApplicationState(
                     opportunity.deadline,
@@ -3917,7 +4066,9 @@ export default function TrainingFinderPage() {
                             lineHeight: 1.5,
                           }}
                         >
-                          {OPPORTUNITY_TIER_SECTIONS[personalization.tier][0]}
+                          {showCityClarity && personalization.tier === 1
+                            ? `فرص تناسبك في ${city}`
+                            : OPPORTUNITY_TIER_SECTIONS[personalization.tier][0]}
                         </h2>
                         <p
                           style={{
@@ -3927,7 +4078,9 @@ export default function TrainingFinderPage() {
                             lineHeight: 1.7,
                           }}
                         >
-                          {OPPORTUNITY_TIER_SECTIONS[personalization.tier][1]}
+                          {showCityClarity && personalization.tier === 1
+                            ? "الأقرب لتخصصك ومدينتك."
+                            : OPPORTUNITY_TIER_SECTIONS[personalization.tier][1]}
                         </p>
                       </div>
                     )}
@@ -4078,7 +4231,7 @@ export default function TrainingFinderPage() {
                           >
                             {opportunity.organizationName}
                           </p>
-                          {getOpportunityCityText(opportunity) && (
+                          {(getOpportunityCityText(opportunity) || (showCityClarity && personalization.locationMatch === "REMOTE")) && (
                             <p
                               className="opportunity-card-city"
                               style={{
@@ -4091,7 +4244,14 @@ export default function TrainingFinderPage() {
                                 lineHeight: 1.5,
                               }}
                             >
-                              <span>{getOpportunityCityText(opportunity)}</span>
+                              <span>
+                                {showCityClarity && personalization.locationMatch === "REMOTE"
+                                  ? "عن بُعد"
+                                  : getOpportunityCityText(opportunity)}
+                                {showCityClarity && personalization.locationMatch === "OTHER_CITY"
+                                  ? " · مدينة أخرى"
+                                  : ""}
+                              </span>
                             </p>
                           )}
                         </div>
@@ -4172,7 +4332,7 @@ export default function TrainingFinderPage() {
                         )}
                       </div>
                     </article>
-                    {showOpportunitySections && personalization.tier === 2 &&
+                    {!showCityClarity && showOpportunitySections && personalization.tier === 2 &&
                       (index === renderedOpportunities.length - 1 ||
                         getOpportunityPersonalizationTier({
                           opportunity: renderedOpportunities[index + 1],
@@ -5996,6 +6156,71 @@ export default function TrainingFinderPage() {
           color: var(--app-text-soft);
           font-size: 10px;
           line-height: 1.3;
+        }
+
+        .training-selected-filters {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px 12px;
+          min-width: 0;
+          color: var(--app-text-soft);
+          font-size: 13px;
+          line-height: 1.6;
+        }
+
+        .training-selected-filters button,
+        .training-other-cities-heading button {
+          border: 1px solid var(--app-border);
+          border-radius: 999px;
+          padding: 7px 12px;
+          background: var(--app-input-bg);
+          color: var(--app-text);
+          font: inherit;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .training-city-explanation {
+          display: grid;
+          gap: 2px;
+          margin: 0;
+          color: var(--app-text-soft);
+          font-size: 13px;
+          line-height: 1.7;
+        }
+
+        .training-city-explanation strong {
+          color: var(--app-text);
+        }
+
+        .training-other-cities-heading {
+          grid-column: 1 / -1;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          min-width: 0;
+          padding: 12px 2px 2px;
+          border-top: 1px solid var(--app-border);
+        }
+
+        .training-other-cities-heading h2,
+        .training-other-cities-heading p {
+          margin: 0;
+        }
+
+        .training-other-cities-heading h2 {
+          color: var(--app-text);
+          font-size: 18px;
+          line-height: 1.5;
+        }
+
+        .training-other-cities-heading p {
+          color: var(--app-text-soft);
+          font-size: 12.5px;
+          line-height: 1.7;
         }
 
         .opportunity-filter-bar {
