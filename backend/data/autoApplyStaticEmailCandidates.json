@@ -1,0 +1,3591 @@
+[
+  {
+    "company": "وزارة الطاقة",
+    "email": "hr.coop-training@moenergy.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://www.moenergy.gov.sa/en/contact-us/faqs",
+    "contactType": "إيميل تدريب مباشر",
+    "usage": "إرسال ملف التقديم كاملًا للبريد مباشرة",
+    "note": "البريد منشور رسميًا كطريقة للتقديم على التدريب التعاوني.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تقنية معلومات",
+      "هندسة",
+      "إدارة",
+      "مالية",
+      "قانون"
+    ]
+  },
+  {
+    "company": "هيئة الحكومة الرقمية - برنامج ميدان",
+    "email": "coop@dga.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://career.dga.gov.sa/ar/page/coop-program/",
+    "contactType": "بوابة + بريد دعم",
+    "usage": "التقديم عبر البوابة ثم البريد للمتابعة أو الدعم",
+    "note": "البريد للدعم وليس بديلًا عن البوابة.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تقنية",
+      "بيانات",
+      "إدارة",
+      "قانون",
+      "تصميم"
+    ]
+  },
+  {
+    "company": "المركز الوطني لتنمية الغطاء النباتي ومكافحة التصحر",
+    "email": "hr-td@ncvc.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://ncvc.gov.sa/ar/Pages/COOP-Training.aspx",
+    "contactType": "إيميل تدريب مباشر",
+    "usage": "إرسال البيانات بعد التأكد من فترة القبول",
+    "note": "ممتاز للتخصصات البيئية والزراعية والتقنية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "زراعة",
+      "بيئة",
+      "إدارة",
+      "تقنية",
+      "GIS"
+    ]
+  },
+  {
+    "company": "هيئة حقوق الإنسان",
+    "email": "info@hrc.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://e-services.hrc.gov.sa/ar/service/details/12",
+    "contactType": "خدمة إلكترونية + بريد رسمي",
+    "usage": "التقديم عبر الخدمة الإلكترونية أولًا",
+    "note": "البريد للاستفسار الرسمي وليس لاستلام السير فقط.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "علاقات عامة",
+      "إعلام",
+      "إدارة",
+      "تقنية"
+    ]
+  },
+  {
+    "company": "المركز الوطني لأبحاث وتطوير الزراعة المستدامة - استدامة",
+    "email": "info@estidamah.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://estidamah.gov.sa/ar/eservices/Pages/Receive-training-request.aspx",
+    "contactType": "خدمة إلكترونية + بريد رسمي",
+    "usage": "التقديم عبر نموذج الخدمة ثم المتابعة بالبريد",
+    "note": "يتطلب بيانات أكاديمية وسيرة غالبًا.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "زراعة",
+      "أحياء",
+      "هندسة",
+      "تقنية",
+      "إدارة"
+    ]
+  },
+  {
+    "company": "وزارة السياحة",
+    "email": "info@mt.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/ar/services/22193",
+    "contactType": "خدمة وطنية + بريد رسمي",
+    "usage": "استخدمي الخدمة الرسمية ثم البريد للاستفسار",
+    "note": "مناسب للتخصصات السياحية والتسويق والإدارة.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "سياحة",
+      "إدارة",
+      "تسويق",
+      "تقنية",
+      "قانون"
+    ]
+  },
+  {
+    "company": "صندوق تنمية الموارد البشرية - هدف",
+    "email": "care@hrdf.org.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/services/143459",
+    "contactType": "منصة ربط + بريد دعم",
+    "usage": "التسجيل عبر منصة هدف ثم المتابعة عند الحاجة",
+    "note": "المصدر الوطني يعرض البريد Care@hrdf.org.sa لخدمة التدريب التعاوني.",
+    "hqCity": "عن بُعد",
+    "claimedMajors": [
+      "كل التخصصات"
+    ]
+  },
+  {
+    "company": "الهيئة الملكية لمدينة الرياض",
+    "email": "info@rcrc.gov.sa",
+    "sourceNames": [
+      "darbak_guide",
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "https://www.rcrc.gov.sa/help-support/contact-us-ar/",
+    "contactType": "بريد رسمي للاستفسار",
+    "usage": "اطلبي تحويل الطلب للموارد البشرية/التدريب",
+    "note": "يفضل عدم الاعتماد على البريد وحده.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "تخطيط",
+      "إدارة",
+      "تقنية",
+      "تصميم",
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق"
+    ]
+  },
+  {
+    "company": "الهيئة السعودية للمياه",
+    "email": "info@swa.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://www.swa.gov.sa/ar/services/request-service/request-coop-training-program",
+    "contactType": "خدمة + بريد رسمي",
+    "usage": "قدمي في الخدمة ثم تابعي عبر القنوات",
+    "note": "مناسب للتخصصات الهندسية والتقنية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "تقنية",
+      "إدارة",
+      "بيئة"
+    ]
+  },
+  {
+    "company": "شركة تطوير للمباني TBC",
+    "email": "info@tbc.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://tbc.sa/en/Cooperative-training-program",
+    "contactType": "صفحة تدريب + بريد رسمي",
+    "usage": "استخدمي صفحة البرنامج أولًا ثم البريد للاستفسار",
+    "note": "من أفضل الخيارات للمهتمين بالمشاريع والإنشاءات.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "إدارة مشاريع",
+      "تقنية",
+      "مالية"
+    ]
+  },
+  {
+    "company": "المركز السعودي لاستطلاعات الرأي SCOP",
+    "email": "info@scop.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://scop.sa/en/cooperative-training/",
+    "contactType": "نموذج تدريب + بريد رسمي",
+    "usage": "التقديم عبر النموذج",
+    "note": "مناسب لتخصصات البيانات والإحصاء والبحث والإعلام.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إحصاء",
+      "بيانات",
+      "تسويق",
+      "إعلام",
+      "تقنية"
+    ]
+  },
+  {
+    "company": "Innovative Solutions",
+    "email": "info@is.com.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://is.com.sa/careers",
+    "contactType": "بوابة وظائف + بريد رسمي",
+    "usage": "ابحثي عن COOP/Internship واستخدمي البريد للاستفسار",
+    "note": "شركة تقنية مناسبة لتخصصات الأمن السيبراني.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "أمن سيبراني",
+      "تقنية معلومات",
+      "نظم",
+      "إدارة"
+    ]
+  },
+  {
+    "company": "Channels",
+    "email": "info@channels.com.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://channels.com.sa/career",
+    "contactType": "نموذج COOP + بريد رسمي",
+    "usage": "اختيار مسار COOP من صفحة التوظيف",
+    "note": "لا ترسلي البريد وحده إذا كان النموذج متاحًا.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة",
+      "تسويق",
+      "موارد بشرية",
+      "تقنية"
+    ]
+  },
+  {
+    "company": "SMC Healthcare",
+    "email": "info@smc.com.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://www.smc.com.sa/CoopTraining",
+    "contactType": "صفحة تدريب + بريد رسمي",
+    "usage": "حددي هل التدريب طبي أم إداري/تقني",
+    "note": "مناسب للتخصصات الصحية والإدارية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "صحي",
+      "إدارة صحية",
+      "تقنية",
+      "موارد بشرية"
+    ]
+  },
+  {
+    "company": "معهد الرياض للتقنية RPI",
+    "email": "info@rpi.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://rpi.edu.sa/training/cooperative-training",
+    "contactType": "برنامج تدريب + بريد رسمي",
+    "usage": "استفسار عن المسارات والشركات الراعية",
+    "note": "قد يرتبط بالمسارات الفنية والتقنية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تقنية",
+      "هندسة",
+      "إدارة",
+      "تدريب"
+    ]
+  },
+  {
+    "company": "شركة الدكتور أحمد الصالح للمحاماة والاستشارات القانونية",
+    "email": "info@alsalehlawfirm.com.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://alsalehlawfirm.com.sa/التدريب-التعاوني/",
+    "contactType": "نموذج تدريب + بريد رسمي",
+    "usage": "إرفاق خطاب الجامعة والسجل والسيرة",
+    "note": "مناسب لتخصصات القانون والأنظمة.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "أنظمة",
+      "شريعة",
+      "إدارة"
+    ]
+  },
+  {
+    "company": "سدايا SDAIA",
+    "email": "suggestions@sdaia.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/services/20999",
+    "contactType": "بوابة + بريد استفسار",
+    "usage": "زيارة صفحة التوظيف ثم اختيار التدريب التعاوني",
+    "note": "البريد للاستفسار العام في المصدر الوطني.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "بيانات",
+      "ذكاء اصطناعي",
+      "تقنية",
+      "إدارة"
+    ]
+  },
+  {
+    "company": "وزارة التجارة",
+    "email": "cs@mc.gov.sa",
+    "sourceNames": [
+      "darbak_guide",
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "https://mc.gov.sa/ar/contactus",
+    "contactType": "خدمة تدريب + بريد تواصل",
+    "usage": "استخدمي صفحة طلبات التدريب إن وجدت ثم البريد للدعم",
+    "note": "الموقع يذكر خدمة طلبات التدريب التعاوني ضمن قنوات التواصل.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة",
+      "قانون",
+      "تقنية",
+      "مالية",
+      "تسويق",
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "محاسبة",
+      "إعلام واتصال",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "أمانة منطقة الرياض",
+    "email": "esupport@alriyadh.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17282",
+    "contactType": "بريد رسمي/بوابة",
+    "usage": "استخدمي بوابة الأمانة إن وجدت ثم البريد للاستفسار",
+    "note": "البريد عام وليس تدريب مباشر.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة جدة",
+    "email": "info@jeddah.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/services/2236545",
+    "contactType": "خدمة تدريب + بريد رسمي",
+    "usage": "التقديم عبر الخدمة واتباع الخطوات",
+    "note": "المصدر الوطني يذكر خدمة التدريب والبريد الرسمي.",
+    "hqCity": "جدة",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة العاصمة المقدسة",
+    "email": "csu@holymakkah.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17264",
+    "contactType": "بريد رسمي",
+    "usage": "استفسار عن آلية التدريب أو التحويل للموارد البشرية",
+    "note": "ليس بريد تدريب مباشر.",
+    "hqCity": "مكة",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة الطائف",
+    "email": "mayor@taifcity.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17261",
+    "contactType": "بريد رسمي",
+    "usage": "استفسار مختصر وطلب تحويل للموارد البشرية",
+    "note": "بريد رسمي عام/مكتب الأمين وليس تدريب مباشر.",
+    "hqCity": "الطائف",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة منطقة المدينة المنورة",
+    "email": "info@amana-md.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/services/24905",
+    "contactType": "خدمة تدريب + بريد رسمي",
+    "usage": "التقديم عبر الخدمة ثم متابعة الطلب",
+    "note": "المصدر الوطني يذكر خدمة التدريب والبريد الرسمي.",
+    "hqCity": "المدينة",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة المنطقة الشرقية",
+    "email": "info@eamana.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/services/662755",
+    "contactType": "خدمة تدريب + بريد رسمي",
+    "usage": "الدخول للبوابة ثم اختيار التدريب التعاوني",
+    "note": "خدمة تدريب منشورة في المصدر الوطني.",
+    "hqCity": "الدمام",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة الأحساء",
+    "email": "info@alhasa.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/services/259440",
+    "contactType": "خدمة تدريب + بريد رسمي",
+    "usage": "التقديم عبر بوابة الموارد البشرية",
+    "note": "المصدر الوطني يذكر خدمة طلب التدريب.",
+    "hqCity": "الأحساء",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة حفر الباطن",
+    "email": "ialbatin@momra.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17804",
+    "contactType": "بريد رسمي",
+    "usage": "استفسار عن آلية استقبال التدريب",
+    "note": "ليس بريد تدريب مباشر.",
+    "hqCity": "حفر الباطن",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة منطقة القصيم",
+    "email": "info@qassim.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17285",
+    "contactType": "خدمة تدريب + بريد رسمي",
+    "usage": "استخدمي خدمة تقديم طلب تدريب تعاوني",
+    "note": "المصدر الوطني يذكر وجود خدمة تقديم واستعلام وطباعة شهادة.",
+    "hqCity": "بريدة",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة منطقة عسير",
+    "email": "media@ars.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17300",
+    "contactType": "بريد رسمي",
+    "usage": "استفسار مختصر وطلب التحويل للموارد البشرية",
+    "note": "بريد رسمي عام/إعلامي وليس تدريب مباشر.",
+    "hqCity": "أبها",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام",
+      "سياحة"
+    ]
+  },
+  {
+    "company": "أمانة منطقة تبوك",
+    "email": "info@tabukm.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17291",
+    "contactType": "بريد رسمي",
+    "usage": "استفسار عن آلية التقديم للتدريب",
+    "note": "بريد رسمي منشور في المصدر الوطني.",
+    "hqCity": "تبوك",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة منطقة حائل",
+    "email": "it@amanathail.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17297",
+    "contactType": "بريد رسمي",
+    "usage": "استفسار مختصر وطلب التحويل للموارد البشرية",
+    "note": "بريد رسمي تقني وليس تدريب مباشر.",
+    "hqCity": "حائل",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة الحدود الشمالية",
+    "email": "arar@arar-mu.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17279",
+    "contactType": "بريد رسمي",
+    "usage": "استفسار عن آلية التدريب",
+    "note": "بريد رسمي منشور في المصدر الوطني.",
+    "hqCity": "عرعر",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة منطقة جازان",
+    "email": "info@jazan.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17294",
+    "contactType": "بريد رسمي",
+    "usage": "استفسار عن آلية التدريب",
+    "note": "بريد رسمي منشور في المصدر الوطني.",
+    "hqCity": "جازان",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة منطقة الباحة",
+    "email": "baha@momra.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17273",
+    "contactType": "بريد رسمي",
+    "usage": "استفسار عن آلية التدريب",
+    "note": "بريد رسمي منشور في المصدر الوطني.",
+    "hqCity": "الباحة",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "أمانة منطقة الجوف",
+    "email": "info@amanataljouf.gov.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://my.gov.sa/en/agencies/17276",
+    "contactType": "بريد رسمي",
+    "usage": "استفسار عن آلية التدريب",
+    "note": "بريد رسمي منشور في المصدر الوطني.",
+    "hqCity": "سكاكا",
+    "claimedMajors": [
+      "إدارة",
+      "هندسة",
+      "تقنية",
+      "قانون",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "مدارس الرياض",
+    "email": "info@riyadhschools.edu.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://rsg.edu.sa/contact-us/",
+    "contactType": "بريد رسمي",
+    "usage": "اطلبي تحويل الرسالة للموارد البشرية أو منسقة التدريب",
+    "note": "ليس بريد تدريب مباشر.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تعليم",
+      "إدارة",
+      "تقنية",
+      "موارد بشرية",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "مدارس المعالي",
+    "email": "info@almaalischools.edu.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://almaalischools.edu.sa/carrers/",
+    "contactType": "بريد وظائف/تواصل",
+    "usage": "إرسال استفسار تدريب قبل المرفقات",
+    "note": "مناسب للتخصصات التعليمية والإدارية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تعليم",
+      "إدارة",
+      "تقنية",
+      "تصميم",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "مدارس الهداية",
+    "email": "info@alhedaya.edu.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://alhedaya.edu.sa/بوابة-التوظيف/",
+    "contactType": "بريد وظائف/تواصل",
+    "usage": "استفسار مختصر قبل إرسال كامل الملفات",
+    "note": "ليس مخصصًا للتدريب.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تعليم",
+      "إدارة",
+      "تقنية",
+      "تصميم",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "Modern Middle East International School",
+    "email": "career.mmeis@gmail.com",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://mmeis.edu.sa/contact.html",
+    "contactType": "بريد موارد بشرية",
+    "usage": "ارسلي طلب تدريب تعاوني بوضوح في العنوان",
+    "note": "بريد وظائف منشور في موقع المدرسة.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تعليم",
+      "إدارة",
+      "تقنية",
+      "لغة إنجليزية"
+    ]
+  },
+  {
+    "company": "Saud International Schools",
+    "email": "enquiries@sis.edu.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://sis.edu.sa/jobs",
+    "contactType": "بريد استفسارات",
+    "usage": "اطلبي بريد الموارد البشرية إذا لم يتولوا الطلب",
+    "note": "بريد استفسارات عام.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تعليم",
+      "إدارة",
+      "تقنية",
+      "لغات"
+    ]
+  },
+  {
+    "company": "Dome International Schools",
+    "email": "hrm@dome.edu.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://dome.edu.sa/about-us/careers/",
+    "contactType": "بريد موارد بشرية",
+    "usage": "إرسال طلب مباشر للموارد البشرية",
+    "note": "من أقوى خيارات المدارس لأن البريد HR مباشر.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تعليم",
+      "إدارة",
+      "تقنية",
+      "موارد بشرية"
+    ]
+  },
+  {
+    "company": "Qimam El Hayat International Schools",
+    "email": "hr@qimamelhayat.edu.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://www.qimamelhayat.edu.sa/انضم-الينا/?lang=ar",
+    "contactType": "بريد موارد بشرية",
+    "usage": "استفسار تدريب تعاوني فقط",
+    "note": "الصفحة قد تذكر عدم وجود وظائف؛ لا يعني رفض التدريب.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تعليم",
+      "إدارة",
+      "تقنية",
+      "لغات"
+    ]
+  },
+  {
+    "company": "شركة المدارس المتقدمة MSC",
+    "email": "info@msc.edu.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://msc.edu.sa/employment/",
+    "contactType": "بريد رسمي",
+    "usage": "اطلبي تحويل الطلب للموارد البشرية",
+    "note": "بريد عام في صفحة توظيف.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تعليم",
+      "إدارة",
+      "تقنية",
+      "إعلام"
+    ]
+  },
+  {
+    "company": "منصة التدريب التعاوني",
+    "email": "info@coop.edu.sa",
+    "sourceNames": [
+      "darbak_guide"
+    ],
+    "sourceUrl": "https://coop.edu.sa/",
+    "contactType": "منصة ربط",
+    "usage": "قناة إضافية بجانب التقديم المباشر",
+    "note": "ليست جهة تدريب بحد ذاتها.",
+    "hqCity": "عن بُعد",
+    "claimedMajors": [
+      "كل التخصصات"
+    ]
+  },
+  {
+    "company": "Plan A | marketing solutions",
+    "email": "hr@plana-sa.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إعلام واتصال",
+      "تسويق",
+      "تصميم",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "شركة الخشيم وشركاه",
+    "email": "contactus@alanli.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "أنظمة",
+      "شريعة",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "P Legal in association AlEnezee Legal Counsel",
+    "email": "info@alinma.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "أنظمة",
+      "شريعة",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "شركة الصعيب وشركاه للمحاماة",
+    "email": "soaib@soaiblaw.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "أنظمة",
+      "شريعة",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "جدوى للاستثمار",
+    "email": "info@jadwa.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "تداول",
+    "email": "co.op.training@tadawul.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "أديم المالية",
+    "email": "hr@adeemcapital.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "دراية المالية",
+    "email": "hr@derayah.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "فالكم المالية",
+    "email": "hr@falcom.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "ثقة",
+    "email": "coop@thiqah.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "شركة معادن",
+    "email": "info@maaden.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "شركة كسب المالية",
+    "email": "ialalwan@ksb.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "Saudi Credit Bureau (SIMAH) | سمة",
+    "email": "kalmzaini@simah.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "tetco",
+    "email": "career@tetco.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "وساطة كابيتال المالية",
+    "email": "info@wasatah.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "نادك",
+    "email": "info@nadec.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق"
+    ]
+  },
+  {
+    "company": "ميدغلف للتأمين",
+    "email": "service@medgulf.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تأمين",
+      "إدارة مخاطر",
+      "مالية",
+      "محاسبة",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "تكافل الراجحي",
+    "email": "customerservice@alrajhitakaful.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تأمين",
+      "إدارة مخاطر",
+      "مالية",
+      "محاسبة",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "شركة ولاء للتأمين",
+    "email": "walaa@walaa.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "تأمين",
+      "إدارة مخاطر",
+      "مالية",
+      "محاسبة",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الملك خالد للعيون",
+    "email": "info@kkesh.med.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "صحة عامة",
+      "تقنية معلومات",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "شركة بيان للمعلومات الائتمانية",
+    "email": "care@bayancb.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "كيورا",
+    "email": "jobs@cura.healthcare",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "صحة عامة",
+      "تقنية معلومات",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "ابوينت مي",
+    "email": "abdullah@appointme.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "Aramco",
+    "email": "saempsa_webmaster@aramco.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الظهران",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "Saudi Railway Company",
+    "email": "training@sar.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "كل المناطق",
+    "claimedMajors": [
+      "سلاسل الإمداد",
+      "إدارة أعمال",
+      "هندسة",
+      "تقنية معلومات",
+      "مالية"
+    ]
+  },
+  {
+    "company": "DELOITTE",
+    "email": "emakhdoum@deloitte.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "التعاونية",
+    "email": "info@tawuniya.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "كل المناطق",
+    "claimedMajors": [
+      "تأمين",
+      "إدارة مخاطر",
+      "مالية",
+      "محاسبة",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "شركة ابو حيمد وال الشيخ والحقباني بالتعاون مع Clifford Chance",
+    "email": "info.ash@ashlawksa.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "أنظمة",
+      "شريعة",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "شركة الكفاح القابضة",
+    "email": "info@alkifah.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "شركة لين لخدمات الأعمال",
+    "email": "info@lean.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "روابط القابضة",
+    "email": "info@rawabiholding.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الخبر",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "شركة تطوير للمباني",
+    "email": "info@tbc.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "شركة عبدالله الجذي للمحاماة",
+    "email": "info@aljendy.law",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "أنظمة",
+      "شريعة",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "شركة استشارية سعودية EPEC",
+    "email": "admin@educa.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الدمام",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "شركة PTWAY",
+    "email": "info@ptway.net",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "بوصلة",
+    "email": "hi@bawsala.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "جدة",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق"
+    ]
+  },
+  {
+    "company": "نول",
+    "email": "hr@noul.net",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "سمارت سوفت",
+    "email": "info@smatsoft.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "ولاء بلس",
+    "email": "jobs@walaplus.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "مشروع مولني",
+    "email": "hr@mawlny.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "جدة",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق"
+    ]
+  },
+  {
+    "company": "DataLexing",
+    "email": "info@datalexing.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "الصندوق السعودي للتنمية",
+    "email": "info@sfd.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "صندوق التنمية الصناعية السعودي",
+    "email": "info@sidf.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "صندوق التنمية العقارية",
+    "email": "info@housing.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "صندوق التنمية الوطني",
+    "email": "info@ndf.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "البنك الأهلي السعودي",
+    "email": "contactus@alahli.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "كل المناطق",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "مصرف الإنماء",
+    "email": "info@alinma.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "كل المناطق",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "مجموعة سامبا المالية",
+    "email": "customercare@samba.com",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "كل المناطق",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "بنك الجزيرة",
+    "email": "call_center_supervisor@baj.com.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "كل المناطق",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "الهيئة السعودية للبيانات والذكاء الاصطناعي",
+    "email": "info@sdaia.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "هيئة حقوق الإنسان السعودية",
+    "email": "info@hrc.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "أنظمة",
+      "شريعة",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "هيئة تنمية الصادرات السعودية",
+    "email": "info@saudiexports.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "هيئة تقويم التعليم والتدريب",
+    "email": "faq@etec.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "العلوم التربوية",
+      "إدارة أعمال",
+      "تقنية معلومات",
+      "موارد بشرية"
+    ]
+  },
+  {
+    "company": "الهيئة السعودية للمواصفات والمقاييس والجودة",
+    "email": "info@saso.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "هيئة المدن الاقتصادية السعودية",
+    "email": "info@ecza.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "مدينة الملك عبدالله الاقتصادية",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "هيئة المحتوى المحلي والمشتريات الحكومية",
+    "email": "info@lcgpa.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "هيئة السوق المالية",
+    "email": "info@cma.org.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "هيئة الاتصالات وتقنية المعلومات",
+    "email": "info@citc.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "الهيئة الوطنية لمكافحة الفساد",
+    "email": "info@nazaha.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "الهيئة الملكية لمحافظة العلا",
+    "email": "rcuinfo@rcu.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "العلا",
+    "claimedMajors": [
+      "السياحة والضيافة",
+      "إدارة أعمال",
+      "تسويق",
+      "إعلام واتصال"
+    ]
+  },
+  {
+    "company": "الهيئة العامة للمنافسة",
+    "email": "info@gac.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "أنظمة",
+      "شريعة",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "الهيئة العامة للغذاء والدواء",
+    "email": "webmaster@sfda.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "صحة عامة",
+      "تقنية معلومات",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "الهيئة العامة للعقار",
+    "email": "info@rega.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "الهيئة العامة للطيران المدني",
+    "email": "hr-support@gaca.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "سلاسل الإمداد",
+      "إدارة أعمال",
+      "هندسة",
+      "تقنية معلومات",
+      "مالية"
+    ]
+  },
+  {
+    "company": "الهيئة العامة للترفيه",
+    "email": "info@gea.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إعلام واتصال",
+      "تسويق",
+      "تصميم",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "الهيئة العامة للإعلام المرئي والمسموع",
+    "email": "info@gcam.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إعلام واتصال",
+      "تسويق",
+      "تصميم",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "الهيئة العامة للإحصاء",
+    "email": "info@stats.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "الهيئة السعودية للملكية الفكرية",
+    "email": "recruitment@saip.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "أنظمة",
+      "شريعة",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "الهيئة السعودية للمدن الصناعية ومناطق التقنية",
+    "email": "info@modon.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "الهيئة السعودية للفضاء",
+    "email": "info@ssc.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "الهلال الأحمر السعودي",
+    "email": "info@srca.org.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "صحة عامة",
+      "تقنية معلومات",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "الهيئة الوطنية للأمن السيبراني",
+    "email": "info@nca.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "الهيئة العامة للمنشآت الصغيرة والمتوسطة (منشآت)",
+    "email": "info@monshaat.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "هيئة الزكاة والضريبة والجمارك",
+    "email": "care@customs.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "هيئة الزكاة والضريبة والجمارك",
+    "email": "info@gazt.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "الهيئة العامة للأوقاف",
+    "email": "info@awqaf.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "البنك المركزي السعودي",
+    "email": "info@sama.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "المؤسسة العامة لتحلية المياه المالحة",
+    "email": "alhassan@swcc.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "المؤسسة العامة لتحلية المياه المالحة",
+    "email": "tcpr@swcc.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "المؤسسة العامة للتدريب التقني والمهني",
+    "email": "cso@tvtc.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "العلوم التربوية",
+      "إدارة أعمال",
+      "تقنية معلومات",
+      "موارد بشرية"
+    ]
+  },
+  {
+    "company": "المؤسسة العامة للتقاعد",
+    "email": "governor@pension.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "مؤسسة الملك عبدالعزيز ورجاله للموهبة والإبداع",
+    "email": "info@mawhiba.org.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "العلوم التربوية",
+      "إدارة أعمال",
+      "تقنية معلومات",
+      "موارد بشرية"
+    ]
+  },
+  {
+    "company": "المركز السعودي لكفاءة الطاقة",
+    "email": "info@seec.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "المركز الوطني للتصديق الرقمي",
+    "email": "info@ncdc.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "المركز الوطني للتنافسية",
+    "email": "info@ncc.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "المركز الوطني للذكاء الاصطناعي",
+    "email": "info@sdaia.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "علوم الحاسب",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "هندسة برمجيات",
+      "أمن سيبراني",
+      "علم البيانات",
+      "تقنية اتصالات"
+    ]
+  },
+  {
+    "company": "المركز الوطني للوثائق والمحفوظات",
+    "email": "info@ncar.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "مركز الملك عبدالله للدراسات والبحوث البترولية",
+    "email": "jobs@kapsarc.org",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "وزارة الخارجية",
+    "email": "info@mofa.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "وزارة المالية",
+    "email": "ccc@mof.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "وزارة العدل",
+    "email": "1950@moj.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "قانون",
+      "أنظمة",
+      "شريعة",
+      "إدارة أعمال"
+    ]
+  },
+  {
+    "company": "وزارة الموارد البشرية والتنمية الاجتماعية",
+    "email": "info@hrsd.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إدارة أعمال",
+      "موارد بشرية",
+      "تقنية معلومات",
+      "نظم معلومات",
+      "مالية",
+      "محاسبة",
+      "قانون",
+      "إعلام واتصال",
+      "تسويق",
+      "هندسة"
+    ]
+  },
+  {
+    "company": "وزارة التعليم",
+    "email": "contact@mohe.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "العلوم التربوية",
+      "إدارة أعمال",
+      "تقنية معلومات",
+      "موارد بشرية"
+    ]
+  },
+  {
+    "company": "وزارة التعليم",
+    "email": "info@mohe.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "العلوم التربوية",
+      "إدارة أعمال",
+      "تقنية معلومات",
+      "موارد بشرية"
+    ]
+  },
+  {
+    "company": "وزارة الاقتصاد والتخطيط",
+    "email": "info@mep.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "وزارة الاستثمار",
+    "email": "investorcare@misa.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "مالية",
+      "محاسبة",
+      "اقتصاد",
+      "إدارة أعمال",
+      "نظم معلومات",
+      "تقنية معلومات",
+      "إدارة مخاطر"
+    ]
+  },
+  {
+    "company": "وزارة الطاقة",
+    "email": "webmaster@moenergy.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "وزارة الثقافة",
+    "email": "info@moc.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إعلام واتصال",
+      "تسويق",
+      "تصميم",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "وزارة الشؤون البلدية والقروية والإسكان",
+    "email": "info@housing.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "هندسة",
+      "هندسة كهربائية",
+      "هندسة ميكانيكية",
+      "هندسة صناعية",
+      "هندسة مدنية",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "وزارة الإعلام",
+    "email": "info@media.gov.sa",
+    "sourceNames": [
+      "training_interactive_directory"
+    ],
+    "sourceUrl": "",
+    "contactType": "إيميل تواصل/تقديم",
+    "usage": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "note": "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "إعلام واتصال",
+      "تسويق",
+      "تصميم",
+      "إدارة أعمال",
+      "تقنية معلومات"
+    ]
+  },
+  {
+    "company": "مستشفى سليمان الحبيب",
+    "email": "wecare@drsulaimanalhabib.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://drsulaimanalhabib.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض، الخبر، بريدة. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى دلة",
+    "email": "webmaster@dallah-hospital.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://dallah-hospital.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الحمادي",
+    "email": "invest@alhammadi.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://alhammadi.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى المشاري",
+    "email": "info@al-mishari.com.sa",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://al-mishari.com.sa",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "المركز التخصصي الطبي",
+    "email": "info@smc.com.sa",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://smc.com.sa",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "المستشفى السعودي الألماني",
+    "email": "jobs@sghgroup.net",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://sghgroup.net",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "فروع متعددة: جدة، الرياض، الدمام، المدينة المنورة وغيرها حسب توفر الجهة. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "جدة",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى المملكة",
+    "email": "info@khccgroup.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://khccgroup.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفيات ومراكز المغربي",
+    "email": "info@magrabi.com.sa",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://magrabi.com.sa",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "فروع متعددة: جدة، الرياض، الدمام، الخبر وغيرها حسب توفر الجهة. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "جدة",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الهلال الأخضر",
+    "email": "info@gch.com.sa",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://gch.com.sa",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الفلاح",
+    "email": "info@alfalahh.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://alfalahh.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى أوباجي",
+    "email": "info@obagisa.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://obagisa.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض، جدة، الخبر. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى دار الشفاء",
+    "email": "daralshefa@hotmail.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "جهة صحية مقترحة، ولم يتم إرفاق دومين رسمي واضح معها لذلك يمكن رفع شعارها يدويًا لاحقًا.",
+    "hqCity": "غير محدد",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى سند",
+    "email": "info@sanadhospital.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://sanadhospital.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى رعاية الرياض",
+    "email": "info@care.med.sa",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://care.med.sa",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى المواساة",
+    "email": "management@mouwasat.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://mouwasat.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "فروع متعددة: الدمام، الخبر، الجبيل، القطيف وغيرها حسب توفر الجهة. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الدمام",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى فيكتوريا",
+    "email": "info@victoria-hos.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://victoria-hos.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى عناية العائلة",
+    "email": "info@familycare.com.sa",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://familycare.com.sa",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى رابية",
+    "email": "info@rabiahospital.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://rabiahospital.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى النخبة",
+    "email": "marketing@elitehospitalsa.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://elitehospitalsa.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الصفوة ماجيستي",
+    "email": "info@safwahospital.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://safwahospital.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الجزيرة الطبي",
+    "email": "info@aljazeerahospital.com.sa",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://aljazeerahospital.com.sa",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الأسرة",
+    "email": "info@family-hospital.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://family-hospital.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى أدمة",
+    "email": "info@adamahealthcare.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://adamahealthcare.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض، جدة، الخبر. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الدارة",
+    "email": "info@aldaramed.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://aldaramed.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الدكتور محمد الفقيه",
+    "email": "info@dmf.med.sa",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://dmf.med.sa",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى ديافيرم",
+    "email": "saudiarabia@diaverum.com",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://diaverum.com",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "فروع متعددة: الرياض، جدة، الدمام، الخبر وغيرها حسب توفر الجهة. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "الرياض",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الدكتور سليمان فقيه",
+    "email": "hr@fakeeh.care",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://fakeeh.care",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: جدة، الرياض. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "جدة",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  },
+  {
+    "company": "مستشفى الدكتور غسان نجيب فرعون",
+    "email": "medical@gnp.com.sa",
+    "sourceNames": [
+      "darbak_health_hospitals"
+    ],
+    "sourceUrl": "https://gnp.com.sa",
+    "contactType": "بريد تواصل أو تقديم",
+    "usage": "استخدم وسيلة التواصل كنقطة بداية بعد التأكد من قناة الجهة الرسمية قبل الإرسال.",
+    "note": "الموقع: جدة. جهة صحية مقترحة للطلاب الراغبين بالتدريب في المستشفيات والقطاع الصحي.",
+    "hqCity": "جدة",
+    "claimedMajors": [
+      "الطب والعلوم الصحية",
+      "إدارة صحية",
+      "تمريض",
+      "صيدلة",
+      "مختبرات",
+      "أشعة",
+      "علاج طبيعي",
+      "تغذية",
+      "إدارة الأعمال",
+      "الموارد البشرية",
+      "تقنية المعلومات"
+    ]
+  }
+]

@@ -71,3 +71,9 @@
 .oi-run-history th, .oi-run-history td { padding: 8px; text-align: start; border-bottom: 1px solid var(--border-color, #34413e); white-space: nowrap; }
 .opportunity-inbox .oi-title { background: none; border: 0; color: inherit; padding: 0; text-align: start; font: inherit; cursor: pointer; }
 .opportunity-inbox .oi-title:hover { text-decoration: underline; }
+.oi-email-network { display: grid; gap: 12px; min-width: 0; }
+.oi-email-network .oi-email-candidate { display: grid; gap: 6px; padding: 12px; border: 1px solid rgba(127, 127, 127, .35); border-radius: 10px; min-width: 0; overflow-wrap: anywhere; }
+.oi-email-network .oi-email-candidate p { margin: 0; }
+.oi-email-network .oi-detail { display: grid; gap: 10px; min-width: 0; }
+.oi-email-network .oi-detail label { display: grid; gap: 4px; min-width: 0; }
+.oi-email-network .oi-detail input:not([type="checkbox"]), .oi-email-network .oi-detail select, .oi-email-network .oi-detail textarea { width: 100%; min-width: 0; box-sizing: border-box; }

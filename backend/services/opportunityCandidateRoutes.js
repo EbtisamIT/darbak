@@ -11,6 +11,7 @@ const EmailLead = require("../models/OpportunityEmailLead");
 const { retryEnrichment } = require("./opportunityEnrichmentRetry");
 const { REVIEW_STATUSES } = require("./opportunityEnrichmentAssessment");
 const { summarizeCandidates } = require("./opportunityCandidateSummary");
+const { createAutoApplyEmailNetworkRouter } = require("./autoApplyEmailNetworkRoutes");
 
 function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPayload, containsBlockedTerms, hydrateDarbakOpportunityFromCampaign, onPublish = () => {} }) {
   const router = express.Router();
@@ -96,6 +97,8 @@ function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPay
     const page = Math.max(1, Math.min(1000, parseInt(req.query.page, 10) || 1));
     res.json({ data: await Lead.find({}).sort({ discoveredAt: -1 }).skip((page - 1) * 20).limit(20).lean(), page });
   }));
+  // Parent router already requires the existing Admin authorization.
+  router.use("/email-network", createAutoApplyEmailNetworkRouter());
   router.post("/discovery/run", handle(async (req, res) => {
     const run = await startDiscovery({ mode: req.body?.mode, searchRunId: req.body?.searchRunId });
     res.status(202).json({ runId: run._id, status: run.status });
