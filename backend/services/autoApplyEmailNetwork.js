@@ -8,8 +8,10 @@ const BLOCKED_INBOX = /^(info|support|help|contact|contactus|cs|ccc|care|service
 const TRAINING_EVIDENCE = new Set(["official_training_page", "official_careers_page", "repeated_official_training_announcements", "official_social_post", "official_company_reply"]);
 
 function normalizeEmail(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "").trim().replace(/^mailto:/i, "").split("?")[0].replace(/[.,;:]+$/, "").trim().toLowerCase();
 }
+
+const REJECTION_REASONS = ["support_only", "general_contact_only", "careers_but_no_training_evidence", "personal_employee_email", "expired_opportunity_only", "portal_required", "no_official_evidence"];
 
 function candidateKey(company, email) {
   return crypto.createHash("sha256").update(`${normalizeCompanyComparable(company)}\n${normalizeEmail(email)}`).digest("hex");
@@ -45,7 +47,11 @@ function validateReview(input, candidate, now = new Date()) {
   };
   const evidenceUrl = String(input.evidenceUrl || "").trim();
   const evidenceTextSummary = String(input.evidenceTextSummary || "").trim();
+  const reviewerNote = String(input.reviewerNote || "").trim();
+  const rejectionReason = String(input.rejectionReason || "").trim();
   if (evidenceTextSummary.length > 1000) throw new Error("ملخص الدليل طويل جدًا.");
+  if (reviewerNote.length > 500 || (rejectionReason && !REJECTION_REASONS.includes(rejectionReason))) throw new Error("سبب المراجعة غير صالح.");
+  if (input.verificationStatus === "rejected" && !rejectionReason) throw new Error("حددي سبب الاستبعاد.");
   const evidenceType = input.evidenceType || "";
   if (evidenceType && !EVIDENCE_TYPES.includes(evidenceType)) throw new Error("نوع الدليل غير صالح.");
   if (evidenceUrl) {
@@ -81,7 +87,8 @@ function validateReview(input, candidate, now = new Date()) {
   return {
     channelType: input.channelType, verificationStatus: input.verificationStatus, acceptsTrainingApplications,
     majors, allMajors, cities, allSaudi, remote, evidenceUrl, evidenceType, evidenceTextSummary,
-    evidenceDate, expiresAt, verifiedAt: acceptsTrainingApplications ? now : null,
+    evidenceDate, expiresAt, verifiedAt: acceptsTrainingApplications ? now : null, reviewerNote,
+    rejectionReason: input.verificationStatus === "rejected" ? rejectionReason : "",
     activeOpportunityId: input.channelType === "active_opportunity" && input.activeOpportunityId ? input.activeOpportunityId : null,
   };
 }

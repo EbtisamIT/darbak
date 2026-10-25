@@ -16,6 +16,8 @@ const schema = new mongoose.Schema({
   evidenceUrl: { type: String, default: "" },
   evidenceType: { type: String, enum: ["", "official_training_page", "official_careers_page", "official_training_announcement", "repeated_official_training_announcements", "historical_official_training_announcement", "official_social_post", "official_company_reply"], default: "" },
   evidenceTextSummary: { type: String, default: "", maxlength: 1000 },
+  reviewerNote: { type: String, default: "", maxlength: 500 },
+  rejectionReason: { type: String, enum: ["", "support_only", "general_contact_only", "careers_but_no_training_evidence", "personal_employee_email", "expired_opportunity_only", "portal_required", "no_official_evidence"], default: "" },
   verifiedAt: { type: Date, default: null },
   evidenceDate: { type: Date, default: null },
   expiresAt: { type: Date, default: null },

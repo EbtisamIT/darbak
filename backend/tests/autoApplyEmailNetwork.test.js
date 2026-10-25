@@ -15,6 +15,7 @@ assert.equal(new Set(staticCandidates.map((row) => row.email)).size, 165);
 assert.equal(new Set(staticCandidates.map((row) => require("../services/companyDirectorySeeds").normalizeCompanyComparable(row.company))).size, 167);
 assert.equal(candidateKey("شركة أفق", "TRAINING@EXAMPLE.ORG"), candidateKey("شركه افق", "training@example.org"));
 assert.equal(uniqueCandidates([candidate, { ...candidate, email: "TRAINING@example.org" }]).length, 1);
+assert.equal(uniqueCandidates([candidate, { ...candidate, email: "mailto:training@example.org." }]).length, 1);
 assert.equal(uniqueCandidates([{ company: "جهة", email: "info@example.org" }])[0].initialStatus, "rejected");
 assert.equal(uniqueCandidates([{ company: "جهة", email: "careers@example.org" }])[0].initialStatus, "likely");
 
@@ -46,6 +47,8 @@ assert.throws(() => validateReview({ ...evidence, channelType: "active_opportuni
 const likely = validateReview({ ...evidence, channelType: "hr_general", verificationStatus: "likely", evidenceType: "" }, candidate, now);
 assert.equal(likely.acceptsTrainingApplications, false);
 assert.equal(likely.verifiedAt, null);
+assert.throws(() => validateReview({ ...evidence, verificationStatus: "rejected" }, candidate, now));
+assert.equal(validateReview({ ...evidence, verificationStatus: "rejected", rejectionReason: "no_official_evidence", reviewerNote: "Official search did not confirm training applications." }, candidate, now).rejectionReason, "no_official_evidence");
 
 const verifiedRows = [
   { ...evergreen, companyNormalized: "one" },

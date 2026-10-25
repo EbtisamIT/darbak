@@ -73,6 +73,7 @@ async function inventory() {
       cities: review.cities, allSaudi: review.allSaudi, remote: review.remote,
       evidenceUrl: review.evidenceUrl, evidenceType: review.evidenceType, evidenceTextSummary: review.evidenceTextSummary,
       evidenceDate: review.evidenceDate, verifiedAt: review.verifiedAt, expiresAt: review.expiresAt,
+      reviewerNote: review.reviewerNote, rejectionReason: review.rejectionReason,
       activeOpportunityId: review.activeOpportunityId,
     } : null, priorityScore: score };
   }).sort((a, b) => b.priorityScore - a.priorityScore || a.company.localeCompare(b.company, "ar") || a.email.localeCompare(b.email));
@@ -93,7 +94,7 @@ function createAutoApplyEmailNetworkRouter() {
       const verifiedEvergreen = eligible.filter((row) => row.channelType === "evergreen_training");
       res.json({ data: filtered.slice((page - 1) * limit, page * limit), page, pages: Math.ceil(filtered.length / limit), total: filtered.length,
         summary: { candidateCompanies: new Set(data.map((row) => row.companyNormalized)).size, candidateEmails: new Set(data.map((row) => row.email)).size,
-          candidatePairs: data.length, verifiedActive: new Set(verifiedActive.map((row) => String(row.companyId || row.companyNormalized))).size,
+          candidatePairs: data.length, reviewed: reviews.length, verifiedActive: new Set(verifiedActive.map((row) => String(row.companyId || row.companyNormalized))).size,
           verifiedEvergreen: new Set(verifiedEvergreen.map((row) => String(row.companyId || row.companyNormalized))).size,
           verifiedUniqueCompanies: new Set(eligible.map((row) => String(row.companyId || row.companyNormalized))).size,
           likely: data.filter((row) => (row.review?.verificationStatus || row.initialStatus) === "likely").length,

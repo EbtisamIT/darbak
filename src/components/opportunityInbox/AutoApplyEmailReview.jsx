@@ -5,6 +5,7 @@ import API_BASE_URL from "../../config/api";
 const endpoint = `${API_BASE_URL}/api/admin/opportunity-candidates/email-network`;
 const labels = { active_opportunity: "فرصة نشطة", evergreen_training: "قناة تدريب دائمة", hr_general: "موارد بشرية عامة", unknown: "غير معروف" };
 const statuses = { verified: "موثق", likely: "مرجح", unverified: "غير موثق", rejected: "مرفوض" };
+const rejectionReasons = { support_only: "خدمة عملاء فقط", general_contact_only: "تواصل عام فقط", careers_but_no_training_evidence: "توظيف دون دليل تدريب", personal_employee_email: "بريد موظف شخصي", expired_opportunity_only: "إعلان منتهٍ فقط", portal_required: "التقديم عبر بوابة", no_official_evidence: "لا يوجد دليل رسمي" };
 const evidenceTypes = {
   official_training_page: "صفحة تدريب رسمية", official_careers_page: "صفحة توظيف رسمية",
   official_training_announcement: "إعلان تدريب رسمي حالي", historical_official_training_announcement: "إعلان تدريب رسمي قديم",
@@ -14,6 +15,7 @@ const evidenceTypes = {
 const blank = {
   channelType: "unknown", verificationStatus: "unverified", evidenceUrl: "", evidenceType: "",
   evidenceTextSummary: "", evidenceDate: "", expiresAt: "", activeOpportunityId: "",
+  reviewerNote: "", rejectionReason: "",
   majors: "", cities: "", allMajors: false, allSaudi: false, remote: false,
 };
 const formatDate = (value) => value ? String(value).slice(0, 10) : "";
@@ -54,7 +56,7 @@ export default function AutoApplyEmailReview({ password }) {
     {open && <div className="oi-email-network">
       <p>قائمة للمراجعة فقط. وجود البريد أو موقع مقر الجهة لا يثبت قبول طلبات التدريب، ولا يبدأ أي إرسال.</p>
       {data && <div>
-        <p>{data.summary.candidateCompanies} جهة مرشحة · {data.summary.candidateEmails} بريد فريد · {data.summary.candidatePairs} جهة/بريد</p>
+        <p>{data.summary.candidateCompanies} جهة مرشحة · {data.summary.candidateEmails} بريد فريد · {data.summary.candidatePairs} جهة/بريد · {data.summary.reviewed} مراجعة محفوظة</p>
         <p>{data.summary.verifiedActive} جهة نشطة موثقة · {data.summary.verifiedEvergreen} جهة دائمة موثقة · {data.summary.verifiedUniqueCompanies} جهة موثقة فريدة</p>
         <p>{data.summary.likely} مرجح · {data.summary.unverified} غير موثق · {data.summary.rejected} مرفوض · {data.summary.evidenceOlderThan12Months} دليل مراجع أقدم من سنة</p>
       </div>}
@@ -67,6 +69,7 @@ export default function AutoApplyEmailReview({ password }) {
         <p>المصادر: {row.sourceNames.join("، ")}</p>
         {row.sourceHints?.length > 0 && <p>ملاحظات المصدر (غير موثقة): {row.sourceHints.join(" · ")}</p>}
         <p>الدليل المراجع: {row.review?.evidenceTextSummary || "لم يُراجع بعد"} · تاريخ الدليل: {formatDate(row.review?.evidenceDate) || "غير معروف"}</p>
+        {row.review?.rejectionReason && <p>سبب الاستبعاد: {rejectionReasons[row.review.rejectionReason]}</p>}
         <p>تخصصات التدريب المثبتة: {row.review?.allMajors ? "جميع التخصصات" : row.review?.majors?.join("، ") || "غير معروفة"} · مدن التدريب المثبتة: {row.review?.allSaudi ? "جميع المدن" : row.review?.cities?.join("، ") || "غير معروفة"}</p>
         {row.evidenceUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer">مصدر مرشح</a>)}
         <button type="button" onClick={() => { setEditing(row); setForm(editFrom(row)); }}>مراجعة البريد والدليل</button>
@@ -78,6 +81,8 @@ export default function AutoApplyEmailReview({ password }) {
         <label>رابط الدليل <input dir="ltr" value={form.evidenceUrl} onChange={(event) => setForm({ ...form, evidenceUrl: event.target.value })} /></label>
         <label>نوع الدليل <select value={form.evidenceType} onChange={(event) => setForm({ ...form, evidenceType: event.target.value })}><option value="">حددي نوع الدليل</option>{Object.entries(evidenceTypes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label>ماذا يثبت الدليل؟ <textarea value={form.evidenceTextSummary} onChange={(event) => setForm({ ...form, evidenceTextSummary: event.target.value })} /></label>
+        <label>ملاحظة المراجع <textarea value={form.reviewerNote} onChange={(event) => setForm({ ...form, reviewerNote: event.target.value })} /></label>
+        <label>سبب الاستبعاد <select value={form.rejectionReason} onChange={(event) => setForm({ ...form, rejectionReason: event.target.value })}><option value="">لا يوجد</option>{Object.entries(rejectionReasons).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label>تاريخ الدليل <input type="date" value={form.evidenceDate} onChange={(event) => setForm({ ...form, evidenceDate: event.target.value })} /></label>
         <label>انتهاء الصلاحية أو الإعلان <input type="date" value={form.expiresAt} onChange={(event) => setForm({ ...form, expiresAt: event.target.value })} /></label>
         <label>تخصصات مثبتة بالدليل <input value={form.majors} onChange={(event) => setForm({ ...form, majors: event.target.value })} placeholder="افصلي بفاصلة" /></label>
