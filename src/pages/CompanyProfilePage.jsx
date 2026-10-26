@@ -17,6 +17,13 @@ import { healthHospitalSuggestions } from "../data/healthHospitalSuggestions";
 import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDirectory";
 import { trackEvent } from "../utils/analytics";
 import { setCompanySeo } from "../utils/companySeo";
+import {
+  getStudentContactEmails,
+  getStudentContactLabel,
+  getStudentContactNote,
+  getStudentContactUrl,
+  isStudentContactNameSafe,
+} from "../utils/studentContactDisplay";
 import "./CompaniesPage.css";
 
 const formatDate = (value) => {
@@ -54,6 +61,13 @@ const normalizeCompanyName = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+const matchesCompanyAlias = (name, aliases) =>
+  aliases.some((alias) =>
+    name === alias ||
+    (name.length >= 6 && alias.endsWith(` ${name}`)) ||
+    (alias.length >= 6 && name.endsWith(` ${alias}`))
+  );
+
 const getApplicationSuggestionsForCompany = (company = {}) => {
   const aliases = [company.name, company.nameAr, company.nameEn, ...(company.aliases || [])]
     .map(normalizeCompanyName)
@@ -67,8 +81,10 @@ const getApplicationSuggestionsForCompany = (company = {}) => {
   ];
   const seen = new Set();
   return allSuggestions.filter((item) => {
+    if (!isStudentContactNameSafe(item.name) ||
+      (!getStudentContactEmails(item).length && !getStudentContactUrl(item))) return false;
     const name = normalizeCompanyName(item.name);
-    const matches = name && aliases.some((alias) => name === alias || name.includes(alias) || alias.includes(name));
+    const matches = name && matchesCompanyAlias(name, aliases);
     const key = `${name}|${item.email || (item.emails || [])[0] || item.applicationUrl || item.url || ""}`;
     if (!matches || seen.has(key)) return false;
     seen.add(key);
@@ -183,15 +199,17 @@ function OpportunityCard({ opportunity, logoUrl, onOpen, company }) {
 }
 
 function ApplicationSuggestionCard({ suggestion, company }) {
-  const applicationPath = `/where-to-train?organization=${encodeURIComponent(suggestion.name || company.name)}`;
-  const contactLabel = suggestion.contactType || (suggestion.email || suggestion.emails?.length ? "بريد للتقديم أو التواصل" : "طريقة تقديم من دليل دربك");
+  const email = getStudentContactEmails(suggestion)[0];
+  const url = getStudentContactUrl(suggestion);
+  const note = getStudentContactNote(suggestion);
+  const contactLabel = getStudentContactLabel(suggestion);
   return (
     <article className="company-content-card company-suggestion-card">
-      <div className="company-card-topline"><span className="company-card-icon"><FiBriefcase aria-hidden="true" /></span><small>طريقة تقديم</small></div>
+      <div className="company-card-topline"><span className="company-card-icon"><FiBriefcase aria-hidden="true" /></span><small>{contactLabel}</small></div>
       <h3>{suggestion.name || company.name}</h3>
-      <p>{contactLabel}</p>
-      <em>{suggestion.note || "هذه قناة تقديم أو تواصل من دليل دربك وليست فرصة تدريب منشورة."}</em>
-      <Link className="company-card-link" to={applicationPath}>عرض طريقة التقديم في وين أتدرب <FiArrowLeft aria-hidden="true" /></Link>
+      {email ? <a href={`mailto:${email}`} dir="ltr">{email}</a> : null}
+      {url ? <a className="company-card-link" href={url} target="_blank" rel="noopener noreferrer">فتح البوابة <FiArrowLeft aria-hidden="true" /></a> : null}
+      {note ? <em>{note}</em> : null}
     </article>
   );
 }

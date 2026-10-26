@@ -446,6 +446,7 @@
 .company-application-suggestions h2 { margin: 0; color: var(--app-text); font-size: 18px; }
 .company-application-suggestions > div:first-child > p { margin: 5px 0 0; color: var(--app-muted); font-size: 13px; }
 .company-suggestion-card { min-height: 176px; background: var(--app-input-bg); }
+.company-suggestion-card a { overflow-wrap: anywhere; }
 
 .company-content-card h3 {
   margin: 1px 0 0;

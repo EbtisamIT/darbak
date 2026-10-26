@@ -26,6 +26,13 @@ import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDir
 import { getOrganizationLogoCandidates } from "../data/organizationLogos";
 import { trackEvent } from "../utils/analytics";
 import {
+  getStudentContactEmails,
+  getStudentContactLabel,
+  getStudentContactNote,
+  getStudentContactUrl,
+  isStudentContactNameSafe,
+} from "../utils/studentContactDisplay";
+import {
   getResumeDiscoveryUserState,
   getResumeLandingPath,
   setResumeDiscoveryAttribution,
@@ -1479,25 +1486,21 @@ const getReadableUrlHost = (url = "") => {
 };
 
 const getGuideOrganizationContactPreview = (organization = {}) => {
-  const emails = uniqueEmails([organization.email, ...(organization.emails || [])]);
+  const emails = getStudentContactEmails(organization);
   if (emails.length > 0) {
     return {
-      label: "إيميل التقديم",
+      label: getStudentContactLabel(organization, "email"),
       value: emails[0],
       type: "email",
       sensitive: true,
     };
   }
 
-  const applicationUrl =
-    organization.applicationUrl ||
-    organization.url ||
-    organization.sourceUrl ||
-    resolveOrganizationHomepageUrl(organization.name);
+  const applicationUrl = getStudentContactUrl(organization);
 
   if (applicationUrl) {
     return {
-      label: "رابط التقديم",
+      label: getStudentContactLabel(organization, "url"),
       value: getReadableUrlHost(applicationUrl),
       url: applicationUrl,
       type: "link",
@@ -1506,21 +1509,14 @@ const getGuideOrganizationContactPreview = (organization = {}) => {
   }
 
   return {
-    label: "طريقة التقديم",
-    value: organization.contactType || "تظهر داخل التفاصيل",
+    label: "قناة التواصل",
+    value: "لا توجد قناة منشورة",
     type: "method",
     sensitive: false,
   };
 };
 
-const getGuideOrganizationPublicNote = (organization = {}) => {
-  const note = organization.note || "";
-  const internalSourcePattern = /(مستخرج|مستخلصة|ملخص|مصدر عام|صفحة \d+)/;
-
-  if (note && !internalSourcePattern.test(note)) return note;
-
-  return "تحقق من قناة الجهة الرسمية قبل الإرسال، واستخدم بيانات التواصل كنقطة بداية.";
-};
+const getGuideOrganizationPublicNote = getStudentContactNote;
 
 const getLockedContactPreviewValue = (type = "") =>
   type === "email" ? "apply@••••••.sa" : "متاح بعد دربك+";
@@ -1860,6 +1856,10 @@ export default function TrainingFinderPage() {
       })
       .filter(
         (organization) =>
+          isStudentContactNameSafe(organization.name) &&
+          (!getStudentContactEmails(organization).length && !getStudentContactUrl(organization)
+            ? !organization.email && !(organization.emails || []).length
+            : true) &&
           entityMatchesOrganizationQuery(
             organization,
             normalizedOrganizationQuery
@@ -3052,9 +3052,8 @@ export default function TrainingFinderPage() {
     !canViewGuideContacts &&
     selectedGuideOrganization.isPremiumPreviewLocked !== false;
   const selectedGuideSpecialties = selectedGuideOrganization?.specialties || [];
-  const selectedGuideEmails = isSelectedGuideLocked
-    ? []
-    : selectedGuideOrganization?.emails || [];
+  const selectedGuideEmails = getStudentContactEmails(selectedGuideOrganization);
+  const selectedGuideUrl = getStudentContactUrl(selectedGuideOrganization);
   const isSelectedOpportunityLocked =
     Boolean(selectedOpportunity?.isPremiumPreviewLocked) && !canViewGuideContacts;
 
@@ -3308,7 +3307,7 @@ export default function TrainingFinderPage() {
                 lineHeight: 1.7,
               }}
             >
-              {organization.sector || organization.note}
+              {organization.sector || "جهة مقترحة"}
             </p>
           </div>
         </div>
@@ -3359,28 +3358,6 @@ export default function TrainingFinderPage() {
               {specialtyPreview}
             </strong>
           </p>
-          <p
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: "10px",
-              margin: 0,
-              color: "var(--app-text-soft)",
-              fontSize: "12px",
-              lineHeight: 1.6,
-            }}
-          >
-            <span style={{ color: "var(--app-muted)" }}>التقديم</span>
-            <strong
-              style={{
-                color: "var(--app-text-soft)",
-                fontWeight: "800",
-                textAlign: "left",
-              }}
-            >
-              {organization.applicationWindow || "حسب إعلان الجهة"}
-            </strong>
-          </p>
           <p className="guide-contact-preview-row">
             <span>{contactPreview.label}</span>
             <strong
@@ -3399,7 +3376,7 @@ export default function TrainingFinderPage() {
               <em className="guide-contact-preview-badge">دربك+</em>
             )}
           </p>
-          <p
+          {getGuideOrganizationPublicNote(organization) && <p
             style={{
               margin: 0,
               color: "var(--app-text-soft)",
@@ -3408,7 +3385,7 @@ export default function TrainingFinderPage() {
             }}
           >
             {getGuideOrganizationPublicNote(organization)}
-          </p>
+          </p>}
         </div>
         <div className="finder-card-actions">
           {renderResumeTailorCta({ organization })}
@@ -5142,23 +5119,6 @@ export default function TrainingFinderPage() {
               </button>
             </div>
 
-            <div className="opportunity-detail-meta">
-              <span className="detail-time-chip">
-                متى يفتح:{" "}
-                {selectedGuideOrganization.applicationWindow || "حسب إعلان الجهة"}
-              </span>
-              {selectedGuideOrganization.confidence && (
-                <span className="opportunity-status open">
-                  الموثوقية: {selectedGuideOrganization.confidence}
-                </span>
-              )}
-              {selectedGuideOrganization.lastVerified && (
-                <span className="opportunity-deadline">
-                  آخر تحقق: {selectedGuideOrganization.lastVerified}
-                </span>
-              )}
-            </div>
-
             {selectedGuideSpecialties.length > 0 && (
               <div className="guide-specialties-block">
                 <strong>التخصصات المناسبة</strong>
@@ -5172,9 +5132,11 @@ export default function TrainingFinderPage() {
               </div>
             )}
 
-            <p className="opportunity-detail-note guide-organization-note">
-              {getGuideOrganizationPublicNote(selectedGuideOrganization)}
-            </p>
+            {getGuideOrganizationPublicNote(selectedGuideOrganization) && (
+              <p className="opportunity-detail-note guide-organization-note">
+                {getGuideOrganizationPublicNote(selectedGuideOrganization)}
+              </p>
+            )}
 
             {isSelectedGuideLocked && (
               <PremiumInlineNotice
@@ -5183,7 +5145,7 @@ export default function TrainingFinderPage() {
                 lockedItems={[
                   "إيميل أو رابط التقديم المباشر",
                   "معلومات التواصل مع الجهة",
-                  "مصدر يساعدك تبدأ التقديم",
+                  "رابط الجهة إن توفر",
                 ]}
                 actionLabel="افتح تفاصيل الجهة"
                 onUnlock={() =>
@@ -5206,38 +5168,21 @@ export default function TrainingFinderPage() {
                   <strong>
                     {isSelectedGuideLocked
                       ? "متاحة لمشتركي دربك+"
-                      : selectedGuideOrganization.contactType || "حسب المصدر"}
+                      : selectedGuideEmails.length || selectedGuideUrl
+                      ? getStudentContactLabel(selectedGuideOrganization)
+                      : "لا توجد قناة منشورة"}
                   </strong>
                 </div>
-                <div>
+                {selectedGuideEmails.length > 0 && <div>
                   <span>الإيميل</span>
                   <strong>
-                    {selectedGuideEmails.length > 0
-                      ? selectedGuideEmails.join("، ")
-                      : isSelectedGuideLocked
-                      ? "مقفلة"
-                      : "غير منشور"}
+                    {isSelectedGuideLocked ? "مقفلة" : selectedGuideEmails.join("، ")}
                   </strong>
-                </div>
-                <div>
-                  <span>طريقة الاستخدام</span>
-                  <strong>
-                    {isSelectedGuideLocked
-                      ? "تظهر بعد تفعيل دربك+"
-                      : selectedGuideOrganization.usage ||
-                        "راجع صفحة الجهة الرسمية."}
-                  </strong>
-                </div>
-                <div>
-                  <span>المصدر</span>
-                  <strong>
-                    {isSelectedGuideLocked
-                      ? "رابط المصدر مقفل"
-                      : selectedGuideOrganization.sourceUrl ||
-                        selectedGuideOrganization.url ||
-                        "غير متاح"}
-                  </strong>
-                </div>
+                </div>}
+                {selectedGuideUrl && <div>
+                  <span>رابط التقديم</span>
+                  <strong>{isSelectedGuideLocked ? "مقفل" : getReadableUrlHost(selectedGuideUrl)}</strong>
+                </div>}
               </div>
               {isSelectedGuideLocked && (
                 <span className="premium-preview-blur-label">
@@ -5245,8 +5190,6 @@ export default function TrainingFinderPage() {
                 </span>
               )}
             </div>
-
-            <p className="guide-source-line">معلومات تساعدك تبدأ التقديم</p>
 
             <div className="opportunity-detail-actions">
               <button
@@ -5268,13 +5211,9 @@ export default function TrainingFinderPage() {
                 >
                   فتح معلومات التواصل
                 </button>
-              ) : selectedGuideOrganization.url ||
-                selectedGuideOrganization.sourceUrl ? (
+              ) : selectedGuideUrl ? (
                 <a
-                  href={
-                    selectedGuideOrganization.url ||
-                    selectedGuideOrganization.sourceUrl
-                  }
+                  href={selectedGuideUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ textDecoration: "none" }}
