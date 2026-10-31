@@ -5,6 +5,18 @@ import API_BASE_URL from "../../config/api";
 const endpoint = `${API_BASE_URL}/api/admin/opportunity-candidates/email-network`;
 const labels = { active_opportunity: "فرصة نشطة", evergreen_training: "قناة تدريب دائمة", hr_general: "موارد بشرية عامة", unknown: "غير معروف" };
 const statuses = { verified: "موثق", likely: "مرجح", unverified: "غير موثق", rejected: "مرفوض" };
+export const reviewDisplayStatus = (row) => {
+  const review = row.review;
+  const status = review?.verificationStatus || row.initialStatus;
+  if (status === "verified") {
+    const hasMajor = review?.allMajors || review?.majors?.length > 0;
+    const hasLocation = review?.allSaudi || review?.remote || review?.cities?.length > 0;
+    return hasMajor && hasLocation ? "✅ موثق محدد التخصص والموقع" : "✅ قناة تدريب موثقة عامة";
+  }
+  if (status === "likely") return "🟡 مرجح";
+  if (status === "rejected") return "❌ مستبعد";
+  return statuses.unverified;
+};
 const rejectionReasons = { support_only: "خدمة عملاء فقط", general_contact_only: "تواصل عام فقط", careers_but_no_training_evidence: "توظيف دون دليل تدريب", personal_employee_email: "بريد موظف شخصي", expired_opportunity_only: "إعلان منتهٍ فقط", portal_required: "التقديم عبر بوابة", no_official_evidence: "لا يوجد دليل رسمي" };
 const evidenceTypes = {
   official_training_page: "صفحة تدريب رسمية", official_careers_page: "صفحة توظيف رسمية",
@@ -64,7 +76,7 @@ export default function AutoApplyEmailReview({ password }) {
       {loading && <p role="status">جارٍ تحميل المرشحين...</p>}
       {error && <p className="oi-error" role="alert">{error}</p>}
       {!loading && (data?.data || []).map((row) => <article key={row.key} className="oi-email-candidate">
-        <strong>{row.company}</strong> · <bdi>{row.email}</bdi> · {statuses[row.review?.verificationStatus || row.initialStatus]}
+        <strong>{row.company}</strong> · <bdi>{row.email}</bdi> · {reviewDisplayStatus(row)}
         <p>الغرض المبدئي: {row.detectedPurpose} · {row.hqCity ? `مقر الجهة: ${row.hqCity}` : "مقر الجهة غير معروف"}</p>
         <p>المصادر: {row.sourceNames.join("، ")}</p>
         {row.sourceHints?.length > 0 && <p>ملاحظات المصدر (غير موثقة): {row.sourceHints.join(" · ")}</p>}
