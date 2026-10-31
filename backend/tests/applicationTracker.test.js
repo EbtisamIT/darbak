@@ -78,8 +78,11 @@ assert.deepStrictEqual(ApplicationTracker.schema.indexes().find(([, options]) =>
   assert.ok(first.record.opportunityUrl.includes(String(opportunity._id)));
   assert.strictEqual(first.record.contactEmail, "jobs@example.com");
   assert.strictEqual(first.record.organizationLogoUrl, opportunity.logoUrl);
+  const mailtoOnly = await markApplied(access, { ...opportunity,
+    _id: "507f1f77bcf86cd799439013", applicationMethod: "", applicationEmail: "" }, Model, now);
+  assert.strictEqual(mailtoOnly.record.sourceType, "email", "mailto opportunities are tracked as email applications");
   await markApplied({ ...access, accessUser: { _id: "other-student" } }, opportunity, Model, now);
-  assert.strictEqual(records.size, 2, "Ownership keys are student-scoped");
+  assert.strictEqual(records.size, 3, "Ownership keys are student-scoped");
   const original = { ...ApplicationTracker.collection };
   const methods = ["createIndex", "indexes", "dropIndex"];
   const saved = Object.fromEntries(methods.map((method) => [method, ApplicationTracker.collection[method]]));

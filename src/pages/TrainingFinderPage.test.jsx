@@ -8,12 +8,15 @@ jest.mock("axios", () => ({
   __esModule: true,
   default: { get: jest.fn(), post: jest.fn() },
 }));
+jest.mock("@react-pdf/renderer", () => ({ pdf: jest.fn() }));
+jest.mock("../features/resume/ResumePdfDocument", () => () => null);
 jest.mock("../components/ResumeServicePromo", () => () => null);
 jest.mock("../components/AnimatedCount", () => ({ value }) => <span>{value}</span>);
 jest.mock("../utils/useResumeDiscoveryAccess", () => jest.fn());
 jest.mock("../utils/analytics", () => ({
   trackEvent: jest.fn(),
   trackEventOncePerSession: jest.fn(),
+  getVisitorId: jest.fn(() => "test-visitor"),
 }));
 jest.mock("../utils/opportunityAccess", () => ({
   getOpportunityErrorMessage: () => "تعذر التحميل",
@@ -171,6 +174,55 @@ test("details show only the existing tailored resume path when a resume exists",
   expect(within(dialog).getByRole("button", { name: "خصص سيرتك لهذه الفرصة" })).toBeInTheDocument();
   expect(within(dialog).queryByText(/شاهد سيرتي بدربك/)).not.toBeInTheDocument();
   expect(dialog.querySelectorAll(".opportunity-detail-resume-helper .opportunity-detail-resume-action")).toHaveLength(1);
+});
+
+test("email apply opens Darbak sheet before mail app and tracks only after confirmed sending", async () => {
+  const emailOpportunity = { ...opportunities[0], applicationMethod: "email", applicationUrl: "mailto:apply@example.com" };
+  axios.get.mockImplementation((url) => Promise.resolve({ data: {
+    data: url.endsWith("/api/opportunities") ? [emailOpportunity] : [],
+  } }));
+  requestOpportunityAccess.mockImplementation((detail, onGranted) => onGranted(emailOpportunity));
+  window.localStorage.setItem("darbak_access_identity_v1", JSON.stringify({ contact: "test@example.com", accessCode: "test-code" }));
+  const mailClick = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  renderPage();
+  const card = (await screen.findByText("متدرب تقنية المعلومات")).closest(".opportunity-card");
+  fireEvent.click(within(card).getByRole("button", { name: "تقديم الآن" }));
+  const sheet = await screen.findByRole("dialog", { name: "التقديم عبر البريد" });
+  expect(mailClick).not.toHaveBeenCalled();
+  expect(within(sheet).getByText("apply@example.com")).toBeInTheDocument();
+  expect(within(sheet).getByDisplayValue("التقديم على فرصة التدريب التعاوني – متدرب تقنية المعلومات")).toBeInTheDocument();
+  fireEvent.change(within(sheet).getByRole("textbox", { name: "رسالة مقترحة" }), { target: { value: "رسالة معدلة\nسطر ثان" } });
+  fireEvent.click(within(sheet).getByRole("button", { name: "فتح تطبيق البريد" }));
+  expect(mailClick).toHaveBeenCalledTimes(1);
+  expect(mailClick.mock.instances[0].href).toContain("body=%D8%B1%D8%B3%D8%A7%D9%84%D8%A9");
+  expect(axios.post).not.toHaveBeenCalledWith(expect.stringContaining("/api/application-tracker"), expect.anything(), expect.anything());
+  const confirmation = await screen.findByRole("dialog", { name: "هل أرسلت طلبك؟" });
+  fireEvent.click(within(confirmation).getByRole("button", { name: "ليس بعد" }));
+  expect(screen.queryByRole("dialog", { name: "هل أرسلت طلبك؟" })).not.toBeInTheDocument();
+  expect(axios.post).not.toHaveBeenCalledWith(expect.stringContaining("/api/application-tracker"), expect.anything(), expect.anything());
+  fireEvent.click(within(card).getByRole("button", { name: "تقديم الآن" }));
+  fireEvent.click((await screen.findByRole("dialog", { name: "التقديم عبر البريد" })).querySelector(".email-application-primary"));
+  fireEvent.click((await screen.findByRole("dialog", { name: "هل أرسلت طلبك؟" })).querySelector(".email-application-primary"));
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining("/api/application-tracker"), { opportunityId: "opp-one" }, expect.anything()
+  ));
+  mailClick.mockRestore();
+});
+
+test("invalid email never opens a mail client and offers a safe source link", async () => {
+  const invalidOpportunity = { ...opportunities[0], applicationMethod: "email", applicationUrl: "mailto:not-an-email", sourceUrl: "https://example.com/source" };
+  axios.get.mockImplementation((url) => Promise.resolve({ data: { data: url.endsWith("/api/opportunities") ? [invalidOpportunity] : [] } }));
+  requestOpportunityAccess.mockImplementation((detail, onGranted) => onGranted(invalidOpportunity));
+  const mailClick = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  renderPage();
+  const card = (await screen.findByText("متدرب تقنية المعلومات")).closest(".opportunity-card");
+  fireEvent.click(within(card).getByRole("button", { name: "تقديم الآن" }));
+  const sheet = await screen.findByRole("dialog", { name: "التقديم عبر البريد" });
+  expect(within(sheet).getByRole("alert")).toHaveTextContent("غير صالح");
+  expect(within(sheet).getByRole("link", { name: "عرض مصدر الفرصة" })).toHaveAttribute("href", "https://example.com/source");
+  expect(within(sheet).queryByRole("button", { name: "فتح تطبيق البريد" })).not.toBeInTheDocument();
+  expect(mailClick).not.toHaveBeenCalled();
+  mailClick.mockRestore();
 });
 
 test("search, specialty and city keep the existing request flow", async () => {

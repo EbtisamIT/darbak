@@ -96,7 +96,8 @@ async function markApplied(studentAccess, opportunity, Model = Tracker, now = ne
   const fields = { ...filter, normalizedEmail: studentAccess.email,
     companyName: opportunity.organizationName || "جهة تدريبية", roleTitle: opportunity.title || "",
     city: opportunity.cities?.length ? opportunity.cities.join("، ") : opportunity.city || "",
-    sourceType: opportunity.applicationEmail || opportunity.applicationMethod === "email" ? "email" : "external_link", studentStatus: "applied",
+    sourceType: opportunity.applicationEmail || opportunity.applicationMethod === "email" || /^mailto:/i.test(opportunity.applicationUrl || "")
+      ? "email" : "external_link", studentStatus: "applied",
     organizationLogoUrl: opportunity.logoUrl || opportunity.organizationLogoUrl || "", contactEmail: opportunityContactEmail(opportunity),
     opportunityUrl: `/where-to-train/opportunity/training-opportunity/${opportunity._id}`,
     applicationMethod: opportunity.applicationMethod || "", appliedAt: now, lastUpdatedAt: now,

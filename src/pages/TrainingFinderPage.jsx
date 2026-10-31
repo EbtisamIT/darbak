@@ -12,6 +12,7 @@ import API_BASE_URL from "../config/api";
 import AnimatedCount from "../components/AnimatedCount";
 import ShareButton from "../components/ShareButton";
 import PremiumInlineNotice from "../components/PremiumInlineNotice";
+import EmailApplicationSheet from "../components/EmailApplicationSheet";
 import {
   cityOptions,
   specializationOptions,
@@ -64,6 +65,7 @@ import {
   getSeoSpecialtyBySlug,
 } from "../utils/seoRoutes";
 import { buildTrainingFinderSeoMeta, setPageSeo } from "../utils/seoMetadata";
+import { isEmailApplication } from "../utils/emailApplication";
 import {
   getSearchSummaryKey,
   hasSeenSearchSummary,
@@ -95,6 +97,7 @@ const OPPORTUNITY_TIER_SECTIONS = {
   3: ["فرص أخرى", "استكشف باقي الفرص المتاحة"],
 };
 const TIER_TWO_PAGE_SIZE = 6;
+const PENDING_EMAIL_APPLICATION_KEY = "darbak_pending_email_application_v1";
 const LOCKED_OPPORTUNITY_PREVIEW =
   "هذه معاينة مختصرة للفرصة. فعّل دربك+ للوصول إلى تفاصيل الفرصة وروابط التقديم المباشرة.";
 const WHERE_TO_TRAIN_PREMIUM_TITLE = "باقي تفاصيل الفرص والجهات 👀";
@@ -1613,6 +1616,13 @@ export default function TrainingFinderPage() {
   const [savingApplicationId, setSavingApplicationId] = useState("");
   const [showApplicationTrackerIntro, setShowApplicationTrackerIntro] = useState(false);
   const [applicationTrackerAlreadyExists, setApplicationTrackerAlreadyExists] = useState(false);
+  const [emailApplication, setEmailApplication] = useState(null);
+  const [pendingEmailApplication, setPendingEmailApplication] = useState(() => {
+    try {
+      const pending = JSON.parse(window.sessionStorage.getItem(PENDING_EMAIL_APPLICATION_KEY) || "null");
+      return pending?.id && Date.now() - pending.createdAt < 86400000 ? pending : null;
+    } catch { return null; }
+  });
   const [canViewGuideContacts, setCanViewGuideContacts] = useState(
     () => !isPremiumGateEnabled() || hasCoreAccess()
   );
@@ -2881,7 +2891,7 @@ export default function TrainingFinderPage() {
       return;
     }
 
-    if (!opportunity.applicationUrl && !opportunity.hasApplicationUrl) return;
+    if (!opportunity.applicationUrl && !opportunity.hasApplicationUrl && !isEmailApplication(opportunity)) return;
 
     requestOpportunityAccess(
       {
@@ -2911,6 +2921,11 @@ export default function TrainingFinderPage() {
       },
       async (fullOpportunity) => {
         try {
+          if (isEmailApplication(fullOpportunity)) {
+            setEmailApplication(fullOpportunity);
+            try { trackEvent("email_application_modal_opened", { metadata: { opportunityId } }); } catch { /* Non-blocking telemetry. */ }
+            return;
+          }
           if (!fullOpportunity.applicationUrl) {
             setSelectedOpportunity(null);
             setError("لا يوجد رابط تقديم مباشر لهذه الفرصة حاليًا.");
@@ -2950,14 +2965,14 @@ export default function TrainingFinderPage() {
         title: "سجّل الدخول لإضافة تقديمك",
         source: "where_to_train_application_tracker",
       });
-      return;
+      return false;
     }
     const opportunityId = opportunity?._id || opportunity?.id;
-    if (!opportunityId) return;
+    if (!opportunityId) return false;
     if (appliedOpportunityIds.has(opportunityId)) {
       setApplicationTrackerAlreadyExists(true);
       setShowApplicationTrackerIntro(true);
-      return;
+      return true;
     }
     setSavingApplicationId(opportunityId);
     try {
@@ -2969,11 +2984,39 @@ export default function TrainingFinderPage() {
       setAppliedOpportunityIds((current) => new Set([...current, opportunityId]));
       setApplicationTrackerAlreadyExists(Boolean(data?.alreadyExists));
       setShowApplicationTrackerIntro(true);
+      return true;
     } catch (err) {
       setError(err.response?.data?.error || "تعذر إضافة الفرصة إلى تقديماتك الآن.");
+      return false;
     } finally {
       setSavingApplicationId("");
     }
+  };
+
+  const clearPendingEmailApplication = () => {
+    window.sessionStorage.removeItem(PENDING_EMAIL_APPLICATION_KEY);
+    setPendingEmailApplication(null);
+  };
+
+  const openEmailClient = (opportunity) => {
+    const pending = {
+      id: opportunity._id || opportunity.id || "",
+      organizationName: opportunity.organizationName || "",
+      title: opportunity.title || "",
+      createdAt: Date.now(),
+    };
+    window.sessionStorage.setItem(PENDING_EMAIL_APPLICATION_KEY, JSON.stringify(pending));
+    setPendingEmailApplication(pending);
+    setEmailApplication(null);
+    try { trackEvent("email_app_opened", { metadata: { opportunityId: pending.id } }); } catch { /* Non-blocking telemetry. */ }
+  };
+
+  const confirmEmailApplication = async () => {
+    if (!pendingEmailApplication?.id) return;
+    const saved = await markOpportunityApplied({ _id: pendingEmailApplication.id });
+    if (!saved) return;
+    try { trackEvent("email_application_confirmed_sent", { metadata: { opportunityId: pendingEmailApplication.id } }); } catch { /* Non-blocking telemetry. */ }
+    clearPendingEmailApplication();
   };
 
   const getOpportunityPremiumLockedItems = (opportunity = {}) => {
@@ -4276,7 +4319,8 @@ export default function TrainingFinderPage() {
 
                         {(opportunity.applicationUrl ||
                           opportunity.darbakApplyUrl ||
-                          opportunity.hasApplicationUrl) &&
+                          opportunity.hasApplicationUrl ||
+                          opportunity.applicationMethod === "email") &&
                         applicationState.tone !== "closed" ? (
                           <button
                             type="button"
@@ -5404,7 +5448,7 @@ export default function TrainingFinderPage() {
               </section>
 
               <div className="opportunity-detail-apply">
-                {(selectedOpportunity.applicationUrl || selectedOpportunity.darbakApplyUrl) &&
+                {(selectedOpportunity.applicationUrl || selectedOpportunity.darbakApplyUrl || selectedOpportunity.applicationMethod === "email") &&
                 selectedOpportunityStatus?.tone !== "closed" ? (
                   <button
                     type="button"
@@ -5562,6 +5606,27 @@ export default function TrainingFinderPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {emailApplication && <EmailApplicationSheet
+        opportunity={emailApplication}
+        hasMasterResume={resumeDiscovery.hasMaster}
+        onClose={() => setEmailApplication(null)}
+        onOpenMail={openEmailClient}
+      />}
+
+      {pendingEmailApplication && !emailApplication && (
+        <div className="email-application-overlay" onClick={clearPendingEmailApplication}>
+          <section className="email-application-sheet email-application-confirmation" role="dialog" aria-modal="true" aria-labelledby="email-application-confirm-title" dir="rtl" onClick={(event) => event.stopPropagation()}>
+            <h2 id="email-application-confirm-title">هل أرسلت طلبك؟</h2>
+            <p>فتح تطبيق البريد لا يعني أن الرسالة أُرسلت. أكّد فقط بعد إرسالها بنفسك.</p>
+            {error && <p role="alert">{error}</p>}
+            <div className="email-application-actions">
+              <button type="button" className="email-application-primary" disabled={savingApplicationId === pendingEmailApplication.id} onClick={confirmEmailApplication}>نعم، تم الإرسال</button>
+              <button type="button" onClick={clearPendingEmailApplication}>ليس بعد</button>
+            </div>
+          </section>
         </div>
       )}
 
