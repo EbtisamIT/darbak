@@ -29,8 +29,11 @@ const blank = {
   evidenceTextSummary: "", evidenceDate: "", expiresAt: "", activeOpportunityId: "",
   reviewerNote: "", rejectionReason: "",
   majors: "", cities: "", allMajors: false, allSaudi: false, remote: false,
+  availabilityMode: "", seasonNote: "",
 };
 const formatDate = (value) => value ? String(value).slice(0, 10) : "";
+const outreachLabels = { not_contacted: "لم يتم التواصل", verification_sent: "تم التواصل", waiting_response: "بانتظار الرد", followup_sent: "أرسلت متابعة", verified_from_reply: "موثق برد رسمي", rejected_from_reply: "مستبعد برد رسمي", no_response: "لا يوجد رد" };
+export const verificationMessage = (row) => `السلام عليكم، فريق ${row.company}،\n\nنتواصل من منصة دربك للتحقق من قناة استقبال طلبات التدريب. هل يستقبل البريد ${row.email} طلبات التدريب التعاوني أو التدريب العملي من الطلاب؟ وإذا نعم، هل التقديم متاح طوال العام أم في مواسم محددة؟ وما التخصصات ومدن التدريب أو خيار التدريب عن بُعد، إن كانت محددة؟\n\nهذه رسالة تحقق فقط، ولن نرسل طلبات طلاب قبل تأكيدكم. شكرًا لكم.`;
 const editFrom = (row) => row.review ? {
   ...blank, ...row.review, evidenceDate: formatDate(row.review.evidenceDate), expiresAt: formatDate(row.review.expiresAt),
   majors: (row.review.majors || []).join("، "), cities: (row.review.cities || []).join("، "),
@@ -41,6 +44,7 @@ const split = (value) => String(value || "").split(/[,،\n]/).map((part) => part
 export default function AutoApplyEmailReview({ password }) {
   const [open, setOpen] = useState(false), [page, setPage] = useState(1), [status, setStatus] = useState("");
   const [data, setData] = useState(null), [editing, setEditing] = useState(null), [form, setForm] = useState(blank);
+  const [replying, setReplying] = useState(null), [replyNote, setReplyNote] = useState(""), [replyDecision, setReplyDecision] = useState("pending"), [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false), [saving, setSaving] = useState(false), [error, setError] = useState(""), [reload, setReload] = useState(0);
   useEffect(() => {
     if (!open || !password) return undefined;
@@ -63,6 +67,18 @@ export default function AutoApplyEmailReview({ password }) {
     } catch (failure) { setError(failure.response?.data?.error || "تعذر حفظ المراجعة."); }
     finally { setSaving(false); }
   };
+  const outreach = async (row, action, extra = {}) => {
+    setSaving(true); setError("");
+    try {
+      await axios.post(`${endpoint}/${row.key}/outreach`, { action, ...extra }, { headers: { "x-admin-password": password } });
+      setReplying(null); setReload((value) => value + 1);
+    } catch (failure) { setError(failure.response?.data?.error || "تعذر حفظ متابعة التواصل."); }
+    finally { setSaving(false); }
+  };
+  const copyVerificationMessage = async (row) => {
+    try { await navigator.clipboard.writeText(verificationMessage(row)); setNotice(`نُسخت رسالة التحقق لـ${row.company}. لم تُرسل.`); }
+    catch { setError("تعذر النسخ؛ تحققي من صلاحية الحافظة."); }
+  };
   return <section className="oi-discovery" aria-label="مراجعة قنوات بريد التدريب">
     <button onClick={() => setOpen((value) => !value)} aria-expanded={open}>مراجعة قنوات بريد التدريب</button>
     {open && <div className="oi-email-network">
@@ -71,7 +87,9 @@ export default function AutoApplyEmailReview({ password }) {
         <p>{data.summary.candidateCompanies} جهة مرشحة · {data.summary.candidateEmails} بريد فريد · {data.summary.candidatePairs} جهة/بريد · {data.summary.reviewed} مراجعة محفوظة</p>
         <p>{data.summary.verifiedActive} جهة نشطة موثقة · {data.summary.verifiedEvergreen} جهة دائمة موثقة · {data.summary.verifiedUniqueCompanies} جهة موثقة فريدة</p>
         <p>{data.summary.likely} مرجح · {data.summary.unverified} غير موثق · {data.summary.rejected} مرفوض · {data.summary.evidenceOlderThan12Months} دليل مراجع أقدم من سنة</p>
+        <p>تم التواصل: {data.outreach?.contacted || 0} · بانتظار الرد: {data.outreach?.awaitingResponse || 0} · موثق من رد: {data.outreach?.verifiedFromReplies || 0} · مستبعد من رد: {data.outreach?.rejectedFromReplies || 0} · بلا رد: {data.outreach?.noResponse || 0}</p>
       </div>}
+      {notice && <p role="status">{notice}</p>}
       <label>حالة المراجعة <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">الكل</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       {loading && <p role="status">جارٍ تحميل المرشحين...</p>}
       {error && <p className="oi-error" role="alert">{error}</p>}
@@ -83,9 +101,25 @@ export default function AutoApplyEmailReview({ password }) {
         <p>الدليل المراجع: {row.review?.evidenceTextSummary || "لم يُراجع بعد"} · تاريخ الدليل: {formatDate(row.review?.evidenceDate) || "غير معروف"}</p>
         {row.review?.rejectionReason && <p>سبب الاستبعاد: {rejectionReasons[row.review.rejectionReason]}</p>}
         <p>تخصصات التدريب المثبتة: {row.review?.allMajors ? "جميع التخصصات" : row.review?.majors?.join("، ") || "غير معروفة"} · مدن التدريب المثبتة: {row.review?.allSaudi ? "جميع المدن" : row.review?.cities?.join("، ") || "غير معروفة"}</p>
+        {row.review?.verificationContactedAt && <p>متابعة التحقق: {outreachLabels[row.review.outreachStatus] || outreachLabels.not_contacted} · تواصل: {formatDate(row.review.verificationContactedAt)}{row.review.needsFollowup ? " · يحتاج متابعة" : ""}</p>}
         {row.evidenceUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer">مصدر مرشح</a>)}
         <button type="button" onClick={() => { setEditing(row); setForm(editFrom(row)); }}>مراجعة البريد والدليل</button>
+        {((row.review?.verificationStatus || row.initialStatus) === "likely" || row.review?.verificationContactedAt) && <div className="oi-actions">
+          {(row.review?.verificationStatus || row.initialStatus) === "likely" && <button type="button" onClick={() => copyVerificationMessage(row)}>نسخ رسالة التحقق</button>}
+          {!row.review?.verificationContactedAt && <button type="button" disabled={saving} onClick={() => outreach(row, "mark_contacted")}>تم التواصل</button>}
+          {row.review?.outreachStatus === "verification_sent" && <button type="button" disabled={saving} onClick={() => outreach(row, "mark_waiting")}>بانتظار الرد</button>}
+          {row.review?.verificationContactedAt && !["verified_from_reply", "rejected_from_reply"].includes(row.review.outreachStatus) && <button type="button" onClick={() => { setReplying(row); setReplyNote(row.review?.verificationResponseNote || ""); setReplyDecision("pending"); }}>سجل الرد</button>}
+          {row.review?.needsFollowup && <button type="button" disabled={saving} onClick={() => outreach(row, "mark_followup")}>تم إرسال متابعة واحدة</button>}
+          {row.review?.verificationFollowupAt && !row.review?.verificationRespondedAt && row.review?.outreachStatus !== "no_response" && <button type="button" disabled={saving} onClick={() => outreach(row, "mark_no_response")}>لا يوجد رد</button>}
+        </div>}
       </article>)}
+      {replying && <section className="oi-detail" aria-label="تسجيل رد الجهة">
+        <h3>رد {replying.company}</h3>
+        <p>سجلي الرد هنا، ثم راجعي دليله قبل اعتماد القناة. تسجيل الرد لا يوثق البريد تلقائيًا.</p>
+        <label>خلاصة الرد <textarea value={replyNote} onChange={(event) => setReplyNote(event.target.value)} /></label>
+        <label>نتيجة المراجعة <select value={replyDecision} onChange={(event) => setReplyDecision(event.target.value)}><option value="pending">يحتاج مراجعة الدليل</option><option value="verified">موثق بعد حفظ الدليل الرسمي</option><option value="rejected">مستبعد بعد حفظ السبب</option></select></label>
+        <div className="oi-actions"><button disabled={saving} onClick={() => outreach(replying, "record_response", { note: replyNote, decision: replyDecision })}>حفظ الرد</button><button onClick={() => setReplying(null)}>إغلاق</button></div>
+      </section>}
       {data && <nav className="oi-actions" aria-label="صفحات قنوات البريد"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</button><span>{page} / {Math.max(1, data.pages)}</span><button disabled={page >= data.pages} onClick={() => setPage(page + 1)}>التالي</button></nav>}
       {editing && <section className="oi-detail" aria-label="تحرير قناة البريد"><h3>{editing.company} · <bdi>{editing.email}</bdi></h3>
         <p>أدخلي فقط التخصصات ومدن التدريب التي يذكرها الدليل صراحة. مدينة المقر لا تنتقل تلقائيًا.</p>
@@ -97,6 +131,8 @@ export default function AutoApplyEmailReview({ password }) {
         <label>سبب الاستبعاد <select value={form.rejectionReason} onChange={(event) => setForm({ ...form, rejectionReason: event.target.value })}><option value="">لا يوجد</option>{Object.entries(rejectionReasons).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label>تاريخ الدليل <input type="date" value={form.evidenceDate} onChange={(event) => setForm({ ...form, evidenceDate: event.target.value })} /></label>
         <label>انتهاء الصلاحية أو الإعلان <input type="date" value={form.expiresAt} onChange={(event) => setForm({ ...form, expiresAt: event.target.value })} /></label>
+        <label>توفر التدريب <select value={form.availabilityMode || ""} onChange={(event) => setForm({ ...form, availabilityMode: event.target.value })}><option value="">غير معروف</option><option value="evergreen">طوال العام</option><option value="seasonal">موسمي</option></select></label>
+        <label>ملاحظة الموسم <input value={form.seasonNote || ""} onChange={(event) => setForm({ ...form, seasonNote: event.target.value })} /></label>
         <label>تخصصات مثبتة بالدليل <input value={form.majors} onChange={(event) => setForm({ ...form, majors: event.target.value })} placeholder="افصلي بفاصلة" /></label>
         <label><input type="checkbox" checked={form.allMajors} onChange={(event) => setForm({ ...form, allMajors: event.target.checked })} />الدليل ينص على جميع التخصصات</label>
         <label>مدن التدريب المثبتة <input value={form.cities} onChange={(event) => setForm({ ...form, cities: event.target.value })} placeholder="افصلي بفاصلة" /></label>

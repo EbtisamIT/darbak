@@ -5,11 +5,13 @@ const Opportunity = require("../models/Opportunity");
 const OpportunityCandidate = require("../models/OpportunityCandidate");
 const OpportunityEmailLead = require("../models/OpportunityEmailLead");
 const Experience = require("../models/Experience");
+const InterviewQuestion = require("../models/InterviewQuestion");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
 const Channel = require("../models/AutoApplyEmailChannel");
 const staticRows = require("../data/autoApplyStaticEmailCandidates.json");
 const { candidateKey, uniqueCandidates, validateReview, coverage, coverageBreakdown } = require("./autoApplyEmailNetwork");
 const { normalizeCompanyComparable } = require("./companyDirectorySeeds");
+const { needsFollowup, outreachUpdate, outreachCounters } = require("./autoApplyVerificationOutreach");
 
 const emailFromUrl = (value) => {
   const text = String(value || "").trim();
@@ -46,27 +48,29 @@ async function inventory() {
 
   // Review priority only. These signals never verify an inbox or establish eligibility.
   const since = new Date(Date.now() - 90 * 86400000);
-  const [companyTraffic, opportunityTraffic, searchTraffic, experienceCounts] = await Promise.all([
+  const [companyTraffic, opportunityTraffic, searchTraffic, experienceCounts, interviewCounts] = await Promise.all([
     AnalyticsEvent.aggregate([{ $match: { eventName: "company_page_viewed", createdAt: { $gte: since }, "metadata.companySlug": { $type: "string" } } }, { $group: { _id: "$metadata.companySlug", views: { $sum: 1 } } }]),
     AnalyticsEvent.aggregate([{ $match: { eventName: "opportunity_detail_viewed", createdAt: { $gte: since }, "metadata.opportunityId": { $type: "string" } } }, { $group: { _id: "$metadata.opportunityId", views: { $sum: 1 } } }]),
     AnalyticsEvent.aggregate([{ $match: { eventName: "where_to_train_search", createdAt: { $gte: since }, searchQuery: { $type: "string" } } }, { $group: { _id: "$searchQuery", searches: { $sum: 1 } } }]),
     Experience.aggregate([{ $match: { status: "approved", companyId: { $ne: null } } }, { $group: { _id: "$companyId", count: { $sum: 1 } } }]),
+    InterviewQuestion.aggregate([{ $match: { status: "approved", companyId: { $ne: null } } }, { $group: { _id: "$companyId", count: { $sum: 1 } } }]),
   ]);
   const companyViews = new Map(companyTraffic.map((row) => [row._id, row.views]));
   const opportunityViews = new Map(opportunityTraffic.map((row) => [row._id, row.views]));
   const searchedCompanies = new Map(searchTraffic.map((row) => [normalizeCompanyComparable(row._id), row.searches]));
   const experiences = new Map(experienceCounts.map((row) => [String(row._id), row.count]));
+  const interviews = new Map(interviewCounts.map((row) => [String(row._id), row.count]));
   const data = merged.map((candidate) => {
     const review = reviewByKey.get(candidate.key);
     const company = companyById.get(String(candidate.companyId || ""));
-    const score = (candidate.hqCity === "الرياض" ? 1000 : 0)
-      + Math.min(200, companyViews.get(company?.slug) || 0)
-      + Math.min(120, opportunityViews.get(String(candidate.opportunityId || "")) || 0)
-      + Math.min(80, searchedCompanies.get(candidate.companyNormalized) || 0)
-      + ((candidate.priorityMajors || []).some((major) => /حساب|معلومات|تقني|بيانات|برمج|ذكاء|سيبران/i.test(major)) ? 40 : 0)
-      + ((candidate.priorityMajors || []).some((major) => /محاسب|مالي|تمويل/i.test(major)) ? 30 : 0)
-      + (experiences.has(String(candidate.companyId || "")) ? 20 : 0)
-      + (candidate.detectedPurpose === "training" ? 10 : candidate.detectedPurpose === "careers" ? 5 : 0);
+    const traffic = Math.min(10000, (companyViews.get(company?.slug) || 0) +
+      (opportunityViews.get(String(candidate.opportunityId || "")) || 0) + (searchedCompanies.get(candidate.companyNormalized) || 0));
+    const hasContribution = experiences.has(String(candidate.companyId || "")) || interviews.has(String(candidate.companyId || ""));
+    const score = traffic * 100000000 + (hasContribution ? 10000000 : 0) +
+      (candidate.hqCity === "الرياض" ? 1000000 : 0) +
+      ((candidate.priorityMajors || []).some((major) => /معلومات|تقني|بيانات|برمج|ذكاء|سيبران/i.test(major)) ? 100000 : 0) +
+      ((candidate.priorityMajors || []).some((major) => /محاسب|مالي|تمويل|إدارة|أعمال/i.test(major)) ? 10000 : 0) +
+      (candidate.detectedPurpose === "training" ? 1000 : candidate.detectedPurpose === "careers" ? 500 : candidate.detectedPurpose === "hr" ? 250 : 0);
     return { ...candidate, review: review ? {
       channelType: review.channelType, verificationStatus: review.verificationStatus,
       acceptsTrainingApplications: review.acceptsTrainingApplications, majors: review.majors, allMajors: review.allMajors,
@@ -74,7 +78,10 @@ async function inventory() {
       evidenceUrl: review.evidenceUrl, evidenceType: review.evidenceType, evidenceTextSummary: review.evidenceTextSummary,
       evidenceDate: review.evidenceDate, verifiedAt: review.verifiedAt, expiresAt: review.expiresAt,
       reviewerNote: review.reviewerNote, rejectionReason: review.rejectionReason,
-      activeOpportunityId: review.activeOpportunityId,
+      activeOpportunityId: review.activeOpportunityId, availabilityMode: review.availabilityMode, seasonNote: review.seasonNote,
+      outreachStatus: review.outreachStatus || "not_contacted", verificationContactedAt: review.verificationContactedAt,
+      verificationFollowupAt: review.verificationFollowupAt, verificationRespondedAt: review.verificationRespondedAt,
+      verificationResponseNote: review.verificationResponseNote, needsFollowup: needsFollowup(review),
     } : null, priorityScore: score };
   }).sort((a, b) => b.priorityScore - a.priorityScore || a.company.localeCompare(b.company, "ar") || a.email.localeCompare(b.email));
   return { data, reviews };
@@ -93,6 +100,7 @@ function createAutoApplyEmailNetworkRouter() {
       const verifiedActive = eligible.filter((row) => row.channelType === "active_opportunity");
       const verifiedEvergreen = eligible.filter((row) => row.channelType === "evergreen_training");
       res.json({ data: filtered.slice((page - 1) * limit, page * limit), page, pages: Math.ceil(filtered.length / limit), total: filtered.length,
+        outreach: outreachCounters(reviews.filter((row) => row.verificationStatus === "likely" || row.verificationContactedAt)),
         summary: { candidateCompanies: new Set(data.map((row) => row.companyNormalized)).size, candidateEmails: new Set(data.map((row) => row.email)).size,
           candidatePairs: data.length, reviewed: reviews.length, verifiedActive: new Set(verifiedActive.map((row) => String(row.companyId || row.companyNormalized))).size,
           verifiedEvergreen: new Set(verifiedEvergreen.map((row) => String(row.companyId || row.companyNormalized))).size,
@@ -110,7 +118,8 @@ function createAutoApplyEmailNetworkRouter() {
       const { data } = await inventory();
       const candidate = data.find((row) => row.key === req.params.key);
       if (!candidate) return res.status(404).json({ error: "مرشح البريد غير موجود." });
-      const update = validateReview(req.body, candidate);
+      const existing = await Channel.findOne({ companyNormalized: candidate.companyNormalized, email: candidate.email }).lean();
+      const update = validateReview(req.body, { ...candidate, verificationRespondedAt: existing?.verificationRespondedAt, verificationResponseNote: existing?.verificationResponseNote });
       if (update.activeOpportunityId && !mongoose.isObjectIdOrHexString(update.activeOpportunityId)) return res.status(400).json({ error: "معرف الفرصة غير صالح." });
       if (update.activeOpportunityId) {
         const opportunity = await Opportunity.findById(update.activeOpportunityId).select("status deadline applicationMethod applicationUrl").lean();
@@ -122,6 +131,22 @@ function createAutoApplyEmailNetworkRouter() {
       await Channel.findOneAndUpdate({ companyNormalized: candidate.companyNormalized, email: candidate.email },
         { $set: { ...update, company: candidate.company, companyNormalized: candidate.companyNormalized, email: candidate.email,
           companyId: candidate.companyId || null, sourceNames: candidate.sourceNames } }, { upsert: true, new: true, runValidators: true });
+      res.json({ saved: true });
+    } catch (error) { res.status(error.code === 11000 ? 409 : 400).json({ error: error.code === 11000 ? "القناة مسجلة مسبقًا؛ حدّثي القائمة." : error.message }); }
+  });
+  router.post("/:key/outreach", async (req, res) => {
+    try {
+      const { data } = await inventory();
+      const candidate = data.find((row) => row.key === req.params.key);
+      if (!candidate) return res.status(404).json({ error: "مرشح البريد غير موجود." });
+      const existing = await Channel.findOne({ companyNormalized: candidate.companyNormalized, email: candidate.email }).lean();
+      if ((existing?.verificationStatus || candidate.initialStatus) !== "likely" && !existing?.verificationContactedAt) return res.status(400).json({ error: "المتابعة مخصصة للقنوات المرجحة فقط." });
+      const update = outreachUpdate(existing || { outreachStatus: "not_contacted" }, req.body?.action, req.body);
+      await Channel.findOneAndUpdate({ companyNormalized: candidate.companyNormalized, email: candidate.email },
+        { $set: { ...update, company: candidate.company, companyNormalized: candidate.companyNormalized, email: candidate.email,
+          companyId: candidate.companyId || null, sourceNames: candidate.sourceNames },
+        $setOnInsert: { verificationStatus: "likely", channelType: "unknown" } },
+        { upsert: true, new: true, runValidators: true });
       res.json({ saved: true });
     } catch (error) { res.status(error.code === 11000 ? 409 : 400).json({ error: error.code === 11000 ? "القناة مسجلة مسبقًا؛ حدّثي القائمة." : error.message }); }
   });

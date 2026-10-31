@@ -48,6 +48,9 @@ function validateReview(input, candidate, now = new Date()) {
   const evidenceUrl = String(input.evidenceUrl || "").trim();
   const evidenceTextSummary = String(input.evidenceTextSummary || "").trim();
   const reviewerNote = String(input.reviewerNote || "").trim();
+  const availabilityMode = String(input.availabilityMode || "");
+  const seasonNote = String(input.seasonNote || "").trim();
+  if (!["", "evergreen", "seasonal"].includes(availabilityMode) || seasonNote.length > 300) throw new Error("نمط توفر التدريب غير صالح.");
   const rejectionReason = String(input.rejectionReason || "").trim();
   if (evidenceTextSummary.length > 1000) throw new Error("ملخص الدليل طويل جدًا.");
   if (reviewerNote.length > 500 || (rejectionReason && !REJECTION_REASONS.includes(rejectionReason))) throw new Error("سبب المراجعة غير صالح.");
@@ -68,7 +71,8 @@ function validateReview(input, candidate, now = new Date()) {
   let acceptsTrainingApplications = false;
   if (input.verificationStatus === "verified") {
     if (blockedInbox(email)) throw new Error("البريد العام أو خدمة العملاء غير صالح للتقديم التلقائي.");
-    if (!evidenceUrl || !evidenceTextSummary || !evidenceType || !evidenceDate) throw new Error("توثيق القناة يتطلب رابطًا وملخصًا ونوعًا وتاريخًا للدليل.");
+    if ((!evidenceUrl && evidenceType !== "official_company_reply") || !evidenceTextSummary || !evidenceType || !evidenceDate) throw new Error("توثيق القناة يتطلب دليلًا وملخصًا ونوعًا وتاريخًا.");
+    if (evidenceType === "official_company_reply" && (!candidate.verificationRespondedAt || !candidate.verificationResponseNote)) throw new Error("سجلي الرد الرسمي في متابعة التواصل قبل توثيق القناة.");
     if (evidenceDate > now) throw new Error("تاريخ الدليل في المستقبل.");
     if (input.channelType === "active_opportunity") {
       if (evidenceType !== "official_training_announcement") throw new Error("القناة النشطة تتطلب إعلان تدريب رسميًا حاليًا.");
@@ -90,6 +94,7 @@ function validateReview(input, candidate, now = new Date()) {
     evidenceDate, expiresAt, verifiedAt: acceptsTrainingApplications ? now : null, reviewerNote,
     rejectionReason: input.verificationStatus === "rejected" ? rejectionReason : "",
     activeOpportunityId: input.channelType === "active_opportunity" && input.activeOpportunityId ? input.activeOpportunityId : null,
+    availabilityMode, seasonNote,
   };
 }
 

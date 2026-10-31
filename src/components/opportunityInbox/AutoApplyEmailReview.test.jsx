@@ -1,4 +1,4 @@
-import { reviewDisplayStatus } from "./AutoApplyEmailReview";
+import { reviewDisplayStatus, verificationMessage } from "./AutoApplyEmailReview";
 
 jest.mock("axios", () => ({ get: jest.fn(), post: jest.fn() }));
 
@@ -15,5 +15,12 @@ describe("Auto Apply email review labels", () => {
   test("keeps likely and rejected channels visibly distinct", () => {
     expect(reviewDisplayStatus({ initialStatus: "likely" })).toBe("🟡 مرجح");
     expect(reviewDisplayStatus({ review: { verificationStatus: "rejected" } })).toBe("❌ مستبعد");
+  });
+
+  test("builds a company-specific verification message without sending it", () => {
+    const message = verificationMessage({ company: "جهة اختبار", email: "training@example.org" });
+    expect(message).toContain("جهة اختبار");
+    expect(message).toContain("training@example.org");
+    expect(message).toContain("التخصصات ومدن التدريب");
   });
 });

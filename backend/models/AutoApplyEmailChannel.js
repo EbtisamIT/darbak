@@ -22,6 +22,13 @@ const schema = new mongoose.Schema({
   evidenceDate: { type: Date, default: null },
   expiresAt: { type: Date, default: null },
   activeOpportunityId: { type: mongoose.Schema.Types.ObjectId, ref: "opportunities", default: null },
+  availabilityMode: { type: String, enum: ["", "evergreen", "seasonal"], default: "" },
+  seasonNote: { type: String, default: "", maxlength: 300 },
+  outreachStatus: { type: String, enum: ["not_contacted", "verification_sent", "waiting_response", "followup_sent", "verified_from_reply", "rejected_from_reply", "no_response"], default: "not_contacted" },
+  verificationContactedAt: { type: Date, default: null },
+  verificationFollowupAt: { type: Date, default: null },
+  verificationRespondedAt: { type: Date, default: null },
+  verificationResponseNote: { type: String, default: "", maxlength: 1000 },
   sourceNames: { type: [String], default: [] },
 }, { timestamps: true });
 
