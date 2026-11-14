@@ -1023,6 +1023,7 @@ const opportunityAutoExpireLabels = {
   page_closed: "صفحة التقديم تقول إن التقديم مغلق",
   page_missing: "رابط التقديم لم يعد موجودًا",
   stale_unverified: "بدون موعد إغلاق ولم يتأكد الفحص أنها ما زالت مفتوحة",
+  student_reports: "بلّغ عنها أكثر من طالب إنها منتهية",
 };
 
 // Result of the automatic link check (backend/services/opportunityFreshness.js).
@@ -1036,7 +1037,15 @@ const getOpportunityFreshnessNote = (opportunity = {}) => {
       } · ${formatAdminDateTime(freshness.autoExpiredAt)}. لو ما زالت مفتوحة رجّعها نشطة.`,
     };
   }
-  if (opportunity.status !== "active" || !freshness.lastCheckedAt) return null;
+  if (opportunity.status !== "active") return null;
+  const reportCount = (freshness.closedReports || []).length;
+  if (reportCount > 0) {
+    return {
+      tone: "draft",
+      text: `بلّغ ${reportCount === 1 ? "طالب" : `${reportCount} طلاب`} إنها منتهية، وبتنفحص قريبًا، وتنقفل تلقائيًا إذا تكررت البلاغات.`,
+    };
+  }
+  if (!freshness.lastCheckedAt) return null;
   const checkedAt = formatAdminDateTime(freshness.lastCheckedAt);
   if (freshness.lastResult === "open") {
     return { tone: "open", text: `رابط التقديم شغّال · آخر فحص ${checkedAt}` };

@@ -132,6 +132,18 @@ const opportunitySchema = new mongoose.Schema(
       autoExpiredAt: { type: Date, default: null },
       autoExpiredReason: { type: String, default: "" },
       adminKeptAt: { type: Date, default: null },
+      // Student "الفرصة منتهية؟" reports (hashed reporter keys only).
+      closedReports: {
+        type: [
+          {
+            _id: false,
+            visitorKey: { type: String, default: "" },
+            ipKey: { type: String, default: "" },
+            at: { type: Date },
+          },
+        ],
+        default: [],
+      },
     },
   },
   { timestamps: true }

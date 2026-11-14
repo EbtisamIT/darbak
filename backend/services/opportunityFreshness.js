@@ -1,6 +1,7 @@
 // Keeps published opportunities fresh without manual review: most have no
 // deadline, so we periodically re-open their application link and close the
 // ones whose page is gone or says applications are closed.
+const crypto = require("crypto");
 const { pinnedRequest } = require("./opportunityDiscovery/http");
 const { CLOSED, text } = require("./opportunityDiscovery/extract");
 
@@ -22,6 +23,9 @@ const getFreshnessConfig = (env = process.env) => ({
   adminKeepDays: readNumber(env.OPPORTUNITY_ADMIN_KEEP_DAYS, 30),
   // Consecutive "closed" checks (≥ recheckAfterHours apart) before closing.
   closedChecksToExpire: readNumber(env.OPPORTUNITY_CLOSED_CHECKS_TO_EXPIRE, 2),
+  // Distinct student reports ("الفرصة منتهية؟") within the window that close it.
+  reportsToExpire: readNumber(env.OPPORTUNITY_REPORTS_TO_EXPIRE, 3),
+  reportWindowDays: readNumber(env.OPPORTUNITY_REPORT_WINDOW_DAYS, 14),
   batchSize: readNumber(env.OPPORTUNITY_FRESHNESS_BATCH_SIZE, 40),
   concurrency: readNumber(env.OPPORTUNITY_FRESHNESS_CONCURRENCY, 3),
   timeoutMs: readNumber(env.OPPORTUNITY_FRESHNESS_TIMEOUT_MS, 8000),
@@ -31,7 +35,9 @@ const AUTO_EXPIRE_REASONS = {
   PAGE_CLOSED: "page_closed",
   PAGE_MISSING: "page_missing",
   STALE_UNVERIFIED: "stale_unverified",
+  STUDENT_REPORTS: "student_reports",
 };
+const MAX_STORED_REPORTS = 20;
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECTS = 4;
@@ -189,7 +195,61 @@ const getAdminReactivationFreshness = (existing, nextStatus, now = new Date()) =
     "freshness.closedStreak": 0,
     "freshness.autoExpiredAt": null,
     "freshness.autoExpiredReason": "",
+    "freshness.closedReports": [],
   };
+};
+
+// Reports store only short one-way hashes, never the raw visitor id or IP.
+const hashReporter = (value, salt = process.env.OPPORTUNITY_REPORT_SALT || "darbak-closed-report") => {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return crypto.createHash("sha256").update(`${salt}:${text}`).digest("hex").slice(0, 24);
+};
+
+const getReportClientIp = (req = {}) => {
+  const header = (name) => String(req.headers?.[name] || "").trim();
+  return header("cf-connecting-ip") || header("x-forwarded-for").split(",")[0].trim() || req.ip || "";
+};
+
+// A student says this opportunity is closed. Pure decision; the route saves it.
+const decideClosedReport = (
+  opportunity = {},
+  { visitorKey = "", ipKey = "" } = {},
+  { now = new Date(), config = getFreshnessConfig() } = {}
+) => {
+  if (!visitorKey) return { accepted: false, reason: "MISSING_REPORTER" };
+  const nowTime = now.getTime();
+  const previous = opportunity.freshness || {};
+  const adminKeptTime = toTime(previous.adminKeptAt);
+  const keptByAdmin =
+    !Number.isNaN(adminKeptTime) && nowTime - adminKeptTime < config.adminKeepDays * DAY_MS;
+  // Reports older than the window, or made before an admin reopened it, no longer count.
+  const recentReports = (previous.closedReports || []).filter((report) => {
+    const at = toTime(report?.at);
+    if (Number.isNaN(at) || nowTime - at > config.reportWindowDays * DAY_MS) return false;
+    return Number.isNaN(adminKeptTime) || at > adminKeptTime;
+  });
+
+  const duplicate = recentReports.some(
+    (report) => report.visitorKey === visitorKey || (ipKey && report.ipKey === ipKey)
+  );
+  if (duplicate) {
+    return { accepted: false, reason: "ALREADY_REPORTED", reportCount: recentReports.length };
+  }
+
+  const reports = [...recentReports, { visitorKey, ipKey, at: now }].slice(-MAX_STORED_REPORTS);
+  const expire = !keptByAdmin && reports.length >= config.reportsToExpire;
+  const set = {
+    "freshness.closedReports": reports,
+    // Moves it to the front of the next link-check batch.
+    "freshness.lastCheckedAt": null,
+  };
+  if (expire) {
+    set.status = "expired";
+    set["freshness.autoExpiredAt"] = now;
+    set["freshness.autoExpiredReason"] = AUTO_EXPIRE_REASONS.STUDENT_REPORTS;
+  }
+  return { accepted: true, expire, reportCount: reports.length, set };
 };
 
 const runWithConcurrency = async (items, limit, worker) => {
@@ -271,5 +331,8 @@ module.exports = {
   checkOpportunityLink,
   decideOpportunityFreshness,
   getAdminReactivationFreshness,
+  hashReporter,
+  getReportClientIp,
+  decideClosedReport,
   runOpportunityFreshnessSweep,
 };

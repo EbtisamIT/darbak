@@ -8,6 +8,9 @@ const {
   checkOpportunityLink,
   decideOpportunityFreshness,
   getAdminReactivationFreshness,
+  hashReporter,
+  getReportClientIp,
+  decideClosedReport,
   runOpportunityFreshnessSweep,
 } = require("../services/opportunityFreshness");
 
@@ -126,11 +129,55 @@ async function main() {
     "freshness.closedStreak": 0,
     "freshness.autoExpiredAt": null,
     "freshness.autoExpiredReason": "",
+    "freshness.closedReports": [],
   });
   assert.equal(getAdminReactivationFreshness({ status: "expired", freshness: {} }, "active", now), null, "manually expired ones are not affected");
   assert.equal(getAdminReactivationFreshness({ status: "active", freshness: { autoExpiredAt: daysAgo(1) } }, "active", now), null);
   assert.equal(getAdminReactivationFreshness({ status: "expired", freshness: { autoExpiredAt: daysAgo(1) } }, "draft", now), null);
   assert.equal(getAdminReactivationFreshness(null, "active", now), null);
+
+  // Student "الفرصة منتهية؟" reports.
+  assert.equal(hashReporter(""), "");
+  assert.equal(hashReporter("visitor-1"), hashReporter("visitor-1"));
+  assert.notEqual(hashReporter("visitor-1"), hashReporter("visitor-2"));
+  assert.ok(!hashReporter("10.0.0.1").includes("10.0.0.1"), "raw values are never stored");
+  assert.equal(getReportClientIp({ headers: { "cf-connecting-ip": "1.1.1.1", "x-forwarded-for": "2.2.2.2" } }), "1.1.1.1");
+  assert.equal(getReportClientIp({ headers: { "x-forwarded-for": "3.3.3.3, 10.0.0.1" } }), "3.3.3.3");
+  assert.equal(getReportClientIp({ headers: {}, ip: "4.4.4.4" }), "4.4.4.4");
+
+  const report = (opportunity, visitorKey, ipKey, at = now) => decideClosedReport(opportunity, { visitorKey, ipKey }, { now: at, config });
+  assert.deepEqual(report({}, "", "ip"), { accepted: false, reason: "MISSING_REPORTER" });
+  const first = report({ freshness: {} }, "v1", "ip1");
+  assert.equal(first.accepted, true);
+  assert.equal(first.expire, false);
+  assert.equal(first.set["freshness.lastCheckedAt"], null, "a report moves it to the front of the next check");
+  assert.equal(first.set.status, undefined);
+  // Same student or same network does not count twice.
+  const withOne = { freshness: { closedReports: first.set["freshness.closedReports"] } };
+  assert.equal(report(withOne, "v1", "ip9").reason, "ALREADY_REPORTED");
+  assert.equal(report(withOne, "v9", "ip1").reason, "ALREADY_REPORTED");
+  const second = report(withOne, "v2", "ip2");
+  assert.equal(second.expire, false);
+  const third = report({ freshness: { closedReports: second.set["freshness.closedReports"] } }, "v3", "ip3");
+  assert.equal(third.expire, true, "three distinct students close it");
+  assert.equal(third.set.status, "expired");
+  assert.equal(third.set["freshness.autoExpiredReason"], AUTO_EXPIRE_REASONS.STUDENT_REPORTS);
+  // Old reports fall out of the 14-day window.
+  const oldReports = [{ visitorKey: "v1", ipKey: "ip1", at: daysAgo(20) }, { visitorKey: "v2", ipKey: "ip2", at: daysAgo(15) }];
+  const afterOld = report({ freshness: { closedReports: oldReports } }, "v3", "ip3");
+  assert.equal(afterOld.expire, false);
+  assert.equal(afterOld.reportCount, 1);
+  assert.equal(report({ freshness: { closedReports: oldReports } }, "v1", "ip1").accepted, true, "an old report does not block a new one");
+  // Reports made before an admin reopened it no longer count, and the admin's keep window wins.
+  const beforeReopen = [{ visitorKey: "v1", ipKey: "ip1", at: daysAgo(3) }, { visitorKey: "v2", ipKey: "ip2", at: daysAgo(3) }];
+  const keptReport = report({ freshness: { closedReports: beforeReopen, adminKeptAt: daysAgo(2) } }, "v3", "ip3");
+  assert.equal(keptReport.reportCount, 1);
+  assert.equal(keptReport.expire, false);
+  const keptReports = [{ visitorKey: "v1", ipKey: "ip1", at: daysAgo(1) }, { visitorKey: "v2", ipKey: "ip2", at: daysAgo(1) }];
+  assert.equal(report({ freshness: { closedReports: keptReports, adminKeptAt: daysAgo(2) } }, "v3", "ip3").expire, false, "admin keep window blocks report closing");
+  // Stored reports are capped.
+  const many = Array.from({ length: 25 }, (_, i) => ({ visitorKey: `m${i}`, ipKey: `mi${i}`, at: daysAgo(1) }));
+  assert.equal(report({ freshness: { closedReports: many, adminKeptAt: daysAgo(1.5) } }, "new", "newip").set["freshness.closedReports"].length, 20);
 
   // Sweep: picks a batch, checks it and only updates still-active documents.
   const docs = [

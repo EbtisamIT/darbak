@@ -26,6 +26,7 @@ import { healthHospitalSuggestions } from "../data/healthHospitalSuggestions";
 import { trainingInteractiveOrganizations } from "../data/trainingInteractiveDirectory";
 import { getOrganizationLogoCandidates } from "../data/organizationLogos";
 import { trackEvent } from "../utils/analytics";
+import OpportunityClosedReport from "../components/OpportunityClosedReport";
 import {
   getStudentContactEmails,
   getStudentContactLabel,
@@ -5524,6 +5525,10 @@ export default function TrainingFinderPage() {
                   }
                 />
               </div>
+
+              {selectedOpportunityStatus?.tone !== "closed" && (
+                <OpportunityClosedReport opportunity={selectedOpportunity} />
+              )}
             </div>
           </div>
         </div>
