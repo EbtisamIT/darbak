@@ -1,5 +1,6 @@
+import { toCanonicalUrl } from "./seoPages.mjs";
+
 const SITE_NAME = "منصة دربك";
-const SITE_ORIGIN = "https://darbak.space";
 
 const setMetaAttribute = (selector, attribute, value) => {
   if (typeof document === "undefined" || !value) return;
@@ -18,8 +19,7 @@ export const setPageSeo = ({
 } = {}) => {
   if (typeof document === "undefined") return;
 
-  const normalizedPath = path === "/" ? "/" : path.replace(/\/+$/, "");
-  const canonicalUrl = `${SITE_ORIGIN}${normalizedPath}`;
+  const canonicalUrl = toCanonicalUrl(path);
   const pageTitle = title ? `${title} | ${SITE_NAME}` : SITE_NAME;
 
   document.title = pageTitle;

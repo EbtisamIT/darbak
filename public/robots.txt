@@ -3,4 +3,4 @@ User-agent: *
 Disallow:
 
 Sitemap: https://darbak.space/sitemap.xml
-Sitemap: https://darbak-api.onrender.com/sitemap-companies.xml
+Sitemap: https://darbak.space/sitemap-pages.xml

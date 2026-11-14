@@ -28,6 +28,7 @@ import {
   getSeoSpecialtyBySlug,
 } from "../utils/seoRoutes";
 import { buildExperiencesSeoMeta, setPageSeo } from "../utils/seoMetadata";
+import { buildExperienceSeo } from "../utils/seoPages.mjs";
 
 const EXPERIENCES_CACHE_KEY = "darbak_experiences_cache_v2";
 const INITIAL_VISIBLE_COUNT = 36;
@@ -644,6 +645,13 @@ const ExperiencesPage = () => {
     };
   }, []);
 
+  const routeExperienceSeoSource = routeExperienceId
+    ? experiences.find((item) => item._id === routeExperienceId)
+    : null;
+  const routeExperienceSeoKey = routeExperienceSeoSource
+    ? JSON.stringify(buildExperienceSeo(routeExperienceSeoSource))
+    : "";
+
   useEffect(() => {
     if (!selectedExperienceLocked) {
       setLockedSubscriptionState(null);
@@ -662,6 +670,15 @@ const ExperiencesPage = () => {
   }, [selectedExperienceLocked, selectedExperienceId]);
 
   useEffect(() => {
+    // A direct experience link keeps its own title and canonical URL, even when
+    // the visitor (or a crawler) has no access to the full experience details.
+    if (routeExperienceId) {
+      // Not loaded yet: keep the prerendered head (index.html already fixed
+      // the canonical); the detail request sets it once the data arrives.
+      if (routeExperienceSeoKey) setPageSeo(JSON.parse(routeExperienceSeoKey));
+      return;
+    }
+
     setPageSeo(
       buildExperiencesSeoMeta({
         city: seoCity,
@@ -669,7 +686,7 @@ const ExperiencesPage = () => {
         path: seoPath,
       })
     );
-  }, [seoCity, seoPath, seoSpecialty]);
+  }, [routeExperienceId, routeExperienceSeoKey, seoCity, seoPath, seoSpecialty]);
 
   useEffect(() => {
     setSelectedMajors(seoSpecialty ? [seoSpecialty] : []);
@@ -1067,22 +1084,7 @@ const ExperiencesPage = () => {
               return [exp, ...current];
             });
 
-            setPageSeo({
-              title: exp.title || `تجربة تدريب في ${exp.organizationName || "دربك"}`,
-              description: `تجربة تدريب في ${exp.organizationName || "جهة تدريب"}${
-                exp.city ? ` بمدينة ${exp.city}` : ""
-              } لتخصص ${getReadableMajor(exp) || "طلاب التدريب التعاوني"} على منصة دربك.`,
-              path: `/experiences/${exp._id}`,
-              keywords: [
-                "تجربة تدريب",
-                "تدريب تعاوني",
-                exp.organizationName,
-                exp.city,
-                getReadableMajor(exp),
-              ]
-                .filter(Boolean)
-                .join(", "),
-            });
+            setPageSeo(buildExperienceSeo(exp));
 
             trackExperienceDetailView(exp);
             markSavedItemSeen(

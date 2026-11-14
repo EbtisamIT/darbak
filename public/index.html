@@ -102,6 +102,14 @@
           window.location.pathname === "/"
             ? "/"
             : window.location.pathname.replace(/\/+$/, "");
+        // Keep in sync with toCanonicalPath in src/utils/seoPages.mjs:
+        // prerendered pages are only served with a trailing slash.
+        if (
+          /^\/companies\/[^/]+$/.test(cleanPath) ||
+          /^\/experiences\/[a-f0-9]{24}$/i.test(cleanPath)
+        ) {
+          cleanPath += "/";
+        }
         var canonicalUrl = newOrigin + cleanPath;
         var canonical = document.querySelector('link[rel="canonical"]');
         var ogUrl = document.querySelector('meta[property="og:url"]');
