@@ -51,14 +51,27 @@ const toHttpsUrl = (value) => {
 const isInternalOpportunity = (opportunity = {}) =>
   Boolean(opportunity.isDarbakApplication) || opportunity.applicationMethod === "darbak";
 
-const getOpportunityCheckUrl = (opportunity = {}) => {
-  if (isInternalOpportunity(opportunity)) return "";
-  for (const value of [opportunity.applicationUrl, opportunity.sourceUrl]) {
-    const url = toHttpsUrl(value);
-    if (url) return url.href;
-  }
-  return "";
+// The application page is checked when there is one. Otherwise (e.g. email
+// applications) we fall back to the post the opportunity was shared in.
+const getOpportunityCheckTarget = (opportunity = {}) => {
+  if (isInternalOpportunity(opportunity)) return null;
+  const applicationUrl = toHttpsUrl(opportunity.applicationUrl);
+  if (applicationUrl) return { url: applicationUrl.href, kind: "application" };
+  const sourceUrl = toHttpsUrl(opportunity.sourceUrl);
+  if (sourceUrl) return { url: sourceUrl.href, kind: "source" };
+  return null;
 };
+
+const getOpportunityCheckUrl = (opportunity = {}) =>
+  getOpportunityCheckTarget(opportunity)?.url || "";
+
+// A source post (LinkedIn/X announcement) usually stays online long after
+// applications close, so it can prove an opportunity is gone but never that
+// it is still open.
+const applyCheckTarget = (check, target) =>
+  target?.kind === "source" && check.result === "open"
+    ? { result: "unknown", reason: "SOURCE_PAGE_ONLY" }
+    : check;
 
 const trimmedPath = (url) => url.pathname.replace(/\/+$/, "");
 
@@ -217,9 +230,12 @@ const runOpportunityFreshnessSweep = async ({
   const summary = { checked: 0, open: 0, closed: 0, unknown: 0, expired: 0, expiredIds: [] };
 
   await runWithConcurrency(opportunities, config.concurrency, async (opportunity) => {
-    const url = getOpportunityCheckUrl(opportunity);
-    const check = url
-      ? await checkOpportunityLink(url, { transport, timeoutMs: config.timeoutMs })
+    const target = getOpportunityCheckTarget(opportunity);
+    const check = target
+      ? applyCheckTarget(
+          await checkOpportunityLink(target.url, { transport, timeoutMs: config.timeoutMs }),
+          target
+        )
       : { result: "unknown", reason: "NO_LINK" };
     const decision = decideOpportunityFreshness(opportunity, check, { now, config });
 
@@ -249,7 +265,9 @@ const runOpportunityFreshnessSweep = async ({
 module.exports = {
   AUTO_EXPIRE_REASONS,
   getFreshnessConfig,
+  getOpportunityCheckTarget,
   getOpportunityCheckUrl,
+  applyCheckTarget,
   checkOpportunityLink,
   decideOpportunityFreshness,
   getAdminReactivationFreshness,

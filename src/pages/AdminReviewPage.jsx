@@ -1047,6 +1047,12 @@ const getOpportunityFreshnessNote = (opportunity = {}) => {
       text: `آخر فحص يقول إنها مغلقة، وبيتأكد مرة ثانية قبل إغلاقها · ${checkedAt}`,
     };
   }
+  if (freshness.lastReason === "SOURCE_PAGE_ONLY") {
+    return {
+      tone: "draft",
+      text: `منشور الفرصة موجود، لكنه ما يثبت إن التقديم مفتوح، فتُغلق إذا طالت بدون موعد إغلاق · آخر فحص ${checkedAt}`,
+    };
+  }
   if (freshness.lastReason === "NO_LINK") {
     return {
       tone: "draft",

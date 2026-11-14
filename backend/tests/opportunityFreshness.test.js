@@ -2,7 +2,9 @@ const assert = require("node:assert/strict");
 const {
   AUTO_EXPIRE_REASONS,
   getFreshnessConfig,
+  getOpportunityCheckTarget,
   getOpportunityCheckUrl,
+  applyCheckTarget,
   checkOpportunityLink,
   decideOpportunityFreshness,
   getAdminReactivationFreshness,
@@ -29,6 +31,15 @@ async function main() {
   assert.equal(getOpportunityCheckUrl({ applicationUrl: "https://darbak.space/apply/x", isDarbakApplication: true }), "");
   assert.equal(getOpportunityCheckUrl({ applicationUrl: "https://x.example/a", applicationMethod: "darbak" }), "");
   assert.equal(getOpportunityCheckUrl({ applicationUrl: "https://user:pw@x.example/a" }), "");
+
+  // Email applications fall back to the source post, which is marked as such.
+  assert.deepEqual(getOpportunityCheckTarget({ applicationUrl: "hr@example.com", sourceUrl: "https://www.linkedin.com/posts/x" }), { url: "https://www.linkedin.com/posts/x", kind: "source" });
+  assert.deepEqual(getOpportunityCheckTarget({ applicationUrl: "https://careers.example/1", sourceUrl: "https://x.com/p/1" }), { url: "https://careers.example/1", kind: "application" });
+  assert.equal(getOpportunityCheckTarget({ applicationUrl: "mailto:hr@example.com" }), null);
+  // A live source post is not proof the opportunity is open; a deleted one is still closed.
+  assert.deepEqual(applyCheckTarget({ result: "open", reason: "OK" }, { kind: "source" }), { result: "unknown", reason: "SOURCE_PAGE_ONLY" });
+  assert.deepEqual(applyCheckTarget({ result: "closed", reason: "HTTP_404" }, { kind: "source" }), { result: "closed", reason: "HTTP_404" });
+  assert.deepEqual(applyCheckTarget({ result: "open", reason: "OK" }, { kind: "application" }), { result: "open", reason: "OK" });
 
   // Link check results: anything unreadable is "unknown", never "closed".
   const job = "https://careers.example/jobs/coop-2026";
@@ -127,6 +138,10 @@ async function main() {
     { _id: "b", applicationUrl: "https://careers.example/open", createdAt: daysAgo(100), freshness: {} },
     { _id: "c", applicationMethod: "email", createdAt: daysAgo(60), freshness: {} },
     { _id: "d", applicationUrl: "https://careers.example/edited", createdAt: daysAgo(100), freshness: {} },
+    // Email opportunity whose LinkedIn post is still online: closed by age.
+    { _id: "e", applicationMethod: "email", applicationUrl: "hr@example.com", sourceUrl: "https://www.linkedin.com/posts/coop", createdAt: daysAgo(60), freshness: {} },
+    // Recent email opportunity whose post was deleted (second check): closed as missing.
+    { _id: "f", applicationMethod: "email", applicationUrl: "hr@example.com", sourceUrl: "https://www.linkedin.com/posts/deleted", createdAt: daysAgo(5), freshness: { closedStreak: 1 } },
   ];
   let findQuery, findLimit;
   const updates = [];
@@ -155,6 +170,8 @@ async function main() {
       [job]: html("التقديم مغلق"),
       "https://careers.example/open": html("Apply now"),
       "https://careers.example/edited": html("Apply now"),
+      "https://www.linkedin.com/posts/coop": html("We are hiring co-op students, send your CV"),
+      "https://www.linkedin.com/posts/deleted": { status: 404, headers: {}, text: "" },
     }),
     logger: { error() {} },
   });
@@ -162,13 +179,18 @@ async function main() {
   assert.deepEqual(findQuery.isDarbakApplication, { $ne: true });
   assert.deepEqual(findQuery.applicationMethod, { $ne: "darbak" });
   assert.equal(findLimit, config.batchSize);
-  assert.equal(updates.length, 4);
+  assert.equal(updates.length, 6);
   assert.ok(updates.every(({ filter }) => filter.status === "active"));
   assert.deepEqual(
     { checked: summary.checked, open: summary.open, closed: summary.closed, unknown: summary.unknown, expired: summary.expired },
-    { checked: 3, open: 1, closed: 1, unknown: 1, expired: 2 }
+    { checked: 5, open: 1, closed: 2, unknown: 2, expired: 4 }
   );
-  assert.deepEqual(summary.expiredIds.sort(), ["a", "c"]);
+  assert.deepEqual(summary.expiredIds.sort(), ["a", "c", "e", "f"]);
+  const emailUpdate = updates.find(({ filter }) => filter._id === "e").update.$set;
+  assert.equal(emailUpdate["freshness.lastReason"], "SOURCE_PAGE_ONLY");
+  assert.equal(emailUpdate["freshness.autoExpiredReason"], "stale_unverified");
+  assert.equal(emailUpdate["freshness.lastOpenAt"], undefined);
+  assert.equal(updates.find(({ filter }) => filter._id === "f").update.$set["freshness.autoExpiredReason"], "page_missing");
   assert.equal(updates.find(({ filter }) => filter._id === "a").update.$set["freshness.autoExpiredReason"], "page_closed");
   assert.equal(updates.find(({ filter }) => filter._id === "c").update.$set["freshness.autoExpiredReason"], "stale_unverified");
   assert.equal(updates.find(({ filter }) => filter._id === "b").update.$set.status, undefined);
