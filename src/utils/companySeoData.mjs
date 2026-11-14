@@ -1,4 +1,6 @@
-export const SITE_ORIGIN = "https://darbak.space";
+import { SITE_ORIGIN, toCanonicalUrl } from "./seoPages.mjs";
+
+export { SITE_ORIGIN };
 
 export const getCompanySeo = (company = {}, overview = {}) => {
   const name = company.nameAr || company.name || company.nameEn || "جهة التدريب";
@@ -28,7 +30,7 @@ export const buildCompanyStructuredData = (company = {}, overview = {}) => {
         "@type": "Organization",
         name: seo.name,
         alternateName: (company.aliases || []).slice(0, 8),
-        url: `${SITE_ORIGIN}${seo.path}`,
+        url: toCanonicalUrl(seo.path),
         ...(company.logoUrl ? { logo: company.logoUrl } : {}),
         ...(company.website ? { sameAs: [company.website, company.linkedinUrl].filter(Boolean) } : {}),
       },
@@ -37,7 +39,7 @@ export const buildCompanyStructuredData = (company = {}, overview = {}) => {
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "دربك", item: SITE_ORIGIN },
           { "@type": "ListItem", position: 2, name: "الشركات", item: `${SITE_ORIGIN}/companies` },
-          { "@type": "ListItem", position: 3, name: seo.name, item: `${SITE_ORIGIN}${seo.path}` },
+          { "@type": "ListItem", position: 3, name: seo.name, item: toCanonicalUrl(seo.path) },
         ],
       },
     ],

@@ -3075,7 +3075,8 @@ app.get('/sitemap-companies.xml', async (req, res) => {
     const urls = [
       { loc: "https://darbak.space/companies", lastmod: "" },
       ...companies.filter((company) => company.slug).map((company) => ({
-        loc: `https://darbak.space/companies/${company.slug}`,
+        // Trailing slash: the static host serves the prerendered HTML only at this URL.
+        loc: `https://darbak.space/companies/${company.slug}/`,
         lastmod: company.updatedAt ? new Date(company.updatedAt).toISOString().slice(0, 10) : "",
       })),
     ];
