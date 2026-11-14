@@ -1,0 +1,251 @@
+const assert = require("node:assert/strict");
+const {
+  AUTO_EXPIRE_REASONS,
+  getFreshnessConfig,
+  getOpportunityCheckTarget,
+  getOpportunityCheckUrl,
+  applyCheckTarget,
+  checkOpportunityLink,
+  decideOpportunityFreshness,
+  getAdminReactivationFreshness,
+  hashReporter,
+  getReportClientIp,
+  decideClosedReport,
+  runOpportunityFreshnessSweep,
+} = require("../services/opportunityFreshness");
+
+const DAY = 24 * 60 * 60 * 1000;
+const now = new Date("2026-11-14T09:00:00Z");
+const daysAgo = (days) => new Date(now.getTime() - days * DAY);
+const config = getFreshnessConfig({});
+const html = (body) => ({ status: 200, headers: { "content-type": "text/html; charset=utf-8" }, text: `<html><body>${body}</body></html>` });
+const fakeTransport = (routes) => async (url) => {
+  const route = routes[url.href];
+  if (!route) throw Object.assign(new Error("not found"), { code: "UNEXPECTED_URL" });
+  if (route instanceof Error) throw route;
+  return route;
+};
+
+async function main() {
+  // Which link is checked.
+  assert.equal(getOpportunityCheckUrl({ applicationUrl: "http://careers.example/job/1" }), "https://careers.example/job/1");
+  assert.equal(getOpportunityCheckUrl({ applicationUrl: "mailto:hr@example.com", sourceUrl: "https://example.com/post" }), "https://example.com/post");
+  assert.equal(getOpportunityCheckUrl({ applicationUrl: "not a url" }), "");
+  assert.equal(getOpportunityCheckUrl({ applicationUrl: "https://darbak.space/apply/x", isDarbakApplication: true }), "");
+  assert.equal(getOpportunityCheckUrl({ applicationUrl: "https://x.example/a", applicationMethod: "darbak" }), "");
+  assert.equal(getOpportunityCheckUrl({ applicationUrl: "https://user:pw@x.example/a" }), "");
+
+  // Email applications fall back to the source post, which is marked as such.
+  assert.deepEqual(getOpportunityCheckTarget({ applicationUrl: "hr@example.com", sourceUrl: "https://www.linkedin.com/posts/x" }), { url: "https://www.linkedin.com/posts/x", kind: "source" });
+  assert.deepEqual(getOpportunityCheckTarget({ applicationUrl: "https://careers.example/1", sourceUrl: "https://x.com/p/1" }), { url: "https://careers.example/1", kind: "application" });
+  assert.equal(getOpportunityCheckTarget({ applicationUrl: "mailto:hr@example.com" }), null);
+  // A live source post is not proof the opportunity is open; a deleted one is still closed.
+  assert.deepEqual(applyCheckTarget({ result: "open", reason: "OK" }, { kind: "source" }), { result: "unknown", reason: "SOURCE_PAGE_ONLY" });
+  assert.deepEqual(applyCheckTarget({ result: "closed", reason: "HTTP_404" }, { kind: "source" }), { result: "closed", reason: "HTTP_404" });
+  assert.deepEqual(applyCheckTarget({ result: "open", reason: "OK" }, { kind: "application" }), { result: "open", reason: "OK" });
+
+  // Link check results: anything unreadable is "unknown", never "closed".
+  const job = "https://careers.example/jobs/coop-2026";
+  const check = (routes) => checkOpportunityLink(job, { transport: fakeTransport(routes) });
+  assert.deepEqual(await check({ [job]: html("<h1>Co-op program</h1><a>Apply now</a>") }), { result: "open", reason: "OK" });
+  assert.deepEqual(await check({ [job]: html("<p>عذرًا، انتهى التقديم على هذا البرنامج</p>") }), { result: "closed", reason: "CLOSED_TEXT" });
+  assert.deepEqual(await check({ [job]: html("<p>No longer accepting applications</p>") }), { result: "closed", reason: "CLOSED_TEXT" });
+  assert.deepEqual(await check({ [job]: { status: 404, headers: {}, text: "" } }), { result: "closed", reason: "HTTP_404" });
+  assert.deepEqual(await check({ [job]: { status: 410, headers: {}, text: "" } }), { result: "closed", reason: "HTTP_410" });
+  assert.deepEqual(await check({ [job]: { status: 403, headers: {}, text: "" } }), { result: "unknown", reason: "HTTP_403" });
+  assert.deepEqual(await check({ [job]: { status: 999, headers: {}, text: "" } }), { result: "unknown", reason: "HTTP_999" });
+  assert.deepEqual(await check({ [job]: Object.assign(new Error("t"), { code: "REQUEST_TIMEOUT" }) }), { result: "unknown", reason: "REQUEST_TIMEOUT" });
+  assert.deepEqual(await check({ [job]: Object.assign(new Error("n"), { code: "NON_PUBLIC_ADDRESS" }) }), { result: "unknown", reason: "NON_PUBLIC_ADDRESS" });
+  // Closed text inside a PDF/binary response is ignored.
+  assert.deepEqual(await check({ [job]: { status: 200, headers: { "content-type": "application/pdf" }, text: "applications closed" } }), { result: "open", reason: "OK" });
+  // Redirects are followed and upgraded to https; a bounce to the home page is not proof.
+  assert.deepEqual(await check({
+    [job]: { status: 301, headers: { location: "http://careers.example/jobs/coop-2026-v2" } },
+    "https://careers.example/jobs/coop-2026-v2": html("Applications are closed"),
+  }), { result: "closed", reason: "CLOSED_TEXT" });
+  assert.deepEqual(await check({ [job]: { status: 302, headers: { location: "/" } } }), { result: "unknown", reason: "REDIRECTED_TO_HOMEPAGE" });
+  assert.deepEqual(await check({ [job]: { status: 302, headers: { location: "javascript:alert(1)" } } }), { result: "unknown", reason: "UNSAFE_REDIRECT" });
+  assert.deepEqual(await check({ [job]: { status: 302, headers: {} } }), { result: "unknown", reason: "REDIRECT_LIMIT" });
+
+  // Decisions.
+  const fresh = { createdAt: daysAgo(10), freshness: {} };
+  const closedOnce = decideOpportunityFreshness(fresh, { result: "closed", reason: "CLOSED_TEXT" }, { now, config });
+  assert.equal(closedOnce.expire, false, "one closed check is not enough");
+  assert.equal(closedOnce.set["freshness.closedStreak"], 1);
+  assert.equal(closedOnce.set.status, undefined);
+
+  const closedTwice = decideOpportunityFreshness(
+    { createdAt: daysAgo(10), freshness: { closedStreak: 1 } },
+    { result: "closed", reason: "CLOSED_TEXT" },
+    { now, config }
+  );
+  assert.equal(closedTwice.expire, true);
+  assert.equal(closedTwice.reason, AUTO_EXPIRE_REASONS.PAGE_CLOSED);
+  assert.equal(closedTwice.set.status, "expired");
+  assert.equal(closedTwice.set["freshness.autoExpiredReason"], "page_closed");
+
+  assert.equal(decideOpportunityFreshness(
+    { createdAt: daysAgo(10), freshness: { closedStreak: 1 } },
+    { result: "closed", reason: "HTTP_404" },
+    { now, config }
+  ).reason, AUTO_EXPIRE_REASONS.PAGE_MISSING);
+
+  // An open (or unknown) result breaks the closed streak.
+  assert.equal(decideOpportunityFreshness({ createdAt: daysAgo(10), freshness: { closedStreak: 1 } }, { result: "open", reason: "OK" }, { now, config }).set["freshness.closedStreak"], 0);
+  assert.equal(decideOpportunityFreshness({ createdAt: daysAgo(10), freshness: { closedStreak: 1 } }, { result: "unknown", reason: "HTTP_403" }, { now, config }).set["freshness.closedStreak"], 0);
+
+  // No deadline + old + not confirmed open recently → stale.
+  const stale = decideOpportunityFreshness({ createdAt: daysAgo(50), freshness: {} }, { result: "unknown", reason: "NO_LINK" }, { now, config });
+  assert.equal(stale.reason, AUTO_EXPIRE_REASONS.STALE_UNVERIFIED);
+  assert.equal(decideOpportunityFreshness({ createdAt: daysAgo(44), freshness: {} }, { result: "unknown", reason: "NO_LINK" }, { now, config }).expire, false);
+  // Old but the link is open now, or was open a few days ago → kept.
+  assert.equal(decideOpportunityFreshness({ createdAt: daysAgo(90), freshness: {} }, { result: "open", reason: "OK" }, { now, config }).expire, false);
+  assert.equal(decideOpportunityFreshness({ createdAt: daysAgo(90), freshness: { lastOpenAt: daysAgo(3) } }, { result: "unknown", reason: "REQUEST_TIMEOUT" }, { now, config }).expire, false);
+  assert.equal(decideOpportunityFreshness({ createdAt: daysAgo(90), freshness: { lastOpenAt: daysAgo(8) } }, { result: "unknown", reason: "REQUEST_TIMEOUT" }, { now, config }).expire, true);
+  // Opportunities with a deadline are left to the existing deadline sweep.
+  assert.equal(decideOpportunityFreshness({ createdAt: daysAgo(90), deadline: daysAgo(-20), freshness: {} }, { result: "unknown", reason: "NO_LINK" }, { now, config }).expire, false);
+
+  // Admin reopened it recently → never auto-closed, even with closed checks.
+  const kept = decideOpportunityFreshness(
+    { createdAt: daysAgo(90), freshness: { closedStreak: 5, adminKeptAt: daysAgo(10) } },
+    { result: "closed", reason: "CLOSED_TEXT" },
+    { now, config }
+  );
+  assert.equal(kept.expire, false);
+  assert.equal(decideOpportunityFreshness(
+    { createdAt: daysAgo(90), freshness: { closedStreak: 1, adminKeptAt: daysAgo(31) } },
+    { result: "closed", reason: "CLOSED_TEXT" },
+    { now, config }
+  ).expire, true, "admin protection expires after 30 days");
+
+  // Config comes from env with safe fallbacks.
+  assert.equal(getFreshnessConfig({ OPPORTUNITY_MAX_AGE_WITHOUT_DEADLINE_DAYS: "60" }).maxAgeWithoutDeadlineDays, 60);
+  assert.equal(getFreshnessConfig({ OPPORTUNITY_MAX_AGE_WITHOUT_DEADLINE_DAYS: "-1" }).maxAgeWithoutDeadlineDays, 45);
+
+  // Admin reactivation.
+  const reset = getAdminReactivationFreshness({ status: "expired", freshness: { autoExpiredAt: daysAgo(1) } }, "active", now);
+  assert.deepEqual(reset, {
+    "freshness.adminKeptAt": now,
+    "freshness.closedStreak": 0,
+    "freshness.autoExpiredAt": null,
+    "freshness.autoExpiredReason": "",
+    "freshness.closedReports": [],
+  });
+  assert.equal(getAdminReactivationFreshness({ status: "expired", freshness: {} }, "active", now), null, "manually expired ones are not affected");
+  assert.equal(getAdminReactivationFreshness({ status: "active", freshness: { autoExpiredAt: daysAgo(1) } }, "active", now), null);
+  assert.equal(getAdminReactivationFreshness({ status: "expired", freshness: { autoExpiredAt: daysAgo(1) } }, "draft", now), null);
+  assert.equal(getAdminReactivationFreshness(null, "active", now), null);
+
+  // Student "الفرصة منتهية؟" reports.
+  assert.equal(hashReporter(""), "");
+  assert.equal(hashReporter("visitor-1"), hashReporter("visitor-1"));
+  assert.notEqual(hashReporter("visitor-1"), hashReporter("visitor-2"));
+  assert.ok(!hashReporter("10.0.0.1").includes("10.0.0.1"), "raw values are never stored");
+  assert.equal(getReportClientIp({ headers: { "cf-connecting-ip": "1.1.1.1", "x-forwarded-for": "2.2.2.2" } }), "1.1.1.1");
+  assert.equal(getReportClientIp({ headers: { "x-forwarded-for": "3.3.3.3, 10.0.0.1" } }), "3.3.3.3");
+  assert.equal(getReportClientIp({ headers: {}, ip: "4.4.4.4" }), "4.4.4.4");
+
+  const report = (opportunity, visitorKey, ipKey, at = now) => decideClosedReport(opportunity, { visitorKey, ipKey }, { now: at, config });
+  assert.deepEqual(report({}, "", "ip"), { accepted: false, reason: "MISSING_REPORTER" });
+  const first = report({ freshness: {} }, "v1", "ip1");
+  assert.equal(first.accepted, true);
+  assert.equal(first.expire, false);
+  assert.equal(first.set["freshness.lastCheckedAt"], null, "a report moves it to the front of the next check");
+  assert.equal(first.set.status, undefined);
+  // Same student or same network does not count twice.
+  const withOne = { freshness: { closedReports: first.set["freshness.closedReports"] } };
+  assert.equal(report(withOne, "v1", "ip9").reason, "ALREADY_REPORTED");
+  assert.equal(report(withOne, "v9", "ip1").reason, "ALREADY_REPORTED");
+  const second = report(withOne, "v2", "ip2");
+  assert.equal(second.expire, false);
+  const third = report({ freshness: { closedReports: second.set["freshness.closedReports"] } }, "v3", "ip3");
+  assert.equal(third.expire, true, "three distinct students close it");
+  assert.equal(third.set.status, "expired");
+  assert.equal(third.set["freshness.autoExpiredReason"], AUTO_EXPIRE_REASONS.STUDENT_REPORTS);
+  // Old reports fall out of the 14-day window.
+  const oldReports = [{ visitorKey: "v1", ipKey: "ip1", at: daysAgo(20) }, { visitorKey: "v2", ipKey: "ip2", at: daysAgo(15) }];
+  const afterOld = report({ freshness: { closedReports: oldReports } }, "v3", "ip3");
+  assert.equal(afterOld.expire, false);
+  assert.equal(afterOld.reportCount, 1);
+  assert.equal(report({ freshness: { closedReports: oldReports } }, "v1", "ip1").accepted, true, "an old report does not block a new one");
+  // Reports made before an admin reopened it no longer count, and the admin's keep window wins.
+  const beforeReopen = [{ visitorKey: "v1", ipKey: "ip1", at: daysAgo(3) }, { visitorKey: "v2", ipKey: "ip2", at: daysAgo(3) }];
+  const keptReport = report({ freshness: { closedReports: beforeReopen, adminKeptAt: daysAgo(2) } }, "v3", "ip3");
+  assert.equal(keptReport.reportCount, 1);
+  assert.equal(keptReport.expire, false);
+  const keptReports = [{ visitorKey: "v1", ipKey: "ip1", at: daysAgo(1) }, { visitorKey: "v2", ipKey: "ip2", at: daysAgo(1) }];
+  assert.equal(report({ freshness: { closedReports: keptReports, adminKeptAt: daysAgo(2) } }, "v3", "ip3").expire, false, "admin keep window blocks report closing");
+  // Stored reports are capped.
+  const many = Array.from({ length: 25 }, (_, i) => ({ visitorKey: `m${i}`, ipKey: `mi${i}`, at: daysAgo(1) }));
+  assert.equal(report({ freshness: { closedReports: many, adminKeptAt: daysAgo(1.5) } }, "new", "newip").set["freshness.closedReports"].length, 20);
+
+  // Sweep: picks a batch, checks it and only updates still-active documents.
+  const docs = [
+    { _id: "a", applicationUrl: job, createdAt: daysAgo(5), freshness: { closedStreak: 1 } },
+    { _id: "b", applicationUrl: "https://careers.example/open", createdAt: daysAgo(100), freshness: {} },
+    { _id: "c", applicationMethod: "email", createdAt: daysAgo(60), freshness: {} },
+    { _id: "d", applicationUrl: "https://careers.example/edited", createdAt: daysAgo(100), freshness: {} },
+    // Email opportunity whose LinkedIn post is still online: closed by age.
+    { _id: "e", applicationMethod: "email", applicationUrl: "hr@example.com", sourceUrl: "https://www.linkedin.com/posts/coop", createdAt: daysAgo(60), freshness: {} },
+    // Recent email opportunity whose post was deleted (second check): closed as missing.
+    { _id: "f", applicationMethod: "email", applicationUrl: "hr@example.com", sourceUrl: "https://www.linkedin.com/posts/deleted", createdAt: daysAgo(5), freshness: { closedStreak: 1 } },
+  ];
+  let findQuery, findLimit;
+  const updates = [];
+  const Opportunity = {
+    find(query) {
+      findQuery = query;
+      const chain = {
+        sort: () => chain,
+        limit: (value) => { findLimit = value; return chain; },
+        select: () => chain,
+        lean: async () => docs,
+      };
+      return chain;
+    },
+    async updateOne(filter, update) {
+      updates.push({ filter, update });
+      // "d" was edited by an admin while the check ran.
+      return { matchedCount: filter._id === "d" ? 0 : 1 };
+    },
+  };
+  const summary = await runOpportunityFreshnessSweep({
+    Opportunity,
+    now,
+    config: { ...config, concurrency: 2 },
+    transport: fakeTransport({
+      [job]: html("التقديم مغلق"),
+      "https://careers.example/open": html("Apply now"),
+      "https://careers.example/edited": html("Apply now"),
+      "https://www.linkedin.com/posts/coop": html("We are hiring co-op students, send your CV"),
+      "https://www.linkedin.com/posts/deleted": { status: 404, headers: {}, text: "" },
+    }),
+    logger: { error() {} },
+  });
+  assert.equal(findQuery.status, "active");
+  assert.deepEqual(findQuery.isDarbakApplication, { $ne: true });
+  assert.deepEqual(findQuery.applicationMethod, { $ne: "darbak" });
+  assert.equal(findLimit, config.batchSize);
+  assert.equal(updates.length, 6);
+  assert.ok(updates.every(({ filter }) => filter.status === "active"));
+  assert.deepEqual(
+    { checked: summary.checked, open: summary.open, closed: summary.closed, unknown: summary.unknown, expired: summary.expired },
+    { checked: 5, open: 1, closed: 2, unknown: 2, expired: 4 }
+  );
+  assert.deepEqual(summary.expiredIds.sort(), ["a", "c", "e", "f"]);
+  const emailUpdate = updates.find(({ filter }) => filter._id === "e").update.$set;
+  assert.equal(emailUpdate["freshness.lastReason"], "SOURCE_PAGE_ONLY");
+  assert.equal(emailUpdate["freshness.autoExpiredReason"], "stale_unverified");
+  assert.equal(emailUpdate["freshness.lastOpenAt"], undefined);
+  assert.equal(updates.find(({ filter }) => filter._id === "f").update.$set["freshness.autoExpiredReason"], "page_missing");
+  assert.equal(updates.find(({ filter }) => filter._id === "a").update.$set["freshness.autoExpiredReason"], "page_closed");
+  assert.equal(updates.find(({ filter }) => filter._id === "c").update.$set["freshness.autoExpiredReason"], "stale_unverified");
+  assert.equal(updates.find(({ filter }) => filter._id === "b").update.$set.status, undefined);
+
+  console.log("opportunityFreshness tests passed");
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

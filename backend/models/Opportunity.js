@@ -122,6 +122,29 @@ const opportunitySchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    // Written by services/opportunityFreshness.js (automatic link checks).
+    freshness: {
+      lastCheckedAt: { type: Date, default: null },
+      lastResult: { type: String, enum: ["open", "closed", "unknown", ""], default: "" },
+      lastReason: { type: String, default: "" },
+      lastOpenAt: { type: Date, default: null },
+      closedStreak: { type: Number, default: 0 },
+      autoExpiredAt: { type: Date, default: null },
+      autoExpiredReason: { type: String, default: "" },
+      adminKeptAt: { type: Date, default: null },
+      // Student "الفرصة منتهية؟" reports (hashed reporter keys only).
+      closedReports: {
+        type: [
+          {
+            _id: false,
+            visitorKey: { type: String, default: "" },
+            ipKey: { type: String, default: "" },
+            at: { type: Date },
+          },
+        ],
+        default: [],
+      },
+    },
   },
   { timestamps: true }
 );
@@ -129,6 +152,7 @@ const opportunitySchema = new mongoose.Schema(
 opportunitySchema.index({ status: 1, featured: -1, createdAt: -1 });
 opportunitySchema.index({ automationKey: 1 }, { unique: true, partialFilterExpression: { automationKey: { $type: "string" } } });
 opportunitySchema.index({ status: 1, deadline: 1 });
+opportunitySchema.index({ status: 1, "freshness.lastCheckedAt": 1 });
 opportunitySchema.index({ status: 1, city: 1, createdAt: -1 });
 opportunitySchema.index({ status: 1, cities: 1, createdAt: -1 });
 opportunitySchema.index({ status: 1, specialties: 1, createdAt: -1 });

@@ -82,6 +82,13 @@ const {
   getMillisecondsUntilNextRiyadhDigest,
   runCompanyApplicationDigest,
 } = require("./services/companyApplicationDigest");
+const {
+  getAdminReactivationFreshness,
+  hashReporter,
+  getReportClientIp,
+  decideClosedReport,
+  runOpportunityFreshnessSweep,
+} = require("./services/opportunityFreshness");
 const ResumeProfile = require('./models/ResumeProfile');
 const ResumeAgentSession = require('./models/ResumeAgentSession');
 const ResumePendingDraft = require('./models/ResumePendingDraft');
@@ -218,6 +225,14 @@ const readCache = new Map();
 const resumeAiRateLimits = new Map();
 const resumeAiIdempotencyCache = new Map();
 let lastExpiredOpportunitySweepAt = 0;
+// Automatic link checks that close opportunities without a deadline once
+// their page disappears or says applications are closed.
+const OPPORTUNITY_FRESHNESS_ENABLED = process.env.OPPORTUNITY_FRESHNESS_ENABLED !== "false";
+const OPPORTUNITY_FRESHNESS_INTERVAL_MS = Number(
+  process.env.OPPORTUNITY_FRESHNESS_INTERVAL_MS || 30 * 60 * 1000
+);
+let lastOpportunityFreshnessSweepAt = 0;
+let opportunityFreshnessSweepRunning = false;
 let lastCompanyProgramSyncAt = 0;
 const EXPERIENCE_PUBLIC_FIELDS =
   "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl ambassadorDisplayName featuredAmbassadorLogoUrl featuredAmbassadorCardTitle featuredAmbassadorCardSummary featuredAmbassadorCardTags featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
@@ -2011,8 +2026,29 @@ const getExpiredOpportunityCutoff = () => {
   return cutoff;
 };
 
+// Runs in the background (never awaited) so requests are not slowed down.
+const triggerOpportunityFreshnessSweep = () => {
+  if (!OPPORTUNITY_FRESHNESS_ENABLED || opportunityFreshnessSweepRunning) return;
+  if (mongoose.connection.readyState !== 1) return;
+  if (Date.now() - lastOpportunityFreshnessSweepAt < OPPORTUNITY_FRESHNESS_INTERVAL_MS) return;
+  lastOpportunityFreshnessSweepAt = Date.now();
+  opportunityFreshnessSweepRunning = true;
+  runOpportunityFreshnessSweep({ Opportunity, logger: console })
+    .then((summary) => {
+      if (summary.checked) {
+        const { expiredIds, ...counts } = summary;
+        console.log("🔎 Opportunity freshness sweep:", counts);
+      }
+    })
+    .catch((err) => console.error("❌ Opportunity freshness sweep error:", err.message))
+    .finally(() => {
+      opportunityFreshnessSweepRunning = false;
+    });
+};
+
 const markExpiredOpportunities = async () => {
   if (mongoose.connection.readyState !== 1) return;
+  triggerOpportunityFreshnessSweep();
   const now = Date.now();
   if (now - lastExpiredOpportunitySweepAt < EXPIRED_OPPORTUNITY_SWEEP_INTERVAL_MS) {
     return;
@@ -7240,6 +7276,14 @@ mongoose.connect(process.env.MONGO_URI, {
 mongoose.connection.on("connected", () => {
   console.log("🟢 Mongoose connected");
   scheduleNextCompanyApplicationDigest();
+  // Requests also trigger the sweep; this covers quiet periods.
+  if (OPPORTUNITY_FRESHNESS_ENABLED && !global.__darbakOpportunityFreshnessTimer) {
+    global.__darbakOpportunityFreshnessTimer = setInterval(
+      triggerOpportunityFreshnessSweep,
+      OPPORTUNITY_FRESHNESS_INTERVAL_MS
+    );
+    global.__darbakOpportunityFreshnessTimer.unref?.();
+  }
   seedPublicCompanyDirectory().catch((err) => {
     // The directory is an enhancement; a failed seed must never block the API.
     console.error("❌ Public company directory seed error:", err.message);
@@ -17385,6 +17429,77 @@ app.get('/api/post-apply-discovery', async (req, res) => {
   }
 });
 
+// Student "الفرصة منتهية؟" report. Three distinct students close it; any
+// report moves it to the front of the next automatic link check.
+const OPPORTUNITY_CLOSED_REPORT_LIMIT = 10;
+const OPPORTUNITY_CLOSED_REPORT_WINDOW_MS = 60 * 60 * 1000;
+const opportunityClosedReportLimits = new Map();
+
+app.post('/api/opportunities/:id/closed-report', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database is not connected" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid opportunity id" });
+    }
+
+    const visitorId = sanitizeVisitorId(req.body?.visitorId || req.get?.("x-darbak-visitor-id") || "");
+    if (!visitorId) {
+      return res.status(400).json({ error: "تعذر إرسال البلاغ، حدّث الصفحة وجرّب مرة ثانية." });
+    }
+    const clientIp = getReportClientIp(req);
+    const ipKey = hashReporter(clientIp);
+    const visitorKey = hashReporter(visitorId);
+
+    const now = Date.now();
+    const limitKey = ipKey || visitorKey;
+    const current = opportunityClosedReportLimits.get(limitKey);
+    const limit =
+      current && current.resetsAt > now
+        ? current
+        : { count: 0, resetsAt: now + OPPORTUNITY_CLOSED_REPORT_WINDOW_MS };
+    limit.count += 1;
+    opportunityClosedReportLimits.set(limitKey, limit);
+    if (opportunityClosedReportLimits.size > 5000) {
+      for (const [key, value] of opportunityClosedReportLimits) {
+        if (value.resetsAt <= now) opportunityClosedReportLimits.delete(key);
+      }
+    }
+    if (limit.count > OPPORTUNITY_CLOSED_REPORT_LIMIT) {
+      return res.status(429).json({ error: "وصلنا بلاغات كثيرة منك، جرّب بعد شوي." });
+    }
+
+    const opportunity = await Opportunity.findById(req.params.id)
+      .select("status isDarbakApplication applicationMethod freshness")
+      .lean();
+    if (!opportunity) return res.status(404).json({ error: "Opportunity not found" });
+    if (opportunity.status !== "active") return res.json({ status: "already_closed" });
+    if (opportunity.isDarbakApplication || opportunity.applicationMethod === "darbak") {
+      return res.status(400).json({ error: "هذه الفرصة تُدار عبر دربك مباشرة." });
+    }
+
+    const decision = decideClosedReport(opportunity, { visitorKey, ipKey }, { now: new Date() });
+    if (!decision.accepted) return res.json({ status: "already_reported" });
+
+    await Opportunity.updateOne(
+      { _id: opportunity._id, status: "active" },
+      { $set: decision.set }
+    );
+    // Start the next sweep soon (at most every 5 minutes) instead of waiting
+    // for the 30-minute interval.
+    if (Date.now() - lastOpportunityFreshnessSweepAt > 5 * 60 * 1000) {
+      lastOpportunityFreshnessSweepAt = 0;
+      triggerOpportunityFreshnessSweep();
+    }
+
+    res.json({ status: decision.expire ? "closed" : "received" });
+  } catch (err) {
+    console.error("❌ Opportunity closed report error:", err);
+    res.status(500).json({ error: "تعذر إرسال البلاغ، جرّب مرة ثانية." });
+  }
+});
+
 app.post('/api/opportunities', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -20359,7 +20474,14 @@ app.patch('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
     }
 
     const hasDeadline = Boolean(payload.deadline);
-    const updatePayload = { ...payload };
+    const existingOpportunity = await Opportunity.findById(req.params.id)
+      .select("status freshness")
+      .lean();
+    const reactivationFreshness = getAdminReactivationFreshness(
+      existingOpportunity,
+      payload.status
+    );
+    const updatePayload = { ...payload, ...(reactivationFreshness || {}) };
     if (!hasDeadline) delete updatePayload.deadline;
 
     const update = hasDeadline
