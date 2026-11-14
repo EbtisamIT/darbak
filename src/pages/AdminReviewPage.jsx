@@ -1019,6 +1019,43 @@ const formatAdminDateTime = (value) => {
   });
 };
 
+const opportunityAutoExpireLabels = {
+  page_closed: "صفحة التقديم تقول إن التقديم مغلق",
+  page_missing: "رابط التقديم لم يعد موجودًا",
+  stale_unverified: "بدون موعد إغلاق ولم يتأكد الفحص أنها ما زالت مفتوحة",
+};
+
+// Result of the automatic link check (backend/services/opportunityFreshness.js).
+const getOpportunityFreshnessNote = (opportunity = {}) => {
+  const freshness = opportunity.freshness || {};
+  if (opportunity.status === "expired" && freshness.autoExpiredReason) {
+    return {
+      tone: "closed",
+      text: `أُغلقت تلقائيًا: ${
+        opportunityAutoExpireLabels[freshness.autoExpiredReason] || "انتهت صلاحيتها"
+      } · ${formatAdminDateTime(freshness.autoExpiredAt)}. لو ما زالت مفتوحة رجّعها نشطة.`,
+    };
+  }
+  if (opportunity.status !== "active" || !freshness.lastCheckedAt) return null;
+  const checkedAt = formatAdminDateTime(freshness.lastCheckedAt);
+  if (freshness.lastResult === "open") {
+    return { tone: "open", text: `رابط التقديم شغّال · آخر فحص ${checkedAt}` };
+  }
+  if (freshness.lastResult === "closed") {
+    return {
+      tone: "draft",
+      text: `آخر فحص يقول إنها مغلقة، وبيتأكد مرة ثانية قبل إغلاقها · ${checkedAt}`,
+    };
+  }
+  if (freshness.lastReason === "NO_LINK") {
+    return {
+      tone: "draft",
+      text: "بدون رابط للفحص، تُغلق تلقائيًا إذا طالت بدون موعد إغلاق",
+    };
+  }
+  return { tone: "draft", text: `تعذّر فحص الرابط · آخر محاولة ${checkedAt}` };
+};
+
 const toDateTimeLocalValue = (value) => {
   if (!value) return "";
   const date = new Date(value);
@@ -7148,6 +7185,7 @@ export default function AdminReviewPage() {
                 opportunity.deadline,
                 opportunity.status
               );
+              const freshnessNote = getOpportunityFreshnessNote(opportunity);
               const generalOpportunity = isGeneralOpportunity(opportunity);
               const sourceLabel =
                 opportunity.sourceType === "visitor" ? "من زائر" : "إضافة إدارية";
@@ -7227,6 +7265,20 @@ export default function AdminReviewPage() {
                     </p>
                   </div>
                 </div>
+
+                {freshnessNote && (
+                  <p
+                    style={{
+                      ...getOpportunityBadgeStyle(freshnessNote.tone),
+                      borderRadius: "10px",
+                      margin: 0,
+                      fontSize: "12px",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {freshnessNote.text}
+                  </p>
+                )}
 
                 <div
                   style={{

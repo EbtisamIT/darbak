@@ -82,6 +82,10 @@ const {
   getMillisecondsUntilNextRiyadhDigest,
   runCompanyApplicationDigest,
 } = require("./services/companyApplicationDigest");
+const {
+  getAdminReactivationFreshness,
+  runOpportunityFreshnessSweep,
+} = require("./services/opportunityFreshness");
 const ResumeProfile = require('./models/ResumeProfile');
 const ResumeAgentSession = require('./models/ResumeAgentSession');
 const ResumePendingDraft = require('./models/ResumePendingDraft');
@@ -218,6 +222,14 @@ const readCache = new Map();
 const resumeAiRateLimits = new Map();
 const resumeAiIdempotencyCache = new Map();
 let lastExpiredOpportunitySweepAt = 0;
+// Automatic link checks that close opportunities without a deadline once
+// their page disappears or says applications are closed.
+const OPPORTUNITY_FRESHNESS_ENABLED = process.env.OPPORTUNITY_FRESHNESS_ENABLED !== "false";
+const OPPORTUNITY_FRESHNESS_INTERVAL_MS = Number(
+  process.env.OPPORTUNITY_FRESHNESS_INTERVAL_MS || 30 * 60 * 1000
+);
+let lastOpportunityFreshnessSweepAt = 0;
+let opportunityFreshnessSweepRunning = false;
 let lastCompanyProgramSyncAt = 0;
 const EXPERIENCE_PUBLIC_FIELDS =
   "organizationName city howApplied duration trainingYear wasHired hadReward rewardAmount trainingEnvironment benefitedFromTraining wouldRecommend trainingMode ambassadorConsent ambassadorLinkedInUrl ambassadorProfileImageUrl ambassadorDisplayName featuredAmbassadorLogoUrl featuredAmbassadorCardTitle featuredAmbassadorCardSummary featuredAmbassadorCardTags featuredAmbassador featuredAmbassadorAt featuredAmbassadorUntil starRating ratings title sourceType status reviewedAt majorCategory major createdAt updatedAt";
@@ -2011,8 +2023,29 @@ const getExpiredOpportunityCutoff = () => {
   return cutoff;
 };
 
+// Runs in the background (never awaited) so requests are not slowed down.
+const triggerOpportunityFreshnessSweep = () => {
+  if (!OPPORTUNITY_FRESHNESS_ENABLED || opportunityFreshnessSweepRunning) return;
+  if (mongoose.connection.readyState !== 1) return;
+  if (Date.now() - lastOpportunityFreshnessSweepAt < OPPORTUNITY_FRESHNESS_INTERVAL_MS) return;
+  lastOpportunityFreshnessSweepAt = Date.now();
+  opportunityFreshnessSweepRunning = true;
+  runOpportunityFreshnessSweep({ Opportunity, logger: console })
+    .then((summary) => {
+      if (summary.checked) {
+        const { expiredIds, ...counts } = summary;
+        console.log("🔎 Opportunity freshness sweep:", counts);
+      }
+    })
+    .catch((err) => console.error("❌ Opportunity freshness sweep error:", err.message))
+    .finally(() => {
+      opportunityFreshnessSweepRunning = false;
+    });
+};
+
 const markExpiredOpportunities = async () => {
   if (mongoose.connection.readyState !== 1) return;
+  triggerOpportunityFreshnessSweep();
   const now = Date.now();
   if (now - lastExpiredOpportunitySweepAt < EXPIRED_OPPORTUNITY_SWEEP_INTERVAL_MS) {
     return;
@@ -7240,6 +7273,14 @@ mongoose.connect(process.env.MONGO_URI, {
 mongoose.connection.on("connected", () => {
   console.log("🟢 Mongoose connected");
   scheduleNextCompanyApplicationDigest();
+  // Requests also trigger the sweep; this covers quiet periods.
+  if (OPPORTUNITY_FRESHNESS_ENABLED && !global.__darbakOpportunityFreshnessTimer) {
+    global.__darbakOpportunityFreshnessTimer = setInterval(
+      triggerOpportunityFreshnessSweep,
+      OPPORTUNITY_FRESHNESS_INTERVAL_MS
+    );
+    global.__darbakOpportunityFreshnessTimer.unref?.();
+  }
   seedPublicCompanyDirectory().catch((err) => {
     // The directory is an enhancement; a failed seed must never block the API.
     console.error("❌ Public company directory seed error:", err.message);
@@ -20359,7 +20400,14 @@ app.patch('/api/admin/opportunities/:id', requireAdmin, async (req, res) => {
     }
 
     const hasDeadline = Boolean(payload.deadline);
-    const updatePayload = { ...payload };
+    const existingOpportunity = await Opportunity.findById(req.params.id)
+      .select("status freshness")
+      .lean();
+    const reactivationFreshness = getAdminReactivationFreshness(
+      existingOpportunity,
+      payload.status
+    );
+    const updatePayload = { ...payload, ...(reactivationFreshness || {}) };
     if (!hasDeadline) delete updatePayload.deadline;
 
     const update = hasDeadline
