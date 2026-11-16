@@ -95,3 +95,22 @@ test("shows setup, verified match reasons, a base CV, and a review-first draft w
     expect.objectContaining({ action: "approve" }), expect.any(Object)));
   expect(axios.post).not.toHaveBeenCalled();
 });
+
+test("claims a returning Gmail link with this browser's own login and clears it from the address bar", async () => {
+  const linkCode = "a".repeat(43);
+  window.history.replaceState(null, "", `/auto-apply#gmail_link=${linkCode}`);
+  axios.post.mockResolvedValueOnce({ data: { provider: "gmail", connectionStatus: "connected", emailAddress: "student@gmail.com" } });
+  render(<AutoApplyPage />);
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(expect.stringContaining("/api/auto-apply/email/gmail/complete"),
+    { linkCode }, { headers: expect.objectContaining({ "x-darbak-contact": "qa@example.test", "x-darbak-access-code": "123456" }) }));
+  expect(window.location.hash).toBe("");
+  expect(await screen.findByText("تم ربط Gmail بحسابك.")).toBeInTheDocument();
+});
+
+test("shows the server reason when a Gmail link belongs to another Darbak account", async () => {
+  window.history.replaceState(null, "", `/auto-apply#gmail_link=${"b".repeat(43)}`);
+  axios.post.mockRejectedValueOnce({ response: { data: { error: "بدأ ربط Gmail من حساب دربك مختلف، فلم نربطه بحسابك. ابدأ الربط من حسابك أنت." } } });
+  render(<AutoApplyPage />);
+  expect(await screen.findByText("بدأ ربط Gmail من حساب دربك مختلف، فلم نربطه بحسابك. ابدأ الربط من حسابك أنت.")).toBeInTheDocument();
+  expect(window.location.hash).toBe("");
+});

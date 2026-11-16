@@ -17,6 +17,7 @@ const AutoApplySend = require("../models/AutoApplySend");
 const { normalizeCompanyComparable } = require("./companyDirectorySeeds");
 const { FIELD_OPTIONS, COMMON_FIELDS, validateProfile, evaluateChannel, applicationMessage, isCurrentVerifiedChannel } = require("./autoApplyV1");
 const { requiredConfig, stateHash, authorizationUrl, safeAccount } = require("./autoApplyGmailOAuth");
+const { claimGmailLink } = require("./autoApplyGmailCallback");
 const { PDF_TEST_SUBJECT, PDF_TEST_BODY, assertTestSendAllowed, sendTestMessage } = require("./autoApplyGmailSend");
 const { createAutoApplyTestPdf } = require("../fixtures/autoApplyTestPdf");
 const { testRecipientOverride, applicationDraft, selectedResumeAttachment,
@@ -69,6 +70,24 @@ router.get("/email/gmail/connect", async (req, res) => {
       expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
     res.set("Cache-Control", "no-store").json({ authorizationUrl: authorizationUrl({ state, config }) });
   } catch (error) { safeError(res, error); }
+});
+
+const GMAIL_LINK_ERRORS = {
+  GMAIL_LINK_INVALID: "انتهت صلاحية ربط Gmail أو استُخدم من قبل. ابدأ الربط من جديد.",
+  GMAIL_LINK_ACCOUNT_MISMATCH: "بدأ ربط Gmail من حساب دربك مختلف، فلم نربطه بحسابك. ابدأ الربط من حسابك أنت.",
+};
+
+// Completes a Gmail link only for the Darbak account that started it.
+router.post("/email/gmail/complete", async (req, res) => {
+  try {
+    if (!req.autoApplyUser?._id) return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    const result = await claimGmailLink({ linkCode: req.body?.linkCode, userId: req.autoApplyUser._id });
+    res.set("Cache-Control", "no-store").json({ provider: "gmail", connectionStatus: "connected",
+      emailAddress: result.emailAddress });
+  } catch (error) {
+    if (GMAIL_LINK_ERRORS[error.message]) return res.status(error.status).json({ error: GMAIL_LINK_ERRORS[error.message] });
+    safeError(res, error);
+  }
 });
 
 router.get("/email/status", async (req, res) => {

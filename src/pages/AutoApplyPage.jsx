@@ -90,7 +90,22 @@ export default function AutoApplyPage() {
     } catch { setMessage("تعذر تحميل التقديم التلقائي حاليًا."); }
     finally { setLoading(false); }
   }, [authenticated, headers]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Google sends the student back with a one-time link code in the fragment.
+    // Claiming it with this browser's own Darbak login is what connects Gmail.
+    const linkCode = new URLSearchParams(window.location.hash.slice(1)).get("gmail_link");
+    if (!linkCode) { load(); return; }
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    if (!authenticated) {
+      setMessage("سجّل الدخول إلى دربك ثم اربط Gmail من جديد.");
+      setLoading(false);
+      return;
+    }
+    axios.post(`${API_BASE_URL}/api/auto-apply/email/gmail/complete`, { linkCode }, { headers })
+      .then(() => setMessage("تم ربط Gmail بحسابك."))
+      .catch((error) => setMessage(error.response?.data?.error || "تعذر إكمال ربط Gmail. حاول مرة أخرى."))
+      .finally(() => load());
+  }, [load, authenticated, headers]);
   const update = (fields) => setProfile((current) => ({ ...current, ...fields }));
   const run = async (action, success) => {
     setBusy(true); setMessage("");
