@@ -2,7 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require("cors");
 const crypto = require("crypto");
-const { createAccessAttemptLimiter, createAccessAttemptMiddleware } = require("./services/accessAttemptLimiter");
 require('dotenv').config();
 const {
   canonicalizeEmail,
@@ -7220,28 +7219,6 @@ app.use((req, res, next) => {
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-
-// Access-code guessing guard: counts wrong codes for contacts that already have
-// an account and pauses that contact/IP after too many. Existing accounts and
-// their codes are untouched; new sign-ups and correct codes are never counted.
-const accessAttemptLimiter = createAccessAttemptLimiter();
-app.use("/api", createAccessAttemptMiddleware({
-  limiter: accessAttemptLimiter,
-  hash: hashAccessCode,
-  resolveIdentity: (req) => {
-    const { contact: rawContact, accessCode: rawCode } = getAccessIdentityFromRequest(req);
-    if (!rawContact || !rawCode || !isValidSubscriberContact(rawContact)) return null;
-    const accessCode = normalizeAccessCode(rawCode);
-    if (!isValidAccessCode(accessCode)) return null;
-    return { contact: normalizeSubscriberContact(rawContact), accessCode };
-  },
-  classify: async ({ contact, accessCode, codeHash }) => {
-    if (mongoose.connection.readyState !== 1) return "unknown";
-    if (isAdminContact(contact, accessCode)) return "match";
-    if (await User.exists({ contact, accessCodeHash: codeHash })) return "match";
-    return (await User.exists({ contact })) ? "miss" : "new";
-  },
-}));
 
 // ===== MongoDB Connection =====
 mongoose.connect(process.env.MONGO_URI, {
