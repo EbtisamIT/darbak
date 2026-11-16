@@ -28,7 +28,7 @@ const blank = {
   channelType: "unknown", verificationStatus: "unverified", evidenceUrl: "", evidenceType: "",
   evidenceTextSummary: "", evidenceDate: "", expiresAt: "", activeOpportunityId: "",
   reviewerNote: "", rejectionReason: "",
-  majors: "", cities: "", allMajors: false, allSaudi: false, remote: false,
+  majors: "", cities: "", allMajors: false, allSaudi: false, remote: false, preferredFields: [],
   availabilityMode: "", seasonNote: "",
 };
 const formatDate = (value) => value ? String(value).slice(0, 10) : "";
@@ -37,8 +37,10 @@ export const verificationMessage = (row) => `السلام عليكم، فريق 
 const editFrom = (row) => row.review ? {
   ...blank, ...row.review, evidenceDate: formatDate(row.review.evidenceDate), expiresAt: formatDate(row.review.expiresAt),
   majors: (row.review.majors || []).join("، "), cities: (row.review.cities || []).join("، "),
+  preferredFields: row.review.preferredFields || [],
   activeOpportunityId: row.review.activeOpportunityId || "",
 } : blank;
+export const toggleField = (fields, field) => fields.includes(field) ? fields.filter((item) => item !== field) : [...fields, field];
 const split = (value) => String(value || "").split(/[,،\n]/).map((part) => part.trim()).filter(Boolean);
 
 export default function AutoApplyEmailReview({ password }) {
@@ -101,6 +103,7 @@ export default function AutoApplyEmailReview({ password }) {
         <p>الدليل المراجع: {row.review?.evidenceTextSummary || "لم يُراجع بعد"} · تاريخ الدليل: {formatDate(row.review?.evidenceDate) || "غير معروف"}</p>
         {row.review?.rejectionReason && <p>سبب الاستبعاد: {rejectionReasons[row.review.rejectionReason]}</p>}
         <p>تخصصات التدريب المثبتة: {row.review?.allMajors ? "جميع التخصصات" : row.review?.majors?.join("، ") || "غير معروفة"} · مدن التدريب المثبتة: {row.review?.allSaudi ? "جميع المدن" : row.review?.cities?.join("، ") || "غير معروفة"}</p>
+        {row.review && <p>مجالات التدريب للمطابقة: {row.review.preferredFields?.length ? row.review.preferredFields.join("، ") : "غير محددة، فتظهر المطابقات للمراجعة فقط"}</p>}
         {row.review?.verificationContactedAt && <p>متابعة التحقق: {outreachLabels[row.review.outreachStatus] || outreachLabels.not_contacted} · تواصل: {formatDate(row.review.verificationContactedAt)}{row.review.needsFollowup ? " · يحتاج متابعة" : ""}</p>}
         {row.evidenceUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer">مصدر مرشح</a>)}
         <button type="button" onClick={() => { setEditing(row); setForm(editFrom(row)); }}>مراجعة البريد والدليل</button>
@@ -135,6 +138,12 @@ export default function AutoApplyEmailReview({ password }) {
         <label>ملاحظة الموسم <input value={form.seasonNote || ""} onChange={(event) => setForm({ ...form, seasonNote: event.target.value })} /></label>
         <label>تخصصات مثبتة بالدليل <input value={form.majors} onChange={(event) => setForm({ ...form, majors: event.target.value })} placeholder="افصلي بفاصلة" /></label>
         <label><input type="checkbox" checked={form.allMajors} onChange={(event) => setForm({ ...form, allMajors: event.target.checked })} />الدليل ينص على جميع التخصصات</label>
+        <fieldset className="oi-field-options">
+          <legend>مجالات التدريب التي تقبلها الجهة</legend>
+          <p>تُستخدم لمطابقة الطلاب في التقديم التلقائي. بدونها تبقى المطابقة «تحتاج مراجعة» ولا يمكن اعتمادها.</p>
+          {(data?.fieldOptions || []).map((field) => <label key={field}><input type="checkbox" checked={form.preferredFields.includes(field)}
+            onChange={() => setForm({ ...form, preferredFields: toggleField(form.preferredFields, field) })} />{field}</label>)}
+        </fieldset>
         <label>مدن التدريب المثبتة <input value={form.cities} onChange={(event) => setForm({ ...form, cities: event.target.value })} placeholder="افصلي بفاصلة" /></label>
         <label><input type="checkbox" checked={form.allSaudi} onChange={(event) => setForm({ ...form, allSaudi: event.target.checked })} />الدليل ينص على جميع مناطق السعودية</label>
         <label><input type="checkbox" checked={form.remote} onChange={(event) => setForm({ ...form, remote: event.target.checked })} />الدليل ينص على تدريب عن بعد</label>
