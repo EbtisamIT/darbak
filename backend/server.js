@@ -7751,6 +7751,26 @@ const requireExperienceRewardUser = async (req, res, next) => {
   }
 };
 
+// Auto Apply V1 runs in test mode: Gmail sends go only to the configured test
+// recipient, never to a company. Authentication is independent of subscriptions.
+const requireAutoApplyUser = async (req, res, next) => {
+  try {
+    const user = await findRewardAccount({
+      rawContact: req.get("x-darbak-contact"), rawCode: req.get("x-darbak-access-code"),
+      User, normalizeContact: normalizeSubscriberContact, normalizeCode: normalizeAccessCode,
+      validContact: isValidSubscriberContact, validCode: isValidAccessCode, hashCode: hashAccessCode,
+    });
+    if (!user) return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    req.autoApplyUser = user;
+    next();
+  } catch (error) { next(error); }
+};
+
+const { gmailCallback, gmailErrorPage } = require("./services/autoApplyGmailCallback");
+app.get("/api/auto-apply/email/gmail/callback", gmailCallback);
+app.get("/api/auto-apply/email/gmail/error", gmailErrorPage);
+app.use("/api/auto-apply", requireAutoApplyUser, require("./services/autoApplyV1Routes"));
+
 app.get("/api/rewards/resume/me", requireExperienceRewardUser, async (req, res) => {
   try {
     const reward = await findOwnedReward({ userId: req.experienceRewardUser._id, Reward: ExperienceResumeReward });

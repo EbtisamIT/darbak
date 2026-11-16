@@ -10,6 +10,7 @@ const schema = new mongoose.Schema({
   acceptsTrainingApplications: { type: Boolean, default: false },
   majors: { type: [String], default: [] },
   allMajors: { type: Boolean, default: false },
+  preferredFields: { type: [String], default: [] },
   cities: { type: [String], default: [] },
   allSaudi: { type: Boolean, default: false },
   remote: { type: Boolean, default: false },
