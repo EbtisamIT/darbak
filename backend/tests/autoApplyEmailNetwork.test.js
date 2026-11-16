@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const staticCandidates = require("../data/autoApplyStaticEmailCandidates.json");
-const { candidateKey, blockedInbox, detectedPurpose, validateReview, uniqueCandidates, coverage, coverageBreakdown } = require("../services/autoApplyEmailNetwork");
+const { trainingFieldOptions, candidateKey, blockedInbox, detectedPurpose, validateReview, uniqueCandidates, coverage, coverageBreakdown } = require("../services/autoApplyEmailNetwork");
 
 const now = new Date("2026-10-24T12:00:00.000Z");
 const candidate = { company: "جهة اختبار", email: "training@example.org" };
@@ -32,6 +32,12 @@ assert.equal(evergreen.acceptsTrainingApplications, true);
 assert.equal(evergreen.expiresAt.toISOString().slice(0, 10), "2027-10-24");
 assert.deepEqual(evergreen.majors, ["نظم المعلومات"]);
 assert.deepEqual(evergreen.cities, ["الرياض"]);
+assert.deepEqual(evergreen.preferredFields, []);
+assert.deepEqual(validateReview({ ...evidence, preferredFields: ["تحليل البيانات", "تحليل البيانات", "المحاسبة المالية"] }, candidate, now).preferredFields,
+  ["تحليل البيانات", "المحاسبة المالية"], "known training fields are kept once");
+assert.throws(() => validateReview({ ...evidence, preferredFields: ["تحليل بيانات"] }, candidate, now), /مجال التدريب غير معروف/,
+  "fields outside the student vocabulary would never match");
+assert.ok(trainingFieldOptions().includes("الأمن السيبراني"));
 
 assert.throws(() => validateReview({ ...evidence, evidenceType: "historical_official_training_announcement" }, candidate, now));
 assert.throws(() => validateReview({ ...evidence, evidenceType: "official_training_announcement" }, candidate, now));

@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require("cors");
 const crypto = require("crypto");
+const { createAccessAttemptLimiter, createAccessAttemptMiddleware } = require("./services/accessAttemptLimiter");
 require('dotenv').config();
 const {
   canonicalizeEmail,
@@ -7220,6 +7221,28 @@ app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
+// Access-code guessing guard: counts wrong codes for contacts that already have
+// an account and pauses that contact/IP after too many. Existing accounts and
+// their codes are untouched; new sign-ups and correct codes are never counted.
+const accessAttemptLimiter = createAccessAttemptLimiter();
+app.use("/api", createAccessAttemptMiddleware({
+  limiter: accessAttemptLimiter,
+  hash: hashAccessCode,
+  resolveIdentity: (req) => {
+    const { contact: rawContact, accessCode: rawCode } = getAccessIdentityFromRequest(req);
+    if (!rawContact || !rawCode || !isValidSubscriberContact(rawContact)) return null;
+    const accessCode = normalizeAccessCode(rawCode);
+    if (!isValidAccessCode(accessCode)) return null;
+    return { contact: normalizeSubscriberContact(rawContact), accessCode };
+  },
+  classify: async ({ contact, accessCode, codeHash }) => {
+    if (mongoose.connection.readyState !== 1) return "unknown";
+    if (isAdminContact(contact, accessCode)) return "match";
+    if (await User.exists({ contact, accessCodeHash: codeHash })) return "match";
+    return (await User.exists({ contact })) ? "miss" : "new";
+  },
+}));
+
 // ===== MongoDB Connection =====
 mongoose.connect(process.env.MONGO_URI, {
   maxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE || 20),
@@ -7750,6 +7773,26 @@ const requireExperienceRewardUser = async (req, res, next) => {
     next(error);
   }
 };
+
+// Auto Apply V1 runs in test mode: Gmail sends go only to the configured test
+// recipient, never to a company. Authentication is independent of subscriptions.
+const requireAutoApplyUser = async (req, res, next) => {
+  try {
+    const user = await findRewardAccount({
+      rawContact: req.get("x-darbak-contact"), rawCode: req.get("x-darbak-access-code"),
+      User, normalizeContact: normalizeSubscriberContact, normalizeCode: normalizeAccessCode,
+      validContact: isValidSubscriberContact, validCode: isValidAccessCode, hashCode: hashAccessCode,
+    });
+    if (!user) return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    req.autoApplyUser = user;
+    next();
+  } catch (error) { next(error); }
+};
+
+const { gmailCallback, gmailErrorPage } = require("./services/autoApplyGmailCallback");
+app.get("/api/auto-apply/email/gmail/callback", gmailCallback);
+app.get("/api/auto-apply/email/gmail/error", gmailErrorPage);
+app.use("/api/auto-apply", requireAutoApplyUser, require("./services/autoApplyV1Routes"));
 
 app.get("/api/rewards/resume/me", requireExperienceRewardUser, async (req, res) => {
   try {

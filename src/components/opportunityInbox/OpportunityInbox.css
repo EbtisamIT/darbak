@@ -76,4 +76,8 @@
 .oi-email-network .oi-email-candidate p { margin: 0; }
 .oi-email-network .oi-detail { display: grid; gap: 10px; min-width: 0; }
 .oi-email-network .oi-detail label { display: grid; gap: 4px; min-width: 0; }
+.oi-email-network .oi-field-options { display: flex; flex-wrap: wrap; gap: 6px 14px; border: 1px solid #41605a; border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.oi-email-network .oi-field-options legend { padding-inline: 4px; font-weight: 700; }
+.oi-email-network .oi-field-options p { flex-basis: 100%; margin: 0 0 4px; }
+.oi-email-network .oi-field-options label { display: inline-flex; align-items: center; gap: 6px; }
 .oi-email-network .oi-detail input:not([type="checkbox"]), .oi-email-network .oi-detail select, .oi-email-network .oi-detail textarea { width: 100%; min-width: 0; box-sizing: border-box; }

@@ -9,7 +9,7 @@ const InterviewQuestion = require("../models/InterviewQuestion");
 const AnalyticsEvent = require("../models/AnalyticsEvent");
 const Channel = require("../models/AutoApplyEmailChannel");
 const staticRows = require("../data/autoApplyStaticEmailCandidates.json");
-const { candidateKey, uniqueCandidates, validateReview, coverage, coverageBreakdown } = require("./autoApplyEmailNetwork");
+const { trainingFieldOptions, candidateKey, uniqueCandidates, validateReview, coverage, coverageBreakdown } = require("./autoApplyEmailNetwork");
 const { normalizeCompanyComparable } = require("./companyDirectorySeeds");
 const { needsFollowup, outreachUpdate, outreachCounters } = require("./autoApplyVerificationOutreach");
 
@@ -74,7 +74,7 @@ async function inventory() {
     return { ...candidate, review: review ? {
       channelType: review.channelType, verificationStatus: review.verificationStatus,
       acceptsTrainingApplications: review.acceptsTrainingApplications, majors: review.majors, allMajors: review.allMajors,
-      cities: review.cities, allSaudi: review.allSaudi, remote: review.remote,
+      preferredFields: review.preferredFields || [], cities: review.cities, allSaudi: review.allSaudi, remote: review.remote,
       evidenceUrl: review.evidenceUrl, evidenceType: review.evidenceType, evidenceTextSummary: review.evidenceTextSummary,
       evidenceDate: review.evidenceDate, verifiedAt: review.verifiedAt, expiresAt: review.expiresAt,
       reviewerNote: review.reviewerNote, rejectionReason: review.rejectionReason,
@@ -99,7 +99,7 @@ function createAutoApplyEmailNetworkRouter() {
       const eligible = reviews.filter((row) => row.verificationStatus === "verified" && row.acceptsTrainingApplications && (!row.expiresAt || new Date(row.expiresAt) >= new Date()));
       const verifiedActive = eligible.filter((row) => row.channelType === "active_opportunity");
       const verifiedEvergreen = eligible.filter((row) => row.channelType === "evergreen_training");
-      res.json({ data: filtered.slice((page - 1) * limit, page * limit), page, pages: Math.ceil(filtered.length / limit), total: filtered.length,
+      res.json({ data: filtered.slice((page - 1) * limit, page * limit), fieldOptions: trainingFieldOptions(), page, pages: Math.ceil(filtered.length / limit), total: filtered.length,
         outreach: outreachCounters(reviews.filter((row) => row.verificationStatus === "likely" || row.verificationContactedAt)),
         summary: { candidateCompanies: new Set(data.map((row) => row.companyNormalized)).size, candidateEmails: new Set(data.map((row) => row.email)).size,
           candidatePairs: data.length, reviewed: reviews.length, verifiedActive: new Set(verifiedActive.map((row) => String(row.companyId || row.companyNormalized))).size,

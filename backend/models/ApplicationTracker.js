@@ -18,11 +18,11 @@ const applicationTrackerSchema = new mongoose.Schema(
   {
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: "users", required: true, index: true },
     normalizedEmail: { type: String, default: "", trim: true, lowercase: true, index: true },
-    opportunityId: { type: mongoose.Schema.Types.ObjectId, ref: "opportunities", required() { return this.sourceType !== "manual"; }, index: true },
+    opportunityId: { type: mongoose.Schema.Types.ObjectId, ref: "opportunities", required() { return !["manual", "auto_apply_email"].includes(this.sourceType); }, index: true },
     companyName: { type: String, required: true, trim: true, maxlength: 180 },
     roleTitle: { type: String, default: "", trim: true, maxlength: 180 },
     city: { type: String, default: "", trim: true, maxlength: 120 },
-    sourceType: { type: String, enum: ["darbak", "external_link", "email", "manual"], default: "external_link" },
+    sourceType: { type: String, enum: ["darbak", "external_link", "email", "manual", "auto_apply_email"], default: "external_link" },
     studentStatus: { type: String, enum: studentStatusValues, default: "applied", index: true },
     appliedAt: { type: Date, default: Date.now, index: true },
     lastUpdatedAt: { type: Date, default: Date.now },
@@ -35,6 +35,9 @@ const applicationTrackerSchema = new mongoose.Schema(
     followUpSentAt: { type: Date, default: null },
     followUpDismissedAt: { type: Date, default: null },
     note: { type: String, default: "", maxlength: 500 },
+    autoApplySendId: { type: mongoose.Schema.Types.ObjectId, ref: "AutoApplySend", default: null },
+    autoApplyPackageId: { type: mongoose.Schema.Types.ObjectId, ref: "AutoApplyPackage", default: null },
+    isTest: { type: Boolean, default: false, index: true },
     statusHistory: [{
       _id: false,
       status: String,
@@ -53,6 +56,11 @@ applicationTrackerSchema.index({ opportunityId: 1, studentId: 1 }, {
 });
 
 applicationTrackerSchema.index({ createdAt: -1 });
+applicationTrackerSchema.index({ studentId: 1, autoApplyPackageId: 1 }, {
+  unique: true,
+  name: "tracker_student_auto_apply_package_test",
+  partialFilterExpression: { autoApplyPackageId: { $type: "objectId" }, isTest: true },
+});
 
 module.exports = mongoose.model("application_trackers", applicationTrackerSchema);
 module.exports.studentStatusValues = studentStatusValues;

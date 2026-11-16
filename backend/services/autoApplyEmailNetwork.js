@@ -13,6 +13,14 @@ function normalizeEmail(value) {
 
 const REJECTION_REASONS = ["support_only", "general_contact_only", "careers_but_no_training_evidence", "personal_employee_email", "expired_opportunity_only", "portal_required", "no_official_evidence"];
 
+// Training fields a channel accepts must use the same vocabulary students pick in
+// Auto Apply, otherwise matching never finds them. Required lazily because
+// autoApplyV1 itself depends on this module.
+function trainingFieldOptions() {
+  const { FIELD_OPTIONS } = require("./autoApplyV1");
+  return [...new Set(Object.values(FIELD_OPTIONS).flat())];
+}
+
 function candidateKey(company, email) {
   return crypto.createHash("sha256").update(`${normalizeCompanyComparable(company)}\n${normalizeEmail(email)}`).digest("hex");
 }
@@ -65,6 +73,9 @@ function validateReview(input, candidate, now = new Date()) {
   const evidenceDate = date(input.evidenceDate);
   let expiresAt = date(input.expiresAt);
   const majors = list(input.majors || []), cities = list(input.cities || []);
+  const preferredFields = list(input.preferredFields || []);
+  const allowedFields = trainingFieldOptions();
+  if (preferredFields.some((field) => !allowedFields.includes(field))) throw new Error("مجال التدريب غير معروف؛ اختاري من القائمة.");
   const allMajors = input.allMajors === true, allSaudi = input.allSaudi === true, remote = input.remote === true;
   if (allMajors && majors.length) throw new Error("اختاري جميع التخصصات أو تخصصات محددة.");
   if (allSaudi && cities.length) throw new Error("اختاري جميع المدن أو مدنًا محددة.");
@@ -90,7 +101,7 @@ function validateReview(input, candidate, now = new Date()) {
   if (allSaudi && !/جميع مناطق|كل مناطق|جميع المدن|كل المدن|all saudi|nationwide/i.test(evidenceTextSummary)) throw new Error("اذكري نص الدليل الذي يثبت شمول المدن.");
   return {
     channelType: input.channelType, verificationStatus: input.verificationStatus, acceptsTrainingApplications,
-    majors, allMajors, cities, allSaudi, remote, evidenceUrl, evidenceType, evidenceTextSummary,
+    majors, allMajors, preferredFields, cities, allSaudi, remote, evidenceUrl, evidenceType, evidenceTextSummary,
     evidenceDate, expiresAt, verifiedAt: acceptsTrainingApplications ? now : null, reviewerNote,
     rejectionReason: input.verificationStatus === "rejected" ? rejectionReason : "",
     activeOpportunityId: input.channelType === "active_opportunity" && input.activeOpportunityId ? input.activeOpportunityId : null,
@@ -162,4 +173,4 @@ function coverageBreakdown(rows, now = new Date()) {
     Object.fromEntries(Object.entries(buckets).map(([name, companies]) => [name, companies.size]))]));
 }
 
-module.exports = { candidateKey, normalizeEmail, blockedInbox, detectedPurpose, validateReview, uniqueCandidates, coverage, coverageBreakdown };
+module.exports = { trainingFieldOptions, candidateKey, normalizeEmail, blockedInbox, detectedPurpose, validateReview, uniqueCandidates, coverage, coverageBreakdown };
