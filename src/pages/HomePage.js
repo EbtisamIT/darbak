@@ -46,7 +46,7 @@ const fetchJson = async (url) => {
 };
 const formatPlanPrice = (plan = {}) => typeof plan.priceSar === "number"
   ? `${plan.priceSar.toLocaleString("en-US", { minimumFractionDigits: plan.priceSar % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })} ريال`
-  : "السعر غير متاح حاليًا";
+  : "";
 const formatPlanPeriod = (plan = {}) => {
   const days = Number(plan.durationDays || 0);
   if (days === 30) return "/ شهر";
@@ -123,6 +123,8 @@ const HomePage = () => {
   const [interviews, setInterviews] = useState([]);
   const [subscriptionPlans, setSubscriptionPlans] = useState(homepagePlanFallbacks);
   const [plansLoading, setPlansLoading] = useState(true);
+  const [previewsLoading, setPreviewsLoading] = useState(true);
+  const [statsFailed, setStatsFailed] = useState(false);
   const [major, setMajor] = useState(initialJourneyPreferences.preferredMajor);
   const [city, setCity] = useState(initialJourneyPreferences.preferredCity);
   const [journeyPreferences, setJourneyPreferences] = useState(initialJourneyPreferences);
@@ -162,6 +164,7 @@ const HomePage = () => {
     ]).then(([statsResult, opportunitiesResult, experiencesResult, interviewsResult, plansResult]) => {
       if (!alive) return;
       if (statsResult.status === "fulfilled") setStats(statsResult.value || {});
+      else setStatsFailed(true);
       const nextOpportunities = opportunitiesResult.status === "fulfilled" ? readCollection(opportunitiesResult.value).slice(0, 3) : [];
       const nextExperiences = experiencesResult.status === "fulfilled" ? readCollection(experiencesResult.value).slice(0, 2) : [];
       const nextInterviews = interviewsResult.status === "fulfilled" ? readCollection(interviewsResult.value).slice(0, 2) : [];
@@ -177,6 +180,7 @@ const HomePage = () => {
         setSubscriptionPlans(mergeHomepagePlans(readCollection(plansResult.value?.plans)));
       }
       setPlansLoading(false);
+      setPreviewsLoading(false);
     });
     return () => { alive = false; };
   }, []);
@@ -305,6 +309,8 @@ const HomePage = () => {
     { value: stats.currentProgramsCount, label: "فرصة وبرنامج", to: "/where-to-train?tab=opportunities" },
     { value: stats.studentsAppliedCount, label: "تقديم عبر دربك", to: "/my-resume" },
   ], [stats]);
+  const statsLoading = !statsFailed && !Object.keys(stats).length;
+  const visibleStatItems = statsLoading ? statItems : statItems.filter((item) => typeof item.value === "number");
 
   const finderUrl = () => {
     const params = new URLSearchParams();
@@ -466,26 +472,6 @@ const HomePage = () => {
         </div>
       </section>
 
-      <section className="home-resume-discovery" aria-label="سيرتي بدربك">
-        <div>
-          <span>سيرتي بدربك ✦</span>
-          <h2>سيرة عربية وإنجليزية، تقدر تخصصها لكل فرصة</h2>
-          <p>شوف نموذجًا كاملًا وكيف يحوّل دربك معلوماتك الحقيقية إلى سيرة جاهزة للتقديم، قبل أن تختار الاشتراك.</p>
-        </div>
-        <div className="home-resume-discovery-actions">
-          <Link
-            to={resumeDiscovery.hasAccess ? "/my-resume" : "/resume?source=homepage"}
-            onClick={() => trackResumeDiscovery("resume_discovery_clicked", {
-              source: "homepage", pageContext: "homepage_card", planId: "darbak_resume",
-              userState: getResumeDiscoveryUserState(resumeDiscovery),
-            })}
-          >
-            {resumeDiscovery.hasAccess ? resumeDiscovery.hasMaster ? "افتح سيرتي" : "ابدأ بناء سيرتي" : "اكتشف سيرتي بدربك"} <FiArrowLeft />
-          </Link>
-          <Link to="/resume?source=homepage#resume-demo" onClick={() => trackResumeDiscovery("resume_example_clicked", { source: "homepage", pageContext: "homepage_card" })}>شاهد النموذج</Link>
-        </div>
-      </section>
-
       {journeyReady && <section className="home-journey-result" aria-live="polite">
         <div className="home-journey-result-head"><div><span>رحلتك جاهزة</span><h2>ثلاث خطوات، ونبدأ بالأقرب لك</h2></div>{!getStoredAccessIdentity().contact && <button type="button" className="home-save-journey" onClick={openSaveJourney}><strong>احفظ رحلتك</strong><small>عشان نحفظ تخصصك ومدينتك ونطلع لك الجديد كل مرة.</small></button>}</div>
         <div className="home-journey-result-grid">
@@ -524,9 +510,30 @@ const HomePage = () => {
                   <div><strong>{opportunity.organizationName || "جهة تدريب"}</strong><small>{opportunity.title || "فرصة تدريب تعاوني"} · {opportunity.city || opportunity.cities?.[0] || "السعودية"}</small></div>
                 </Link>
               ))}
-              {!opportunities.length && <p className="home-empty-copy">تظهر الجهات والفرص الحالية هنا.</p>}
+              {previewsLoading && [0, 1, 2].map((index) => <div className="home-story-item home-skeleton-row" key={index} aria-hidden="true"><span className="home-skeleton home-skeleton-logo" /><div><span className="home-skeleton home-skeleton-line" /><span className="home-skeleton home-skeleton-line is-short" /></div></div>)}
+              {!previewsLoading && !opportunities.length && <p className="home-empty-copy">ما قدرنا نعرض الفرص الحين. <Link to={finderUrl()}>تصفح كل الجهات في وين أتدرب <FiArrowLeft aria-hidden="true" /></Link></p>}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="home-resume-discovery" aria-label="سيرتي بدربك">
+        <div>
+          <span>سيرتي بدربك ✦</span>
+          <h2>سيرة عربية وإنجليزية، تقدر تخصصها لكل فرصة</h2>
+          <p>شوف نموذجًا كاملًا وكيف يحوّل دربك معلوماتك الحقيقية إلى سيرة جاهزة للتقديم، قبل أن تختار الاشتراك.</p>
+        </div>
+        <div className="home-resume-discovery-actions">
+          <Link
+            to={resumeDiscovery.hasAccess ? "/my-resume" : "/resume?source=homepage"}
+            onClick={() => trackResumeDiscovery("resume_discovery_clicked", {
+              source: "homepage", pageContext: "homepage_card", planId: "darbak_resume",
+              userState: getResumeDiscoveryUserState(resumeDiscovery),
+            })}
+          >
+            {resumeDiscovery.hasAccess ? resumeDiscovery.hasMaster ? "افتح سيرتي" : "ابدأ بناء سيرتي" : "اكتشف سيرتي بدربك"} <FiArrowLeft />
+          </Link>
+          <Link to="/resume?source=homepage#resume-demo" onClick={() => trackResumeDiscovery("resume_example_clicked", { source: "homepage", pageContext: "homepage_card" })}>شاهد النموذج</Link>
         </div>
       </section>
 
@@ -608,7 +615,7 @@ const HomePage = () => {
                 <div>
                   <span>{plan.label}</span>
                   {isResumePlan && <small className="home-plan-new-badge">الجديد للتقديم</small>}
-                  <strong>{plansLoading ? "جارِ تحميل السعر..." : formatPlanPrice(plan)} <em>{formatPlanPeriod(plan)}</em></strong>
+                  {plansLoading ? <strong className="home-price-pending">جارِ تحميل السعر...</strong> : formatPlanPrice(plan) ? <strong>{formatPlanPrice(plan)} <em>{formatPlanPeriod(plan)}</em></strong> : <strong className="home-price-pending">السعر يظهر في صفحة الاشتراك</strong>}
                 </div>
                 <p>{summary}</p>
                 {isCurrentPlan && isResumePlan ? <Link to="/my-resume">{cta}</Link> : <Link to={isCurrentPlan ? "#" : `/subscribe?plan=${plan.id}`} onClick={(event) => {
@@ -623,12 +630,12 @@ const HomePage = () => {
         </div>
       </section>
 
-      <section className="home-section home-stats-section">
+      {visibleStatItems.length > 0 && <section className="home-section home-stats-section" aria-busy={statsLoading}>
         <div className="home-section-heading"><span>أرقام دربك</span><h2>أثر يتوسع مع كل طالب وجهة</h2></div>
         <div className="home-stats-grid">
-          {statItems.map((item) => <Link key={item.label} to={item.to}><strong>{typeof item.value === "number" ? <AnimatedCount value={item.value} prefix="+" /> : "..."}</strong><span>{item.label}</span></Link>)}
+          {visibleStatItems.map((item) => <Link key={item.label} to={item.to}><strong>{typeof item.value === "number" ? <AnimatedCount value={item.value} prefix="+" /> : <span className="home-skeleton home-skeleton-stat" aria-label="جارِ التحميل" />}</strong><span>{item.label}</span></Link>)}
         </div>
-      </section>
+      </section>}
 
       <PublicTestimonials />
 
@@ -702,8 +709,15 @@ const HomePage = () => {
         .home-card-badge { display: inline-flex; align-items: center; gap: 5px; color: var(--app-brand); font-size: 12px; font-weight: 900; }
         .home-content-card h3 { margin: 12px 0 5px; font-size: 17px; line-height: 1.55; } .home-content-card p { margin: 0; color: var(--app-text-soft); }.home-experience-card em { margin-top: 9px; color: var(--app-muted); font-size: 12px; line-height: 1.65; font-style: normal; }
         .home-content-card small { display: flex; align-items: center; gap: 5px; margin-top: auto; color: var(--app-muted); } .home-content-card small svg { color: var(--app-brand); }
-        .home-empty-copy { color: var(--app-muted); }
-        .home-stats-section { text-align: center; padding: 28px 0; }.home-stats-section .home-section-heading { display: none; }.home-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; padding: 6px; border: 1px solid var(--app-border); border-radius: 15px; background: var(--app-surface); }
+        .home-empty-copy { color: var(--app-muted); line-height: 1.8; }.home-empty-copy a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--app-brand); font-weight: 850; text-decoration: none; }
+        .home-skeleton { display: block; border-radius: 8px; background: linear-gradient(90deg, var(--app-border-soft), var(--app-brand-soft), var(--app-border-soft)); background-size: 200% 100%; }
+        @media (prefers-reduced-motion: no-preference) { .home-skeleton { animation: homeSkeleton 1.4s ease-in-out infinite; } }
+        @keyframes homeSkeleton { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+        .home-skeleton-row { pointer-events: none; }.home-skeleton-row > div { flex: 1; display: grid; gap: 8px; }
+        .home-skeleton-logo { width: 40px; height: 40px; flex: none; border-radius: 10px; }.home-skeleton-line { height: 12px; width: 70%; }.home-skeleton-line.is-short { width: 45%; }
+        .home-skeleton-stat { width: 56px; height: 26px; margin: 4px auto; }
+        .home-pricing-card strong.home-price-pending { font-size: 15px; color: var(--app-text-soft); }
+        .home-stats-section { text-align: center; padding: 28px 0; }.home-stats-section .home-section-heading { display: none; }.home-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0; padding: 6px; border: 1px solid var(--app-border); border-radius: 15px; background: var(--app-surface); }
         .home-stats-grid a { padding: 10px 16px; text-decoration: none; border-inline-start: 1px solid var(--app-border-soft); }.home-stats-grid a:first-child { border-inline-start: 0; }.home-stats-grid strong { display: block; color: var(--app-brand); font-size: 28px; } .home-stats-grid span { color: var(--app-text-soft); font-weight: 800; font-size: 12px; }
         .home-company-section { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; margin-top: 14px; padding: 21px 26px; box-sizing: border-box; border-radius: 15px; border: 1px solid var(--app-border); background: var(--app-surface); }
         .home-company-section > svg { width: 36px; height: 36px; color: var(--app-brand); } .home-company-section h2 { font-size: 23px; margin-top: 3px; } .home-company-section p { margin: 4px 0 0; color: var(--app-text-soft); }
@@ -719,8 +733,8 @@ const HomePage = () => {
           .home-section { padding: 27px 0; }.home-section-heading { margin-bottom: 16px; }.home-section-heading h2 { font-size: 26px; }.home-heading-inline, .home-heading-row { align-items: flex-start; flex-direction: column; }.home-finder-section { padding: 22px 18px; }.home-finder-layout { grid-template-columns: 1fr; gap: 16px; }.home-finder-form { grid-template-columns: 1fr; }.home-finder-form .home-button { width: 100%; }.home-preview-grid { grid-template-columns: 1fr; gap: 10px; }.home-content-card { min-height: 132px; }.home-resume-section { grid-template-columns: 1fr; gap: 18px; padding: 23px 18px; }.home-pack-preview-compact { grid-template-columns: 1fr; }.home-pricing-heading { display: block; }.home-pricing-grid { grid-template-columns: 1fr; }.home-pricing-card { min-height: 0; }.home-stats-grid { grid-template-columns: repeat(2, 1fr); }.home-stats-grid a:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--app-border-soft); }.home-stats-grid a:nth-child(4) { border-top: 1px solid var(--app-border-soft); }.home-company-section { grid-template-columns: auto 1fr; padding: 20px; }.home-company-section .home-button { grid-column: 1 / -1; width: 100%; }
           .home-story-section { padding: 52px 0; }.home-story-grid { width: min(100% - 28px, 600px); grid-template-columns: 1fr; gap: 28px; }.home-story-reverse .home-story-visual, .home-story-reverse .home-story-copy { order: initial; }.home-story-copy h2 { font-size: 34px; }.home-story-visual { min-height: 0; padding: 15px; }.home-pack-cards { grid-template-columns: 1fr; }.home-pack-card { min-height: 0; }.home-pricing-heading { display: block; }
         }
-        .home-hero-resume-link { display: inline-flex; align-items: center; gap: 8px; width: fit-content; min-height: 44px; margin-top: 20px; padding: 9px 14px; box-sizing: border-box; border: 1px solid var(--app-brand-border); border-radius: 11px; background: var(--app-brand-soft); color: var(--app-brand); font-size: 14px; font-weight: 900; text-decoration: none; }
-        .home-hero-resume-link:hover, .home-hero-resume-link:focus-visible { background: var(--app-brand); color: #052c28; }
+        .home-hero-resume-link { display: inline-flex; align-items: center; gap: 8px; width: fit-content; min-height: 44px; margin-top: 14px; padding: 0; box-sizing: border-box; color: var(--app-brand); font-size: 15px; font-weight: 850; text-decoration: none; }
+        .home-hero-resume-link:hover, .home-hero-resume-link:focus-visible { text-decoration: underline; text-underline-offset: 5px; }
         .home-journey-result { margin-top: 0; }
         @media (max-width: 800px) { .home-hero-resume-link { max-width: 100%; } .home-resume-discovery { width: min(100% - 28px, 600px); padding: 18px; } .home-resume-discovery-actions { width: 100%; } .home-resume-discovery-actions a:first-child { flex: 1; } }
       `}</style>

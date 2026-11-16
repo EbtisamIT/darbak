@@ -42,7 +42,7 @@ test("homepage waits for the canonical plan price instead of calling it unavaila
   expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("/api/subscriptions/plans"));
 });
 
-test("homepage marks price unavailable only after the pricing request fails", async () => {
+test("homepage points to the subscribe page only after the pricing request fails", async () => {
   let rejectPlans;
   const plansResponse = new Promise((resolve, reject) => { rejectPlans = reject; });
   global.fetch = jest.fn((url) => url.endsWith("/api/subscriptions/plans")
@@ -52,5 +52,16 @@ test("homepage marks price unavailable only after the pricing request fails", as
   render(<HomePage />);
   expect(within(resumeCard()).getByText(/جارِ تحميل السعر/)).toBeInTheDocument();
   rejectPlans(new Error("pricing unavailable"));
-  await waitFor(() => expect(within(resumeCard()).getByText(/السعر غير متاح حاليًا/)).toBeInTheDocument());
+  await waitFor(() => expect(within(resumeCard()).getByText(/السعر يظهر في صفحة الاشتراك/)).toBeInTheDocument());
+  expect(within(resumeCard()).queryByText(/\/ شهر/)).not.toBeInTheDocument();
+});
+
+test("homepage hides empty stats and offers a finder link when previews fail", async () => {
+  global.fetch = jest.fn(() => Promise.reject(new Error("offline")));
+
+  render(<HomePage />);
+  expect(screen.getByText("أرقام دربك")).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByText("أرقام دربك")).not.toBeInTheDocument());
+  expect(screen.queryByText("...")).not.toBeInTheDocument();
+  expect(screen.getByText(/تصفح كل الجهات في وين أتدرب/).closest("a")).toHaveAttribute("href", expect.stringContaining("/where-to-train"));
 });

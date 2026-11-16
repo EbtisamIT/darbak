@@ -51,7 +51,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       : "112px"
     : isMobile
     ? "72px"
-    : "84px";
+    : "16px";
   const shouldHideHeader =
     shouldStickNavbar &&
     isNavbarCollapsed &&
@@ -553,8 +553,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
             aria-expanded={floatingMenuOpen}
             aria-label={floatingMenuOpen ? "إغلاق القائمة" : "فتح القائمة"}
             style={{
-              minWidth: isMobile ? "54px" : "62px",
-              height: isMobile ? "42px" : "46px",
+              width: "46px",
+              height: "46px",
               borderRadius: "999px",
               border: "1px solid var(--app-brand-border)",
               background: "var(--app-brand)",
@@ -566,13 +566,11 @@ const Navbar = ({ theme = "dark", setTheme }) => {
               alignItems: "center",
               justifyContent: "center",
               gap: "7px",
-              padding: isMobile ? "0 13px" : "0 15px",
+              padding: 0,
               fontFamily: "inherit",
               fontWeight: "900",
-              fontSize: isMobile ? "12px" : "13px",
             }}
           >
-            <span>{floatingMenuOpen ? "إغلاق" : "القائمة"}</span>
             <span
               aria-hidden="true"
               style={{
