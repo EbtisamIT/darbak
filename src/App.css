@@ -5639,12 +5639,20 @@ body {
     font-size: 17px;
   }
 
-  .darbak-assistant-trigger-copy small {
-    display: none;
+  .darbak-assistant-trigger {
+    width: 48px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 999px;
   }
 
-  .darbak-assistant-trigger-copy strong {
-    font-size: 12.5px;
+  .darbak-assistant-trigger-copy {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
   .darbak-assistant-panel {

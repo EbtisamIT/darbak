@@ -175,8 +175,12 @@ const Navbar = ({ theme = "dark", setTheme }) => {
     color: "#071814",
     border: "1px solid transparent",
     borderRadius: "999px",
-    padding: isMobile ? "7px 10px" : "9px 14px",
-    fontSize: isMobile ? "11px" : "13.5px",
+    padding: isMobile ? "0 14px" : "9px 14px",
+    minHeight: isMobile ? "42px" : undefined,
+    display: "inline-flex",
+    alignItems: "center",
+    boxSizing: "border-box",
+    fontSize: isMobile ? "12.5px" : "13.5px",
     cursor: "pointer",
     boxShadow: "0 10px 24px var(--app-brand-soft)",
     transition: "0.25s",
@@ -264,8 +268,8 @@ const Navbar = ({ theme = "dark", setTheme }) => {
       aria-label={theme === "dark" ? "تفعيل الوضع الصباحي" : "تفعيل الوضع المسائي"}
       style={{
         position: "relative",
-        width: isMobile ? "50px" : "58px",
-        height: isMobile ? "26px" : "30px",
+        width: "58px",
+        height: isMobile ? "34px" : "30px",
         backgroundColor: "var(--app-input-bg)",
         color: "var(--app-text)",
         border: "1px solid var(--app-border)",
@@ -693,7 +697,7 @@ const Navbar = ({ theme = "dark", setTheme }) => {
           font-weight: 800;
           cursor: pointer;
         }
-        .navbar-mobile-menu-trigger { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; font-size: 12px; }
+        .navbar-mobile-menu-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 12px; font-size: 13px; }
         .navbar-mobile-primary-links { display: grid; gap: 6px; }
         .navbar-mobile-primary-links a { justify-content: flex-start; }
         .navbar-mobile-more-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 11px 12px; }

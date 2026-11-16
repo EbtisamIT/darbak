@@ -304,6 +304,7 @@ export default function DarbakAssistant() {
       className="darbak-assistant-trigger"
       onClick={() => setIsOpen((current) => !current)}
       aria-expanded={isOpen}
+      aria-label="دليل دربك"
     >
       <span className="darbak-assistant-trigger-icon" aria-hidden="true">
         <FiMessageCircle />
