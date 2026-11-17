@@ -420,9 +420,15 @@ export default function Footer() {
         }}
       >
         <Link to="/resume" style={footerLinkStyle}>سيرتي بدربك</Link>
-        <Link to="/legal#terms" style={footerLinkStyle}>
-          سياسة الاستخدام والخصوصية
+        <Link to="/terms" style={footerLinkStyle}>
+          شروط الاستخدام
         </Link>
+        <Link to="/privacy" style={footerLinkStyle}>
+          سياسة الخصوصية
+        </Link>
+        <a href="mailto:info@darbak.space" style={footerLinkStyle}>
+          الدعم والتواصل
+        </a>
       </nav>
 
       <p
