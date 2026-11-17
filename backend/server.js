@@ -7751,6 +7751,34 @@ const requireExperienceRewardUser = async (req, res, next) => {
   }
 };
 
+// Gmail connection is independent from subscriptions and Auto Apply sending.
+// It only resolves an existing Darbak account and is disabled unless the
+// production OAuth connection flag is explicitly enabled.
+const requireAutoApplyOAuthUser = async (req, res, next) => {
+  try {
+    const user = await findRewardAccount({
+      rawContact: req.get("x-darbak-contact"), rawCode: req.get("x-darbak-access-code"),
+      User, normalizeContact: normalizeSubscriberContact, normalizeCode: normalizeAccessCode,
+      validContact: isValidSubscriberContact, validCode: isValidAccessCode,
+      hashCode: hashAccessCode,
+    });
+    if (!user) return res.status(401).json({ error: "سجّل الدخول أولًا." });
+    req.autoApplyOAuthUser = user;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+const { gmailCallback, gmailErrorPage } = require("./services/autoApplyGmailCallback");
+app.get("/api/auto-apply/email/gmail/callback", gmailCallback);
+app.get("/api/auto-apply/email/gmail/error", gmailErrorPage);
+app.use(
+  "/api/auto-apply",
+  requireAutoApplyOAuthUser,
+  require("./services/autoApplyGmailOAuthRoutes"),
+);
+
 app.get("/api/rewards/resume/me", requireExperienceRewardUser, async (req, res) => {
   try {
     const reward = await findOwnedReward({ userId: req.experienceRewardUser._id, Reward: ExperienceResumeReward });
