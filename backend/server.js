@@ -7778,6 +7778,12 @@ app.use(
   requireAutoApplyOAuthUser,
   require("./services/autoApplyGmailOAuthRoutes"),
 );
+app.use(
+  "/api/admin/auto-apply",
+  requireAdmin,
+  requireAutoApplyOAuthUser,
+  require("./services/autoApplyGmailProductionSmokeRoutes").createProductionSmokeRouter(),
+);
 
 app.get("/api/rewards/resume/me", requireExperienceRewardUser, async (req, res) => {
   try {
