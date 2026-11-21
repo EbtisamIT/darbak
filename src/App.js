@@ -54,6 +54,7 @@ const CompanyProgramOverviewPage = lazy(() => import("./pages/CompanyProgramOver
 const CompaniesPage = lazy(() => import("./pages/CompaniesPage"));
 const CompanyProfilePage = lazy(() => import("./pages/CompanyProfilePage"));
 const MyApplicationsPage = lazy(() => import("./pages/MyApplicationsPage"));
+const AutoApplyPage = lazy(() => import("./pages/AutoApplyPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
 const ClubDemoPage = lazy(() => import("./pages/ClubDemoPage"));
 const MyResumePage = lazy(() => import("./pages/MyResumePage"));
@@ -1390,6 +1391,7 @@ function AppLayout({ theme, setTheme }) {
               <Route path="/portofoili" element={<PortfolioBuilderPage />} />
               <Route path="/portfolio" element={<PortfolioBuilderPage />} />
               <Route path="/applications" element={<MyApplicationsPage />} />
+              <Route path="/auto-apply" element={<AutoApplyPage />} />
               <Route
                 path="/where-to-train/opportunity/:organizationSlug/:opportunityId"
                 element={<TrainingFinderPage />}

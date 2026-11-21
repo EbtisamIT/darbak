@@ -77,3 +77,5 @@
 .oi-email-network .oi-detail { display: grid; gap: 10px; min-width: 0; }
 .oi-email-network .oi-detail label { display: grid; gap: 4px; min-width: 0; }
 .oi-email-network .oi-detail input:not([type="checkbox"]), .oi-email-network .oi-detail select, .oi-email-network .oi-detail textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.oi-pilot-monitor { margin-block: 16px; padding-block: 16px; border-block: 1px solid #35433f; }
+.oi-pilot-monitor > div { margin-top: 14px; }

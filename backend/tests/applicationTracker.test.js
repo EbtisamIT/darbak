@@ -13,6 +13,18 @@ const tracker = new ApplicationTracker({
 
 assert.strictEqual(tracker.studentStatus, "applied");
 assert.strictEqual(tracker.sourceType, "external_link");
+const autoApplyTracker = new ApplicationTracker({
+  studentId: "507f1f77bcf86cd799439011",
+  companyName: "جهة اختبار",
+  sourceType: "auto_apply_email",
+  studentStatus: "applied",
+  autoApplySendId: "507f1f77bcf86cd799439013",
+  autoApplyPackageId: "507f1f77bcf86cd799439014",
+  isTest: true,
+});
+assert.strictEqual(autoApplyTracker.validateSync(), undefined);
+assert.strictEqual(autoApplyTracker.sourceType, "auto_apply_email");
+assert.strictEqual(autoApplyTracker.isTest, true);
 
 const companyApplication = new CompanyApplication({
   companySlug: "test-company",
@@ -56,6 +68,8 @@ assert.strictEqual(update.followUpAt.toISOString(), "2026-10-10T08:00:00.000Z");
 assert.strictEqual(serializeTracker({ ...manual, _id: tracker._id }).recordType, "tracker");
 assert.deepStrictEqual(ApplicationTracker.schema.indexes().find(([, options]) => options.name === "tracker_student_opportunity_v2")[1].partialFilterExpression,
   { opportunityId: { $type: "objectId" } });
+assert.deepStrictEqual(ApplicationTracker.schema.indexes().find(([, options]) => options.name === "tracker_student_auto_apply_package_test")[1].partialFilterExpression,
+  { autoApplyPackageId: { $type: "objectId" }, isTest: true });
 
 (async () => {
   const records = new Map();

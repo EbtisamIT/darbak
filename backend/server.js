@@ -7764,6 +7764,7 @@ const requireAutoApplyOAuthUser = async (req, res, next) => {
     });
     if (!user) return res.status(401).json({ error: "سجّل الدخول أولًا." });
     req.autoApplyOAuthUser = user;
+    req.autoApplyUser = user;
     next();
   } catch (error) {
     next(error);
@@ -7776,13 +7777,25 @@ app.get("/api/auto-apply/email/gmail/error", gmailErrorPage);
 app.use(
   "/api/auto-apply",
   requireAutoApplyOAuthUser,
+  require("./services/autoApplyPilot").requirePilotUser,
   require("./services/autoApplyGmailOAuthRoutes"),
+);
+app.use(
+  "/api/auto-apply",
+  requireAutoApplyOAuthUser,
+  require("./services/autoApplyPilot").requirePilotUser,
+  require("./services/autoApplyV1Routes"),
 );
 app.use(
   "/api/admin/auto-apply",
   requireAdmin,
   requireAutoApplyOAuthUser,
   require("./services/autoApplyGmailProductionSmokeRoutes").createProductionSmokeRouter(),
+);
+app.use(
+  "/api/admin/auto-apply/pilot-monitor",
+  requireAdmin,
+  require("./services/autoApplyPilotAdminRoutes"),
 );
 
 app.get("/api/rewards/resume/me", requireExperienceRewardUser, async (req, res) => {

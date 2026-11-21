@@ -27,13 +27,52 @@ function encodeHeader(value) {
   return `=?UTF-8?B?${Buffer.from(String(value), "utf8").toString("base64")}?=`;
 }
 
-function buildRawMessage({ to, subject = PRODUCTION_SMOKE_SUBJECT, body = PRODUCTION_SMOKE_BODY }) {
+function encodeFilename(value) {
+  return encodeURIComponent(String(value || "resume.pdf")).replace(/[!'()*]/g, (char) =>
+    `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function validatePdfAttachment(attachment) {
+  if (!attachment || !Buffer.isBuffer(attachment.bytes) || !attachment.bytes.length) {
+    throw Object.assign(new Error("AUTO_APPLY_RESUME_MISSING"), { status: 409 });
+  }
+  if (attachment.mimeType !== "application/pdf" || attachment.bytes.subarray(0, 5).toString() !== "%PDF-") {
+    throw Object.assign(new Error("AUTO_APPLY_RESUME_INVALID"), { status: 400 });
+  }
+  if (attachment.bytes.length > 5 * 1024 * 1024) {
+    throw Object.assign(new Error("AUTO_APPLY_RESUME_TOO_LARGE"), { status: 400 });
+  }
+  return attachment;
+}
+
+function buildRawMessage({ to, subject = PRODUCTION_SMOKE_SUBJECT, body = PRODUCTION_SMOKE_BODY, attachment = null }) {
+  if (attachment) validatePdfAttachment(attachment);
+  const boundary = `darbak-auto-apply-${Buffer.from(String(subject)).toString("base64url").slice(0, 24)}`;
   const encodedBody = Buffer.from(String(body), "utf8").toString("base64")
     .match(/.{1,76}/g)?.join("\r\n") || "";
-  const mime = [
+  const headers = [
     `To: ${normalizeEmail(to)}`,
     `Subject: ${encodeHeader(subject)}`,
     "MIME-Version: 1.0",
+  ];
+  const mime = attachment ? [
+    ...headers,
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    encodedBody,
+    `--${boundary}`,
+    `Content-Type: application/pdf; name*=UTF-8''${encodeFilename(attachment.filename)}`,
+    "Content-Transfer-Encoding: base64",
+    `Content-Disposition: attachment; filename*=UTF-8''${encodeFilename(attachment.filename)}`,
+    "",
+    attachment.bytes.toString("base64").match(/.{1,76}/g)?.join("\r\n") || "",
+    `--${boundary}--`,
+  ].join("\r\n") : [
+    ...headers,
     "Content-Type: text/plain; charset=UTF-8",
     "Content-Transfer-Encoding: base64",
     "",
@@ -93,11 +132,51 @@ async function sendProductionSmokeMessage({ account, env = process.env, fetchImp
   return { providerMessageId: String(result.id), recipient };
 }
 
+async function sendRealApplicationMessage({
+  account,
+  recipient,
+  subject,
+  body,
+  attachment,
+  authorization,
+  env = process.env,
+  fetchImpl = fetch,
+}) {
+  if (env.AUTO_APPLY_REAL_SEND_ENABLED !== "true" || authorization !== "pilot-review-approved") {
+    throw Object.assign(new Error("AUTO_APPLY_REAL_SEND_DISABLED"), { status: 404 });
+  }
+  if (!account || account.status !== "connected" || !account.encryptedRefreshToken) {
+    throw Object.assign(new Error("GMAIL_NOT_CONNECTED"), { status: 409 });
+  }
+  const normalizedRecipient = normalizeEmail(recipient);
+  if (!validEmail(normalizedRecipient)) {
+    throw Object.assign(new Error("AUTO_APPLY_DESTINATION_INVALID"), { status: 409 });
+  }
+  validatePdfAttachment(attachment);
+  const config = requiredConfig(env);
+  const refreshToken = decryptRefreshToken(account.encryptedRefreshToken, config.encryptionKey);
+  const accessToken = await refreshAccessToken(refreshToken, config, fetchImpl);
+  const result = await providerJson("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ raw: buildRawMessage({
+      to: normalizedRecipient,
+      subject,
+      body,
+      attachment,
+    }) }),
+  }, fetchImpl);
+  if (!result.id) throw Object.assign(new Error("GMAIL_SEND_RESPONSE_INVALID"), { status: 502 });
+  return { providerMessageId: String(result.id), recipient: normalizedRecipient };
+}
+
 module.exports = {
   PRODUCTION_SMOKE_SUBJECT,
   PRODUCTION_SMOKE_BODY,
   productionSmokeRecipient,
   buildRawMessage,
+  validatePdfAttachment,
   refreshAccessToken,
   sendProductionSmokeMessage,
+  sendRealApplicationMessage,
 };
