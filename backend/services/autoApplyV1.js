@@ -29,9 +29,9 @@ function validateProfile(input = {}) {
   const preferredCities = unique(input.preferredCities);
   const trainingTypes = unique(input.trainingTypes);
   const excludedCompanyIds = unique(input.excludedCompanyIds);
-  const mode = input.mode || "review_first";
+  const mode = "review_first";
   if (!EDUCATION_LEVELS.includes(educationLevel) || (!major && !customMajor) || !preferredFields.length || !preferredCities.length ||
-    trainingTypes.some((type) => !TRAINING_TYPES.includes(type)) || !["review_first", "automatic"].includes(mode)) {
+    trainingTypes.some((type) => !TRAINING_TYPES.includes(type))) {
     throw Object.assign(new Error("أكملي المؤهل والتخصص ومجالات التدريب والمدن قبل المتابعة."), { status: 400 });
   }
   if (preferredFields.includes("أخرى") && !clean(input.customField)) {

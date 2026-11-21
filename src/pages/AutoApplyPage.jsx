@@ -202,9 +202,10 @@ export default function AutoApplyPage() {
         onChange={(trainingTypes) => update({ trainingTypes })} />
       <div className="auto-apply-form-grid"><label>بداية التدريب المفضلة<input type="date" value={profile.trainingStartDate || ""} onChange={(event) => update({ trainingStartDate: event.target.value })} /></label>
         <label>المدة<input value={profile.trainingDuration || ""} onChange={(event) => update({ trainingDuration: event.target.value })} placeholder="مثال: 3 أشهر" /></label></div>
-      <label>طريقة العمل<select value={profile.mode} onChange={(event) => update({ mode: event.target.value })}>
-        <option value="review_first">أراجع كل طلب أولًا</option><option value="automatic">تلقائي لاحقًا — تجريبي الآن</option>
-      </select></label>
+      <div className="auto-apply-field">
+        <span className="auto-apply-field__label">طريقة العمل</span>
+        <p>أراجع كل طلب أولًا</p>
+      </div>
       <label className="auto-apply-check"><input type="checkbox" checked={profile.paused} onChange={(event) => update({ paused: event.target.checked })} />إيقاف التقديم التلقائي</label>
       <button disabled={busy} onClick={saveProfile}>حفظ الاختيارات</button>
     </section><div className="auto-apply-side"><section className="auto-apply-panel">

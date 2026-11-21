@@ -3,7 +3,8 @@ const { validateProfile, evaluateChannel, applicationMessage, isCurrentVerifiedC
 
 const now = new Date("2026-11-01T12:00:00.000Z");
 const profile = validateProfile({ educationLevel: "bachelor", major: "نظم المعلومات", preferredFields: ["تحليل البيانات"],
-  preferredCities: ["الرياض"], allowRemote: false, trainingTypes: ["coop"], mode: "review_first" });
+  preferredCities: ["الرياض"], allowRemote: false, trainingTypes: ["coop"], mode: "automatic" });
+assert.equal(profile.mode, "review_first");
 const channel = { company: "جهة اختبار", companyNormalized: "جهة اختبار", email: "training@example.org",
   verificationStatus: "verified", acceptsTrainingApplications: true, channelType: "evergreen_training",
   majors: ["Information Systems"], cities: ["Riyadh"], preferredFields: ["تحليل البيانات"] };
