@@ -27,6 +27,7 @@ const Company = require('./models/Company');
 const Opportunity = require('./models/Opportunity');
 const { createOpportunityCandidateRouter } = require('./services/opportunityCandidateRoutes');
 const { createOpportunityImportRouter } = require('./services/opportunityDiscovery/importRoutes');
+const { createOpportunityAutopilot } = require('./services/opportunityDiscovery/autopilot');
 const { rankOpportunitySearchResults } = require('./services/opportunitySearch');
 const { buildSubscriptionDashboard } = require("./services/subscriptionDashboard");
 const { createCheckoutSingleFlight } = require("./services/checkoutSingleFlight");
@@ -20192,17 +20193,44 @@ app.post(
 
 app.use('/api/internal/opportunity-discovery/import', createOpportunityImportRouter());
 
+const invalidateOpportunityReadCache = () => {
+  for (const key of readCache.keys()) {
+    if (key.startsWith("opportunities") || key.startsWith("home-stats") || key.startsWith("company")) readCache.delete(key);
+  }
+};
+
+const opportunityAutopilot = createOpportunityAutopilot({
+  sanitizeOpportunityPayload,
+  hydrateDarbakOpportunityFromCampaign,
+  containsBlockedTerms,
+  onPublish: invalidateOpportunityReadCache,
+});
+
 app.use('/api/admin/opportunity-candidates', createOpportunityCandidateRouter({
   requireAdmin,
   sanitizeOpportunityPayload,
   hydrateDarbakOpportunityFromCampaign,
   containsBlockedTerms,
-  onPublish: () => {
-    for (const key of readCache.keys()) {
-      if (key.startsWith("opportunities") || key.startsWith("home-stats") || key.startsWith("company")) readCache.delete(key);
-    }
-  },
+  onPublish: invalidateOpportunityReadCache,
+  autopilot: opportunityAutopilot,
 }));
+
+// External scheduler entry point (for hosts that sleep). Idempotent: discovery
+// slots, the daily re-check and the lease are tracked in MongoDB.
+const OPPORTUNITY_AUTOPILOT_CRON_SECRET = process.env.OPPORTUNITY_AUTOPILOT_CRON_SECRET || TELEGRAM_CRON_SECRET;
+app.post('/api/internal/opportunity-autopilot/tick', (req, res) => {
+  if (!OPPORTUNITY_AUTOPILOT_CRON_SECRET) {
+    return res.status(500).json({ error: "Opportunity autopilot cron secret is not configured" });
+  }
+  const provided = String(req.headers["x-opportunity-autopilot-secret"] || "");
+  const expected = Buffer.from(OPPORTUNITY_AUTOPILOT_CRON_SECRET);
+  const given = Buffer.from(provided);
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  setImmediate(() => opportunityAutopilot.tick());
+  return res.status(202).json({ accepted: true });
+});
 
 app.get('/api/admin/opportunities', requireAdmin, async (req, res) => {
   try {
@@ -20958,4 +20986,6 @@ app.delete('/api/admin/company-applications/:id', requireAdmin, async (req, res)
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  // Does nothing until an admin enables the autopilot in the Opportunity Inbox.
+  opportunityAutopilot.start();
 });

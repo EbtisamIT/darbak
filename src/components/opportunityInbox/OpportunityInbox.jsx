@@ -6,6 +6,7 @@ import CandidateCard, { simpleStatusLabels } from "./CandidateCard";
 import CandidateEditor from "./CandidateEditor";
 import CandidateComparison from "./CandidateComparison";
 import DiscoveryPanel from "./DiscoveryPanel";
+import AutopilotPanel from "./AutopilotPanel";
 import AutoApplyEmailReview from "./AutoApplyEmailReview";
 import AutoApplyPilotMonitor from "./AutoApplyPilotMonitor";
 import { programLabels } from "./candidateLabels";
@@ -68,6 +69,7 @@ export default function OpportunityInbox({ password, refreshKey = 0, formOptions
       <button onClick={() => setReload((v) => v + 1)} disabled={busy || loading}><FiRefreshCw />تحديث</button>
       {process.env.NODE_ENV === "development" && <button onClick={() => mutate("post", "/seed", {})} disabled={busy}>إضافة 5 حالات تجريبية</button>}
     </div></header>
+    <AutopilotPanel password={password} onChange={refreshCandidates} />
     <DiscoveryPanel password={password} onComplete={refreshCandidates} />
     <AutoApplyEmailReview password={password} />
     <AutoApplyPilotMonitor password={password} />

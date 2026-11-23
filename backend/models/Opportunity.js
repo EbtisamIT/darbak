@@ -122,6 +122,19 @@ const opportunitySchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    // Written only by the opportunity autopilot (daily source re-check).
+    automationCheck: {
+      type: new mongoose.Schema({
+        autoPublished: Boolean,
+        lastCheckedAt: Date,
+        lastResult: { type: String, enum: ["open", "closed", "gone", "inconclusive", "unverifiable"] },
+        closedSignals: { type: Number, default: 0 },
+        closedAt: Date,
+        closedReason: String,
+        ignore: Boolean,
+      }, { _id: false }),
+      default: undefined,
+    },
   },
   { timestamps: true }
 );
