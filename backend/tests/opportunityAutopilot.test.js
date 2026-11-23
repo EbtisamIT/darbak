@@ -168,5 +168,12 @@ const autopilot = createOpportunityAutopilot({ onPublish: () => { invalidations+
   State.findOneAndUpdate = async () => null;
   assert.deepEqual(await autopilot.tick({ now }), { skipped: "BUSY" });
 
+  // First boot creates the state enabled unless OPPORTUNITY_AUTOPILOT_ENABLED=false.
+  const inserts = [];
+  State.updateOne = async (filter, update) => { if (update.$setOnInsert) inserts.push(update.$setOnInsert.enabled); return {}; };
+  await autopilot.status().catch(() => {});
+  await createOpportunityAutopilot({ env: { OPPORTUNITY_AUTOPILOT_ENABLED: "false" }, log: { error() {} } }).status().catch(() => {});
+  assert.deepEqual(inserts, [true, false]);
+
   console.log("Opportunity autopilot PASS: strict co-op filter, confident auto-publish, safe updates, two-signal closure, slots and lease.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

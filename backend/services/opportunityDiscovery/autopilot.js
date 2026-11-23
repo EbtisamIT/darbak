@@ -99,7 +99,9 @@ function createOpportunityAutopilot({ sanitizeOpportunityPayload, containsBlocke
     { $push: { actions: { $each: actions, $position: 0, $slice: ACTION_LOG_LIMIT } } });
 
   async function ensureState() {
-    await State.updateOne({ _id: "autopilot" }, { $setOnInsert: { enabled: false } }, { upsert: true }).catch((e) => { if (e.code !== 11000) throw e; });
+    // Starts enabled on first boot unless OPPORTUNITY_AUTOPILOT_ENABLED=false;
+    // afterwards the admin switch in the Opportunity Inbox decides.
+    await State.updateOne({ _id: "autopilot" }, { $setOnInsert: { enabled: env.OPPORTUNITY_AUTOPILOT_ENABLED !== "false" } }, { upsert: true }).catch((e) => { if (e.code !== 11000) throw e; });
   }
 
   async function acquireLease(now = new Date()) {

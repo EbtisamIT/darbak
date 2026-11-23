@@ -32,8 +32,10 @@ The production run must be reviewed before any future scheduling activation.
 
 ## Opportunity Autopilot
 
-Admin: Opportunity Inbox → **الأتمتة الكاملة للفرص**. Off by default; the
-admin switch is stored in MongoDB (`opportunityautopilotstate`). Code:
+Admin: Opportunity Inbox → **الأتمتة الكاملة للفرص**. Enabled on first boot
+(set `OPPORTUNITY_AUTOPILOT_ENABLED=false` before deploying to start it off);
+after that the admin switch stored in MongoDB (`opportunityautopilotstate`)
+decides. Code:
 `services/opportunityDiscovery/autopilot.js`.
 
 Each tick (every 10 minutes in-process, or the external cron endpoint):
@@ -66,9 +68,12 @@ Configuration:
 - `OPPORTUNITY_AUTOPILOT_DISABLED=true` — emergency kill switch.
 - Publication uses MongoDB transactions (Atlas / replica set).
 
-Hosts that sleep (e.g. Render free) do not run the in-process timer, so also
-call the tick endpoint hourly from an external cron (cron-job.org, GitHub
-Actions):
+Hosts that sleep (e.g. Render free) do not run the in-process timer.
+`.github/workflows/keep-api-awake.yml` pings the public `/api/health` every
+10 minutes so the timer keeps running; no secret is involved. GitHub pauses
+scheduled workflows after 60 days without repository activity; re-enable it
+from the Actions tab if that happens. Alternatively, call the tick endpoint
+from an external cron:
 
 ```sh
 curl -X POST https://<api-host>/api/internal/opportunity-autopilot/tick \
