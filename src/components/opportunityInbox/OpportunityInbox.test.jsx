@@ -5,6 +5,7 @@ import axios from "axios";
 import OpportunityInbox from "./OpportunityInbox";
 import CandidateComparison from "./CandidateComparison";
 
+jest.mock("./AutopilotPanel", () => () => null);
 jest.mock("axios", () => {
   const client = jest.fn();
   client.get = jest.fn();

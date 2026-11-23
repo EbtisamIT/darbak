@@ -79,3 +79,13 @@
 .oi-email-network .oi-detail input:not([type="checkbox"]), .oi-email-network .oi-detail select, .oi-email-network .oi-detail textarea { width: 100%; min-width: 0; box-sizing: border-box; }
 .oi-pilot-monitor { margin-block: 16px; padding-block: 16px; border-block: 1px solid #35433f; }
 .oi-pilot-monitor > div { margin-top: 14px; }
+.oi-autopilot-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.oi-autopilot-head > div:first-child { flex: 1 1 320px; min-width: 0; }
+.oi-autopilot h3 { margin: 0 0 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.oi-autopilot-head p { margin: 0; font-size: 14px; line-height: 1.7; }
+.oi-autopilot-badge { font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
+.oi-autopilot-badge.on { color: #8ee7dc; }
+.oi-autopilot-badge.off { color: #ffb9b9; }
+.oi-autopilot .oi-summary { margin-top: 12px; }
+.oi-autopilot-meta { list-style: none; padding-inline-start: 0 !important; }
+.oi-autopilot li button { margin-top: 6px; }

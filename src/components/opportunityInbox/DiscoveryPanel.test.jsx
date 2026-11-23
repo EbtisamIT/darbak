@@ -6,13 +6,13 @@ import DiscoveryPanel from "./DiscoveryPanel";
 
 jest.mock("axios", () => ({ get: jest.fn(), post: jest.fn() }));
 beforeEach(() => { jest.clearAllMocks(); axios.get.mockResolvedValue({ data: { run: null, sources: [] } }); });
-test("run history and disabled scheduling are visible without starting a run", async () => {
+test("run history and scheduling note are visible without starting a run", async () => {
   axios.get.mockResolvedValue({ data: { sources: [], scheduling: { enabled: false, maxDailyRuns: 2, maxSearchQueriesPerRun: 20 },
     recentRuns: [{ _id: "run-1", startedAt: "2026-10-02T05:00:00Z", finishedAt: "2026-10-02T05:00:10Z", durationMs: 10000,
       status: "completed", queries: 15, results: 39, candidatesCreated: 2, duplicates: 0, updates: 0, errors: 0 }] } });
   render(<DiscoveryPanel password="test" onComplete={jest.fn()} />);
   fireEvent.click(screen.getByRole("button", { name: "الاكتشاف من المصادر الرسمية" }));
-  expect(await screen.findByText(/الجدولة غير مفعلة/)).toBeInTheDocument();
+  expect(await screen.findByText(/الجدولة اليومية تُدار من/)).toBeInTheDocument();
   expect(screen.getByText("آخر 10 تشغيلات")).toBeInTheDocument();
   expect(screen.getByText("39")).toBeInTheDocument();
   expect(axios.post).not.toHaveBeenCalled();

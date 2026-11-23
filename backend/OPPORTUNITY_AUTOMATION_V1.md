@@ -1,7 +1,7 @@
 # Opportunity Automation v1
 
-Scheduling is configuration only: **disabled**, 08:00 and 20:00 Asia/Riyadh.
-No scheduler, cron registration, or automatic publication is installed.
+Scheduling and automatic publication are handled by the **Opportunity
+Autopilot** (see the section at the end). It is off until an admin enables it.
 
 `MAX_DAILY_RUNS` (or `DISCOVERY_MAX_DAILY_RUNS`) defaults to 2 and cannot
 exceed 2. `DISCOVERY_MAX_SEARCH_QUERIES_PER_RUN` (or
@@ -29,3 +29,51 @@ text and filtering evidence remain available for review. No AI or snippet facts.
 Existing candidates are not rewritten in bulk. Retry enrichment on the same
 candidate can apply improved extraction while preserving manual edits.
 The production run must be reviewed before any future scheduling activation.
+
+## Opportunity Autopilot
+
+Admin: Opportunity Inbox → **الأتمتة الكاملة للفرص**. Off by default; the
+admin switch is stored in MongoDB (`opportunityautopilotstate`). Code:
+`services/opportunityDiscovery/autopilot.js`.
+
+Each tick (every 10 minutes in-process, or the external cron endpoint):
+
+1. **Discovery** — starts one `automation` run per slot (08:00, 20:00
+   Riyadh). Still bound by `MAX_DAILY_RUNS` and the search budget above.
+2. **Auto-publish** — candidates from `official_discovery` only:
+   - published when the title explicitly says co-op/تدريب تعاوني, the page is
+     official/available/actionable (`readyForReview`), no content-quality
+     warning, completeness ≥ `OPPORTUNITY_AUTOPILOT_MIN_COMPLETENESS` (70),
+     deadline not passed, and no duplicate match;
+   - internships, summer and graduate programs are rejected;
+   - matches of existing opportunities only apply an extended deadline;
+   - everything else stays in the inbox (`autopilot.decision = review`).
+3. **Daily re-check** (from 06:00 Riyadh, once per day, up to
+   `OPPORTUNITY_AUTOPILOT_RECHECK_LIMIT` = 40, oldest-checked first) — active
+   opportunities whose source/application URL is inside an approved source.
+   Two consecutive closed/removed results set `status: expired`; blocked or
+   failed fetches never close. Extended deadlines are applied. URLs outside
+   approved sources are counted as `unverifiable`; deadline expiry still
+   applies to them via `markExpiredOpportunities`.
+
+Every automatic action is logged (last 100) and auto-closed opportunities can
+be reopened from the panel; reopened ones are excluded from future checks.
+
+Configuration:
+
+- `BRAVE_SEARCH_API_KEY` — required for discovery.
+- `OPPORTUNITY_AUTOPILOT_CRON_SECRET` (falls back to `TELEGRAM_CRON_SECRET`).
+- `OPPORTUNITY_AUTOPILOT_DISABLED=true` — emergency kill switch.
+- Publication uses MongoDB transactions (Atlas / replica set).
+
+Hosts that sleep (e.g. Render free) do not run the in-process timer, so also
+call the tick endpoint hourly from an external cron (cron-job.org, GitHub
+Actions):
+
+```sh
+curl -X POST https://<api-host>/api/internal/opportunity-autopilot/tick \
+  -H "x-opportunity-autopilot-secret: $OPPORTUNITY_AUTOPILOT_CRON_SECRET"
+```
+
+The tick is idempotent (slots, daily re-check day and a 20-minute lease are
+stored in MongoDB), so the timer and the cron can both run safely.

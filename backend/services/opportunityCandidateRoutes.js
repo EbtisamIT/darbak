@@ -13,7 +13,7 @@ const { REVIEW_STATUSES } = require("./opportunityEnrichmentAssessment");
 const { summarizeCandidates } = require("./opportunityCandidateSummary");
 const { createAutoApplyEmailNetworkRouter } = require("./autoApplyEmailNetworkRoutes");
 
-function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPayload, containsBlockedTerms, hydrateDarbakOpportunityFromCampaign, onPublish = () => {} }) {
+function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPayload, containsBlockedTerms, hydrateDarbakOpportunityFromCampaign, onPublish = () => {}, autopilot = null }) {
   const router = express.Router();
   router.use(requireAdmin);
   router.use((req, res, next) => {
@@ -72,6 +72,19 @@ function createOpportunityCandidateRouter({ requireAdmin, sanitizeOpportunityPay
       summary: summarizeCandidates(groups, discoveredToday, emailLeads) });
   }));
   router.get("/discovery", handle(async (req, res) => res.json(await discoveryStatus())));
+  if (autopilot) {
+    router.get("/autopilot", handle(async (req, res) => res.json(await autopilot.status())));
+    router.patch("/autopilot", handle(async (req, res) => res.json(await autopilot.setEnabled(req.body?.enabled))));
+    // Runs in the background; the admin refreshes status to see the result.
+    router.post("/autopilot/run", handle(async (req, res) => {
+      setImmediate(() => autopilot.tick({ forceRecheck: true }));
+      res.status(202).json({ started: true });
+    }));
+    router.post("/autopilot/reopen/:opportunityId", handle(async (req, res) => {
+      if (!mongoose.isObjectIdOrHexString(req.params.opportunityId)) fail(400, "معرف غير صالح.");
+      res.json(await autopilot.reopen(req.params.opportunityId));
+    }));
+  }
   // A separate short lease prevents parallel expensive URL tests across workers.
   router.post("/discovery/test-url", handle(async (req, res) => {
     const Run = require("../models/OpportunityDiscoveryRun");

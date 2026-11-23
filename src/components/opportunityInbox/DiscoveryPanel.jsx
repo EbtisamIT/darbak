@@ -45,7 +45,7 @@ export default function DiscoveryPanel({ password, onComplete }) {
       </div>
       {error && <p className="oi-error" role="alert">{error}</p>}
       {result && <p>البحث الخارجي: {result.searchConfigured ? "مهيأ" : "غير مهيأ"} · عرض المتصفح: {result.browserConfigured ? "مهيأ" : "غير مهيأ"}</p>}
-      {result?.scheduling && <p>الجدولة غير مفعلة · 08:00 و20:00 بتوقيت الرياض · الحد اليومي {result.scheduling.maxDailyRuns} · الاستعلامات لكل جولة {result.scheduling.maxSearchQueriesPerRun}</p>}
+      {result?.scheduling && <p>الجدولة اليومية تُدار من «الأتمتة الكاملة للفرص» · 08:00 و20:00 بتوقيت الرياض · الحد اليومي {result.scheduling.maxDailyRuns} · الاستعلامات لكل جولة {result.scheduling.maxSearchQueriesPerRun}</p>}
       {result?.recentRuns?.length > 0 && <details><summary>آخر 10 تشغيلات</summary>
         <div className="oi-run-history"><table><thead><tr>{["البداية", "النهاية", "الحالة", "المدة (ث)", "استعلامات", "نتائج", "مرشحون", "مكررات", "تحديثات", "أخطاء"].map((label) => <th key={label}>{label}</th>)}</tr></thead>
           <tbody>{result.recentRuns.map((item) => <tr key={item._id}>
@@ -55,7 +55,7 @@ export default function DiscoveryPanel({ password, onComplete }) {
             {["queries", "results", "candidatesCreated", "duplicates", "updates", "errors"].map((key) => <td key={key}>{item[key]}</td>)}
           </tr>)}</tbody></table></div>
       </details>}
-      {result?.run?.runType && <p>{result.run.runType === "search-only" ? "بحث فقط؛ لم تُجلب صفحات الإعلانات ولم يُنشأ مرشحون." : "فحص نتائج البحث؛ لا نشر تلقائي."}</p>}
+      {result?.run?.runType && <p>{result.run.runType === "search-only" ? "بحث فقط؛ لم تُجلب صفحات الإعلانات ولم يُنشأ مرشحون." : "فحص نتائج البحث؛ يُنشر الواضح منها تلقائيًا فقط عند تفعيل الأتمتة الكاملة."}</p>}
       <SearchDiscoveryReport key={result?.run?._id} report={result?.run?.searchReport} />
       {result?.run?.summary && <div className="oi-summary">{[["pagesExtracted", "صفحات استُخرجت"], ["opportunitiesEnriched", "فرص أُثريت"], ["averageCompleteness", "متوسط الاكتمال %"],
         ["readyForReview", "جاهزة للمراجعة"], ["needsDetails", "تحتاج تفاصيل"], ["needsVerification", "تحتاج تحقق"],

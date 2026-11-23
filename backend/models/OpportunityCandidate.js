@@ -31,6 +31,7 @@ const candidateSchema = new mongoose.Schema({
   majorScope: { type: String, enum: ["specific", "all", "broad", "unknown"] }, rawMajors: [String], rawCities: [String],
   extractionEvidence: { type: mongoose.Schema.Types.Mixed, select: false }, manualFields: [String],
   importedVia: { type: String, enum: ["agent", "manual", "official_discovery"] },
+  autopilot: { type: new mongoose.Schema({ decidedAt: Date, decision: String, reason: String }, { _id: false }), default: undefined },
   importSource: String, importRunId: String, importedAt: Date,
   searchDiscovery: { type: new mongoose.Schema({ provider: String, resultTitle: String, resultDescription: String, resultPublishedAt: Date,
     discoveredByQueries: [String], firstDiscoveredAt: Date, classification: String }, { _id: false }), default: undefined },
