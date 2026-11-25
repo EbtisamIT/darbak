@@ -5,6 +5,8 @@ const { runAutoApplySupplyDiscovery, mongoRuns } = require("../services/autoAppl
 const { extractPage } = require("../services/autoApplySupplyExtraction");
 const { discoveryPlan, settings } = require("../services/autoApplySupplyCollectorConfig");
 const { mountAutoApplySupplyCollectorRoutes, validSchedulerToken } = require("../services/autoApplySupplyCollectorRoutes");
+const { canaryReadiness, canaryEnvironment } = require("../services/autoApplySupplyCanary");
+const SupplyRun = require("../models/AutoApplySupplyRun");
 
 const now = new Date("2026-11-25T06:00:00Z");
 const later = new Date("2026-11-26T06:00:00Z");
@@ -306,4 +308,34 @@ test("classifier sees records after ingestion and failures do not undo collector
   assert.equal(calls, 1);
   await f.collect({ classifyBatch, preview: true, registry: f.settings.registry });
   assert.equal(calls, 1);
+});
+
+test("canary uses fixed caps, skips legacy imports and scopes AI to freshly inserted candidate IDs", async () => {
+  const f = fixture();
+  await f.collect();
+  f.state.html = pageHtml({ email: "new-training@example.org" });
+  let ids;
+  const result = await f.collect({ trigger: "canary", canarySlot: 1, env: canaryEnvironment(f.settings.env),
+    listDarbak: assert.fail, listRechecks: assert.fail, selectLegacy: assert.fail,
+    classifyBatch: async ({ candidateIds }) => { ids = candidateIds; },
+  });
+  assert.equal(result.created, 1);
+  assert.equal(result.pagesFetched, 1);
+  assert.equal(result.fetchFailures, 0);
+  assert.equal(result.rawCandidates, 4);
+  assert.equal(result.stages.relevantPrograms, 1);
+  assert.equal(result.stages.pageChannels, 4);
+  assert.equal(result.stages.ingestionFailures, 0);
+  assert.deepEqual(ids, [[...f.supply.rows.values()].find((row) => row.destinationEmail === "new-training@example.org")._id]);
+  assert.equal(SupplyRun.schema.indexes().some(([index, options]) => index.canarySlot === 1 && options.unique === true), true);
+  const settingsForCanary = settings(canaryEnvironment({ AUTO_APPLY_SUPPLY_MAX_QUERIES_PER_RUN: "50" }));
+  assert.deepEqual([settingsForCanary.maxQueries, settingsForCanary.maxPages, settingsForCanary.maxNew], [8, 16, 25]);
+  assert.equal(canaryEnvironment({}).AUTO_APPLY_SUPPLY_MAX_AI_CLASSIFICATIONS_PER_RUN, "10");
+  const first = { canarySlot: 1, finishedAt: now, metrics: { resultsFound: 10, uniqueCandidates: 0 } };
+  assert.equal(canaryReadiness({}, []).nextSlot, 1);
+  assert.equal(canaryReadiness({}, [first]).nextSlot, null);
+  const approvedRetry = { AUTO_APPLY_SUPPLY_CANARY_RETRY_ENABLED: "true" };
+  assert.equal(canaryReadiness(approvedRetry, [first]).nextSlot, 2);
+  assert.equal(canaryReadiness(approvedRetry, [first, { canarySlot: 2 }]).nextSlot, null);
+  assert.equal(canaryReadiness(approvedRetry, [{ ...first, metrics: { resultsFound: 10, uniqueCandidates: 1 } }]).nextSlot, null);
 });

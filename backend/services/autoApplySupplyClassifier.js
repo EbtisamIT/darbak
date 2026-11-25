@@ -107,7 +107,8 @@ async function extractMetadata({ record, client, model, metrics, timeoutMs = REQ
 
 function mongoClassificationStore(model = Supply) {
   return {
-    list: ({ modelName, limit, now }) => model.find({
+    list: ({ modelName, limit, now, candidateIds }) => model.find({
+      ...(candidateIds ? { _id: { $in: candidateIds } } : {}),
       verificationStatus: "NEEDS_REVIEW", isActive: true,
       $and: [
         { $or: [{ classifierVersion: { $ne: CLASSIFIER_VERSION } }, { "classification.requestedModel": { $ne: modelName } }] },
@@ -151,15 +152,15 @@ function mongoClassificationStore(model = Supply) {
 
 async function classifySupplyBatch({ env = process.env, client, previewRecords, store = mongoClassificationStore(),
   clock = () => new Date(), canContinue = () => true, remainingMs = () => REQUEST_TIMEOUT_MS,
-  beforeWrite = async () => {}, metrics = emptyAiMetrics(),
+  beforeWrite = async () => {}, metrics = emptyAiMetrics(), candidateIds,
 } = {}) {
   const config = classifierSettings(env);
   const preview = Array.isArray(previewRecords);
   const limit = preview ? Math.min(5, config.maxCalls) : config.maxCalls;
   if (preview) metrics.previewStatuses = [];
-  if ((!preview && !config.enabled) || !limit || (!client && !config.apiKey)) return metrics;
+  if ((!preview && !config.enabled) || !limit || (!client && !config.apiKey) || candidateIds?.length === 0) return metrics;
   const sdk = client || new OpenAI({ apiKey: config.apiKey, timeout: REQUEST_TIMEOUT_MS, maxRetries: 0 });
-  const records = preview ? previewRecords.slice(0, limit) : await store.list({ modelName: config.model, limit: limit * 2, now: clock() });
+  const records = preview ? previewRecords.slice(0, limit) : await store.list({ modelName: config.model, limit: limit * 2, now: clock(), candidateIds });
   const seen = new Set();
   for (const record of records) {
     if (!canContinue() || remainingMs() < 500 || metrics.aiCalls >= limit) break;

@@ -103,14 +103,21 @@ function linkedChannels($, root, pageUrl) {
   return { urls, mailLinks };
 }
 
-function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTitle, query, sourceType }) {
+function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTitle, query, sourceType, diagnostics }) {
+  const skip = (reason) => {
+    if (diagnostics) diagnostics[reason] += 1;
+    return [];
+  };
   const title = cap(job.title, 300);
   const evidence = [title, body].filter(Boolean).join("\n");
   const location = geography(job, evidence, page.url);
   const type = programType(title, evidence);
-  if (!type || !location || !sameCompany(job.companyName, source)) return [];
+  if (!type) return skip("noProgram");
+  if (!sameCompany(job.companyName, source)) return skip("employerMismatch");
+  if (!location) return skip("noSaudiEvidence");
   const sourceUrl = secureUrl(job.sourceUrl || page.url);
-  if (!sourceUrl || !allowedUrl(sourceUrl, source)) return [];
+  if (!sourceUrl || !allowedUrl(sourceUrl, source)) return skip("outOfScopePosting");
+  if (diagnostics) diagnostics.relevantPrograms += 1;
   const common = {
     companyName: source.company,
     opportunityTitle: title,
@@ -128,7 +135,9 @@ function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTit
     applicationLinks.push({ channelType: channelForUrl(portal), applicationUrl: portal,
       applicationEvidenceText: cap(job.applicationCta?.label || title, 1500) });
   }
-  return [...emailChannels(body, mailLinks), ...applicationLinks].map((channel) => {
+  const channels = [...emailChannels(body, mailLinks), ...applicationLinks];
+  if (!channels.length) return skip("noChannel");
+  return channels.map((channel) => {
     const shared = channel.applicationUrl && SHARED_PORTAL.test(new URL(channel.applicationUrl).pathname) &&
       !new URL(channel.applicationUrl).searchParams.size;
     if (!shared) return { ...common, ...channel };
@@ -137,7 +146,7 @@ function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTit
   });
 }
 
-function extractPage(page, source, { jobs, query } = {}) {
+function extractPage(page, source, { jobs, query, diagnostics } = {}) {
   const $ = cheerio.load(page.text);
   const pageTitle = cap($("title").first().text(), 500);
   const candidates = jobs?.length ? jobs : structuredJobs(page.text, page.url, source);
@@ -162,19 +171,22 @@ function extractPage(page, source, { jobs, query } = {}) {
       return opportunityChannels(job, page, source, {
         body: sameDetail && visibleText && !body.includes(visibleText) ? [body, visibleText].filter(Boolean).join("\n") : body,
         urls: sameDetail ? htmlLinks.urls : [], mailLinks: sameDetail ? htmlLinks.mailLinks : [],
-        pageTitle, query, sourceType,
+        pageTitle, query, sourceType, diagnostics,
       });
     });
   }
 
-  if (!TRAINING.test(title) && !GRADUATE.test(title) && !UNIVERSITY.test(title)) return [];
+  if (!TRAINING.test(title) && !GRADUATE.test(title) && !UNIVERSITY.test(title)) {
+    if (diagnostics) diagnostics.noProgram += 1;
+    return [];
+  }
   const labeledDeadline = visibleText.match(/(?:application deadline|closing date|آخر موعد للتقديم|الموعد النهائي للتقديم)\s*[:：]?\s*(\d{4}-\d{2}-\d{2})/i)?.[1];
   const timeField = (itemprop) => content.find(`time[itemprop="${itemprop}"]`).first().attr("datetime");
   return opportunityChannels({
     title, deadline: timeField("validThrough") || labeledDeadline,
     postedAt: timeField("datePosted") || $("meta[property='article:published_time']").attr("content"),
     trainingStartDate: timeField("jobStartDate"),
-  }, page, source, { body: visibleText, ...htmlLinks, pageTitle, query, sourceType });
+  }, page, source, { body: visibleText, ...htmlLinks, pageTitle, query, sourceType, diagnostics });
 }
 
 function extractSearchLead(result, source) {

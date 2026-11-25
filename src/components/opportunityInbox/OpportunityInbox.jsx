@@ -9,6 +9,7 @@ import DiscoveryPanel from "./DiscoveryPanel";
 import AutopilotPanel from "./AutopilotPanel";
 import AutoApplyEmailReview from "./AutoApplyEmailReview";
 import AutoApplyPilotMonitor from "./AutoApplyPilotMonitor";
+import AutoApplySupplyCanary from "./AutoApplySupplyCanary";
 import { programLabels } from "./candidateLabels";
 import "./OpportunityInbox.css";
 
@@ -73,6 +74,7 @@ export default function OpportunityInbox({ password, refreshKey = 0, formOptions
     <DiscoveryPanel password={password} onComplete={refreshCandidates} />
     <AutoApplyEmailReview password={password} />
     <AutoApplyPilotMonitor password={password} />
+    <AutoApplySupplyCanary password={password} />
     <div className="oi-summary">{[["discoveredToday", "اكتشفت اليوم (UTC)"], ["readyForReview", "جاهزة للمراجعة"], ["needsVerification", "تحتاج تحقق"], ["update_existing", "تحديثات"], ["duplicate", "مكررة"]].map(([key, label]) => <div key={key}><strong>{result.summary[key] || 0}</strong><span>{label}</span></div>)}</div>
     <form className="oi-filters" onSubmit={(e) => { e.preventDefault(); setPage(1); setApplied({ ...filters }); }}>
       {[["status", "الحالة", simpleStatusLabels], ["programType", "البرنامج", programLabels]].map(([field, label, options]) => <label key={field}>{label}<select value={filters[field] || ""} onChange={(e) => setFilters({ ...filters, [field]: e.target.value })}><option value="">الكل</option>{Object.entries(options).map(([v, text]) => <option key={v} value={v}>{text}</option>)}</select></label>)}

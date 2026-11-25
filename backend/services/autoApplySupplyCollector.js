@@ -20,13 +20,14 @@ const LEASE_MS = 600000;
 
 function mongoRuns(model = Run) {
   return {
-    async acquire(trigger, now) {
+    async acquire(trigger, now, canarySlot) {
       await model.init();
       await model.updateOne({ lock: RUN_LOCK, leaseUntil: { $lte: now } }, {
         $unset: { lock: "", leaseUntil: "" }, $set: { status: "interrupted", finishedAt: now },
       });
       try {
         return await model.create({ trigger, status: "running", lock: RUN_LOCK, startedAt: now,
+          ...(canarySlot ? { canarySlot } : { purgeAt: new Date(+now + 30 * 86400000) }),
           leaseUntil: new Date(now.getTime() + LEASE_MS) });
       } catch (error) {
         if (error.code !== 11000) throw error;
@@ -43,6 +44,8 @@ function mongoRuns(model = Run) {
     },
     latest: () => model.findOne({ trigger: { $in: ["scheduler", "admin", "cli"] } })
       .sort({ startedAt: -1 }).select("trigger status startedAt finishedAt metrics").lean(),
+    canaries: () => model.find({ trigger: "canary", canarySlot: { $in: [1, 2] } })
+      .sort({ canarySlot: 1 }).select("canarySlot status startedAt finishedAt metrics").limit(2).lean(),
   };
 }
 
@@ -113,25 +116,34 @@ async function runAutoApplySupplyDiscovery({
   trigger = "cli", env = process.env, preview = false, clock = () => new Date(),
   runs = mongoRuns(), registry = preview ? async () => SOURCES : () => registrySources({ activeOnly: true }),
   readSource = createReader, searchProvider, ingest = ingestSupply, listRechecks = existingSupply,
-  recheck = recordSupplyRecheck, listDarbak = existingDarbak, classifyBatch = classifySupplyBatch,
+  recheck = recordSupplyRecheck, listDarbak = existingDarbak, classifyBatch = classifySupplyBatch, canarySlot,
 } = {}) {
   const startedAt = clock();
   const config = settings(env);
   const aiSettings = classifierSettings(env);
-  const end = startedAt.getTime() + RUN_BUDGET_MS;
-  const run = preview ? null : await runs.acquire(trigger, startedAt);
+  const isCanary = trigger === "canary";
+  const end = +startedAt + RUN_BUDGET_MS;
+  const discoveryEnd = isCanary ? +startedAt + 90000 : end;
+  if (isCanary && ![1, 2].includes(canarySlot)) throw new Error("CANARY_SLOT_REQUIRED");
+  const run = preview ? null : await runs.acquire(trigger, startedAt, canarySlot);
   if (!preview && !run) return { status: "already_running" };
   const metrics = { queries: 0, resultsFound: 0, pages: 0, uniqueCandidates: 0, created: 0, updated: 0,
     duplicates: 0, needsReview: 0, errors: 0, expired: 0, reactivated: 0, limited: 0, errorCodes: [],
-    ai: emptyAiMetrics() };
+    ai: emptyAiMetrics(), pagesFetched: 0, fetchFailures: 0, rawCandidates: 0,
+    stages: { scopedSearchResults: 0, unscopedSearchResults: 0, unscopedLeadChannels: 0,
+      processedPages: 0, noProgram: 0, noSaudiEvidence: 0, employerMismatch: 0,
+      outOfScopePosting: 0, relevantPrograms: 0, noChannel: 0, pageChannels: 0, ingestionFailures: 0 },
+    ...(isCanary ? { candidateIds: [] } : {}) };
   const seen = new Set(), readers = new Map(), pages = new Map();
   let status = "completed", discoveredNew = 0;
   function timeRemaining() { return clock().getTime() < end; }
+  function discoveryTimeRemaining() { return +clock() < discoveryEnd; }
   async function canWrite() {
     if (!timeRemaining()) throw new Error("RUN_BUDGET_EXHAUSTED");
     if (run && !await runs.current(run, clock())) throw new Error("RUN_LEASE_LOST");
   }
   async function save(candidate, { weak = false } = {}) {
+    metrics.rawCandidates += 1;
     const key = supplyDedupeKey(candidate);
     if (seen.has(key)) { metrics.duplicates += 1; return; }
     seen.add(key);
@@ -144,6 +156,7 @@ async function runAutoApplySupplyDiscovery({
     const result = await ingest(candidate, { now: clock(), preserveExisting: weak, createIfMissing: discoveredNew < config.maxNew });
     if (result.action === "limited") { metrics.limited += 1; return; }
     if (result.isNew || result.action === "created") discoveredNew += 1;
+    if (isCanary && (result.isNew || result.action === "created")) metrics.candidateIds.push(String(result.record._id));
     if (result.isNew || result.action === "created") metrics.created += 1;
     else if (result.action === "duplicate") metrics.duplicates += 1;
     else metrics.updated += 1;
@@ -161,6 +174,7 @@ async function runAutoApplySupplyDiscovery({
       try { await save(candidate, options); }
       catch (error) {
         if (["RUN_BUDGET_EXHAUSTED", "RUN_LEASE_LOST"].includes(error.message)) throw error;
+        metrics.stages.ingestionFailures += 1;
         safeError("ingestion", error, metrics);
       }
     }
@@ -168,16 +182,22 @@ async function runAutoApplySupplyDiscovery({
 
   function readerFor(source) {
     if (!readers.has(source.key)) {
-      const base = readSource(source, { deadline: end });
+      const base = readSource(source, { deadline: discoveryEnd });
       readers.set(source.key, { async read(raw) {
-        if (!timeRemaining()) throw new Error("RUN_BUDGET_EXHAUSTED");
+        if (!discoveryTimeRemaining()) throw new Error("RUN_BUDGET_EXHAUSTED");
         const url = secureUrl(raw);
         if (!url || !allowedUrl(url, source)) throw new Error("UNAPPROVED_URL_SCOPE");
         const key = source.key + " " + url;
         if (!pages.has(key)) {
           if (metrics.pages >= config.maxPages) throw new Error("PAGE_BUDGET_EXHAUSTED");
           metrics.pages += 1;
-          pages.set(key, Promise.resolve().then(() => base.read(url)));
+          pages.set(key, Promise.resolve().then(() => base.read(url)).then((result) => {
+            metrics.pagesFetched += 1;
+            return result;
+          }, (error) => {
+            metrics.fetchFailures += 1;
+            throw error;
+          }));
         }
         return pages.get(key);
       } });
@@ -194,7 +214,9 @@ async function runAutoApplySupplyDiscovery({
     const strategy = strategyFor(source);
     const result = await strategy.extractJob(reference, source, reader);
     if (!result.page) return [];
-    const candidates = extractPage(result.page, source, { jobs: result.jobs, query });
+    metrics.stages.processedPages += 1;
+    const candidates = extractPage(result.page, source, { jobs: result.jobs, query, diagnostics: metrics.stages });
+    metrics.stages.pageChannels += candidates.length;
     await saveAll(candidates.map((candidate) => ({ ...candidate, lastCheckedAt: clock() })));
     return /json/i.test(result.page.headers?.["content-type"] || "") ? [] :
       htmlLinks(result.page.text, result.page.url).filter((entry) => allowedUrl(entry.url, source)).slice(0, 3);
@@ -202,10 +224,10 @@ async function runAutoApplySupplyDiscovery({
 
   try {
     const { sources, queries } = discoveryPlan(config, await registry(), startedAt);
-    if (!preview && config.maxRechecks) {
+    if (!preview && !isCanary && config.maxRechecks) {
       const rows = await listRechecks(config.maxRechecks, startedAt, sources.map((source) => source.key));
       for (const row of rows) {
-        if (!timeRemaining()) break;
+        if (!discoveryTimeRemaining()) break;
         const source = sources.find((item) => item.key === row.collectorSource);
         const validPage = source && allowedUrl(row.sourceUrl, source) && metrics.pages < config.maxPages;
         const expired = [row.deadline, row.expiresAt, row.classification?.effectiveDeadline].some((date) => date && date <= startedAt);
@@ -225,7 +247,7 @@ async function runAutoApplySupplyDiscovery({
     const searchResults = [];
     if (provider && config.maxPages) {
       for (const query of queries) {
-        if (!timeRemaining()) break;
+        if (!discoveryTimeRemaining()) break;
         metrics.queries += 1;
         try {
           const { results } = await searchOpportunityUrls(query, { provider, limit: 8, freshness: config.freshness });
@@ -241,12 +263,17 @@ async function runAutoApplySupplyDiscovery({
     const results = [], leads = [];
     for (const result of searchResults) {
       const source = sources.find((item) => allowedUrl(result.url, item));
-      if (source) results.push({ source, reference: { url: result.url }, query: result.query });
+      if (source) {
+        metrics.stages.scopedSearchResults += 1;
+        results.push({ source, reference: { url: result.url }, query: result.query });
+      }
       else {
+        metrics.stages.unscopedSearchResults += 1;
         const employer = declaredCompany(result, sources);
         if (employer) leads.push(...extractSearchLead(result, employer));
       }
     }
+    metrics.stages.unscopedLeadChannels = leads.length;
     const queryByPage = new Map(results.map((item) => [item.source.key + " " + item.reference.url, item.query]));
     const seeds = sources.map((source) => ({ source, reference: { url: source.sourceUrl }, seed: true,
       query: queryByPage.get(source.key + " " + source.sourceUrl) }));
@@ -256,7 +283,7 @@ async function runAutoApplySupplyDiscovery({
     const queue = [...seeds.slice(0, seedFirst), ...distinctResults.slice(0, Math.ceil(config.maxPages / 2)), ...seeds.slice(seedFirst)];
     for (let index = 0; index < queue.length; index += 1) {
       const item = queue[index];
-      if (!timeRemaining() || metrics.pages >= config.maxPages) break;
+      if (!discoveryTimeRemaining() || metrics.pages >= config.maxPages) break;
       try {
         if (item.seed && item.source.atsIdentifiers?.apiUrl) {
           const strategy = strategyFor(item.source);
@@ -269,7 +296,7 @@ async function runAutoApplySupplyDiscovery({
       } catch (error) { safeError("page", error, metrics); }
     }
 
-    if (!preview && timeRemaining()) {
+    if (!preview && !isCanary && timeRemaining()) {
       try { await saveAll(await listDarbak(startedAt, Math.min(config.maxNew, 10), sources), { weak: true }); }
       catch (error) {
         if (["RUN_BUDGET_EXHAUSTED", "RUN_LEASE_LOST"].includes(error.message)) throw error;
@@ -280,6 +307,7 @@ async function runAutoApplySupplyDiscovery({
     if (!preview && aiSettings.enabled && timeRemaining()) {
       try {
         await classifyBatch({ env, clock, metrics: metrics.ai, canContinue: timeRemaining,
+          ...(isCanary ? { candidateIds: metrics.candidateIds } : {}),
           remainingMs: () => end - +clock(), beforeWrite: canWrite });
       } catch {
         safeError("classification", null, metrics);
