@@ -1,0 +1,201 @@
+const { createHash } = require("node:crypto");
+const mongoose = require("mongoose");
+const Supply = require("../models/AutoApplySupply");
+const { normalizeEmail, blockedInbox } = require("./autoApplyEmailNetwork");
+const { normalizeCompanyComparable } = require("./companyDirectorySeeds");
+
+const { channelTypes, verificationStatuses } = Supply;
+const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+const keyText = (value) => value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ");
+
+function string(value, max = 300) {
+  if (value == null) return "";
+  if (typeof value !== "string" || value.trim().length > max) throw new Error("Invalid supply text");
+  return value.trim();
+}
+
+function list(value) {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > 100) throw new Error("Invalid supply list");
+  return [...new Set(value.map((item) => string(item)).filter(Boolean))].sort();
+}
+
+function optionalDate(value) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string" && !(value instanceof Date)) throw new Error("Invalid supply date");
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new Error("Invalid supply date");
+  return date;
+}
+
+function optionalBoolean(value) {
+  if (value == null) return null;
+  if (typeof value !== "boolean") throw new Error("Invalid supply boolean");
+  return value;
+}
+
+function webUrl(value) {
+  const text = string(value, 2048);
+  if (!text) return "";
+  const url = new URL(text);
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("Invalid supply URL");
+  return url.href;
+}
+
+function urlIdentity(value) {
+  const url = new URL(value);
+  if (!/^#!?\//.test(url.hash)) url.hash = "";
+  for (const name of [...url.searchParams.keys()]) {
+    if (/^(utm_.*|gclid|fbclid)$/i.test(name)) url.searchParams.delete(name);
+  }
+  url.searchParams.sort();
+  return url.href;
+}
+
+function normalizeObservation(input) {
+  const companyName = string(input.companyName);
+  const company = normalizeCompanyComparable(companyName);
+  const companyId = input.companyId == null ? null : String(input.companyId);
+  const sourceType = string(input.sourceType);
+  const { channelType } = input;
+  if (!company || !sourceType || !channelTypes.includes(channelType) || (companyId && !mongoose.isValidObjectId(companyId))) {
+    throw new Error("Invalid supply company, source, or channel");
+  }
+
+  const opportunityId = string(input.opportunityId);
+  const opportunityTitle = string(input.opportunityTitle);
+  const applicationUrl = webUrl(input.applicationUrl);
+  const sourceUrl = webUrl(input.sourceUrl);
+  const destinationEmail = normalizeEmail(string(input.destinationEmail, 320));
+  if (destinationEmail && !/^[^\s@<>,;:"/\\]+@(?:[a-z\d-]+\.)+[a-z\d-]+$/i.test(destinationEmail)) {
+    throw new Error("Invalid supply email");
+  }
+  if (channelType === "EMAIL" && !destinationEmail) throw new Error("Email channel requires a destination");
+  if (["EXTERNAL_FORM", "COMPANY_PORTAL"].includes(channelType) && !applicationUrl) {
+    throw new Error("Form or portal channel requires an application URL");
+  }
+  if (channelType === "DARBAK_APPLICATION" && !opportunityId && !applicationUrl && !sourceUrl) {
+    throw new Error("Darbak channel requires an opportunity identifier or URL");
+  }
+
+  // Use the company name across collectors that may not know the optional Darbak company ID.
+  let identity;
+  if (channelType === "EMAIL") {
+    identity = ["email", company, destinationEmail, opportunityId || keyText(opportunityTitle)];
+  } else if (channelType === "DARBAK_APPLICATION" && opportunityId) {
+    identity = ["darbak", opportunityId];
+  } else if (applicationUrl) {
+    identity = ["application", company, urlIdentity(applicationUrl)];
+  } else {
+    identity = ["source", channelType, company, urlIdentity(sourceUrl)];
+  }
+
+  const content = {
+    companyName, companyId, companyLogo: webUrl(input.companyLogo), opportunityId, opportunityTitle,
+    opportunityType: string(input.opportunityType), trainingType: string(input.trainingType),
+    channelType, destinationEmail, applicationUrl,
+    majors: list(input.majors), fields: list(input.fields), cities: list(input.cities),
+    allMajors: optionalBoolean(input.allMajors), allSaudi: optionalBoolean(input.allSaudi),
+    remote: optionalBoolean(input.remote), emailTrainingConfirmed: optionalBoolean(input.emailTrainingConfirmed),
+    educationLevels: list(input.educationLevels),
+    requiredDocuments: input.requiredDocuments == null ? null : list(input.requiredDocuments),
+    startDate: optionalDate(input.startDate), deadline: optionalDate(input.deadline),
+    sourceUrl, sourceType, evidenceText: string(input.evidenceText, 4000),
+    evidencePublishedAt: optionalDate(input.evidencePublishedAt), expiresAt: optionalDate(input.expiresAt),
+  };
+  return { content, contentHash: hash(content), dedupeKey: hash(identity) };
+}
+
+function resolveObservation(input, normalized, previous, now) {
+  const { content, contentHash } = normalized;
+  const sameContent = previous?.contentHash === contentHash;
+  const unchangedVerification = previous && (sameContent || previous.verificationStatus === "REJECTED");
+  const status = input.verificationStatus ?? (unchangedVerification ? previous.verificationStatus : "NEEDS_REVIEW");
+  if (!verificationStatuses.includes(status)) throw new Error("Invalid supply verification status");
+  const verificationReason = input.verificationReason == null && unchangedVerification
+    ? previous.verificationReason : string(input.verificationReason, 1000);
+  const confidence = input.confidence === undefined && unchangedVerification ? previous.confidence : input.confidence ?? null;
+  if (confidence != null && (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1)) {
+    throw new Error("Invalid supply confidence");
+  }
+
+  if (status === "VERIFIED") {
+    if (!content.evidenceText || (!content.sourceUrl && content.sourceType !== "official_company_reply") || !verificationReason) {
+      throw new Error("Verified supply requires documented evidence and reason");
+    }
+    if (content.channelType === "EMAIL" && (content.emailTrainingConfirmed !== true || blockedInbox(content.destinationEmail))) {
+      throw new Error("Email channel is not a verified training inbox");
+    }
+  }
+
+  const expired = status === "EXPIRED" || [content.expiresAt, content.deadline].some((value) => value && value <= now);
+  const wasClosedByStatus = ["EXPIRED", "REJECTED"].includes(previous?.verificationStatus);
+  const activeDefault = wasClosedByStatus ? true : previous?.isActive ?? true;
+  const isActive = !expired && status !== "REJECTED" && (optionalBoolean(input.isActive) ?? activeDefault);
+  const lastCheckedAt = optionalDate(input.lastCheckedAt);
+  const previousCheck = previous?.lastCheckedAt ?? null;
+  return {
+    ...content, contentHash, confidence, isActive,
+    verificationStatus: expired ? "EXPIRED" : status,
+    verificationReason: expired && status !== "EXPIRED" ? "Validity period ended" : verificationReason,
+    lastCheckedAt: lastCheckedAt && (!previousCheck || lastCheckedAt > previousCheck) ? lastCheckedAt : previousCheck,
+  };
+}
+
+async function ingestSupply(input, { model = Supply, now = new Date() } = {}) {
+  const normalized = normalizeObservation(input);
+  const { dedupeKey } = normalized;
+  if (model === Supply) await Supply.init();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const previous = await model.findOne({ dedupeKey }).lean();
+    const observation = resolveObservation(input, normalized, previous, now);
+    if (!previous) {
+      try {
+        const record = await model.create({ ...observation, dedupeKey, firstSeenAt: now, lastSeenAt: now });
+        return { action: record.verificationStatus === "EXPIRED" ? "expired" : "created", record };
+      } catch (error) {
+        if (error.code !== 11000) throw error;
+        continue;
+      }
+    }
+
+    const unchanged = ["contentHash", "verificationStatus", "verificationReason", "confidence", "isActive"]
+      .every((field) => (previous[field] ?? null) === (observation[field] ?? null));
+    const update = {
+      $set: unchanged ? { lastCheckedAt: observation.lastCheckedAt } : observation,
+      $max: { lastSeenAt: now },
+      $inc: { __v: 1 },
+    };
+    if (!unchanged) {
+      const oldObservation = Object.fromEntries(Object.keys(observation).map((key) => [key, previous[key]]));
+      update.$push = { history: { ...oldObservation, supersededAt: now } };
+    }
+    const record = await model.findOneAndUpdate({ _id: previous._id, __v: previous.__v }, update,
+      { new: true, runValidators: true }).lean();
+    if (record) {
+      let action = unchanged ? "duplicate" : "updated";
+      if (!unchanged && record.verificationStatus === "EXPIRED" && previous.verificationStatus !== "EXPIRED") action = "expired";
+      if (!previous.isActive && record.isActive) action = "reactivated";
+      return { action, record };
+    }
+  }
+  throw new Error("Concurrent supply update; retry ingestion");
+}
+
+function eligibleSupplyFilter(now = new Date()) {
+  return {
+    verificationStatus: "VERIFIED", isActive: true, channelType: { $in: [...channelTypes] },
+    $and: ["expiresAt", "deadline"].map((field) => ({ $or: [{ [field]: null }, { [field]: { $gt: now } }] })),
+  };
+}
+
+function findEligibleSupply({ model = Supply, now = new Date(), limit = 100, afterId } = {}) {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 500 || (afterId != null && !mongoose.isValidObjectId(afterId))) {
+    throw new Error("Invalid supply query page");
+  }
+  const filter = eligibleSupplyFilter(now);
+  if (afterId != null) filter._id = { $gt: afterId };
+  return model.find(filter).sort({ _id: 1 }).limit(limit).lean();
+}
+
+module.exports = { ingestSupply, eligibleSupplyFilter, findEligibleSupply };
