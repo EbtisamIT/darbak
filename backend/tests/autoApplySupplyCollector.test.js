@@ -290,3 +290,20 @@ test("watchlist reuses the approved Darbak names; bilingual plans include gradua
   assert.ok(plan.queries.some((q) => /graduate/.test(q)));
   assert.ok(plan.queries.some((q) => /university student|طلاب الجامعات/.test(q)));
 });
+
+test("classifier sees records after ingestion and failures do not undo collector writes; preview never classifies", async () => {
+  const f = fixture({ env: { AUTO_APPLY_SUPPLY_AI_ENABLED: "true" } });
+  let calls = 0;
+  const classifyBatch = async () => {
+    calls += 1;
+    assert.equal(f.supply.rows.size, 4);
+    throw new Error("provider private payload");
+  };
+  const report = await f.collect({ classifyBatch });
+  assert.equal(report.status, "partial");
+  assert.equal(report.created, 4);
+  assert.deepEqual(report.errorCodes, [{ stage: "classification", code: "COLLECTOR_STEP_FAILED" }]);
+  assert.equal(calls, 1);
+  await f.collect({ classifyBatch, preview: true, registry: f.settings.registry });
+  assert.equal(calls, 1);
+});

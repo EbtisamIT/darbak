@@ -3,6 +3,7 @@ const Run = require("../models/AutoApplySupplyRun");
 const EmailChannel = require("../models/AutoApplyEmailChannel");
 const Opportunity = require("../models/Opportunity");
 const { ingestSupply, recordSupplyRecheck, supplyDedupeKey } = require("./autoApplySupply");
+const { classifySupplyBatch, classifierSettings, classificationHash, emptyAiMetrics } = require("./autoApplySupplyClassifier");
 const { legacyEmailObservation } = require("./legacyAutoApplySupply");
 const { settings, discoveryPlan } = require("./autoApplySupplyCollectorConfig");
 const { extractPage, extractSearchLead, channelForUrl, secureUrl, programType, geography } = require("./autoApplySupplyExtraction");
@@ -47,7 +48,7 @@ function mongoRuns(model = Run) {
 
 async function existingSupply(limit, now, sourceKeys) {
   const expired = await Supply.find({ isActive: true, collectorSource: { $in: [...sourceKeys, "darbak", "legacy-email"] }, $or: [
-    { expiresAt: { $lte: now } }, { deadline: { $lte: now } },
+    { expiresAt: { $lte: now } }, { deadline: { $lte: now } }, { "classification.effectiveDeadline": { $lte: now } },
   ] }).limit(limit).lean();
   if (expired.length === limit) return expired;
   const due = await Supply.find({ isActive: true, collectorSource: { $in: sourceKeys }, sourceUrl: { $ne: "" },
@@ -112,15 +113,17 @@ async function runAutoApplySupplyDiscovery({
   trigger = "cli", env = process.env, preview = false, clock = () => new Date(),
   runs = mongoRuns(), registry = preview ? async () => SOURCES : () => registrySources({ activeOnly: true }),
   readSource = createReader, searchProvider, ingest = ingestSupply, listRechecks = existingSupply,
-  recheck = recordSupplyRecheck, listDarbak = existingDarbak,
+  recheck = recordSupplyRecheck, listDarbak = existingDarbak, classifyBatch = classifySupplyBatch,
 } = {}) {
   const startedAt = clock();
   const config = settings(env);
+  const aiSettings = classifierSettings(env);
   const end = startedAt.getTime() + RUN_BUDGET_MS;
   const run = preview ? null : await runs.acquire(trigger, startedAt);
   if (!preview && !run) return { status: "already_running" };
   const metrics = { queries: 0, resultsFound: 0, pages: 0, uniqueCandidates: 0, created: 0, updated: 0,
-    duplicates: 0, needsReview: 0, errors: 0, expired: 0, reactivated: 0, limited: 0, errorCodes: [] };
+    duplicates: 0, needsReview: 0, errors: 0, expired: 0, reactivated: 0, limited: 0, errorCodes: [],
+    ai: emptyAiMetrics() };
   const seen = new Set(), readers = new Map(), pages = new Map();
   let status = "completed", discoveredNew = 0;
   function timeRemaining() { return clock().getTime() < end; }
@@ -147,6 +150,9 @@ async function runAutoApplySupplyDiscovery({
     if (result.action === "expired") metrics.expired += 1;
     if (result.action === "reactivated") metrics.reactivated += 1;
     if (result.action !== "duplicate" && result.record.verificationStatus === "NEEDS_REVIEW") metrics.needsReview += 1;
+    if (aiSettings.enabled && result.action === "duplicate" && result.record.classificationHash === classificationHash(result.record, aiSettings.model)) {
+      metrics.ai.skippedUnchanged += 1;
+    }
   }
 
   async function saveAll(candidates, options) {
@@ -202,7 +208,7 @@ async function runAutoApplySupplyDiscovery({
         if (!timeRemaining()) break;
         const source = sources.find((item) => item.key === row.collectorSource);
         const validPage = source && allowedUrl(row.sourceUrl, source) && metrics.pages < config.maxPages;
-        const expired = [row.deadline, row.expiresAt].some((date) => date && date <= startedAt);
+        const expired = [row.deadline, row.expiresAt, row.classification?.effectiveDeadline].some((date) => date && date <= startedAt);
         if (!validPage && !expired) continue;
         if (validPage) {
           try { await inspect(source, { url: row.sourceUrl }, row.searchQuery); }
@@ -271,6 +277,14 @@ async function runAutoApplySupplyDiscovery({
       }
     }
     await saveAll(leads, { weak: true });
+    if (!preview && aiSettings.enabled && timeRemaining()) {
+      try {
+        await classifyBatch({ env, clock, metrics: metrics.ai, canContinue: timeRemaining,
+          remainingMs: () => end - +clock(), beforeWrite: canWrite });
+      } catch {
+        safeError("classification", null, metrics);
+      }
+    }
     if (!timeRemaining()) safeError("run", new Error("RUN_BUDGET_EXHAUSTED"), metrics);
     if (metrics.errors) status = "partial";
   } catch (error) {

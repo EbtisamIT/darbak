@@ -44,9 +44,35 @@ const observation = {
   contentHash: { type: String, required: true },
 };
 
-const historySchema = new mongoose.Schema({ ...observation, supersededAt: { type: Date, required: true } }, { _id: false });
+const classificationDetails = new mongoose.Schema({
+  contentHash: String,
+  model: String,
+  requestedModel: String,
+  sourceUrl: String,
+  policyRule: String,
+  evidenceReferences: [mongoose.Schema.Types.Mixed],
+  extraction: mongoose.Schema.Types.Mixed,
+  effectiveDeadline: Date,
+  recommendedVerificationStatus: { type: String, enum: verificationStatuses },
+  emailExplicitlySupported: Boolean,
+}, { _id: false });
+const classificationFields = {
+  classifierVersion: String,
+  classifiedAt: Date,
+  classificationHash: String,
+  classification: classificationDetails,
+};
+const historySchema = new mongoose.Schema({ ...observation, ...classificationFields,
+  supersededAt: { type: Date, required: true } }, { _id: false });
 const schema = new mongoose.Schema({
   ...observation,
+  ...classificationFields,
+  classificationAttempt: {
+    hash: String,
+    id: String,
+    retryAfter: Date,
+    failureCode: String,
+  },
   firstSeenAt: { type: Date, required: true },
   lastSeenAt: { type: Date, required: true },
   dedupeKey: { type: String, required: true, immutable: true },
@@ -56,6 +82,7 @@ const schema = new mongoose.Schema({
 schema.index({ dedupeKey: 1 }, { unique: true });
 schema.index({ verificationStatus: 1, isActive: 1, channelType: 1, expiresAt: 1, deadline: 1 });
 schema.index({ collectorSource: 1, isActive: 1, lastCheckedAt: 1, _id: 1 });
+schema.index({ verificationStatus: 1, isActive: 1, firstSeenAt: 1, _id: 1 });
 
 module.exports = mongoose.model("AutoApplySupply", schema);
 module.exports.channelTypes = channelTypes;

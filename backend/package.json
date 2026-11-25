@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "pretest": "npm run test:auto-apply-supply && npm run test:auto-apply-supply-collector && node tests/adminOpportunityModeration.test.js && node tests/opportunityAdmission.test.js && node tests/opportunityContentQuality.test.js && node tests/opportunityCandidates.test.js && node tests/autoApplyEmailNetwork.test.js && node tests/opportunityDiscovery.test.js && node tests/opportunityDiscoveryHybrid.test.js && node tests/opportunityDiscoverySearch.test.js && node tests/opportunityApplicationPolicy.test.js && node tests/opportunityProductionReadiness.test.js && node tests/opportunityEnrichment.test.js && node tests/opportunityAutopilot.test.js && node tests/adminAnalyticsV2.test.js && node tests/analyticsRecordBackfill.test.js",
+    "pretest": "npm run test:auto-apply-supply && npm run test:auto-apply-supply-collector && npm run test:auto-apply-supply-classifier && node tests/adminOpportunityModeration.test.js && node tests/opportunityAdmission.test.js && node tests/opportunityContentQuality.test.js && node tests/opportunityCandidates.test.js && node tests/autoApplyEmailNetwork.test.js && node tests/opportunityDiscovery.test.js && node tests/opportunityDiscoveryHybrid.test.js && node tests/opportunityDiscoverySearch.test.js && node tests/opportunityApplicationPolicy.test.js && node tests/opportunityProductionReadiness.test.js && node tests/opportunityEnrichment.test.js && node tests/opportunityAutopilot.test.js && node tests/adminAnalyticsV2.test.js && node tests/analyticsRecordBackfill.test.js",
     "test:auto-apply-supply": "node --test tests/autoApplySupply.test.js",
     "test:auto-apply-supply-collector": "node --test tests/autoApplySupplyCollector.test.js",
+    "test:auto-apply-supply-classifier": "node --test tests/autoApplySupplyClassifier.test.js",
     "supply:collect": "node scripts/collectAutoApplySupply.js",
     "discovery:search": "node scripts/discoverOpportunities.js --search-only --load-brave-env",
     "test:opportunity-enrichment": "node tests/opportunityEnrichment.test.js",

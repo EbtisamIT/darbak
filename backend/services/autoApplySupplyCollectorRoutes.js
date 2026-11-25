@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const mongoose = require("mongoose");
+const Supply = require("../models/AutoApplySupply");
 const { runAutoApplySupplyDiscovery, mongoRuns } = require("./autoApplySupplyCollector");
 
 function validSchedulerToken(header, secret) {
@@ -12,6 +13,7 @@ function validSchedulerToken(header, secret) {
 function mountAutoApplySupplyCollectorRoutes(app, requireAdmin, {
   env = process.env, isConnected = () => mongoose.connection.readyState === 1,
   run = runAutoApplySupplyDiscovery, reports = mongoRuns(),
+  getClassification = (id) => Supply.findById(id).select("companyName opportunityTitle sourceType sourceUrl evidenceText emailEvidenceText applicationEvidenceText pageTitle verificationStatus verificationReason classifiedAt classifierVersion classificationHash classification").lean(),
 } = {}) {
   const enabled = (req, res, next) => {
     res.set("Cache-Control", "no-store");
@@ -42,6 +44,16 @@ function mountAutoApplySupplyCollectorRoutes(app, requireAdmin, {
   app.get("/api/admin/auto-apply-supply/summary", enabled, requireAdmin, ready, async (_req, res) => {
     try { res.json({ run: await reports.latest() }); }
     catch { res.status(503).json({ error: "SUPPLY_COLLECTOR_UNAVAILABLE" }); }
+  });
+  app.get("/api/admin/auto-apply-supply/:id/classification", enabled, requireAdmin, ready, async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.sendStatus(404);
+    try {
+      const record = await getClassification(req.params.id);
+      if (!record) return res.sendStatus(404);
+      res.json({ record });
+    } catch {
+      res.status(503).json({ error: "SUPPLY_CLASSIFICATION_UNAVAILABLE" });
+    }
   });
 }
 

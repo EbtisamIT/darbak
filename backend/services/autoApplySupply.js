@@ -111,7 +111,7 @@ function normalizeObservation(input) {
 function resolveObservation(input, normalized, previous, now) {
   const { content, contentHash } = normalized;
   const sameContent = previous?.contentHash === contentHash;
-  const unchangedVerification = previous && (sameContent || previous.verificationStatus === "REJECTED");
+  const unchangedVerification = previous && (sameContent || (previous.verificationStatus === "REJECTED" && !previous.classificationHash));
   const status = input.verificationStatus ?? (unchangedVerification ? previous.verificationStatus : "NEEDS_REVIEW");
   if (!verificationStatuses.includes(status)) throw new Error("Invalid supply verification status");
   const verificationReason = input.verificationReason == null && unchangedVerification
@@ -125,12 +125,14 @@ function resolveObservation(input, normalized, previous, now) {
     if (!content.evidenceText || (!content.sourceUrl && content.sourceType !== "official_company_reply") || !verificationReason) {
       throw new Error("Verified supply requires documented evidence and reason");
     }
-    if (content.channelType === "EMAIL" && (content.emailTrainingConfirmed !== true || blockedInbox(content.destinationEmail))) {
+    const classifiedEmail = sameContent && previous.classification?.contentHash === contentHash && previous.classification.emailExplicitlySupported === true;
+    if (content.channelType === "EMAIL" && (!(content.emailTrainingConfirmed === true || classifiedEmail) || blockedInbox(content.destinationEmail))) {
       throw new Error("Email channel is not a verified training inbox");
     }
   }
 
-  const expired = status === "EXPIRED" || [content.expiresAt, content.deadline].some((value) => value && value <= now);
+  const classifiedDeadline = sameContent ? previous.classification?.effectiveDeadline : null;
+  const expired = status === "EXPIRED" || [content.expiresAt, content.deadline, classifiedDeadline].some((value) => value && value <= now);
   const wasClosedByStatus = ["EXPIRED", "REJECTED"].includes(previous?.verificationStatus);
   const activeDefault = wasClosedByStatus ? true : previous?.isActive ?? true;
   const isActive = !expired && status !== "REJECTED" && (optionalBoolean(input.isActive) ?? activeDefault);
@@ -174,7 +176,13 @@ async function ingestSupply(input, { model = Supply, now = new Date(), createIfM
     };
     if (!unchanged) {
       const oldObservation = Object.fromEntries(Object.keys(observation).map((key) => [key, previous[key]]));
+      for (const key of ["classification", "classificationHash", "classifiedAt", "classifierVersion"]) {
+        if (previous[key] !== undefined) oldObservation[key] = previous[key];
+      }
       update.$push = { history: { ...oldObservation, supersededAt: now } };
+      if (previous.contentHash !== observation.contentHash) {
+        update.$unset = { classification: "", classificationAttempt: "", classificationHash: "", classifiedAt: "", classifierVersion: "" };
+      }
     }
     const record = await model.findOneAndUpdate({ _id: previous._id, __v: previous.__v }, update,
       { new: true, runValidators: true }).lean();
@@ -190,7 +198,7 @@ async function ingestSupply(input, { model = Supply, now = new Date(), createIfM
 
 // Record a check without claiming the opportunity was seen again or replacing its evidence.
 async function recordSupplyRecheck(previous, { model = Supply, now = new Date() } = {}) {
-  const due = [previous.deadline, previous.expiresAt].some((date) => date && date <= now);
+  const due = [previous.deadline, previous.expiresAt, previous.classification?.effectiveDeadline].some((date) => date && date <= now);
   const expired = due && previous.verificationStatus !== "EXPIRED";
   const update = { $max: { lastCheckedAt: now }, $inc: { __v: 1 } };
   if (expired) {
@@ -206,7 +214,7 @@ async function recordSupplyRecheck(previous, { model = Supply, now = new Date() 
 function eligibleSupplyFilter(now = new Date()) {
   return {
     verificationStatus: "VERIFIED", isActive: true, channelType: { $in: [...channelTypes] },
-    $and: ["expiresAt", "deadline"].map((field) => ({ $or: [{ [field]: null }, { [field]: { $gt: now } }] })),
+    $and: ["expiresAt", "deadline", "classification.effectiveDeadline"].map((field) => ({ $or: [{ [field]: null }, { [field]: { $gt: now } }] })),
   };
 }
 

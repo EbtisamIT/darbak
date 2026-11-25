@@ -124,12 +124,14 @@ test("eligibility query excludes unapproved, inactive, unsupported and expired c
     $and: [
       { $or: [{ expiresAt: null }, { expiresAt: { $gt: second } }] },
       { $or: [{ deadline: null }, { deadline: { $gt: second } }] },
+      { $or: [{ "classification.effectiveDeadline": null }, { "classification.effectiveDeadline": { $gt: second } }] },
     ],
   };
   assert.deepEqual(eligibleSupplyFilter(second), expected);
   const good = { verificationStatus: "VERIFIED", isActive: true, channelType: "EMAIL" };
   const rows = [good, ...["LIKELY", "NEEDS_REVIEW", "REJECTED", "EXPIRED"].map((status) => ({ ...good, verificationStatus: status })),
-    { ...good, expiresAt: first }, { ...good, deadline: second }, { ...good, isActive: false }, { ...good, channelType: "UNKNOWN" }];
+    { ...good, expiresAt: first }, { ...good, deadline: second }, { ...good, "classification.effectiveDeadline": first },
+    { ...good, isActive: false }, { ...good, channelType: "UNKNOWN" }];
   const model = { find(filter) {
     assert.deepEqual(filter, expected);
     return { sort: (sort) => {
