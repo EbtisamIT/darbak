@@ -85,7 +85,7 @@ function normalizeObservation(input) {
   } else if (channelType === "DARBAK_APPLICATION" && opportunityId) {
     identity = ["darbak", opportunityId];
   } else if (applicationUrl) {
-    identity = ["application", company, urlIdentity(applicationUrl)];
+    identity = ["application", company, urlIdentity(applicationUrl), ...(input.sharedApplicationUrl === true && opportunityId ? [opportunityId] : [])];
   } else {
     identity = ["source", channelType, company, urlIdentity(sourceUrl)];
   }
@@ -101,6 +101,8 @@ function normalizeObservation(input) {
     requiredDocuments: input.requiredDocuments == null ? null : list(input.requiredDocuments),
     startDate: optionalDate(input.startDate), deadline: optionalDate(input.deadline),
     sourceUrl, sourceType, evidenceText: string(input.evidenceText, 4000),
+    pageTitle: string(input.pageTitle, 500), emailEvidenceText: string(input.emailEvidenceText, 1500),
+    applicationEvidenceText: string(input.applicationEvidenceText, 1500), collectorSource: string(input.collectorSource),
     evidencePublishedAt: optionalDate(input.evidencePublishedAt), expiresAt: optionalDate(input.expiresAt),
   };
   return { content, contentHash: hash(content), dedupeKey: hash(identity) };
@@ -142,17 +144,20 @@ function resolveObservation(input, normalized, previous, now) {
   };
 }
 
-async function ingestSupply(input, { model = Supply, now = new Date() } = {}) {
+async function ingestSupply(input, { model = Supply, now = new Date(), createIfMissing = true, preserveExisting = false } = {}) {
   const normalized = normalizeObservation(input);
   const { dedupeKey } = normalized;
   if (model === Supply) await Supply.init();
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const previous = await model.findOne({ dedupeKey }).lean();
+    if (!previous && !createIfMissing) return { action: "limited", record: null };
+    if (previous && preserveExisting) return { action: "duplicate", record: previous };
     const observation = resolveObservation(input, normalized, previous, now);
+    if (input.searchQuery || previous?.searchQuery) observation.searchQuery = string(input.searchQuery || previous.searchQuery, 600);
     if (!previous) {
       try {
         const record = await model.create({ ...observation, dedupeKey, firstSeenAt: now, lastSeenAt: now });
-        return { action: record.verificationStatus === "EXPIRED" ? "expired" : "created", record };
+        return { action: record.verificationStatus === "EXPIRED" ? "expired" : "created", record, isNew: true };
       } catch (error) {
         if (error.code !== 11000) throw error;
         continue;
@@ -162,7 +167,8 @@ async function ingestSupply(input, { model = Supply, now = new Date() } = {}) {
     const unchanged = ["contentHash", "verificationStatus", "verificationReason", "confidence", "isActive"]
       .every((field) => (previous[field] ?? null) === (observation[field] ?? null));
     const update = {
-      $set: unchanged ? { lastCheckedAt: observation.lastCheckedAt } : observation,
+      $set: unchanged ? { lastCheckedAt: observation.lastCheckedAt,
+        ...(!previous.searchQuery && observation.searchQuery ? { searchQuery: observation.searchQuery } : {}) } : observation,
       $max: { lastSeenAt: now },
       $inc: { __v: 1 },
     };
@@ -182,6 +188,21 @@ async function ingestSupply(input, { model = Supply, now = new Date() } = {}) {
   throw new Error("Concurrent supply update; retry ingestion");
 }
 
+// Record a check without claiming the opportunity was seen again or replacing its evidence.
+async function recordSupplyRecheck(previous, { model = Supply, now = new Date() } = {}) {
+  const due = [previous.deadline, previous.expiresAt].some((date) => date && date <= now);
+  const expired = due && previous.verificationStatus !== "EXPIRED";
+  const update = { $max: { lastCheckedAt: now }, $inc: { __v: 1 } };
+  if (expired) {
+    const { _id, __v, dedupeKey, firstSeenAt, lastSeenAt, history, ...prior } = previous;
+    update.$set = { isActive: false, verificationStatus: "EXPIRED", verificationReason: "Validity period ended" };
+    update.$push = { history: { ...prior, supersededAt: now } };
+  }
+  const record = await model.findOneAndUpdate({ _id: previous._id, __v: previous.__v }, update,
+    { new: true, runValidators: true }).lean();
+  return { action: !record ? "superseded" : expired ? "expired" : "checked", record };
+}
+
 function eligibleSupplyFilter(now = new Date()) {
   return {
     verificationStatus: "VERIFIED", isActive: true, channelType: { $in: [...channelTypes] },
@@ -198,4 +219,5 @@ function findEligibleSupply({ model = Supply, now = new Date(), limit = 100, aft
   return model.find(filter).sort({ _id: 1 }).limit(limit).lean();
 }
 
-module.exports = { ingestSupply, eligibleSupplyFilter, findEligibleSupply };
+module.exports = { ingestSupply, eligibleSupplyFilter, findEligibleSupply, recordSupplyRecheck,
+  supplyDedupeKey: (input) => normalizeObservation(input).dedupeKey };

@@ -29,6 +29,11 @@ const observation = {
   sourceUrl: String,
   sourceType: { type: String, required: true },
   evidenceText: String,
+  pageTitle: String,
+  emailEvidenceText: String,
+  applicationEvidenceText: String,
+  collectorSource: String,
+  searchQuery: String,
   evidencePublishedAt: date,
   verificationStatus: { type: String, enum: verificationStatuses, required: true },
   verificationReason: String,
@@ -50,6 +55,7 @@ const schema = new mongoose.Schema({
 
 schema.index({ dedupeKey: 1 }, { unique: true });
 schema.index({ verificationStatus: 1, isActive: 1, channelType: 1, expiresAt: 1, deadline: 1 });
+schema.index({ collectorSource: 1, isActive: 1, lastCheckedAt: 1, _id: 1 });
 
 module.exports = mongoose.model("AutoApplySupply", schema);
 module.exports.channelTypes = channelTypes;

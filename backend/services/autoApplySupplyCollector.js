@@ -1,0 +1,285 @@
+const Supply = require("../models/AutoApplySupply");
+const Run = require("../models/AutoApplySupplyRun");
+const EmailChannel = require("../models/AutoApplyEmailChannel");
+const Opportunity = require("../models/Opportunity");
+const { ingestSupply, recordSupplyRecheck, supplyDedupeKey } = require("./autoApplySupply");
+const { legacyEmailObservation } = require("./legacyAutoApplySupply");
+const { settings, discoveryPlan } = require("./autoApplySupplyCollectorConfig");
+const { extractPage, extractSearchLead, channelForUrl, secureUrl, programType, geography } = require("./autoApplySupplyExtraction");
+const { SOURCES } = require("./opportunityDiscovery/sources");
+const { registrySources } = require("./opportunityDiscovery/management");
+const { createReader, allowedUrl } = require("./opportunityDiscovery/http");
+const { htmlLinks, strategyFor } = require("./opportunityDiscovery/strategies");
+const { searchOpportunityUrls, configuredSearchProvider } = require("./opportunityDiscovery/search");
+const { normalizeCompanyComparable } = require("./companyDirectorySeeds");
+
+const RUN_LOCK = "auto-apply-supply";
+const RUN_BUDGET_MS = 150000;
+const LEASE_MS = 600000;
+
+function mongoRuns(model = Run) {
+  return {
+    async acquire(trigger, now) {
+      await model.init();
+      await model.updateOne({ lock: RUN_LOCK, leaseUntil: { $lte: now } }, {
+        $unset: { lock: "", leaseUntil: "" }, $set: { status: "interrupted", finishedAt: now },
+      });
+      try {
+        return await model.create({ trigger, status: "running", lock: RUN_LOCK, startedAt: now,
+          leaseUntil: new Date(now.getTime() + LEASE_MS) });
+      } catch (error) {
+        if (error.code !== 11000) throw error;
+        return null;
+      }
+    },
+    async finish(run, status, metrics, now) {
+      await model.updateOne({ _id: run._id, lock: RUN_LOCK }, {
+        $unset: { lock: "", leaseUntil: "" }, $set: { status, metrics, finishedAt: now },
+      });
+    },
+    async current(run, now) {
+      return Boolean(await model.exists({ _id: run._id, lock: RUN_LOCK, leaseUntil: { $gt: now } }));
+    },
+    latest: () => model.findOne({ trigger: { $in: ["scheduler", "admin", "cli"] } })
+      .sort({ startedAt: -1 }).select("trigger status startedAt finishedAt metrics").lean(),
+  };
+}
+
+async function existingSupply(limit, now, sourceKeys) {
+  const expired = await Supply.find({ isActive: true, collectorSource: { $in: [...sourceKeys, "darbak", "legacy-email"] }, $or: [
+    { expiresAt: { $lte: now } }, { deadline: { $lte: now } },
+  ] }).limit(limit).lean();
+  if (expired.length === limit) return expired;
+  const due = await Supply.find({ isActive: true, collectorSource: { $in: sourceKeys }, sourceUrl: { $ne: "" },
+    _id: { $nin: expired.map((item) => item._id) } }).sort({ lastCheckedAt: 1, _id: 1 }).limit(limit - expired.length).lean();
+  return [...expired, ...due];
+}
+
+async function existingDarbak(now, limit, sources) {
+  if (!limit) return [];
+  const daySlot = Math.floor(now.getTime() / (6 * 3600000));
+  const channels = await EmailChannel.find({ verificationStatus: "verified", acceptsTrainingApplications: true })
+    .sort({ _id: 1 }).skip((daySlot % 4) * limit).limit(limit).lean();
+  const linked = await Opportunity.find({ _id: { $in: channels.map((entry) => entry.activeOpportunityId).filter(Boolean) } })
+    .select("title deadline").lean();
+  const byId = new Map(linked.map((entry) => [String(entry._id), entry]));
+  const adapted = channels.map((channel) => ({ ...legacyEmailObservation(channel, byId.get(String(channel.activeOpportunityId))),
+    collectorSource: "legacy-email" }));
+  const published = await Opportunity.find({ status: "active", sourceType: "admin",
+    $or: [{ isDarbakApplication: true }, { "automationCheck.autoPublished": true }] })
+    .sort({ createdAt: -1 }).limit(limit).select("organizationName companyId title city cities trainingMode applicationMethod applicationUrl logoUrl deadline sourceUrl note isDarbakApplication createdAt").lean();
+  for (const item of published) {
+    const sourceUrl = secureUrl(item.sourceUrl);
+    const isDarbak = item.isDarbakApplication && item.applicationMethod === "darbak";
+    if (!isDarbak && !sourceUrl) continue;
+    const applicationUrl = isDarbak ? "https://darbak.space/where-to-train/opportunity/" + item._id : secureUrl(item.applicationUrl);
+    if (!applicationUrl) continue;
+    const evidence = [item.title, item.note].filter(Boolean).join("\n");
+    const type = programType(item.title, evidence);
+    if (!type || (item.trainingMode === "remote" && (!sourceUrl || !geography({ remote: true }, evidence, sourceUrl)))) continue;
+    if (!isDarbak && !sources.some((source) => allowedUrl(sourceUrl, source))) continue;
+    adapted.push({ companyName: item.organizationName, companyId: item.companyId, opportunityTitle: item.title,
+      opportunityId: isDarbak ? String(item._id) : undefined, channelType: isDarbak ? "DARBAK_APPLICATION" : channelForUrl(applicationUrl),
+      applicationUrl, sourceUrl: sourceUrl || applicationUrl, sourceType: "darbak_reviewed_opportunity",
+      collectorSource: "darbak", evidenceText: evidence.slice(0, 4000), trainingType: type,
+      companyLogo: secureUrl(item.logoUrl), deadline: item.deadline, remote: item.trainingMode === "remote" ? true : null });
+  }
+  return adapted;
+}
+
+function declaredCompany(result, sources) {
+  const snippet = " " + normalizeCompanyComparable([result.title, result.description].join(" ")) + " ";
+  const matches = sources.filter((source) => [source.company, ...(source.metadata.aliases || [])].some((alias) => {
+    const name = normalizeCompanyComparable(alias);
+    return name.length >= 3 && snippet.includes(" " + name + " ");
+  }));
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) return null;
+  // A literal employer named in the result title is useful as an unverified lead.
+  // There is no page fetch or employer-domain approval on this path.
+  const name = String(result.title || "").match(/(?:\bat\s+|لدى\s+)([\p{L}\p{N}][\p{L}\p{N} &.'’-]{2,100})(?=\s*(?:[|–—,]|$))/iu)?.[1]?.trim();
+  return name ? { key: "search-unscoped", company: name } : null;
+}
+
+function safeError(stage, error, metrics) {
+  const code = error?.code || error?.message;
+  const allowed = /^(?:SEARCH_(?:AUTH_FAILED|RATE_LIMITED|TIMEOUT|HTTP_\d{3})|HTTP_\d{3}|ROBOTS_[A-Z_]+|SOURCE_[A-Z_]+|UNAPPROVED_URL_SCOPE|REQUEST_TIMEOUT|DNS_TIMEOUT|NON_PUBLIC_ADDRESS|RESPONSE_TOO_LARGE|REDIRECT_LIMIT|PAGE_BUDGET_EXHAUSTED|RUN_BUDGET_EXHAUSTED|RUN_LEASE_LOST)$/;
+  metrics.errors += 1;
+  if (metrics.errorCodes.length < 20) metrics.errorCodes.push({ stage, code: allowed.test(code) ? code : "COLLECTOR_STEP_FAILED" });
+}
+
+async function runAutoApplySupplyDiscovery({
+  trigger = "cli", env = process.env, preview = false, clock = () => new Date(),
+  runs = mongoRuns(), registry = preview ? async () => SOURCES : () => registrySources({ activeOnly: true }),
+  readSource = createReader, searchProvider, ingest = ingestSupply, listRechecks = existingSupply,
+  recheck = recordSupplyRecheck, listDarbak = existingDarbak,
+} = {}) {
+  const startedAt = clock();
+  const config = settings(env);
+  const end = startedAt.getTime() + RUN_BUDGET_MS;
+  const run = preview ? null : await runs.acquire(trigger, startedAt);
+  if (!preview && !run) return { status: "already_running" };
+  const metrics = { queries: 0, resultsFound: 0, pages: 0, uniqueCandidates: 0, created: 0, updated: 0,
+    duplicates: 0, needsReview: 0, errors: 0, expired: 0, reactivated: 0, limited: 0, errorCodes: [] };
+  const seen = new Set(), readers = new Map(), pages = new Map();
+  let status = "completed", discoveredNew = 0;
+  function timeRemaining() { return clock().getTime() < end; }
+  async function canWrite() {
+    if (!timeRemaining()) throw new Error("RUN_BUDGET_EXHAUSTED");
+    if (run && !await runs.current(run, clock())) throw new Error("RUN_LEASE_LOST");
+  }
+  async function save(candidate, { weak = false } = {}) {
+    const key = supplyDedupeKey(candidate);
+    if (seen.has(key)) { metrics.duplicates += 1; return; }
+    seen.add(key);
+    metrics.uniqueCandidates += 1;
+    if (preview) {
+      metrics.needsReview += Number(candidate.verificationStatus !== "VERIFIED");
+      return;
+    }
+    await canWrite();
+    const result = await ingest(candidate, { now: clock(), preserveExisting: weak, createIfMissing: discoveredNew < config.maxNew });
+    if (result.action === "limited") { metrics.limited += 1; return; }
+    if (result.isNew || result.action === "created") discoveredNew += 1;
+    if (result.isNew || result.action === "created") metrics.created += 1;
+    else if (result.action === "duplicate") metrics.duplicates += 1;
+    else metrics.updated += 1;
+    if (result.action === "expired") metrics.expired += 1;
+    if (result.action === "reactivated") metrics.reactivated += 1;
+    if (result.action !== "duplicate" && result.record.verificationStatus === "NEEDS_REVIEW") metrics.needsReview += 1;
+  }
+
+  async function saveAll(candidates, options) {
+    for (const candidate of candidates) {
+      if (!timeRemaining()) break;
+      try { await save(candidate, options); }
+      catch (error) {
+        if (["RUN_BUDGET_EXHAUSTED", "RUN_LEASE_LOST"].includes(error.message)) throw error;
+        safeError("ingestion", error, metrics);
+      }
+    }
+  }
+
+  function readerFor(source) {
+    if (!readers.has(source.key)) {
+      const base = readSource(source, { deadline: end });
+      readers.set(source.key, { async read(raw) {
+        if (!timeRemaining()) throw new Error("RUN_BUDGET_EXHAUSTED");
+        const url = secureUrl(raw);
+        if (!url || !allowedUrl(url, source)) throw new Error("UNAPPROVED_URL_SCOPE");
+        const key = source.key + " " + url;
+        if (!pages.has(key)) {
+          if (metrics.pages >= config.maxPages) throw new Error("PAGE_BUDGET_EXHAUSTED");
+          metrics.pages += 1;
+          pages.set(key, Promise.resolve().then(() => base.read(url)));
+        }
+        return pages.get(key);
+      } });
+    }
+    return readers.get(source.key);
+  }
+
+  const fetched = new Set();
+  async function inspect(source, reference, query) {
+    const key = source.key + " " + reference.url;
+    if (fetched.has(key)) return [];
+    fetched.add(key);
+    const reader = readerFor(source);
+    const strategy = strategyFor(source);
+    const result = await strategy.extractJob(reference, source, reader);
+    if (!result.page) return [];
+    const candidates = extractPage(result.page, source, { jobs: result.jobs, query });
+    await saveAll(candidates.map((candidate) => ({ ...candidate, lastCheckedAt: clock() })));
+    return /json/i.test(result.page.headers?.["content-type"] || "") ? [] :
+      htmlLinks(result.page.text, result.page.url).filter((entry) => allowedUrl(entry.url, source)).slice(0, 3);
+  }
+
+  try {
+    const { sources, queries } = discoveryPlan(config, await registry(), startedAt);
+    if (!preview && config.maxRechecks) {
+      const rows = await listRechecks(config.maxRechecks, startedAt, sources.map((source) => source.key));
+      for (const row of rows) {
+        if (!timeRemaining()) break;
+        const source = sources.find((item) => item.key === row.collectorSource);
+        const validPage = source && allowedUrl(row.sourceUrl, source) && metrics.pages < config.maxPages;
+        const expired = [row.deadline, row.expiresAt].some((date) => date && date <= startedAt);
+        if (!validPage && !expired) continue;
+        if (validPage) {
+          try { await inspect(source, { url: row.sourceUrl }, row.searchQuery); }
+          catch (error) { safeError("recheck", error, metrics); }
+        }
+        await canWrite();
+        const result = await recheck(row, { now: clock() });
+        if (result.action === "expired") { metrics.expired += 1; metrics.updated += 1; }
+      }
+    }
+
+    let provider = searchProvider;
+    if (provider === undefined) provider = configuredSearchProvider();
+    const searchResults = [];
+    if (provider && config.maxPages) {
+      for (const query of queries) {
+        if (!timeRemaining()) break;
+        metrics.queries += 1;
+        try {
+          const { results } = await searchOpportunityUrls(query, { provider, limit: 8, freshness: config.freshness });
+          metrics.resultsFound += results.length;
+          searchResults.push(...results.map((result) => ({ ...result, query })));
+        } catch (error) {
+          safeError("search", error, metrics);
+          if (["SEARCH_AUTH_FAILED", "SEARCH_RATE_LIMITED"].includes(error.code)) break;
+        }
+      }
+    }
+
+    const results = [], leads = [];
+    for (const result of searchResults) {
+      const source = sources.find((item) => allowedUrl(result.url, item));
+      if (source) results.push({ source, reference: { url: result.url }, query: result.query });
+      else {
+        const employer = declaredCompany(result, sources);
+        if (employer) leads.push(...extractSearchLead(result, employer));
+      }
+    }
+    const queryByPage = new Map(results.map((item) => [item.source.key + " " + item.reference.url, item.query]));
+    const seeds = sources.map((source) => ({ source, reference: { url: source.sourceUrl }, seed: true,
+      query: queryByPage.get(source.key + " " + source.sourceUrl) }));
+    // Reserve part of the budget for new search results instead of only re-visiting the seed list.
+    const seedFirst = results.length ? Math.ceil(seeds.length / 2) : seeds.length;
+    const distinctResults = [...new Map(results.map((item) => [item.source.key + " " + item.reference.url, item])).values()];
+    const queue = [...seeds.slice(0, seedFirst), ...distinctResults.slice(0, Math.ceil(config.maxPages / 2)), ...seeds.slice(seedFirst)];
+    for (let index = 0; index < queue.length; index += 1) {
+      const item = queue[index];
+      if (!timeRemaining() || metrics.pages >= config.maxPages) break;
+      try {
+        if (item.seed && item.source.atsIdentifiers?.apiUrl) {
+          const strategy = strategyFor(item.source);
+          const list = await strategy.discoverJobs(item.source, readerFor(item.source));
+          queue.splice(index + 1, 0, ...list.urls.slice(0, 2).map((reference) => ({ source: item.source, reference })));
+        } else {
+          const links = await inspect(item.source, item.reference, item.query);
+          if (item.seed && links.length) queue.splice(index + 1, 0, { source: item.source, reference: links[0] });
+        }
+      } catch (error) { safeError("page", error, metrics); }
+    }
+
+    if (!preview && timeRemaining()) {
+      try { await saveAll(await listDarbak(startedAt, Math.min(config.maxNew, 10), sources), { weak: true }); }
+      catch (error) {
+        if (["RUN_BUDGET_EXHAUSTED", "RUN_LEASE_LOST"].includes(error.message)) throw error;
+        safeError("darbak", error, metrics);
+      }
+    }
+    await saveAll(leads, { weak: true });
+    if (!timeRemaining()) safeError("run", new Error("RUN_BUDGET_EXHAUSTED"), metrics);
+    if (metrics.errors) status = "partial";
+  } catch (error) {
+    safeError("run", error, metrics);
+    status = "failed";
+  } finally {
+    if (run) await runs.finish(run, status, metrics, clock());
+  }
+  return { status, preview, startedAt, finishedAt: clock(), ...metrics };
+}
+
+module.exports = { runAutoApplySupplyDiscovery, mongoRuns };

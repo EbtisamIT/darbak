@@ -20192,6 +20192,7 @@ app.post(
 );
 
 app.use('/api/internal/opportunity-discovery/import', createOpportunityImportRouter());
+require("./services/autoApplySupplyCollectorRoutes").mountAutoApplySupplyCollectorRoutes(app, requireAdmin);
 
 const invalidateOpportunityReadCache = () => {
   for (const key of readCache.keys()) {
