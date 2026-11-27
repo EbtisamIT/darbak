@@ -8,6 +8,7 @@ export default function AutoApplySupplyCanary({ password }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState(null);
+  const [diagnostic, setDiagnostic] = useState(null);
   const [error, setError] = useState("");
   const auth = { headers: { "x-admin-password": password } };
 
@@ -35,6 +36,17 @@ export default function AutoApplySupplyCanary({ password }) {
     finally { setBusy(false); }
   }
 
+  async function probe() {
+    setBusy(true);
+    setError("");
+    try {
+      const { data } = await axios.post(endpoint + "/diagnostic", {}, auth);
+      setDiagnostic(data);
+    } catch {
+      setError("تعذر تشغيل تشخيص المصنّف.");
+    } finally { setBusy(false); }
+  }
+
   const readiness = report?.readiness;
   const runnable = readiness?.nextSlot && readiness.realSendingOff && readiness.standardCollectorOff &&
     readiness.searchConfigured && readiness.openAiConfigured;
@@ -46,10 +58,12 @@ export default function AutoApplySupplyCanary({ password }) {
     {open && <>
       <div className="oi-actions">
         <button type="button" disabled={busy} onClick={read}>تحديث تقرير التوريد</button>
+        {runnable && readiness.nextSlot === 3 && <button type="button" disabled={busy || Boolean(diagnostic)} onClick={probe}>تشخيص OpenAI ببيانات اصطناعية</button>}
         {runnable && <button type="button" disabled={busy} onClick={run}>تشغيل اختبار التوريد {readiness.nextSlot}</button>}
       </div>
       {busy && <p role="status">جارٍ العمل على اختبار التوريد…</p>}
       {error && <p role="alert">{error}</p>}
+      {diagnostic && <div className="oi-run-history"><pre dir="ltr" aria-label="تقرير تشخيص OpenAI">{JSON.stringify(diagnostic, null, 2)}</pre></div>}
       {report && <div className="oi-run-history"><pre dir="ltr" aria-label="تقرير اختبار التوريد">{JSON.stringify(report, null, 2)}</pre></div>}
     </>}
   </section>;

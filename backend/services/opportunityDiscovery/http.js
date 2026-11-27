@@ -31,7 +31,7 @@ async function pinnedRequest(url, { timeout = 8000 } = {}) {
   if (!addresses.length || addresses.some(({ address }) => !publicAddress(address))) throw error("NON_PUBLIC_ADDRESS");
   const chosen = addresses[0];
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/json,text/plain", "Accept-Encoding": "identity" },
+    const req = https.get(url, { agent: false, headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/json,text/plain", "Accept-Encoding": "identity" },
       // Pin the validated address for this connection; avoid DNS rebinding.
       lookup: (_host, options, cb) => options.all ? cb(null, [chosen]) : cb(null, chosen.address, chosen.family),
     }, (res) => {

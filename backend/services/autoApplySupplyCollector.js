@@ -13,6 +13,7 @@ const { createReader, allowedUrl } = require("./opportunityDiscovery/http");
 const { htmlLinks, strategyFor } = require("./opportunityDiscovery/strategies");
 const { searchOpportunityUrls, configuredSearchProvider } = require("./opportunityDiscovery/search");
 const { normalizeCompanyComparable } = require("./companyDirectorySeeds");
+const { publicSearchUrl, relevantSearchResult, searchPriority, dynamicSource } = require("./autoApplySupplyDynamicSearch");
 
 const RUN_LOCK = "auto-apply-supply";
 const RUN_BUDGET_MS = 150000;
@@ -44,8 +45,8 @@ function mongoRuns(model = Run) {
     },
     latest: () => model.findOne({ trigger: { $in: ["scheduler", "admin", "cli"] } })
       .sort({ startedAt: -1 }).select("trigger status startedAt finishedAt metrics").lean(),
-    canaries: () => model.find({ trigger: "canary", canarySlot: { $in: [1, 2] } })
-      .sort({ canarySlot: 1 }).select("canarySlot status startedAt finishedAt metrics").limit(2).lean(),
+    canaries: () => model.find({ trigger: "canary", canarySlot: { $in: [1, 2, 3] } })
+      .sort({ canarySlot: 1 }).select("canarySlot status startedAt finishedAt metrics").limit(3).lean(),
   };
 }
 
@@ -101,7 +102,12 @@ function declaredCompany(result, sources) {
   if (matches.length > 1) return null;
   // A literal employer named in the result title is useful as an unverified lead.
   // There is no page fetch or employer-domain approval on this path.
-  const name = String(result.title || "").match(/(?:\bat\s+|لدى\s+)([\p{L}\p{N}][\p{L}\p{N} &.'’-]{2,100})(?=\s*(?:[|–—,]|$))/iu)?.[1]?.trim();
+  const title = String(result.title || "");
+  const direct = title.match(/(?:\bat\s+|لدى\s+)([\p{L}\p{N}][\p{L}\p{N} &.'’-]{2,100})(?=\s*(?:[|–—,]|$))/iu)?.[1]?.trim();
+  const separated = title.match(/(?:\||\s[–—-]\s)\s*([\p{L}\p{N}][\p{L}\p{N} &.'’-]{2,100})$/u)?.[1]?.trim();
+  const suffix = separated && !/^(?:jobs?|careers?|apply(?: now)?|Saudi Arabia|KSA|Riyadh|Jeddah|وظائف|السعودية|الرياض|جدة)$/i.test(separated) &&
+    !/linkedin|indeed|glassdoor|bayt|jobzaty|wuzzuf|توظيف|وظائف/i.test(separated) ? separated : "";
+  const name = direct || suffix;
   return name ? { key: "search-unscoped", company: name } : null;
 }
 
@@ -116,24 +122,27 @@ async function runAutoApplySupplyDiscovery({
   trigger = "cli", env = process.env, preview = false, clock = () => new Date(),
   runs = mongoRuns(), registry = preview ? async () => SOURCES : () => registrySources({ activeOnly: true }),
   readSource = createReader, searchProvider, ingest = ingestSupply, listRechecks = existingSupply,
-  recheck = recordSupplyRecheck, listDarbak = existingDarbak, classifyBatch = classifySupplyBatch, canarySlot,
+  recheck = recordSupplyRecheck, listDarbak = existingDarbak, classifyBatch = classifySupplyBatch, canarySlot, retryCandidateIds = [],
 } = {}) {
   const startedAt = clock();
   const config = settings(env);
   const aiSettings = classifierSettings(env);
   const isCanary = trigger === "canary";
+  const dynamic = (isCanary && canarySlot === 3) || env.AUTO_APPLY_SUPPLY_DYNAMIC_DISCOVERY === "true";
   const end = +startedAt + RUN_BUDGET_MS;
   const discoveryEnd = isCanary ? +startedAt + 90000 : end;
-  if (isCanary && ![1, 2].includes(canarySlot)) throw new Error("CANARY_SLOT_REQUIRED");
+  if (isCanary && ![1, 2, 3].includes(canarySlot)) throw new Error("CANARY_SLOT_REQUIRED");
   const run = preview ? null : await runs.acquire(trigger, startedAt, canarySlot);
   if (!preview && !run) return { status: "already_running" };
   const metrics = { queries: 0, resultsFound: 0, pages: 0, uniqueCandidates: 0, created: 0, updated: 0,
     duplicates: 0, needsReview: 0, errors: 0, expired: 0, reactivated: 0, limited: 0, errorCodes: [],
     ai: emptyAiMetrics(), pagesFetched: 0, fetchFailures: 0, rawCandidates: 0,
     stages: { scopedSearchResults: 0, unscopedSearchResults: 0, unscopedLeadChannels: 0,
+      relevanceQualified: 0, knownDomainResults: 0, dynamicDomainResults: 0, urlSafetyRejected: 0,
+      trainingPages: 0, snippetOnlyLeads: 0, geographyUnknown: 0,
       processedPages: 0, noProgram: 0, noSaudiEvidence: 0, employerMismatch: 0,
       outOfScopePosting: 0, relevantPrograms: 0, noChannel: 0, pageChannels: 0, ingestionFailures: 0 },
-    ...(isCanary ? { candidateIds: [] } : {}) };
+    ...(isCanary ? { candidateIds: [], ...(canarySlot === 3 ? { retryCandidateIds } : {}) } : {}) };
   const seen = new Set(), readers = new Map(), pages = new Map();
   let status = "completed", discoveredNew = 0;
   function timeRemaining() { return clock().getTime() < end; }
@@ -196,6 +205,9 @@ async function runAutoApplySupplyDiscovery({
             return result;
           }, (error) => {
             metrics.fetchFailures += 1;
+            if (["NON_PUBLIC_ADDRESS", "UNAPPROVED_URL_SCOPE", "ROBOTS_REDIRECT_UNAPPROVED"].includes(error.code)) {
+              metrics.stages.urlSafetyRejected += 1;
+            }
             throw error;
           }));
         }
@@ -206,6 +218,7 @@ async function runAutoApplySupplyDiscovery({
   }
 
   const fetched = new Set();
+  const withChannels = new Set();
   async function inspect(source, reference, query) {
     const key = source.key + " " + reference.url;
     if (fetched.has(key)) return [];
@@ -215,8 +228,14 @@ async function runAutoApplySupplyDiscovery({
     const result = await strategy.extractJob(reference, source, reader);
     if (!result.page) return [];
     metrics.stages.processedPages += 1;
-    const candidates = extractPage(result.page, source, { jobs: result.jobs, query, diagnostics: metrics.stages });
+    const beforePrograms = metrics.stages.relevantPrograms;
+    const candidates = extractPage(result.page, source, { jobs: result.jobs, query, diagnostics: metrics.stages, allowUnknown: dynamic });
+    if (metrics.stages.relevantPrograms > beforePrograms) metrics.stages.trainingPages += 1;
     metrics.stages.pageChannels += candidates.length;
+    if (candidates.length) {
+      withChannels.add(publicSearchUrl(reference.url));
+      withChannels.add(publicSearchUrl(result.page.url));
+    }
     await saveAll(candidates.map((candidate) => ({ ...candidate, lastCheckedAt: clock() })));
     return /json/i.test(result.page.headers?.["content-type"] || "") ? [] :
       htmlLinks(result.page.text, result.page.url).filter((entry) => allowedUrl(entry.url, source)).slice(0, 3);
@@ -260,17 +279,31 @@ async function runAutoApplySupplyDiscovery({
       }
     }
 
-    const results = [], leads = [];
-    for (const result of searchResults) {
+    const results = [], leads = [], dynamicPages = [], snippetResults = [];
+    for (let result of searchResults) {
+      if (dynamic) {
+        const url = publicSearchUrl(result.url);
+        if (!url) { metrics.stages.urlSafetyRejected += 1; continue; }
+        if (!relevantSearchResult(result)) continue;
+        metrics.stages.relevanceQualified += 1;
+        result = { ...result, url };
+      }
       const source = sources.find((item) => allowedUrl(result.url, item));
       if (source) {
         metrics.stages.scopedSearchResults += 1;
+        if (dynamic) metrics.stages.knownDomainResults += 1;
         results.push({ source, reference: { url: result.url }, query: result.query });
       }
       else {
         metrics.stages.unscopedSearchResults += 1;
         const employer = declaredCompany(result, sources);
-        if (employer) leads.push(...extractSearchLead(result, employer));
+        if (dynamic) {
+          metrics.stages.dynamicDomainResults += 1;
+          const priority = searchPriority(result);
+          if (priority) dynamicPages.push({ source: dynamicSource(result.url, employer),
+            reference: { url: result.url }, query: result.query, priority });
+          if (employer) snippetResults.push({ result, employer });
+        } else if (employer) leads.push(...extractSearchLead(result, employer));
       }
     }
     metrics.stages.unscopedLeadChannels = leads.length;
@@ -280,7 +313,11 @@ async function runAutoApplySupplyDiscovery({
     // Reserve part of the budget for new search results instead of only re-visiting the seed list.
     const seedFirst = results.length ? Math.ceil(seeds.length / 2) : seeds.length;
     const distinctResults = [...new Map(results.map((item) => [item.source.key + " " + item.reference.url, item])).values()];
-    const queue = [...seeds.slice(0, seedFirst), ...distinctResults.slice(0, Math.ceil(config.maxPages / 2)), ...seeds.slice(seedFirst)];
+    const dynamicQueue = [...new Map(dynamicPages.sort((a, b) => b.priority - a.priority)
+      .map((item) => [item.reference.url, item])).values()].slice(0, 12);
+    const queue = dynamic && dynamicQueue.length
+      ? [...distinctResults.slice(0, 4), ...dynamicQueue.slice(0, 8), ...seeds.slice(0, 5), ...dynamicQueue.slice(8), ...seeds.slice(5)]
+      : [...seeds.slice(0, seedFirst), ...distinctResults.slice(0, Math.ceil(config.maxPages / 2)), ...seeds.slice(seedFirst)];
     for (let index = 0; index < queue.length; index += 1) {
       const item = queue[index];
       if (!discoveryTimeRemaining() || metrics.pages >= config.maxPages) break;
@@ -303,11 +340,15 @@ async function runAutoApplySupplyDiscovery({
         safeError("darbak", error, metrics);
       }
     }
+    for (const { result, employer } of snippetResults) {
+      if (!withChannels.has(result.url)) leads.push(...extractSearchLead(result, employer, { allowUnknown: true }));
+    }
+    if (dynamic) metrics.stages.snippetOnlyLeads = leads.length;
     await saveAll(leads, { weak: true });
     if (!preview && aiSettings.enabled && timeRemaining()) {
       try {
         await classifyBatch({ env, clock, metrics: metrics.ai, canContinue: timeRemaining,
-          ...(isCanary ? { candidateIds: metrics.candidateIds } : {}),
+          ...(isCanary ? { candidateIds: [...new Set([...retryCandidateIds, ...metrics.candidateIds])], retryCandidateIds } : {}),
           remainingMs: () => end - +clock(), beforeWrite: canWrite });
       } catch {
         safeError("classification", null, metrics);

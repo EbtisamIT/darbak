@@ -4,6 +4,7 @@ const { TRAINING, text, isoDate, trainingType, structuredJobs, sameCompany } = r
 const { allowedUrl } = require("./opportunityDiscovery/http");
 const { normalizeEmail } = require("./autoApplyEmailNetwork");
 const { cleanOpportunityUrl } = require("./opportunityCandidateData");
+const { clearlyForeign, publicSearchUrl, relevantSearchResult, recruitingDetail } = require("./autoApplySupplyDynamicSearch");
 
 const SAUDI = /\b(?:saudi(?: arabia| applicants| arabian)?|KSA|riyadh|jeddah|dammam|dhahran|khobar|makkah)\b|السعودي(?:ة|ين|ون)?|الرياض|جدة|الدمام|الظهران|الخبر|مكة/i;
 const REMOTE = /\b(?:remote(?: work| internship| training| position)?|telecommute|work from home)\b|عن بُ?عد|عن بعد/i;
@@ -103,7 +104,7 @@ function linkedChannels($, root, pageUrl) {
   return { urls, mailLinks };
 }
 
-function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTitle, query, sourceType, diagnostics }) {
+function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTitle, query, sourceType, diagnostics, allowUnknown }) {
   const skip = (reason) => {
     if (diagnostics) diagnostics[reason] += 1;
     return [];
@@ -113,13 +114,16 @@ function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTit
   const location = geography(job, evidence, page.url);
   const type = programType(title, evidence);
   if (!type) return skip("noProgram");
-  if (!sameCompany(job.companyName, source)) return skip("employerMismatch");
-  if (!location) return skip("noSaudiEvidence");
+  const dynamic = source.sourceType === "untrusted_search_page";
+  const companyName = dynamic ? (source.company || cap(job.companyName, 300)) : source.company;
+  if (!companyName || (source.company && !sameCompany(job.companyName, source))) return skip("employerMismatch");
+  if (!location && (!allowUnknown || clearlyForeign(evidence))) return skip("noSaudiEvidence");
+  if (!location && diagnostics) diagnostics.geographyUnknown += 1;
   const sourceUrl = secureUrl(job.sourceUrl || page.url);
   if (!sourceUrl || !allowedUrl(sourceUrl, source)) return skip("outOfScopePosting");
   if (diagnostics) diagnostics.relevantPrograms += 1;
   const common = {
-    companyName: source.company,
+    companyName,
     opportunityTitle: title,
     trainingType: type,
     sourceUrl, sourceType, pageTitle,
@@ -135,7 +139,11 @@ function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTit
     applicationLinks.push({ channelType: channelForUrl(portal), applicationUrl: portal,
       applicationEvidenceText: cap(job.applicationCta?.label || title, 1500) });
   }
-  const channels = [...emailChannels(body, mailLinks), ...applicationLinks];
+  if (dynamic && !applicationLinks.length && recruitingDetail(sourceUrl)) {
+    applicationLinks.push({ channelType: channelForUrl(sourceUrl), applicationUrl: sourceUrl });
+  }
+  const channels = [...emailChannels(body, mailLinks), ...applicationLinks]
+    .filter((channel) => !dynamic || !channel.applicationUrl || publicSearchUrl(channel.applicationUrl));
   if (!channels.length) return skip("noChannel");
   return channels.map((channel) => {
     const shared = channel.applicationUrl && SHARED_PORTAL.test(new URL(channel.applicationUrl).pathname) &&
@@ -146,10 +154,11 @@ function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTit
   });
 }
 
-function extractPage(page, source, { jobs, query, diagnostics } = {}) {
+function extractPage(page, source, { jobs, query, diagnostics, allowUnknown = false } = {}) {
   const $ = cheerio.load(page.text);
   const pageTitle = cap($("title").first().text(), 500);
   const candidates = jobs?.length ? jobs : structuredJobs(page.text, page.url, source);
+  const siteName = cap($("meta[property='og:site_name']").attr("content"), 240);
   $("nav,footer,header,aside,script,style,noscript").remove();
   const root = $("main,article,[role=main]").first();
   const content = root.length ? root : $("body");
@@ -158,7 +167,8 @@ function extractPage(page, source, { jobs, query, diagnostics } = {}) {
   const htmlLinks = linkedChannels($, content, page.url);
   const path = new URL(page.url).pathname;
   let sourceType = "official_company_website";
-  if (source.sourceType === "ats" || ATS_HOST.test(new URL(page.url).hostname)) sourceType = "public_ats_job_page";
+  if (source.sourceType === "untrusted_search_page") sourceType = "dynamic_search_page";
+  else if (source.sourceType === "ats" || ATS_HOST.test(new URL(page.url).hostname)) sourceType = "public_ats_job_page";
   else if (source.sourceType === "university" || /\/(?:news|announcements?)(?:\/|$)/i.test(path)) sourceType = "official_announcement";
   else if (candidates.length) sourceType = "official_job_program_page";
   else if (/careers?|recruitment|jobs?/.test(path)) sourceType = "official_careers_page";
@@ -171,7 +181,7 @@ function extractPage(page, source, { jobs, query, diagnostics } = {}) {
       return opportunityChannels(job, page, source, {
         body: sameDetail && visibleText && !body.includes(visibleText) ? [body, visibleText].filter(Boolean).join("\n") : body,
         urls: sameDetail ? htmlLinks.urls : [], mailLinks: sameDetail ? htmlLinks.mailLinks : [],
-        pageTitle, query, sourceType, diagnostics,
+        pageTitle, query, sourceType, diagnostics, allowUnknown,
       });
     });
   }
@@ -184,22 +194,27 @@ function extractPage(page, source, { jobs, query, diagnostics } = {}) {
   const timeField = (itemprop) => content.find(`time[itemprop="${itemprop}"]`).first().attr("datetime");
   return opportunityChannels({
     title, deadline: timeField("validThrough") || labeledDeadline,
+    companyName: source.sourceType === "untrusted_search_page" && !source.company &&
+      !/^(?:careers?|jobs?|recruitment|home)$/i.test(siteName) ? siteName : "",
     postedAt: timeField("datePosted") || $("meta[property='article:published_time']").attr("content"),
     trainingStartDate: timeField("jobStartDate"),
-  }, page, source, { body: visibleText, ...htmlLinks, pageTitle, query, sourceType, diagnostics });
+  }, page, source, { body: visibleText, ...htmlLinks, pageTitle, query, sourceType, diagnostics, allowUnknown });
 }
 
-function extractSearchLead(result, source) {
-  const sourceUrl = secureUrl(result.url);
+function extractSearchLead(result, source, { allowUnknown = false } = {}) {
+  const sourceUrl = allowUnknown ? publicSearchUrl(result.url) : secureUrl(result.url);
   const title = cap(result.title, 300);
   const evidence = cap(result.description, 2000);
   const location = sourceUrl && geography({}, title + "\n" + evidence, sourceUrl);
-  if (!location || !LEAD_TRAINING.test(title) || !APPLY.test(evidence)) return [];
+  if (!sourceUrl || (allowUnknown ? (!source.company || !relevantSearchResult(result) ||
+    clearlyForeign(title + "\n" + evidence) || evidence.length < 30) :
+    (!location || !LEAD_TRAINING.test(title) || !APPLY.test(evidence)))) return [];
   const type = programType(title, title + "\n" + evidence);
-  const channels = emailChannels(evidence);
+  const channels = !allowUnknown || APPLY.test(evidence) ? emailChannels(evidence) : [];
   const kind = channelForUrl(sourceUrl);
-  if (kind === "EXTERNAL_FORM" || ATS_HOST.test(new URL(sourceUrl).hostname)) {
-    channels.push({ channelType: kind, applicationUrl: sourceUrl, applicationEvidenceText: evidence.slice(0, 1500) });
+  if (kind === "EXTERNAL_FORM" || (allowUnknown ? recruitingDetail(sourceUrl) : ATS_HOST.test(new URL(sourceUrl).hostname))) {
+    channels.push({ channelType: kind, applicationUrl: sourceUrl,
+      ...(APPLY.test(evidence) ? { applicationEvidenceText: evidence.slice(0, 1500) } : {}) });
   }
   return channels.map((channel) => ({ companyName: source.company, opportunityTitle: title, trainingType: type || "",
     sourceUrl, sourceType: "search_engine_discovery", evidenceText: evidence, pageTitle: title,

@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const { classifyByPolicy } = require("../services/autoApplySupplyClassificationPolicy");
-const { classificationHash, classifySupplyBatch, CLASSIFIER_VERSION, classifierSettings } = require("../services/autoApplySupplyClassifier");
+const { classificationHash, classifySupplyBatch, CLASSIFIER_VERSION, classifierSettings, errorDiagnostics } = require("../services/autoApplySupplyClassifier");
 const { ingestSupply } = require("../services/autoApplySupply");
 const { coopEmail, genericHr, arabicPortal } = require("./fixtures/autoApplySupplyClassification");
 
@@ -154,13 +154,27 @@ test("changed evidence reclassifies; malformed output and provider failure never
   assert.equal(store.state.get(coopEmail._id).verificationStatus, "NEEDS_REVIEW");
   assert.equal(store.state.get(genericHr._id).verificationStatus, "NEEDS_REVIEW");
   assert.equal(store.state.get(arabicPortal._id).verificationStatus, "VERIFIED");
-  assert.deepEqual(result.failureCodes, ["SUPPLY_AI_SCHEMA_INVALID", "SUPPLY_AI_REQUEST_FAILED"]);
+  assert.deepEqual(result.failureCodes, ["SUPPLY_AI_RESPONSE_INVALID", "SUPPLY_AI_UNKNOWN_ERROR"]);
   assert.doesNotMatch(JSON.stringify(result), /raw provider text/);
   assert.equal((await call(store, [])).aiCalls, 0);
   const changed = store.state.get(coopEmail._id);
   Object.assign(changed, { contentHash: "updated-content" });
   delete changed.classificationAttempt;
   assert.equal((await call(store, [ai()])).successfulClassifications, 1);
+});
+
+test("provider diagnostics distinguish schema, timeout and provider errors without echoing raw values", () => {
+  const diagnostic = errorDiagnostics({ status: 400, type: "invalid_request_error", code: "invalid_json_schema",
+    request_id: "req_fixture", message: "private payload", headers: { Authorization: "secret" } }, "fixture-model", "provider_request");
+  assert.equal(diagnostic.code, "SUPPLY_AI_SCHEMA_ERROR");
+  assert.equal(diagnostic.kind, "schema_error");
+  assert.equal(diagnostic.providerStatus, 400);
+  assert.equal(diagnostic.requestId, "req_fixture");
+  assert.doesNotMatch(JSON.stringify(diagnostic), /private payload|Authorization|secret/);
+  assert.equal(errorDiagnostics({ name: "Error", cause: { code: "UND_ERR_CONNECT_TIMEOUT" } }, "fixture-model", "provider_request").code, "SUPPLY_AI_TIMEOUT");
+  for (const [status, code] of [[401, "SUPPLY_AI_AUTH_FAILED"], [429, "SUPPLY_AI_RATE_LIMITED"], [404, "SUPPLY_AI_MODEL_ERROR"]]) {
+    assert.equal(errorDiagnostics({ status }, "fixture-model", "provider_request").code, code);
+  }
 });
 
 test("batch limit and deterministic expiry protect cost; a newer observation cannot be overwritten", async () => {

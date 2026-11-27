@@ -8,7 +8,7 @@ const { classifyByPolicy, evidenceFields } = require("./autoApplySupplyClassific
 const CLASSIFIER_VERSION = "auto-apply-supply-v1.0.0";
 const MODEL_DEFAULT = "gpt-5.6-luna";
 const MAX_CALLS = 50;
-const REQUEST_TIMEOUT_MS = 12000;
+const REQUEST_TIMEOUT_MS = 20000;
 const FAILED_COOLDOWN_MS = 24 * 3600000;
 const fields = ["companyName", "opportunityTitle", "trainingType", "majors", "fields", "cities",
   "remote", "educationLevels", "requiredDocuments", "deadline", "startDate", "isTrainingRelevant",
@@ -72,26 +72,47 @@ function classificationHash(record, model) {
 function emptyAiMetrics() {
   return { aiCalls: 0, successfulClassifications: 0, failedClassifications: 0, skippedUnchanged: 0,
     skippedCooldown: 0, staleClassifications: 0, inputTokens: 0, outputTokens: 0, usageResponses: 0,
-    failureCodes: [], statuses: {} };
+    failureCodes: [], diagnostics: [], statuses: {} };
 }
 
-function failureCode(error) {
-  if (error?.code === "SUPPLY_AI_SCHEMA_INVALID" || error instanceof SyntaxError || error?.name === "ZodError") return "SUPPLY_AI_SCHEMA_INVALID";
-  if (error?.status === 401 || error?.status === 403) return "SUPPLY_AI_AUTH_FAILED";
-  if (error?.status === 429) return "SUPPLY_AI_RATE_LIMITED";
-  if (error?.status === 404) return "SUPPLY_AI_MODEL_NOT_FOUND";
-  if (error?.name === "APIConnectionTimeoutError") return "SUPPLY_AI_TIMEOUT";
-  return "SUPPLY_AI_REQUEST_FAILED";
+function errorDiagnostics(error, model, stage) {
+  const safe = (value) => typeof value === "string" && /^[a-zA-Z_][a-zA-Z0-9_.-]{0,79}$/.test(value) && !/^(?:sk[-_]|bearer)/i.test(value) ? value : null;
+  const providerStatus = Number.isInteger(error?.status) && error.status >= 100 && error.status <= 599 ? error.status : null;
+  const providerCode = safe(error?.code);
+  const providerType = safe(error?.type);
+  const errorType = safe(error?.name) || safe(error?.constructor?.name);
+  const transportCode = safe(error?.cause?.code || error?.cause?.cause?.code);
+  const requestId = typeof error?.request_id === "string" && /^req_[A-Za-z0-9_-]{1,100}$/.test(error.request_id) ? error.request_id : null;
+  let code = "SUPPLY_AI_UNKNOWN_ERROR";
+  let kind = providerStatus ? "api_error" : transportCode || /Connection/.test(errorType || "") ? "transport_error" : "unknown";
+  if (providerStatus === 401 || providerStatus === 403) code = "SUPPLY_AI_AUTH_FAILED";
+  else if (providerStatus === 429) code = "SUPPLY_AI_RATE_LIMITED";
+  else if (providerStatus === 404 || (providerStatus === 400 && error?.param === "model") ||
+    /^(?:model_not_found|unsupported_model|invalid_model)$/.test(providerCode || "")) code = "SUPPLY_AI_MODEL_ERROR";
+  else if (providerStatus === 408 || /Timeout|AbortError/i.test([errorType, error?.constructor?.name, transportCode].join(" ")) ||
+    /^(?:ETIMEDOUT|ESOCKETTIMEDOUT|UND_ERR_(?:CONNECT|HEADERS|BODY)_TIMEOUT)$/.test(transportCode || "")) {
+    code = "SUPPLY_AI_TIMEOUT"; kind = "timeout";
+  } else if (stage === "schema_build" || providerCode === "invalid_json_schema" || (providerStatus === 400 && /^text\.format(?:\.|$)/.test(error?.param || ""))) {
+    code = "SUPPLY_AI_SCHEMA_ERROR"; kind = "schema_error";
+  } else if (providerCode === "SUPPLY_AI_RESPONSE_INVALID" || error instanceof SyntaxError || errorType === "ZodError" ||
+    /^(?:LengthFinishReasonError|ContentFilterFinishReasonError)$/.test(error?.constructor?.name || "")) {
+    code = "SUPPLY_AI_RESPONSE_INVALID"; kind = "response_validation";
+    stage = "response_parsing";
+  }
+  return { code, kind, stage, model, providerStatus, providerCode, providerType, errorType, transportCode, requestId };
 }
 
 async function extractMetadata({ record, client, model, metrics, timeoutMs = REQUEST_TIMEOUT_MS }) {
   const evidence = evidenceFields(record);
   const input = JSON.stringify({ channelType: record.channelType, destinationEmail: record.destinationEmail || null,
     applicationUrl: record.applicationUrl || null, sourceType: record.sourceType, evidence });
+  let format;
+  try { format = zodTextFormat(classifierSchema, "auto_apply_supply_metadata"); }
+  catch (error) { throw Object.assign(error, { supplyStage: "schema_build" }); }
   metrics.aiCalls += 1;
   const response = await client.responses.parse({
     model, input, instructions, store: false, max_output_tokens: 2400,
-    text: { format: zodTextFormat(classifierSchema, "auto_apply_supply_metadata") },
+    text: { format },
   }, { timeout: timeoutMs, maxRetries: 0 });
   if (response.usage) {
     metrics.usageResponses += 1;
@@ -100,27 +121,31 @@ async function extractMetadata({ record, client, model, metrics, timeoutMs = REQ
   }
   const parsed = classifierSchema.safeParse(response.output_parsed);
   if (!parsed.success || (response.status && response.status !== "completed")) {
-    throw Object.assign(new Error("Structured output unavailable"), { code: "SUPPLY_AI_SCHEMA_INVALID" });
+    throw Object.assign(new Error("Structured output unavailable"), {
+      code: "SUPPLY_AI_RESPONSE_INVALID", status: 200, request_id: response._request_id,
+    });
   }
   return { parsed: parsed.data, model: /^[\w.-]{1,100}$/.test(response.model || "") ? response.model : model };
 }
 
 function mongoClassificationStore(model = Supply) {
   return {
-    list: ({ modelName, limit, now, candidateIds }) => model.find({
+    list: ({ modelName, limit, now, candidateIds, retryCandidateIds = [] }) => model.find({
       ...(candidateIds ? { _id: { $in: candidateIds } } : {}),
       verificationStatus: "NEEDS_REVIEW", isActive: true,
       $and: [
         { $or: [{ classifierVersion: { $ne: CLASSIFIER_VERSION } }, { "classification.requestedModel": { $ne: modelName } }] },
-        { $or: [{ "classificationAttempt.retryAfter": null }, { "classificationAttempt.retryAfter": { $lte: now } }] },
+        { $or: [{ "classificationAttempt.retryAfter": null }, { "classificationAttempt.retryAfter": { $lte: now } },
+          ...(retryCandidateIds.length ? [{ _id: { $in: retryCandidateIds }, "classificationAttempt.failureCode": "SUPPLY_AI_REQUEST_FAILED" }] : [])] },
         { $or: ["evidenceText", "emailEvidenceText", "applicationEvidenceText"].map((field) => ({ [field]: { $gt: "" } })) },
       ],
     }).sort({ firstSeenAt: 1, _id: 1 }).limit(limit).lean(),
-    async claim(record, { attemptId, hash, now }) {
+    async claim(record, { attemptId, hash, now, retryPrevious }) {
       const update = await model.updateOne({
         _id: record._id, __v: record.__v, contentHash: record.contentHash,
         verificationStatus: "NEEDS_REVIEW", isActive: true,
-        $or: [{ "classificationAttempt.hash": { $ne: hash } }, { "classificationAttempt.retryAfter": { $lte: now } }],
+        $or: [{ "classificationAttempt.hash": { $ne: hash } }, { "classificationAttempt.retryAfter": { $lte: now } },
+          ...(retryPrevious ? [{ "classificationAttempt.failureCode": "SUPPLY_AI_REQUEST_FAILED" }] : [])],
       }, { $set: { classificationAttempt: { id: attemptId, hash, retryAfter: new Date(+now + FAILED_COOLDOWN_MS) } }, $inc: { __v: 1 } });
       return update.modifiedCount === 1;
     },
@@ -152,7 +177,7 @@ function mongoClassificationStore(model = Supply) {
 
 async function classifySupplyBatch({ env = process.env, client, previewRecords, store = mongoClassificationStore(),
   clock = () => new Date(), canContinue = () => true, remainingMs = () => REQUEST_TIMEOUT_MS,
-  beforeWrite = async () => {}, metrics = emptyAiMetrics(), candidateIds,
+  beforeWrite = async () => {}, metrics = emptyAiMetrics(), candidateIds, retryCandidateIds = [],
 } = {}) {
   const config = classifierSettings(env);
   const preview = Array.isArray(previewRecords);
@@ -160,7 +185,9 @@ async function classifySupplyBatch({ env = process.env, client, previewRecords, 
   if (preview) metrics.previewStatuses = [];
   if ((!preview && !config.enabled) || !limit || (!client && !config.apiKey) || candidateIds?.length === 0) return metrics;
   const sdk = client || new OpenAI({ apiKey: config.apiKey, timeout: REQUEST_TIMEOUT_MS, maxRetries: 0 });
-  const records = preview ? previewRecords.slice(0, limit) : await store.list({ modelName: config.model, limit: limit * 2, now: clock(), candidateIds });
+  const records = preview ? previewRecords.slice(0, limit) : await store.list({ modelName: config.model, limit: limit * 2, now: clock(), candidateIds, retryCandidateIds });
+  const priority = new Set(retryCandidateIds.map(String));
+  if (priority.size) records.sort((a, b) => Number(priority.has(String(b._id))) - Number(priority.has(String(a._id))));
   const seen = new Set();
   for (const record of records) {
     if (!canContinue() || remainingMs() < 500 || metrics.aiCalls >= limit) break;
@@ -168,7 +195,8 @@ async function classifySupplyBatch({ env = process.env, client, previewRecords, 
     const hash = classificationHash(record, config.model);
     const key = String(record._id ?? record.dedupeKey ?? record.contentHash) + ":" + hash;
     if (record.classificationHash === hash || seen.has(key)) { metrics.skippedUnchanged += 1; continue; }
-    if (record.classificationAttempt?.hash === hash && record.classificationAttempt.retryAfter > clock()) {
+    const retryPrevious = priority.has(String(record._id)) && record.classificationAttempt?.failureCode === "SUPPLY_AI_REQUEST_FAILED";
+    if (!retryPrevious && record.classificationAttempt?.hash === hash && record.classificationAttempt.retryAfter > clock()) {
       metrics.skippedCooldown += 1;
       continue;
     }
@@ -177,7 +205,7 @@ async function classifySupplyBatch({ env = process.env, client, previewRecords, 
     const attemptId = randomUUID();
     if (!preview) {
       await beforeWrite();
-      if (!await store.claim(record, { hash, attemptId, now: clock() })) { metrics.staleClassifications += 1; continue; }
+      if (!await store.claim(record, { hash, attemptId, now: clock(), retryPrevious })) { metrics.staleClassifications += 1; continue; }
     }
     let response = null;
     let evaluation = classifyByPolicy(record, null, clock());
@@ -188,9 +216,11 @@ async function classifySupplyBatch({ env = process.env, client, previewRecords, 
         evaluation = classifyByPolicy(record, response.parsed, clock());
       }
     } catch (error) {
-      const code = failureCode(error);
+      const diagnostic = errorDiagnostics(error, config.model, error.supplyStage || (response ? "policy_validation" : "provider_request"));
+      const { code } = diagnostic;
       metrics.failedClassifications += 1;
       if (metrics.failureCodes.length < 20) metrics.failureCodes.push(code);
+      if (metrics.diagnostics.length < 20) metrics.diagnostics.push(diagnostic);
       if (!preview && canContinue()) {
         await beforeWrite();
         await store.fail(record, attemptId, code);
@@ -199,7 +229,7 @@ async function classifySupplyBatch({ env = process.env, client, previewRecords, 
         metrics.statuses.NEEDS_REVIEW = (metrics.statuses.NEEDS_REVIEW || 0) + 1;
         metrics.previewStatuses.push({ status: "NEEDS_REVIEW", rule: code });
       }
-      if (["SUPPLY_AI_AUTH_FAILED", "SUPPLY_AI_MODEL_NOT_FOUND", "SUPPLY_AI_RATE_LIMITED"].includes(code)) break;
+      if (["SUPPLY_AI_AUTH_FAILED", "SUPPLY_AI_MODEL_ERROR", "SUPPLY_AI_RATE_LIMITED"].includes(code)) break;
       continue;
     }
     if (!preview && !canContinue()) break;
@@ -217,4 +247,4 @@ async function classifySupplyBatch({ env = process.env, client, previewRecords, 
 }
 
 module.exports = { CLASSIFIER_VERSION, classifierSchema, classifierSettings, classificationHash,
-  emptyAiMetrics, classifySupplyBatch, mongoClassificationStore };
+  emptyAiMetrics, classifySupplyBatch, mongoClassificationStore, errorDiagnostics };

@@ -7,6 +7,8 @@ const { discoveryPlan, settings } = require("../services/autoApplySupplyCollecto
 const { mountAutoApplySupplyCollectorRoutes, validSchedulerToken } = require("../services/autoApplySupplyCollectorRoutes");
 const { canaryReadiness, canaryEnvironment } = require("../services/autoApplySupplyCanary");
 const SupplyRun = require("../models/AutoApplySupplyRun");
+const { publicSearchUrl } = require("../services/autoApplySupplyDynamicSearch");
+const { classifyByPolicy } = require("../services/autoApplySupplyClassificationPolicy");
 
 const now = new Date("2026-11-25T06:00:00Z");
 const later = new Date("2026-11-26T06:00:00Z");
@@ -338,4 +340,50 @@ test("canary uses fixed caps, skips legacy imports and scopes AI to freshly inse
   assert.equal(canaryReadiness(approvedRetry, [first]).nextSlot, 2);
   assert.equal(canaryReadiness(approvedRetry, [first, { canarySlot: 2 }]).nextSlot, null);
   assert.equal(canaryReadiness(approvedRetry, [{ ...first, metrics: { resultsFound: 10, uniqueCandidates: 1 } }]).nextSlot, null);
+});
+
+test("follow-up reads relevant public domains, preserves useful failed-fetch snippets and keeps untrusted sources unverified", async () => {
+  const locationUnknown = "https://careers.example.net/jobs/internship-2026";
+  const takenDown = "https://careers.example.com/jobs/coop-2026";
+  const f = fixture({ html: "<title>Careers</title>", results: [
+    { url: locationUnknown, title: "Internship at New Employer", description: "Practical university placement. Applications for students are now available." },
+    { url: takenDown, title: "Cooperative Training | Second Employer", description: "Cooperative training program for students in Saudi Arabia." },
+    { url: "https://localhost/jobs/internship", title: "Internship at Local Server", description: "Training placement." },
+    { url: "https://careers.example.net/jobs/accountant", title: "Accountant", description: "Full-time job." },
+  ] });
+  const attempt = [];
+  const result = await f.collect({ trigger: "canary", canarySlot: 3, retryCandidateIds: ["old-failed-record"],
+    env: canaryEnvironment(f.settings.env, 3), classifyBatch: async ({ candidateIds, retryCandidateIds }) => {
+      assert.ok(candidateIds.includes("old-failed-record"));
+      assert.deepEqual(retryCandidateIds, ["old-failed-record"]);
+    },
+    readSource: () => ({ async read(url) {
+      attempt.push(url);
+      if (url === takenDown) throw Object.assign(new Error("unreadable"), { code: "HTTP_403" });
+      return { url, text: url === locationUnknown
+        ? '<main><h1>Internship for university students</h1><p>Students receive practical experience.</p><a href="/apply/internship">Apply now</a></main>'
+        : "<title>Careers</title>", headers: { "content-type": "text/html" } };
+    } }),
+  });
+  assert.deepEqual(new Set(attempt), new Set([locationUnknown, takenDown, source.sourceUrl]));
+  assert.equal(result.created, 2);
+  assert.equal(result.stages.trainingPages, 1);
+  assert.ok(result.stages.dynamicDomainResults >= 2);
+  assert.ok(result.stages.urlSafetyRejected >= 1);
+  const rows = [...f.supply.rows.values()];
+  assert.deepEqual(rows.map((row) => row.sourceType).sort(), ["dynamic_search_page", "search_engine_discovery"]);
+  assert.ok(rows.every((row) => row.verificationStatus === "NEEDS_REVIEW"));
+  const modelSuggestedVerified = { isTrainingRelevant: true, evidenceQuotes: [], evidenceStrength: "explicit", channelAssessment: "explicit_application" };
+  for (const row of rows) assert.notEqual(classifyByPolicy(row, modelSuggestedVerified, now).status, "VERIFIED");
+  const phase4 = { canarySlot: 1, finishedAt: now, metrics: { created: 1, ai: { failedClassifications: 1 } } };
+  assert.equal(canaryReadiness({}, [phase4]).nextSlot, 3);
+  assert.equal(canaryReadiness({}, [phase4, { canarySlot: 3 }]).nextSlot, null);
+});
+
+test("dynamic URL admission accepts only public HTTPS hostnames", () => {
+  assert.equal(publicSearchUrl("https://careers.example.org/jobs/1"), "https://careers.example.org/jobs/1");
+  for (const url of ["http://example.org", "file:///tmp/page", "https://localhost", "https://mail.internal/page",
+    "https://127.0.0.1", "https://[::1]", "https://user:pass@example.org", "https://example.org:8443"]) {
+    assert.equal(publicSearchUrl(url), "");
+  }
 });
