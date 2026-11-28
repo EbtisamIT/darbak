@@ -34,10 +34,12 @@ function sourceRole(source, url) {
   return isPublisher(source?.company, url) ? "SECONDARY_DISCOVERY" : "OTHER";
 }
 
-function namedEmployer(value) {
+function namedEmployer(value, { title = false } = {}) {
   const line = String(value || "").trim();
   if (!PROGRAM.test(line)) return "";
-  const hit = line.match(/(?:لدى\s+|في\s+(?:شركة|مجموعة(?:\s+شركات)?|مؤسسة|هيئة|بنك)\s+|بمجموعة(?:\s+شركات)?\s+|بشركة\s+|\bat\s+)(.{2,130}?)(?=\s+(?:[–—|-]|in\b)|[|،:\n]|$)/iu)?.[1];
+  const arabic = line.match(/(?:لدى\s+|في\s+(?:شركة|مجموعة(?:\s+شركات)?|مؤسسة|هيئة|بنك)\s+|بمجموعة(?:\s+شركات)?\s+|بشركة\s+)(.{2,130}?)(?=\s+[–—|-]|[|،:\n]|$)/u)?.[1];
+  const english = title ? line.match(/\bat\s+([A-Z][\p{L}\p{N} &.'’-]{1,100}?)(?=\s+(?:[–—|-]|in\b)|[|,:\n]|$)/u)?.[1] : null;
+  const hit = arabic || english;
   const name = hit?.trim().replace(/^(?:شركة|مجموعة شركات|مجموعة)\s+/u, "").replace(/[.!؟]+$/u, "");
   return name && !PUBLISHER.test(name) && name.split(/\s+/).length <= 12 ? name : "";
 }
@@ -47,9 +49,9 @@ function resolveEmployer({ source, title, body, structuredEmployer, publisherHin
   const publisherName = role === "SECONDARY_DISCOVERY" ?
     [publisherHint, source?.company, String(title || "").split("|").at(-1)?.trim()].find((value) => value && PUBLISHER.test(value)) || publisherHint || null : null;
   const structured = structuredEmployer && !PUBLISHER.test(structuredEmployer) && normalize(structuredEmployer) !== normalize(publisherName) ? structuredEmployer : "";
-  const explicitlyNamed = namedEmployer(title) || String(body || "").split("\n").slice(0, 25).map(namedEmployer).find(Boolean);
+  const explicitlyNamed = namedEmployer(title, { title: true }) || String(body || "").split("\n").slice(0, 25).map((line) => namedEmployer(line)).find(Boolean);
   const approved = ["OFFICIAL_EMPLOYER", "OFFICIAL_ATS"].includes(role) ? source.company : "";
-  const employerName = (structured || officialEmployer || explicitlyNamed || approved || "").trim() || null;
+  const employerName = (structured || officialEmployer || approved || explicitlyNamed || "").trim() || null;
   return { employerName, publisherName, sourceDomain: host(url), sourceRole: role };
 }
 

@@ -1,5 +1,27 @@
 const Supply = require("../models/AutoApplySupply");
 const { classifierSettings } = require("./autoApplySupplyClassifier");
+const { restoreCanaryEmployer } = require("./autoApplySupply");
+
+const badCanaryNames = /^(?:least 8\s+weeks|the same time,?)$/i;
+const isIdentityRepair = (record, originalCompany) => Boolean(record && originalCompany && !record.publisherName &&
+  ["OFFICIAL_EMPLOYER", "OTHER"].includes(record.sourceRole) && badCanaryNames.test(record.companyName || ""));
+
+async function repairCanaryIdentities(run, { model = Supply, restore = restoreCanaryEmployer } = {}) {
+  const entries = (run.metrics?.reprocess || []).filter((row) => row.action === "updated" &&
+    /^[a-f\d]{24}$/i.test(row.id || "")).slice(0, 4);
+  const repaired = [];
+  for (const entry of entries) {
+    const record = await model.findById(entry.id).select("+history").lean();
+    if (!isIdentityRepair(record, entry.originalCompany)) continue;
+    if (!(record.history || []).some((old) => old.companyName === entry.originalCompany && old.sourceUrl === record.sourceUrl)) {
+      throw new Error("CANARY_IDENTITY_HISTORY_MISMATCH");
+    }
+    const result = await restore(record, entry.originalCompany);
+    if (!result) throw new Error("CANARY_IDENTITY_WRITE_CONFLICT");
+    repaired.push({ restoredCompany: result.companyName, status: result.verificationStatus });
+  }
+  return repaired;
+}
 
 function canaryEnvironment(env, slot) {
   return {
@@ -89,7 +111,8 @@ async function canaryAudit(run) {
     metrics, recordsFound: newRecords.length, counts, samples: newRecords.map(candidateSummary),
     ...(run.canarySlot === 4 ? { reprocessed: (reprocess || []).map(({ id, action, originalCompany }) => {
       const record = records.find((item) => String(item._id) === id);
-      return { action, originalCompany, ...(record ? candidateSummary(record) : {}) };
+      return { action, originalCompany, identityRepairNeeded: isIdentityRepair(record, originalCompany),
+        ...(record ? candidateSummary(record) : {}) };
     }) } : {}) };
 }
 
@@ -98,4 +121,4 @@ function priorCanaryIds(run) {
     .filter((id) => typeof id === "string" && /^[a-f\d]{24}$/i.test(id));
 }
 
-module.exports = { canaryEnvironment, canaryReadiness, canaryAudit, priorCanaryIds };
+module.exports = { canaryEnvironment, canaryReadiness, canaryAudit, priorCanaryIds, repairCanaryIdentities };

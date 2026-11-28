@@ -175,6 +175,19 @@ async function reviseCanarySupply(previous, input, { model = Supply, now = new D
   }
 }
 
+async function restoreCanaryEmployer(previous, employer, { model = Supply, now = new Date() } = {}) {
+  const { dedupeKey, contentHash } = normalizeObservation({ ...previous, companyName: employer, employerName: employer });
+  const { _id, __v, dedupeKey: oldKey, history, classificationAttempt, firstSeenAt, lastSeenAt, ...snapshot } = previous;
+  const updated = await model.findOneAndUpdate({
+    _id, __v, companyName: previous.companyName, contentHash: previous.contentHash,
+  }, {
+    $set: { companyName: employer, employerName: employer, dedupeKey, contentHash },
+    $unset: { "classification.extraction.companyName": "", classificationHash: "" },
+    $push: { history: { ...snapshot, supersededAt: now } }, $inc: { __v: 1 },
+  }, { new: true, runValidators: true, overwriteImmutable: true }).lean();
+  return updated;
+}
+
 async function ingestSupply(input, { model = Supply, now = new Date(), createIfMissing = true, preserveExisting = false } = {}) {
   const normalized = normalizeObservation(input);
   const { dedupeKey } = normalized;
@@ -256,5 +269,5 @@ function findEligibleSupply({ model = Supply, now = new Date(), limit = 100, aft
   return model.find(filter).sort({ _id: 1 }).limit(limit).lean();
 }
 
-module.exports = { ingestSupply, eligibleSupplyFilter, findEligibleSupply, recordSupplyRecheck, reviseCanarySupply,
+module.exports = { ingestSupply, eligibleSupplyFilter, findEligibleSupply, recordSupplyRecheck, reviseCanarySupply, restoreCanaryEmployer,
   supplyDedupeKey: (input) => normalizeObservation(input).dedupeKey };

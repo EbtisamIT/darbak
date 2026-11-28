@@ -6,7 +6,7 @@ const { resolveApplicationChannels, storedCanaryObservation } = require("../serv
 const { classifyByPolicy } = require("../services/autoApplySupplyClassificationPolicy");
 const { reviseCanarySupply } = require("../services/autoApplySupply");
 const { extractPage } = require("../services/autoApplySupplyExtraction");
-const { priorCanaryIds, canaryReadiness } = require("../services/autoApplySupplyCanary");
+const { priorCanaryIds, canaryReadiness, repairCanaryIdentities } = require("../services/autoApplySupplyCanary");
 
 const article = "https://www.wadhaef-sa.com/100.html";
 const title = "تدريب تعاوني في شركة المثال – ينبع | وظائف السعودية";
@@ -23,6 +23,25 @@ test("Arabic secondary authorship is not employer identity; unsupported names st
   assert.equal(resolveEmployer({ source, title: "برنامج التدريب التعاوني بمجموعة شركات جهة التعليم القابضة – الرياض",
     url: article }).employerName, "جهة التعليم القابضة");
   assert.equal(resolveEmployer({ source, title, url: article, structuredEmployer: "Structured Employer" }).employerName, "Structured Employer");
+  assert.equal(resolveEmployer({ url: ats, title: "Cooperative Training", body: "Students train for at least 8 weeks." }).employerName, null);
+  assert.equal(resolveEmployer({ url: ats, title: "Graduate Program", body: "Graduate development and training at the same time." }).employerName, null);
+  assert.equal(resolveEmployer({ url: ats, title: "Cooperative Training at Example Employer", body: "Train for at least 8 weeks." }).employerName, "Example Employer");
+});
+
+test("post-run identity repair restores only the corrupted identities with matching immutable history", async () => {
+  const id = "1".repeat(24), unrelated = "2".repeat(24);
+  const row = { _id: id, sourceRole: "OFFICIAL_EMPLOYER", companyName: "least 8\u00a0weeks", sourceUrl: ats,
+    verificationStatus: "LIKELY", history: [{ companyName: "Example Employer", sourceUrl: ats }] };
+  const run = { metrics: { reprocess: [{ id, originalCompany: "Example Employer", action: "updated" },
+    { id: unrelated, originalCompany: "Publisher", action: "updated" }] } };
+  const found = [];
+  const result = await repairCanaryIdentities(run, {
+    model: { findById: (key) => ({ select: () => ({ lean: async () => key === id ? row :
+      { companyName: "Actual Employer", sourceRole: "SECONDARY_DISCOVERY", publisherName: "Publisher" } }) }) },
+    restore: async (before, name) => { found.push(before._id); return { ...before, companyName: name }; },
+  });
+  assert.deepEqual(result, [{ restoredCompany: "Example Employer", status: "LIKELY" }]);
+  assert.deepEqual(found, [id]);
 });
 
 test("deterministic geography rejects Sweden and preserves unknown and explicit Saudi remote eligibility", () => {

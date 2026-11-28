@@ -2,7 +2,7 @@ const crypto = require("node:crypto");
 const mongoose = require("mongoose");
 const Supply = require("../models/AutoApplySupply");
 const { runAutoApplySupplyDiscovery, mongoRuns } = require("./autoApplySupplyCollector");
-const { canaryEnvironment, canaryReadiness, canaryAudit, priorCanaryIds } = require("./autoApplySupplyCanary");
+const { canaryEnvironment, canaryReadiness, canaryAudit, priorCanaryIds, repairCanaryIdentities } = require("./autoApplySupplyCanary");
 const { classifySupplyBatch, classifierSettings } = require("./autoApplySupplyClassifier");
 
 function validSchedulerToken(header, secret) {
@@ -15,7 +15,7 @@ function validSchedulerToken(header, secret) {
 function mountAutoApplySupplyCollectorRoutes(app, requireAdmin, {
   env = process.env, isConnected = () => mongoose.connection.readyState === 1,
   run = runAutoApplySupplyDiscovery, reports = mongoRuns(),
-  auditCanary = canaryAudit, probeClassifier = classifySupplyBatch,
+  auditCanary = canaryAudit, probeClassifier = classifySupplyBatch, repairIdentities = repairCanaryIdentities,
   getClassification = (id) => Supply.findById(id).select("companyName opportunityTitle sourceType sourceUrl evidenceText emailEvidenceText applicationEvidenceText pageTitle verificationStatus verificationReason classifiedAt classifierVersion classificationHash classification").lean(),
 } = {}) {
   const enabled = (req, res, next) => {
@@ -96,6 +96,18 @@ function mountAutoApplySupplyCollectorRoutes(app, requireAdmin, {
       res.status(status).json(result);
     } catch {
       res.status(503).json({ error: "SUPPLY_CANARY_UNAVAILABLE" });
+    }
+  });
+  app.post("/api/admin/auto-apply-supply/canary/repair-identities", canaryEnabled, requireAdmin, ready, async (_req, res) => {
+    if (env.AUTO_APPLY_REAL_SEND_ENABLED !== "false" || env.AUTO_APPLY_SUPPLY_COLLECTOR_ENABLED === "true") {
+      return res.status(409).json({ error: "CANARY_PREREQUISITES_NOT_MET" });
+    }
+    try {
+      const qualityRun = (await reports.canaries()).find((item) => item.canarySlot === 4 && item.finishedAt);
+      if (!qualityRun) return res.status(409).json({ error: "CANARY_NOT_FINISHED" });
+      res.json({ repaired: await repairIdentities(qualityRun) });
+    } catch {
+      res.status(503).json({ error: "CANARY_REPAIR_UNAVAILABLE" });
     }
   });
   app.get("/api/admin/auto-apply-supply/summary", enabled, requireAdmin, ready, async (_req, res) => {

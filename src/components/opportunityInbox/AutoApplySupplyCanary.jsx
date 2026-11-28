@@ -47,9 +47,21 @@ export default function AutoApplySupplyCanary({ password }) {
     } finally { setBusy(false); }
   }
 
+  async function repairIdentities() {
+    setBusy(true);
+    setError("");
+    try {
+      await axios.post(endpoint + "/repair-identities", {}, auth);
+      await refresh();
+    } catch {
+      setError("تعذر تأكيد تصحيح أسماء الجهات. حدّث التقرير لمراجعة النتيجة.");
+    } finally { setBusy(false); }
+  }
+
   const readiness = report?.readiness;
   const runnable = readiness?.nextSlot && readiness.realSendingOff && readiness.standardCollectorOff &&
     readiness.searchConfigured && readiness.openAiConfigured;
+  const needsRepair = report?.runs?.some((item) => item.reprocessed?.some((row) => row.identityRepairNeeded));
   return <section className="oi-pilot-monitor" aria-label="اختبار توريد Auto Apply">
     <button type="button" disabled={busy} onClick={() => {
       setOpen(!open);
@@ -58,6 +70,7 @@ export default function AutoApplySupplyCanary({ password }) {
     {open && <>
       <div className="oi-actions">
         <button type="button" disabled={busy} onClick={read}>تحديث تقرير التوريد</button>
+        {needsRepair && <button type="button" disabled={busy} onClick={repairIdentities}>تصحيح أسماء الجهات من السجل السابق</button>}
         {runnable && readiness.nextSlot === 3 && <button type="button" disabled={busy || Boolean(diagnostic)} onClick={probe}>تشخيص OpenAI ببيانات اصطناعية</button>}
         {runnable && <button type="button" disabled={busy} onClick={run}>تشغيل اختبار التوريد {readiness.nextSlot}</button>}
       </div>
