@@ -2,7 +2,7 @@ const net = require("node:net");
 const { cleanOpportunityUrl } = require("./opportunityCandidateData");
 
 const TRAINING_LISTING = /\b(?:co[ -]?op|cooperative training|internship|graduate (?:development|training) program|student training|summer training|student program)\b|تدريب تعاوني|التدريب التعاوني|تدريب صيفي|تدريب طلاب|برنامج.{0,18}(?:الطلاب|الطلبة|الخريجين)/i;
-const ATS = /(?:^|\.)(?:greenhouse\.io|lever\.co|smartrecruiters\.com|myworkdayjobs\.com|oraclecloud\.com|successfactors\.(?:com|eu)|teamtailor\.com|taleo\.net|icims\.com|bayt\.com)$/i;
+const ATS = /(?:^|\.)(?:greenhouse\.io|lever\.co|smartrecruiters\.com|myworkdayjobs\.com|oraclecloud\.com|successfactors\.(?:com|eu)|teamtailor\.com|hr\.cloud\.sap|taleo\.net|icims\.com|bayt\.com)$/i;
 const SOCIAL_OR_AGGREGATOR = /(?:^|\.)(?:linkedin\.com|tiktok\.com|facebook\.com|instagram\.com|x\.com|twitter\.com|youtube\.com|indeed\.com|wuzzuf\.net|glassdoor\.com|wadhefa\.com|jobzaty\.com|bayt\.com)$/i;
 const JOB_PATH = /\/(?:careers?|jobs?|job-?detail|job-opportunities|postings?|coop|internships?|student-opportunities|training|recruitment|application-form|apply)(?:[/_.-]|$)/i;
 const SAUDI_HINT = /\b(?:saudi|ksa|riyadh|jeddah|dammam|dhahran|khobar)\b|السعودي|الرياض|جدة|الدمام|الخبر/i;
@@ -37,7 +37,8 @@ function searchPriority(result) {
 function recruitingDetail(value) {
   const url = new URL(value);
   return !SOCIAL_OR_AGGREGATOR.test(url.hostname) &&
-    (JOB_PATH.test(url.pathname) || (ATS.test(url.hostname) && url.pathname.split("/").filter(Boolean).length >= 2));
+    (JOB_PATH.test(url.pathname) || (ATS.test(url.hostname) && (url.pathname.split("/").filter(Boolean).length >= 2 ||
+      /\/jobreqcareer\/?$/i.test(url.pathname) && /^\d+$/.test(url.searchParams.get("jobId") || ""))));
 }
 
 function dynamicSource(value, employer) {

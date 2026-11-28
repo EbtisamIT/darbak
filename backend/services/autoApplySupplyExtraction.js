@@ -5,6 +5,7 @@ const { allowedUrl } = require("./opportunityDiscovery/http");
 const { normalizeEmail } = require("./autoApplyEmailNetwork");
 const { cleanOpportunityUrl } = require("./opportunityCandidateData");
 const { clearlyForeign, publicSearchUrl, relevantSearchResult, recruitingDetail } = require("./autoApplySupplyDynamicSearch");
+const { resolveEmployer, geographyClass } = require("./autoApplySupplyResolution");
 
 const SAUDI = /\b(?:saudi(?: arabia| applicants| arabian)?|KSA|riyadh|jeddah|dammam|dhahran|khobar|makkah)\b|السعودي(?:ة|ين|ون)?|الرياض|جدة|الدمام|الظهران|الخبر|مكة/i;
 const REMOTE = /\b(?:remote(?: work| internship| training| position)?|telecommute|work from home)\b|عن بُ?عد|عن بعد/i;
@@ -104,7 +105,7 @@ function linkedChannels($, root, pageUrl) {
   return { urls, mailLinks };
 }
 
-function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTitle, query, sourceType, diagnostics, allowUnknown }) {
+function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTitle, query, sourceType, diagnostics, allowUnknown, quality }) {
   const skip = (reason) => {
     if (diagnostics) diagnostics[reason] += 1;
     return [];
@@ -115,9 +116,14 @@ function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTit
   const type = programType(title, evidence);
   if (!type) return skip("noProgram");
   const dynamic = source.sourceType === "untrusted_search_page";
-  const companyName = dynamic ? (source.company || cap(job.companyName, 300)) : source.company;
-  if (!companyName || (source.company && !sameCompany(job.companyName, source))) return skip("employerMismatch");
-  if (!location && (!allowUnknown || clearlyForeign(evidence))) return skip("noSaudiEvidence");
+  const identity = quality ? resolveEmployer({ source, title, body, structuredEmployer: job.companyName, url: page.url }) : null;
+  let geo = quality ? geographyClass({ title, evidence: body, countries: job.countries, remote: job.remote }) : null;
+  if (geo === "UNKNOWN" && !dynamic && location && !job.remote && !REMOTE.test(evidence) &&
+    /\/for-saudi-applicants(?:\/|$)/i.test(new URL(page.url).pathname)) geo = "SAUDI";
+  const companyName = identity ? identity.employerName || "unknown" : dynamic ? (source.company || cap(job.companyName, 300)) : source.company;
+  if (!identity && (!companyName || (source.company && !sameCompany(job.companyName, source)))) return skip("employerMismatch");
+  if (quality && !dynamic && job.companyName && !sameCompany(job.companyName, source)) return skip("employerMismatch");
+  if (!quality && !location && (!allowUnknown || clearlyForeign(evidence))) return skip("noSaudiEvidence");
   if (!location && diagnostics) diagnostics.geographyUnknown += 1;
   const sourceUrl = secureUrl(job.sourceUrl || page.url);
   if (!sourceUrl || !allowedUrl(sourceUrl, source)) return skip("outOfScopePosting");
@@ -132,6 +138,8 @@ function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTit
     startDate: dateValue(job.trainingStartDate),
     collectorSource: source.key, searchQuery: query,
     ...location,
+    ...(identity ? { ...identity, geographyStatus: geo, discoverySourceUrl: sourceUrl,
+      ...(["OFFICIAL_EMPLOYER", "OFFICIAL_ATS"].includes(identity.sourceRole) ? { officialApplicationSourceUrl: sourceUrl } : {}) } : {}),
   };
   const portal = secureUrl(job.applicationUrl);
   const applicationLinks = [...urls];
@@ -154,7 +162,7 @@ function opportunityChannels(job, page, source, { body, urls, mailLinks, pageTit
   });
 }
 
-function extractPage(page, source, { jobs, query, diagnostics, allowUnknown = false } = {}) {
+function extractPage(page, source, { jobs, query, diagnostics, allowUnknown = false, quality = false } = {}) {
   const $ = cheerio.load(page.text);
   const pageTitle = cap($("title").first().text(), 500);
   const candidates = jobs?.length ? jobs : structuredJobs(page.text, page.url, source);
@@ -181,7 +189,7 @@ function extractPage(page, source, { jobs, query, diagnostics, allowUnknown = fa
       return opportunityChannels(job, page, source, {
         body: sameDetail && visibleText && !body.includes(visibleText) ? [body, visibleText].filter(Boolean).join("\n") : body,
         urls: sameDetail ? htmlLinks.urls : [], mailLinks: sameDetail ? htmlLinks.mailLinks : [],
-        pageTitle, query, sourceType, diagnostics, allowUnknown,
+        pageTitle, query, sourceType, diagnostics, allowUnknown, quality,
       });
     });
   }
@@ -194,11 +202,11 @@ function extractPage(page, source, { jobs, query, diagnostics, allowUnknown = fa
   const timeField = (itemprop) => content.find(`time[itemprop="${itemprop}"]`).first().attr("datetime");
   return opportunityChannels({
     title, deadline: timeField("validThrough") || labeledDeadline,
-    companyName: source.sourceType === "untrusted_search_page" && !source.company &&
+    companyName: !quality && source.sourceType === "untrusted_search_page" && !source.company &&
       !/^(?:careers?|jobs?|recruitment|home)$/i.test(siteName) ? siteName : "",
     postedAt: timeField("datePosted") || $("meta[property='article:published_time']").attr("content"),
     trainingStartDate: timeField("jobStartDate"),
-  }, page, source, { body: visibleText, ...htmlLinks, pageTitle, query, sourceType, diagnostics, allowUnknown });
+  }, page, source, { body: visibleText, ...htmlLinks, pageTitle, query, sourceType, diagnostics, allowUnknown, quality });
 }
 
 function extractSearchLead(result, source, { allowUnknown = false } = {}) {

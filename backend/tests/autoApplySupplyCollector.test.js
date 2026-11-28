@@ -387,3 +387,30 @@ test("dynamic URL admission accepts only public HTTPS hostnames", () => {
     assert.equal(publicSearchUrl(url), "");
   }
 });
+
+test("quality canary reprocesses the four pinned IDs before discovery and shares the ten-call AI budget", async () => {
+  const f = fixture({ html: "<title>Careers</title>" });
+  const ids = ["1", "2", "3", "4"].map((n) => n.repeat(24));
+  const before = ids.map((_id) => ({ _id, __v: 0, companyName: source.company,
+    opportunityTitle: "Cooperative Training", channelType: "EMAIL", destinationEmail: "training@example.org",
+    sourceUrl: source.sourceUrl, sourceType: "official_careers_page", evidenceText: "Cooperative Training in Saudi Arabia",
+    verificationStatus: "LIKELY", contentHash: "prior", isActive: true }));
+  const order = [];
+  const report = await f.collect({
+    trigger: "canary", canarySlot: 4, retryCandidateIds: ids, env: canaryEnvironment(f.settings.env, 4),
+    loadCanaryRecords: async (requested) => { assert.deepEqual(requested, ids); return before; },
+    revise: async (row) => { order.push(row._id); return { action: "updated", record: row }; },
+    classifyBatch: async ({ candidateIds, metrics, env }) => {
+      assert.equal(env.AUTO_APPLY_SUPPLY_MAX_AI_CLASSIFICATIONS_PER_RUN, "10");
+      order.push("AI");
+      if (candidateIds.length) { assert.deepEqual(candidateIds, ids); metrics.aiCalls += 4; metrics.successfulClassifications += 4; }
+      else assert.equal(metrics.aiCalls, 4);
+    },
+    searchProvider: { async search() { order.push("search"); return []; } },
+  });
+  assert.equal(report.status, "completed");
+  assert.deepEqual(order.slice(0, 6), [...ids, "AI", "search"]);
+  assert.equal(report.reprocessWork.aiSucceeded, 4);
+  assert.equal(report.reprocess.length, 4);
+  assert.equal(report.queries, 8);
+});

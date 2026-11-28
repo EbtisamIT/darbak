@@ -6,6 +6,13 @@ const date = { type: Date, default: null };
 
 const observation = {
   companyName: { type: String, required: true },
+  employerName: { type: String, default: undefined },
+  publisherName: { type: String, default: undefined },
+  sourceDomain: String,
+  sourceRole: { type: String, enum: ["OFFICIAL_EMPLOYER", "OFFICIAL_ATS", "SECONDARY_DISCOVERY", "OTHER"] },
+  geographyStatus: { type: String, enum: ["SAUDI", "REMOTE_SAUDI_ELIGIBLE", "UNKNOWN", "NON_SAUDI"] },
+  discoverySourceUrl: String,
+  officialApplicationSourceUrl: String,
   companyId: { type: mongoose.Schema.Types.ObjectId, ref: "companies", default: null },
   companyLogo: String,
   opportunityId: String,

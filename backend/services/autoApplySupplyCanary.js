@@ -5,7 +5,7 @@ function canaryEnvironment(env, slot) {
   return {
     ...env,
     AUTO_APPLY_SUPPLY_MAX_QUERIES_PER_RUN: "8",
-    AUTO_APPLY_SUPPLY_MAX_PAGES_PER_RUN: slot === 3 ? "20" : "16",
+    AUTO_APPLY_SUPPLY_MAX_PAGES_PER_RUN: slot >= 3 ? "20" : "16",
     AUTO_APPLY_SUPPLY_MAX_NEW_CANDIDATES_PER_RUN: "25",
     AUTO_APPLY_SUPPLY_MAX_AI_CLASSIFICATIONS_PER_RUN: "10",
     AUTO_APPLY_SUPPLY_AI_ENABLED: "true",
@@ -22,6 +22,8 @@ function canaryReadiness(env, runs) {
   const initial = runs.find((item) => item.canarySlot === 1);
   const retried = runs.some((item) => item.canarySlot === 2);
   const followup = runs.some((item) => item.canarySlot === 3);
+  const quality = runs.some((item) => item.canarySlot === 4);
+  const previous = runs.find((item) => item.canarySlot === 3);
   const retryable = initial?.finishedAt && initial.metrics?.resultsFound > 0 && initial.metrics?.uniqueCandidates === 0;
   let nextSlot = null;
   if (!initial && !retried) nextSlot = 1;
@@ -29,6 +31,9 @@ function canaryReadiness(env, runs) {
   if (!followup && initial?.finishedAt && initial.metrics?.ai?.failedClassifications > 0 &&
     initial.metrics?.created === 1 && !runs.some((item) => !item.finishedAt)) nextSlot = 3;
   if (followup) nextSlot = null;
+  if (!quality && previous?.finishedAt && priorCanaryIds(previous).length === 4 &&
+    !runs.some((item) => !item.finishedAt)) nextSlot = 4;
+  if (quality) nextSlot = null;
   return {
     canaryEnabled: env.AUTO_APPLY_SUPPLY_CANARY_ENABLED === "true",
     realSendingOff: env.AUTO_APPLY_REAL_SEND_ENABLED === "false",
@@ -45,6 +50,13 @@ function candidateSummary(record) {
   const references = classification.evidenceReferences || [];
   return {
     company: record.companyName,
+    employerName: record.employerName,
+    publisherName: record.publisherName,
+    sourceDomain: record.sourceDomain,
+    sourceRole: record.sourceRole,
+    geography: record.geographyStatus,
+    discoverySourceUrl: record.discoverySourceUrl,
+    officialApplicationSourceUrl: record.officialApplicationSourceUrl,
     opportunity: record.opportunityTitle,
     channelType: record.channelType,
     destination: record.destinationEmail || record.applicationUrl,
@@ -66,13 +78,24 @@ function candidateSummary(record) {
 async function canaryAudit(run) {
   const ids = [...new Set([...(run.metrics?.candidateIds || []), ...(run.metrics?.retryCandidateIds || [])])];
   const records = ids.length ? await Supply.find({ _id: { $in: ids } })
-    .select("companyName opportunityTitle channelType destinationEmail applicationUrl sourceUrl verificationStatus verificationReason cities majors fields deadline classification")
-    .limit(26).lean() : [];
+    .select("companyName employerName publisherName sourceDomain sourceRole geographyStatus discoverySourceUrl officialApplicationSourceUrl opportunityTitle channelType destinationEmail applicationUrl sourceUrl verificationStatus verificationReason cities majors fields deadline classification")
+    .limit(29).lean() : [];
+  const newIds = new Set(run.metrics?.candidateIds || []);
+  const newRecords = run.canarySlot === 4 ? records.filter((item) => newIds.has(String(item._id))) : records;
   const counts = Object.fromEntries(Supply.verificationStatuses.map((status) => [status, 0]));
-  for (const record of records) counts[record.verificationStatus] += 1;
-  const { candidateIds, retryCandidateIds, ...metrics } = run.metrics || {};
+  for (const record of newRecords) counts[record.verificationStatus] += 1;
+  const { candidateIds, retryCandidateIds, reprocess, ...metrics } = run.metrics || {};
   return { slot: run.canarySlot, status: run.status, startedAt: run.startedAt, finishedAt: run.finishedAt,
-    metrics, recordsFound: records.length, counts, samples: records.map(candidateSummary) };
+    metrics, recordsFound: newRecords.length, counts, samples: newRecords.map(candidateSummary),
+    ...(run.canarySlot === 4 ? { reprocessed: (reprocess || []).map(({ id, action, originalCompany }) => {
+      const record = records.find((item) => String(item._id) === id);
+      return { action, originalCompany, ...(record ? candidateSummary(record) : {}) };
+    }) } : {}) };
 }
 
-module.exports = { canaryEnvironment, canaryReadiness, canaryAudit };
+function priorCanaryIds(run) {
+  return [...new Set([...(run?.metrics?.candidateIds || []), ...(run?.metrics?.retryCandidateIds || [])])]
+    .filter((id) => typeof id === "string" && /^[a-f\d]{24}$/i.test(id));
+}
+
+module.exports = { canaryEnvironment, canaryReadiness, canaryAudit, priorCanaryIds };

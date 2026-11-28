@@ -2,7 +2,7 @@ const crypto = require("node:crypto");
 const mongoose = require("mongoose");
 const Supply = require("../models/AutoApplySupply");
 const { runAutoApplySupplyDiscovery, mongoRuns } = require("./autoApplySupplyCollector");
-const { canaryEnvironment, canaryReadiness, canaryAudit } = require("./autoApplySupplyCanary");
+const { canaryEnvironment, canaryReadiness, canaryAudit, priorCanaryIds } = require("./autoApplySupplyCanary");
 const { classifySupplyBatch, classifierSettings } = require("./autoApplySupplyClassifier");
 
 function validSchedulerToken(header, secret) {
@@ -89,7 +89,8 @@ function mountAutoApplySupplyCollectorRoutes(app, requireAdmin, {
         return res.status(409).json({ error: "CANARY_PREREQUISITES_NOT_MET" });
       }
       if (!state.nextSlot) return res.status(409).json({ error: "CANARY_SLOT_UNAVAILABLE" });
-      const retryCandidateIds = state.nextSlot === 3 ? (records.find((item) => item.canarySlot === 1)?.metrics?.candidateIds || []).slice(0, 1) : [];
+      const retryCandidateIds = state.nextSlot === 4 ? priorCanaryIds(records.find((item) => item.canarySlot === 3)) :
+        state.nextSlot === 3 ? (records.find((item) => item.canarySlot === 1)?.metrics?.candidateIds || []).slice(0, 1) : [];
       const result = await run({ trigger: "canary", canarySlot: state.nextSlot, env: canaryEnvironment(env, state.nextSlot), retryCandidateIds });
       const status = result.status === "already_running" ? 409 : result.status === "failed" ? 502 : 200;
       res.status(status).json(result);

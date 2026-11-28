@@ -88,6 +88,13 @@ function trainingEmailEvidence(record, title) {
 }
 
 function explicitPortalEvidence(record) {
+  if (record.channelType === "COMPANY_PORTAL") {
+    const url = secureUrl(record.applicationUrl);
+    if (!url) return null;
+    const target = new URL(url);
+    if (/^\/(?:(?:ar|en)\/)?(?:careers?|jobs?|apply|opportunities)?\/?$/i.test(target.pathname) &&
+      !["jobId", "jobID", "job_id", "gh_jid", "reqId", "requisitionId"].some((key) => target.searchParams.get(key))) return null;
+  }
   const quote = record.applicationEvidenceText?.trim();
   if (quote && APPLICATION_ACTION.test(quote) && !NEGATIVE.test(quote) &&
     !/privacy|policy|faq|سياسة|استفسار/i.test(quote)) {
@@ -173,7 +180,8 @@ function classifyByPolicy(record, ai, now = new Date()) {
   if (trainingProof && typeof trainingProof === "object") references.push({ field: "isTrainingRelevant", value: "true", ...trainingProof });
 
   let outcome;
-  if (effectiveDeadline && effectiveDeadline <= now) outcome = decision("EXPIRED", "DEADLINE_PASSED", "An explicit closing or expiry date has passed.");
+  if (record.geographyStatus === "NON_SAUDI") outcome = decision("REJECTED", "UNSUPPORTED_GEOGRAPHY", "The stated training location is outside Saudi Arabia.");
+  else if (effectiveDeadline && effectiveDeadline <= now) outcome = decision("EXPIRED", "DEADLINE_PASSED", "An explicit closing or expiry date has passed.");
   else if (!validChannel) outcome = decision("REJECTED", "INVALID_CHANNEL", "The application channel is missing, unsupported, or invalid.");
   else if (foreignLocation && !localLocation && !remoteAllowed) outcome = decision("REJECTED", "UNSUPPORTED_GEOGRAPHY", "The stated training location is outside Saudi Arabia.");
   else if (ROLE_CONFLICT.test(title) && !type) outcome = decision("REJECTED", "NON_TRAINING_ROLE", "The listing describes a hiring or training-staff role.");
@@ -181,11 +189,14 @@ function classifyByPolicy(record, ai, now = new Date()) {
     outcome = decision("REJECTED", "NON_TRAINING_ROLE", "The evidence describes employment without a training program.");
   } else if (CLOSED.test(sourceEvidence)) outcome = decision("NEEDS_REVIEW", "CLOSE_SIGNAL_WITHOUT_DATE", "The source mentions a closure without an unambiguous past deadline.");
   else if (mentionedRemote && !remoteAllowed) outcome = decision("NEEDS_REVIEW", "REMOTE_SAUDI_UNCONFIRMED", "The remote program does not explicitly accept applicants in Saudi Arabia.");
-  else if (!type || !geo || ai?.isTrainingRelevant !== true || statedDeadlines.length > 1 ||
+  else if (record.employerName === null || record.companyName === "unknown") outcome = decision("NEEDS_REVIEW", "EMPLOYER_UNRESOLVED", "The employer has not been established.");
+  else if (!type || (!geo && record.geographyStatus !== "SAUDI") || record.geographyStatus === "UNKNOWN" ||
+    ai?.isTrainingRelevant !== true || statedDeadlines.length > 1 ||
     (deadlineClauses.length > 0 && !effectiveDeadline) || (foreignLocation && localLocation) ||
     ai.evidenceStrength === "conflicting" || ai.channelAssessment === "conflicting") {
     outcome = decision("NEEDS_REVIEW", "AMBIGUOUS_EVIDENCE", "Training relevance, Saudi coverage, or dates need review.");
-  } else if (!sourceUrl || !OFFICIAL.has(record.sourceType) || !record.collectorSource || !channelProof) {
+  } else if (!sourceUrl || !OFFICIAL.has(record.sourceType) || !record.collectorSource || !channelProof ||
+    ["SECONDARY_DISCOVERY", "OTHER"].includes(record.sourceRole)) {
     outcome = decision("LIKELY", "APPLICATION_EVIDENCE_INCOMPLETE", "Training evidence is present, but the source or exact application channel is not verified.");
   } else {
     outcome = decision("VERIFIED", record.channelType === "EMAIL" ? "EXPLICIT_TRAINING_EMAIL" : "EXPLICIT_APPLICATION_CHANNEL",

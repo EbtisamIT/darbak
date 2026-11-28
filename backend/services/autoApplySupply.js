@@ -104,6 +104,9 @@ function normalizeObservation(input) {
     pageTitle: string(input.pageTitle, 500), emailEvidenceText: string(input.emailEvidenceText, 1500),
     applicationEvidenceText: string(input.applicationEvidenceText, 1500), collectorSource: string(input.collectorSource),
     evidencePublishedAt: optionalDate(input.evidencePublishedAt), expiresAt: optionalDate(input.expiresAt),
+    ...Object.fromEntries(["employerName", "publisherName", "sourceDomain", "sourceRole", "geographyStatus"].filter((key) =>
+      input[key] !== undefined).map((key) => [key, input[key] == null ? null : string(input[key])])),
+    ...Object.fromEntries(["discoverySourceUrl", "officialApplicationSourceUrl"].filter((key) => input[key]).map((key) => [key, webUrl(input[key])])),
   };
   return { content, contentHash: hash(content), dedupeKey: hash(identity) };
 }
@@ -112,9 +115,10 @@ function resolveObservation(input, normalized, previous, now) {
   const { content, contentHash } = normalized;
   const sameContent = previous?.contentHash === contentHash;
   const unchangedVerification = previous && (sameContent || (previous.verificationStatus === "REJECTED" && !previous.classificationHash));
-  const status = input.verificationStatus ?? (unchangedVerification ? previous.verificationStatus : "NEEDS_REVIEW");
+  const isForeign = content.geographyStatus === "NON_SAUDI";
+  const status = isForeign ? "REJECTED" : input.verificationStatus ?? (unchangedVerification ? previous.verificationStatus : "NEEDS_REVIEW");
   if (!verificationStatuses.includes(status)) throw new Error("Invalid supply verification status");
-  const verificationReason = input.verificationReason == null && unchangedVerification
+  const verificationReason = isForeign ? "The stated training location is outside Saudi Arabia." : input.verificationReason == null && unchangedVerification
     ? previous.verificationReason : string(input.verificationReason, 1000);
   const confidence = input.confidence === undefined && unchangedVerification ? previous.confidence : input.confidence ?? null;
   if (confidence != null && (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1)) {
@@ -132,7 +136,7 @@ function resolveObservation(input, normalized, previous, now) {
   }
 
   const classifiedDeadline = sameContent ? previous.classification?.effectiveDeadline : null;
-  const expired = status === "EXPIRED" || [content.expiresAt, content.deadline, classifiedDeadline].some((value) => value && value <= now);
+  const expired = !isForeign && (status === "EXPIRED" || [content.expiresAt, content.deadline, classifiedDeadline].some((value) => value && value <= now));
   const wasClosedByStatus = ["EXPIRED", "REJECTED"].includes(previous?.verificationStatus);
   const activeDefault = wasClosedByStatus ? true : previous?.isActive ?? true;
   const isActive = !expired && status !== "REJECTED" && (optionalBoolean(input.isActive) ?? activeDefault);
@@ -144,6 +148,31 @@ function resolveObservation(input, normalized, previous, now) {
     verificationReason: expired && status !== "EXPIRED" ? "Validity period ended" : verificationReason,
     lastCheckedAt: lastCheckedAt && (!previousCheck || lastCheckedAt > previousCheck) ? lastCheckedAt : previousCheck,
   };
+}
+
+// The canary reconciles only its recorded IDs. Keep the same record ID and
+// admission timestamps, move the unique identity atomically, and keep evidence history.
+async function reviseCanarySupply(previous, input, { model = Supply, now = new Date() } = {}) {
+  if (!previous?._id || !["LIKELY", "NEEDS_REVIEW"].includes(previous.verificationStatus)) return { action: "skipped", record: previous };
+  const normalized = normalizeObservation(input);
+  const next = resolveObservation({ ...input, verificationStatus: "NEEDS_REVIEW", isActive: true }, normalized, previous, now);
+  if (input.searchQuery) next.searchQuery = string(input.searchQuery, 600);
+  const history = Object.fromEntries(Object.keys(model.schema?.paths || Supply.schema.paths)
+    .filter((key) => !["_id", "__v", "dedupeKey", "firstSeenAt", "lastSeenAt", "history"].includes(key) && !key.startsWith("classificationAttempt"))
+    .map((key) => [key, previous[key]]).filter(([, value]) => value !== undefined));
+  try {
+    const record = await model.findOneAndUpdate({
+      _id: previous._id, __v: previous.__v, contentHash: previous.contentHash, verificationStatus: previous.verificationStatus,
+    }, {
+      $set: { ...next, dedupeKey: normalized.dedupeKey },
+      $unset: { classification: "", classificationAttempt: "", classificationHash: "", classifiedAt: "", classifierVersion: "" },
+      $push: { history: { ...history, supersededAt: now } }, $inc: { __v: 1 },
+    }, { new: true, runValidators: true, overwriteImmutable: true }).lean();
+    return { action: record ? "updated" : "conflict", record };
+  } catch (error) {
+    if (error.code === 11000) return { action: "duplicate_identity", record: null };
+    throw error;
+  }
 }
 
 async function ingestSupply(input, { model = Supply, now = new Date(), createIfMissing = true, preserveExisting = false } = {}) {
@@ -227,5 +256,5 @@ function findEligibleSupply({ model = Supply, now = new Date(), limit = 100, aft
   return model.find(filter).sort({ _id: 1 }).limit(limit).lean();
 }
 
-module.exports = { ingestSupply, eligibleSupplyFilter, findEligibleSupply, recordSupplyRecheck,
+module.exports = { ingestSupply, eligibleSupplyFilter, findEligibleSupply, recordSupplyRecheck, reviseCanarySupply,
   supplyDedupeKey: (input) => normalizeObservation(input).dedupeKey };

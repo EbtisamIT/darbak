@@ -2,7 +2,7 @@ const Supply = require("../models/AutoApplySupply");
 const Run = require("../models/AutoApplySupplyRun");
 const EmailChannel = require("../models/AutoApplyEmailChannel");
 const Opportunity = require("../models/Opportunity");
-const { ingestSupply, recordSupplyRecheck, supplyDedupeKey } = require("./autoApplySupply");
+const { ingestSupply, recordSupplyRecheck, reviseCanarySupply, supplyDedupeKey } = require("./autoApplySupply");
 const { classifySupplyBatch, classifierSettings, classificationHash, emptyAiMetrics } = require("./autoApplySupplyClassifier");
 const { legacyEmailObservation } = require("./legacyAutoApplySupply");
 const { settings, discoveryPlan } = require("./autoApplySupplyCollectorConfig");
@@ -14,6 +14,9 @@ const { htmlLinks, strategyFor } = require("./opportunityDiscovery/strategies");
 const { searchOpportunityUrls, configuredSearchProvider } = require("./opportunityDiscovery/search");
 const { normalizeCompanyComparable } = require("./companyDirectorySeeds");
 const { publicSearchUrl, relevantSearchResult, searchPriority, dynamicSource } = require("./autoApplySupplyDynamicSearch");
+const { resolveApplicationChannels, storedCanaryObservation } = require("./autoApplySupplyChannelFollowup");
+const { resolveEmployer, geographyClass } = require("./autoApplySupplyResolution");
+const { classifyByPolicy } = require("./autoApplySupplyClassificationPolicy");
 
 const RUN_LOCK = "auto-apply-supply";
 const RUN_BUDGET_MS = 150000;
@@ -45,8 +48,8 @@ function mongoRuns(model = Run) {
     },
     latest: () => model.findOne({ trigger: { $in: ["scheduler", "admin", "cli"] } })
       .sort({ startedAt: -1 }).select("trigger status startedAt finishedAt metrics").lean(),
-    canaries: () => model.find({ trigger: "canary", canarySlot: { $in: [1, 2, 3] } })
-      .sort({ canarySlot: 1 }).select("canarySlot status startedAt finishedAt metrics").limit(3).lean(),
+    canaries: () => model.find({ trigger: "canary", canarySlot: { $in: [1, 2, 3, 4] } })
+      .sort({ canarySlot: 1 }).select("canarySlot status startedAt finishedAt metrics").limit(4).lean(),
   };
 }
 
@@ -123,15 +126,17 @@ async function runAutoApplySupplyDiscovery({
   runs = mongoRuns(), registry = preview ? async () => SOURCES : () => registrySources({ activeOnly: true }),
   readSource = createReader, searchProvider, ingest = ingestSupply, listRechecks = existingSupply,
   recheck = recordSupplyRecheck, listDarbak = existingDarbak, classifyBatch = classifySupplyBatch, canarySlot, retryCandidateIds = [],
+  revise = reviseCanarySupply, loadCanaryRecords = (ids) => Supply.find({ _id: { $in: ids } }).limit(4).lean(),
 } = {}) {
   const startedAt = clock();
   const config = settings(env);
   const aiSettings = classifierSettings(env);
   const isCanary = trigger === "canary";
-  const dynamic = (isCanary && canarySlot === 3) || env.AUTO_APPLY_SUPPLY_DYNAMIC_DISCOVERY === "true";
-  const end = +startedAt + RUN_BUDGET_MS;
-  const discoveryEnd = isCanary ? +startedAt + 90000 : end;
-  if (isCanary && ![1, 2, 3].includes(canarySlot)) throw new Error("CANARY_SLOT_REQUIRED");
+  const quality = isCanary && canarySlot === 4;
+  const dynamic = (isCanary && [3, 4].includes(canarySlot)) || env.AUTO_APPLY_SUPPLY_DYNAMIC_DISCOVERY === "true";
+  const end = +startedAt + (quality ? 180000 : RUN_BUDGET_MS);
+  let discoveryEnd = isCanary ? +startedAt + 90000 : end;
+  if (isCanary && ![1, 2, 3, 4].includes(canarySlot)) throw new Error("CANARY_SLOT_REQUIRED");
   const run = preview ? null : await runs.acquire(trigger, startedAt, canarySlot);
   if (!preview && !run) return { status: "already_running" };
   const metrics = { queries: 0, resultsFound: 0, pages: 0, uniqueCandidates: 0, created: 0, updated: 0,
@@ -142,7 +147,10 @@ async function runAutoApplySupplyDiscovery({
       trainingPages: 0, snippetOnlyLeads: 0, geographyUnknown: 0,
       processedPages: 0, noProgram: 0, noSaudiEvidence: 0, employerMismatch: 0,
       outOfScopePosting: 0, relevantPrograms: 0, noChannel: 0, pageChannels: 0, ingestionFailures: 0 },
-    ...(isCanary ? { candidateIds: [], ...(canarySlot === 3 ? { retryCandidateIds } : {}) } : {}) };
+    ...(isCanary ? { candidateIds: [], ...([3, 4].includes(canarySlot) ? { retryCandidateIds } : {}) } : {}),
+    ...(quality ? { reprocess: [], reprocessWork: { followupLinks: 0, officialDestinations: 0 }, quality: { directPages: 0, directChannels: 0, followupPages: 0,
+      followupLinks: 0, officialDestinations: 0, employersResolved: 0, employersUnresolved: 0,
+      publisherMismatchesCorrected: 0, SAUDI: 0, REMOTE_SAUDI_ELIGIBLE: 0, UNKNOWN: 0, NON_SAUDI: 0 } } : {}) };
   const seen = new Set(), readers = new Map(), pages = new Map();
   let status = "completed", discoveredNew = 0;
   function timeRemaining() { return clock().getTime() < end; }
@@ -157,6 +165,11 @@ async function runAutoApplySupplyDiscovery({
     if (seen.has(key)) { metrics.duplicates += 1; return; }
     seen.add(key);
     metrics.uniqueCandidates += 1;
+    if (quality) {
+      metrics.quality[candidate.employerName ? "employersResolved" : "employersUnresolved"] += 1;
+      if (candidate.publisherName && candidate.employerName) metrics.quality.publisherMismatchesCorrected += 1;
+      metrics.quality[candidate.geographyStatus || "UNKNOWN"] += 1;
+    }
     if (preview) {
       metrics.needsReview += Number(candidate.verificationStatus !== "VERIFIED");
       return;
@@ -219,7 +232,7 @@ async function runAutoApplySupplyDiscovery({
 
   const fetched = new Set();
   const withChannels = new Set();
-  async function inspect(source, reference, query) {
+  async function inspect(source, reference, query, sources) {
     const key = source.key + " " + reference.url;
     if (fetched.has(key)) return [];
     fetched.add(key);
@@ -229,20 +242,84 @@ async function runAutoApplySupplyDiscovery({
     if (!result.page) return [];
     metrics.stages.processedPages += 1;
     const beforePrograms = metrics.stages.relevantPrograms;
-    const candidates = extractPage(result.page, source, { jobs: result.jobs, query, diagnostics: metrics.stages, allowUnknown: dynamic });
-    if (metrics.stages.relevantPrograms > beforePrograms) metrics.stages.trainingPages += 1;
+    let candidates = extractPage(result.page, source, { jobs: result.jobs, query, diagnostics: metrics.stages, allowUnknown: dynamic, quality });
+    const relevant = metrics.stages.relevantPrograms > beforePrograms;
+    if (relevant) metrics.stages.trainingPages += 1;
+    if (quality && relevant) {
+      const direct = candidates.filter((candidate) => classifyByPolicy(candidate, null, clock()).extraction.channelAssessment === "explicit_application");
+      if (direct.length) {
+        metrics.quality.directPages += 1;
+        metrics.quality.directChannels += direct.length;
+      }
+      const lead = candidates[0];
+      if ((!direct.length || lead.sourceRole === "SECONDARY_DISCOVERY") && lead?.geographyStatus !== "NON_SAUDI") {
+        metrics.quality.followupPages += 1;
+        const followed = await follow({ html: result.page.text, anchorUrl: result.page.url,
+          anchorTitle: lead?.opportunityTitle || result.jobs[0]?.title, employer: lead?.employerName,
+          publisherName: lead?.publisherName, candidates, sources });
+        const official = followed.filter((row) => row.officialApplicationSourceUrl);
+        metrics.quality.officialDestinations += new Set(official.map((row) => row.officialApplicationSourceUrl)).size;
+        if (official.length) {
+          const keys = new Set(official.map(supplyDedupeKey));
+          candidates = [...official, ...candidates.filter((row) => !keys.has(supplyDedupeKey(row)))];
+        } else if (!candidates.length) candidates = followed;
+      }
+    }
     metrics.stages.pageChannels += candidates.length;
     if (candidates.length) {
       withChannels.add(publicSearchUrl(reference.url));
       withChannels.add(publicSearchUrl(result.page.url));
     }
     await saveAll(candidates.map((candidate) => ({ ...candidate, lastCheckedAt: clock() })));
-    return /json/i.test(result.page.headers?.["content-type"] || "") ? [] :
+    return (quality && relevant) || /json/i.test(result.page.headers?.["content-type"] || "") ? [] :
       htmlLinks(result.page.text, result.page.url).filter((entry) => allowedUrl(entry.url, source)).slice(0, 3);
+  }
+
+  function follow(input, counters = metrics.quality) {
+    return resolveApplicationChannels({ ...input,
+      read: (source, url) => readerFor(source).read(url),
+      canAttempt: () => discoveryTimeRemaining() && metrics.pages < config.maxPages,
+      onAttempt: () => { counters.followupLinks += 1; },
+      onError: (error) => safeError("followup", error, metrics),
+    });
   }
 
   try {
     const { sources, queries } = discoveryPlan(config, await registry(), startedAt);
+    if (quality && !preview) {
+      const priorRows = await loadCanaryRecords(retryCandidateIds);
+      if (retryCandidateIds.length !== 4 || priorRows.length !== 4 ||
+        priorRows.some((row) => !retryCandidateIds.includes(String(row._id)))) throw new Error("CANARY_PRIOR_RECORDS_MISMATCH");
+      for (const row of priorRows) {
+        try {
+          let input = storedCanaryObservation(row, sources);
+          if (input.sourceRole === "SECONDARY_DISCOVERY" && input.geographyStatus !== "NON_SAUDI" && input.employerName) {
+            const resolved = await follow({ anchorUrl: row.sourceUrl, anchorTitle: row.opportunityTitle, employer: input.employerName,
+              publisherName: input.publisherName, candidates: [input], sources }, metrics.reprocessWork);
+            const exact = resolved.find((item) => item.officialApplicationSourceUrl &&
+              item.channelType === input.channelType && item.applicationUrl === input.applicationUrl);
+            if (exact) {
+              input = { ...input, ...exact };
+              metrics.reprocessWork.officialDestinations += 1;
+            }
+          }
+          await canWrite();
+          const result = await revise(row, input, { now: clock() });
+          metrics.reprocess.push({ id: String(row._id), originalCompany: row.companyName, action: result.action });
+        } catch (error) { safeError("reprocess", error, metrics); }
+      }
+      if (aiSettings.enabled && timeRemaining()) {
+        try {
+          await classifyBatch({ env, clock, metrics: metrics.ai, canContinue: timeRemaining,
+            candidateIds: metrics.reprocess.filter((item) => item.action === "updated").map((item) => item.id),
+            remainingMs: () => end - +clock(), beforeWrite: canWrite });
+        } catch { safeError("reprocess_classification", null, metrics); }
+      }
+      metrics.reprocessWork.aiCalls = metrics.ai.aiCalls;
+      metrics.reprocessWork.aiSucceeded = metrics.ai.successfulClassifications;
+      metrics.reprocessWork.pages = metrics.pages;
+      discoveryEnd = Math.min(end - 35000, +clock() + 90000);
+    }
     if (!preview && !isCanary && config.maxRechecks) {
       const rows = await listRechecks(config.maxRechecks, startedAt, sources.map((source) => source.key));
       for (const row of rows) {
@@ -327,7 +404,7 @@ async function runAutoApplySupplyDiscovery({
           const list = await strategy.discoverJobs(item.source, readerFor(item.source));
           queue.splice(index + 1, 0, ...list.urls.slice(0, 2).map((reference) => ({ source: item.source, reference })));
         } else {
-          const links = await inspect(item.source, item.reference, item.query);
+          const links = await inspect(item.source, item.reference, item.query, sources);
           if (item.seed && links.length) queue.splice(index + 1, 0, { source: item.source, reference: links[0] });
         }
       } catch (error) { safeError("page", error, metrics); }
@@ -341,14 +418,25 @@ async function runAutoApplySupplyDiscovery({
       }
     }
     for (const { result, employer } of snippetResults) {
-      if (!withChannels.has(result.url)) leads.push(...extractSearchLead(result, employer, { allowUnknown: true }));
+      if (withChannels.has(result.url)) continue;
+      let observations = extractSearchLead(result, employer, { allowUnknown: true });
+      if (quality) {
+        const identity = resolveEmployer({ source: dynamicSource(result.url, employer), title: result.title,
+          body: result.description, url: result.url });
+        observations = observations.map((candidate) => ({ ...candidate, ...identity, companyName: identity.employerName || "unknown",
+          geographyStatus: geographyClass({ title: result.title, evidence: result.description }), discoverySourceUrl: result.url }));
+      }
+      leads.push(...observations);
     }
     if (dynamic) metrics.stages.snippetOnlyLeads = leads.length;
     await saveAll(leads, { weak: true });
     if (!preview && aiSettings.enabled && timeRemaining()) {
       try {
         await classifyBatch({ env, clock, metrics: metrics.ai, canContinue: timeRemaining,
-          ...(isCanary ? { candidateIds: [...new Set([...retryCandidateIds, ...metrics.candidateIds])], retryCandidateIds } : {}),
+          ...(isCanary ? {
+            candidateIds: quality ? metrics.candidateIds : [...new Set([...retryCandidateIds, ...metrics.candidateIds])],
+            retryCandidateIds: quality ? [] : retryCandidateIds,
+          } : {}),
           remainingMs: () => end - +clock(), beforeWrite: canWrite });
       } catch {
         safeError("classification", null, metrics);
